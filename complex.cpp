@@ -2120,6 +2120,7 @@ EX namespace heat {
         if(c->monst == moDraugr) hmod -= .75 * xrate;
         if(c->monst == moWaterElemental) hmod -= xrate;
         if(c->monst == moAirElemental) hmod -= .4 * xrate;
+        if(c->monst == moWinterElemental) hmod -= 1.2 * xrate;
         if(isFire(c)) hmod += 4 * xrate;
         if(isPrincess(c->monst)) hmod += (markEmpathy(itOrbWinter) ? -1.2 : 1.2) * xrate;
         
@@ -2319,7 +2320,97 @@ EX }
 bool gardener = false;
 
 bool lifebrought = false; // was Life brought to the Dead Caves?
+EX void doLightningNextTurn() {
+  vector<cell*>& allcells = currentmap->allcells();
+  int dcs = isize(allcells);
+  
+  int gr = gamerange();
+  bool zap = false;
+  for(int i=0; i<dcs; i++) {
+    cell *c2 = allcells[i];
+    if(!doall && c2->cpdist > gr+1) break;
+    if(c2->weakligon) {
+      c2->ligon = true;
+      c2->weakligon = 0;
 
+      killAdjacentSharks(c2);
+      
+      changes.ccell(c2);
+
+      eWall ow = c2->wall;
+
+      flashAlchemist(c2);
+      if(c2->monst == moMetalBeast2 && !c2->item) c2->item = itFulgurite;
+      if(c2->monst) 
+        if(canAttack(nullptr, moPlayer, c2, c2->monst, AF_MAGIC))
+          attackMonster(c2, AF_MAGIC, moLightningBolt);
+      if(isIcyLand(c2)) HEAT(c2) += 2;
+      if(c2->land == laDryForest) c2->landparam += 2;
+      
+      if(c2->wall == waExplosiveBarrel) explodeBarrel(c2);
+      if(c2->wall == waCavewall)  c2->wall = waCavefloor;
+      if(c2->wall == waDeadTroll) c2->wall = waCavefloor;
+      if(c2->wall == waDeadTroll2)c2->wall = waNone;
+      if(c2->wall == waPetrified) c2->wall = waNone;
+      if(c2->wall == waDeadfloor2)c2->wall = waDeadfloor;
+      if(c2->wall == waRubble)    c2->wall = waNone;
+      if(c2->wall == waDeadwall)  c2->wall = waDeadfloor2;
+      if(c2->wall == waGlass)     c2->wall = waNone;
+      if(c2->wall == waDune)      c2->wall = waNone;
+      if(c2->wall == waRuinWall)  c2->wall = waNone;
+      if(c2->wall == waIcewall)   c2->wall = waNone;
+      if(c2->wall == waAncientGrave) c2->wall = waNone;
+      if(c2->wall == waFreshGrave) c2->wall = waNone;
+
+      if(c2->wall == waFreshGrave) c2->wall = waNone;
+
+      if(c2->wall == waBigStatue) c2->wall = waNone;
+      if(c2->wall == waColumn)    c2->wall = waNone;
+      if(c2->wall == waStone)     c2->wall = waNone, destroyTrapsAround(c2);
+      if(c2->wall == waArrowTrap) activateArrowTrap(c2);
+      if(c2->wall == waTerraWarrior)  c2->wall = waNone, kills[moTerraWarrior]++;
+      
+      if(c2->wall == waCanopy || c2->wall == waTrunk || c2->wall == waBigBush || c2->wall == waSmallBush) {
+        makeflame(c2, 12, false);
+        }
+      if(c2->wall == waMetal)     c2->wall = waCharged;
+      if(c2->wall == waSandstone) {
+        c2->wall = waNone;
+        if(c2->land == laStorms) c2->item = itFulgurite;
+        }
+                               
+      if(c2->wall == waBoat && c2 != cwt.at)    become_water(c2);
+      if(c2->wall == waStrandedBoat && c2 !=cwt.at)    c2->wall = waNone;
+
+      if((c2->wall == waNone || c2->wall == waSea) && c2->land == laLivefjord)
+        c2->wall = eWall(c2->wall ^ waSea ^ waNone);
+      
+      if(c2->wall == waRed1)      c2->wall = waNone;
+      if(c2->wall == waRed2)      c2->wall = waRed1;
+      if(c2->wall == waRed3)      c2->wall = waRed2;
+      
+      if(isActivable(c2))         activateActiv(c2, false);
+      if(c2->wall == waBigTree || c2->wall == waSmallTree || c2->wall == waVinePlant ||
+        c2->wall == waSaloon)    {
+        makeflame(c2, 4, false);
+        }
+      if(c2->wall == waDock)  makeflame(c2, 5, false);
+      if(c2->wall == waCTree) makeflame(c2, 12, false);
+      if(c2->wall == waRose)  makeflame(c2, 60, false);
+      if(cellHalfvine(c2)) {
+        destroyHalfvine(c2, waPartialFire, 4);
+        }
+
+      if(c2->wall != ow && ow)  
+        drawParticles(c2, winf[ow].color, 16);
+      killThePlayerAt(moLightning, c2, 0); 
+      drawLightning();
+      zap = true; 
+      }
+    }
+  if(zap) 
+    playSound(cwt.at,"storm");
+  }
 EX void livecaves() {
   vector<cell*>& allcells = currentmap->allcells();
   int dcs = isize(allcells);
@@ -2486,6 +2577,90 @@ EX void livecaves() {
     }
   }
 
+
+EX void hurricaneWind() {
+  vector<cell*>& allcells = currentmap->allcells();
+  int dcs = isize(allcells);
+  std::vector<int> heatvals(dcs);
+  int gr = gamerange();
+  for(int i=0; i<dcs; i++) {
+    cell *c = allcells[i];
+    if(!doall && c->cpdist > gr+1) break;
+    heatvals[i] = 0;
+    if(c->land == laHurricane) {
+      if(c->wall == waBoat) {
+        hurricaneMoveBoat(c);
+        }
+      for(int j=0; j<c->type; j++) if(c->move(j)->land == laHurricane) {
+        if(c->landparam == 1 && c->move(j)->landparam == 0) {
+          heatvals[i]++;
+          }
+        else if(c->landparam == 2 && c->move(j)->landparam == 1) {
+          heatvals[i]++;
+          }
+        else if(c->landparam == 0 && c->move(j)->landparam == 2) {
+          heatvals[i]++;
+          }
+        }
+      }
+    }
+  for(int i=0; i<dcs; i++) {
+    cell *c = allcells[i];
+    
+    if(c->land == laHurricane) {
+      if(heatvals[i] >= 2) {
+        if(c->landparam == 1) {
+          c->landparam = 0;
+          }
+        else if(c->landparam == 2) {
+          c->landparam = 1;
+          }
+        else if(c->landparam == 0) {
+          c->landparam = 2;
+          }
+        
+      }
+      if(c->wall == waBoatMoved)
+        c->wall = waBoat;
+      }
+    }
+  }
+EX void hurricaneMoveBoat(cell *c) {
+  int seanum = 0;
+  int stab[8];
+  int totalStrength = 0;
+  for(int j=0; j<c->type; j++) if((c->landparam+1)%3 == c->move(j)->landparam) {
+    cell *c2 = c->move(j);
+    int strength = 0;
+    for(int k=0; k<c2->type; k++) {
+      
+      if((c2->landparam+1)%3 == c2->move(k)->landparam) {
+        strength++;
+        }
+      }
+    if(c2->wall == waSea && c2->land == laHurricane) {
+      if(strength > totalStrength) {
+        totalStrength = strength;
+        memset(stab, 0, sizeof(stab));
+        seanum = 0;
+        stab[seanum++] = j;
+        }
+      else {
+        stab[seanum++] = j;
+        }
+      }
+    }
+  if(seanum > 0) {
+    cell *c2 = c->move(stab[hrand(seanum)]);
+    if(c && c2 && c->wall == waBoat && c2->wall == waSea && !c2->monst && !(isPlayerOn(c) || c->monst)) {
+      c->wall = waSea;
+      c2->wall = waBoatMoved;
+      c2->mondir = neighborId(c2,c);
+      moveItem(c,c2,true);
+      animateMovement(moveimon(c2).rev(),LAYER_BOAT);
+      }
+    }
+  }
 /* evolver */
 
 EX namespace tortoise {
@@ -2569,25 +2744,6 @@ EX namespace tortoise {
   EX string measure(int bits) {
     return "(" + its(progress(bits)) + "/" + its(tortoise::numbits) + ")";
     }    
-
-  template<class T> void swap_data(T& data, cell *c1, cell *c2) {
-    changes.map_value(data, c1);
-    changes.map_value(data, c2);
-    if(data.count(c1) && data.count(c2))
-      swap(data[c1], data[c2]);
-    else if(data.count(c1))
-      data[c2] = data[c1], data.erase(c1);
-    else if(data.count(c2))
-      data[c1] = data[c2], data.erase(c2);
-    }
-  
-  EX void move_baby(cell *c1, cell *c2) {
-    swap_data(babymap, c1, c2);
-    }
-
-  EX void move_adult(cell *c1, cell *c2) {
-    swap_data(emap, c1, c2);
-    }
 EX }
 
 EX namespace dragon {
