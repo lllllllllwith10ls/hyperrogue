@@ -39,6 +39,8 @@ struct gcell {
 
   /** is it currently sparkling with lightning? */
   unsigned ligon : 1;
+  /** is it about to be? */
+  unsigned weakligon : 1;
 
   signed 
     mpdist : 7,         ///< minimum player distance, the smaller value, the more generated it is */
@@ -59,7 +61,7 @@ struct gcell {
   eMonster monst;
   eItem item;
   eLand barleft, barright;
-  bool ligon, monmirror;
+  bool ligon, weakligon, monmirror;
   signed char pathdist, cpdist, mpdist;
   
   unsigned char mondir, bardir, stuntime, hitpoints;

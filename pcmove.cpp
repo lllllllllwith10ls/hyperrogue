@@ -517,12 +517,6 @@ void apply_chaos() {
     princess::move(movei{cb, ca, JUMP});
   if(isPrincess(cb) && !isPrincess(ca))
     princess::move(movei{ca, cb, JUMP});
-  if(ca->monst == moTortoise || cb->monst == moTortoise) {
-    tortoise::move_adult(ca, cb);
-    }
-  if(ca->item == itBabyTortoise || cb->item == itBabyTortoise) {
-    tortoise::move_baby(ca, cb);
-    }
   }
   
 bool pcmove::actual_move() {
@@ -618,7 +612,7 @@ bool pcmove::boat_move() {
   cell *& c2 = mi.t;
   if(havePushConflict(cwt.at, checkonly)) return false;
 
-  if(againstWind(c2, cwt.at)) {
+  if(againstWind(c2, cwt.at) && !markOrb(itOrbWater)) {
     if(vmsg()) addMessage(XLAT(airdist(c2) < 3 ? "The Air Elemental blows you away!" : "You cannot go against the wind!"));
     return false;
     }
@@ -975,12 +969,15 @@ bool pcmove::perform_actual_move() {
     invismove = false;
     if(earthMove(mi)) markOrb(itOrbDigging);
     }
-
   movecost(cwt.at, c2, 1);
 
   if(!boatmove && collectItem(c2)) return true;
   if(doPickupItemsWithMagnetism(c2)) return true;
 
+  if(items[itOrbColor]) {
+    invismove = false;
+    if(colorMove(mi)) markOrb(itOrbColor);
+    }
   if(isIcyLand(cwt.at) && cwt.at->wall == waNone && markOrb(itOrbWinter)) {
     invismove = false;
     cwt.at->wall = waIcewall;

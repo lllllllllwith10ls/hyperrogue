@@ -73,6 +73,7 @@ EX bool checkflags(flagtype flags, flagtype x) {
     if((x & P_IGNORE37)  && markOrb(itOrb37)) return true;
     if((x & P_FISH)      && markOrb(itOrbFish)) return true;
     if((x & P_MARKWATER) && markOrb(itOrbWater)) return true;
+    if((x & P_FLYING)    && markOrb(itOrbColor)) return true;
     if((x & P_AETHER)    && markOrb2(itOrbAether) && !(flags&P_NOAETHER)) return true;
     }
   if(flags & P_ISFRIEND) if(items[itOrbEmpathy]) 
@@ -88,8 +89,33 @@ EX bool strictlyAgainstGravity(cell *w, cell *from, bool revdir, flagtype flags)
   }
 
 EX bool anti_alchemy(cell *w, cell *from) {
+  
   bool alch1 = w->wall == waFloorA && from && from->wall == waFloorB && !w->item && !from->item;
   alch1 |= w->wall == waFloorB && from && from->wall == waFloorA && !w->item && !from->item;
+  
+  alch1 |= w->wall == waFloorA && from && from->wall == waSlime1 && !w->item && !from->item;
+  alch1 |= w->wall == waSlime1 && from && from->wall == waFloorA && !w->item && !from->item;
+  
+  alch1 |= w->wall == waFloorA && from && from->wall == waSlime2 && !w->item && !from->item;
+  alch1 |= w->wall == waSlime2 && from && from->wall == waFloorA && !w->item && !from->item;
+  
+  alch1 |= w->wall == waFloorB && from && from->wall == waSlime2 && !w->item && !from->item;
+  alch1 |= w->wall == waSlime2 && from && from->wall == waFloorB && !w->item && !from->item;
+  
+  alch1 |= w->wall == waFloorB && from && from->wall == waSlime3 && !w->item && !from->item;
+  alch1 |= w->wall == waSlime3 && from && from->wall == waFloorB && !w->item && !from->item;
+  
+  alch1 |= w->wall == waSlime1 && from && from->wall == waSlime3 && !w->item && !from->item;
+  alch1 |= w->wall == waSlime3 && from && from->wall == waSlime1 && !w->item && !from->item;
+  
+  alch1 |= w->wall == waSlime1 && from && from->wall == waSlime4 && !w->item && !from->item;
+  alch1 |= w->wall == waSlime4 && from && from->wall == waSlime1 && !w->item && !from->item;
+  
+  alch1 |= w->wall == waSlime2 && from && from->wall == waSlime4 && !w->item && !from->item;
+  alch1 |= w->wall == waSlime4 && from && from->wall == waSlime2 && !w->item && !from->item;
+  
+  alch1 |= w->wall == waSlime3 && from && from->wall == waSlime4 && !w->item && !from->item;
+  alch1 |= w->wall == waSlime4 && from && from->wall == waSlime3 && !w->item && !from->item;
   return alch1;
   }
 
@@ -156,12 +182,17 @@ EX bool passable(cell *w, cell *from, flagtype flags) {
         return false;
       }
     }
-
   if(F(P_ROSE)) {
     if(airdist(w) < 3) return false;
     if(againstWind(w,from)) return false;
     }
-
+  
+  if(w->wall == waPlayerBarrier && !(flags & P_ISPLAYER))
+    return false;
+  
+  if(isSeal(w) && F(P_AETHER))
+    return false;
+    
   if(from && strictlyAgainstGravity(w, from, vrevdir, flags)
     && !((flags & P_ISPLAYER) && shmup::on)
     && !F(P_GRAVITY | P_BLOW | P_JUMP1 | P_JUMP2 | P_FLYING | P_BULLET | P_AETHER)
@@ -326,6 +357,15 @@ EX bool againstWind(cell *cto, cell *cfrom) {
   #endif
   whirlwind::calcdirs(cfrom);
   int d = neighborId(cfrom, cto);
+  
+  if(cfrom->land == laHurricane && !shmup::on && cto->land == laHurricane) {
+    if(cfrom->wall == waBoat && cto->wall == waBoat)
+      return false;
+    else if(cfrom->landparam == (cto->landparam+1)%3)
+      return true;
+    else if((cfrom->landparam == cto->landparam-1) || (cfrom->landparam == cto->landparam+2))
+      return false;
+    }
   if(whirlwind::winddir(d) == -1) return true;
   return false;
   }
@@ -340,13 +380,14 @@ EX bool ghostmove(eMonster m, cell* to, cell* from) {
   if((m == moWitchGhost || m == moWitchWinter) && to->land != laPower)
     return false;
   if(isGhost(m))
+    if(isSeal(to)) return false;
     for(int i=0; i<to->type; i++) if(to->move(i)) {
       if(inmirror(to->move(i))) return false;
       if(to->move(i) && to->move(i) != from && isGhost(to->move(i)->monst) &&
         (to->move(i)->monst == moFriendlyGhost) == (m== moFriendlyGhost))
         return false;
       }
-  if(isGhost(m) || m == moWitchGhost) return true;
+  if(isGhost(m) || m == moWitchGhost) return passable(to, from, P_AETHER | P_ONPLAYER);
   if(m == moGreaterShark) return isWatery(to);
   if(m == moWitchWinter) 
     return passable(to, from, P_WINTER | P_ONPLAYER);
@@ -363,7 +404,18 @@ bool slimepassable(cell *w, cell *c) {
   int ogroup = slimegroup(w);
   if(!ogroup) return false;
   bool hv = (group == ogroup);
-
+  if(group == sgFloorA)
+    hv = hv || ogroup == sgSlime3 || ogroup == sgSlime4;
+  if(group == sgFloorB)
+    hv = hv || ogroup == sgSlime1 || ogroup == sgSlime4;
+  if(group == sgSlime1)
+    hv = hv || ogroup == sgFloorB || ogroup == sgSlime2;
+  if(group == sgSlime2)
+    hv = hv || ogroup == sgSlime1 || ogroup == sgSlime3;
+  if(group == sgSlime3)
+    hv = hv || ogroup == sgFloorA || ogroup == sgSlime2;
+  if(group == sgSlime4)
+    hv = hv || ogroup == sgFloorA || ogroup == sgFloorB;
   if(sword::at(w, 0)) return false;
   
   if(w->item) return false;
@@ -494,6 +546,8 @@ EX bool passable_for(eMonster m, cell *w, cell *from, flagtype extra) {
     }
   if(m == moEarthElemental)
     return passable(w, from, extra | P_EARTHELEM);
+  if(m == moWinterElemental)
+    return passable(w, from, extra | P_WINTER);
   if(m == moWaterElemental) 
     return passable(w, from, extra | P_WATERELEM);
   if(m == moGreaterShark)

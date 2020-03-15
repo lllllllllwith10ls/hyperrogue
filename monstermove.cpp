@@ -87,14 +87,20 @@ EX void moveEffect(const movei& mi, eMonster m) {
   if(cf && m == moKnight) camelot::move_knight(cf, ct);
   
   if(cf && m == moTortoise) {
-    tortoise::move_adult(cf, ct);
+    changes.map_value(tortoise::emap, ct);
+    changes.map_value(tortoise::emap, cf);
+    tortoise::emap[ct] = tortoise::getb(cf);
+    tortoise::emap.erase(cf);
     }
   
   if(cf && ct->item == itBabyTortoise && !cf->item) {
+    changes.map_value(tortoise::babymap, ct);
+    changes.map_value(tortoise::babymap, cf);
     cf->item = itBabyTortoise;
     ct->item = itNone;
     animateMovement(mi.rev(), LAYER_BOAT);
-    tortoise::move_baby(cf, ct);
+    tortoise::babymap[cf] = tortoise::babymap[ct];
+    tortoise::babymap.erase(ct);
     }
   }
 
@@ -177,6 +183,12 @@ EX void moveMonster(const movei& mi) {
     
   int inc = incline(cf, ct);
 
+	if(m == moWinterElemental) { 
+	  if(isIcyLand(cf) && cf->wall == waNone) {
+      cf->wall = waIcewall;
+      }
+    }
+    
   if(m == moEarthElemental) {
     if(!passable(ct, cf, 0)) earthFloor(ct);
     earthMove(mi);
@@ -288,6 +300,8 @@ EX void moveMonster(const movei& mi) {
       if(m == moWitchSpeed) ct->stuntime = 1;
       }
     }
+
+  if(m == moArt) spill(ct, cf->wall, 0);
 
   if(m == moAirElemental) airmap.push_back(make_pair(ct, 0));
   if(m == moWolf && ct->land == laVolcano) ct->monst = moLavaWolf;
@@ -1722,6 +1736,108 @@ EX void moveButterflies() {
   butterflies.resize(j);
   }
 
+EX void stormNextTurn(cell *c) {
+
+
+  castWeakLightningBoltFrom(c);
+  }
+EX void castWeakLightningBoltFrom(cell *c) {
+  for(int i=0; i<c->type; i++) castWeakLightningBolt(cellwalker(c, i));
+  }
+  
+  
+EX void castWeakLightningBolt(cellwalker lig) {
+  int bnc = 0;
+  int counter = 1000;
+  while(true) {
+    counter--; if(counter < 0) break;
+    // printf("at: %p i=%d d=%d\n", lig.c, i, lig.spin);
+    
+    if(lig.peek() == NULL) break;
+
+    lig += wstep;
+    if(inmirror(lig)) lig = mirror::reflect(lig);
+    
+    cell *c = lig.at;
+    bool first = !c->weakligon;
+    c->weakligon = 1;
+    
+    bool brk = false, spin = false;
+    
+    if(celldistance(cwt.at,c) >= 7)  brk = true, c->weakligon = 0;
+    if(c->monst == moStormElemental)brk = true, c->weakligon = 0;
+    if(c->wall == waGargoyle)  brk = true;
+    if(c->wall == waExplosiveBarrel) brk = true;
+    if(c->wall == waCavewall)  brk = true;
+    if(c->wall == waDeadTroll) brk = true;
+    if(c->wall == waDeadTroll2)brk = true;
+    if(c->wall == waPetrified) brk = true;
+    if(c->wall == waDeadwall)  brk = true;
+    if(c->wall == waGlass)     spin = true;
+    if(c->wall == waDune)      brk = true;
+    if(c->wall == waIcewall)   brk = true;
+    if(c->wall == waAncientGrave) spin = true;
+    if(c->wall == waFreshGrave) spin = true;
+
+    if(c->wall == waFreshGrave) spin = true;
+
+    if(c->wall == waBigStatue) spin = true;
+    if(c->wall == waColumn)    spin = true;
+    if(c->wall == waStone)     brk = true;
+    
+    if(c->wall == waCanopy || c->wall == waTrunk || c->wall == waBigBush || c->wall == waSmallBush) {
+      brk = true;
+      }
+
+    if(c->wall == waGrounded)  brk = true;
+    if(c->wall == waFan)       spin = true;
+    if(c->wall == waMetal)     brk = true;
+    if(c->wall == waSandstone) {
+      brk = true;
+      }
+
+    if(c->wall == waCharged && first) {
+      for(int i=0; i<c->type; i++) 
+        // do not do strange things in horocyclic spires
+        if(c->move(i) && c->move(i)->wall != waCharged) {
+          cellwalker lig2(c, i);
+          castWeakLightningBolt(lig2);
+          }
+      brk = true;
+      }
+                             
+    if(c->wall == waBoat && c != cwt.at)           spin = true;
+    if(c->wall == waStrandedBoat && c !=cwt.at)    spin = true;
+
+    
+    if(c->wall == waRed3)      brk = true;
+    
+    if(c->wall == waBigTree || c->wall == waSmallTree || c->wall == waVinePlant ||
+      c->wall == waSaloon)    {
+      brk = true;
+      }
+    if(cellHalfvine(c) && c->wall == lig.peek()->wall) {
+      brk = true;
+      }
+
+    if(spin) lig += hrand(lig.at->type);
+    
+    if(brk) break;
+    
+    if(reflectingBarrierAt(c)) {
+      int left = -1;
+      int right = 1;
+      while(!reflectingBarrierAt(lig, left)) left--;
+      while(!reflectingBarrierAt(lig, right)) right++;
+      lig += right + left;
+      if(c->wall == waBarrowWall) c->wall = waBarrowDig;
+      else if(c->wall == waBarrowDig) c->wall = waNone;
+      bnc++; if(bnc > 10) break;
+      }
+    else 
+      lig += rev;
+    }
+  }
 // assume pathdist
 EX void specialMoves() {
   for(int i=0; i<isize(dcal); i++) {
@@ -1839,6 +1955,60 @@ EX void specialMoves() {
         if(celldistance(c,t) <= 3 && !sphere) dont_approach = true;
         }
       if(shot || dont_approach) c->stuntime = 1;
+      }
+    
+    else if(m == moWinterElemental && !peace::on) {
+      bool shot = false;
+      int firerange = 2;
+      for(int i=0; i<isize(targets); i++) {
+        cell *t = targets[i];
+        if(celldistance(c,t) <= firerange && t->wall == waNone) {
+          if(isPlayerOn(t)) 
+            addMessage(XLAT("%The1 creates ice on you!", m));
+          else
+            addMessage(XLAT("%The1 Creates ice on %the2!", m, t->monst));
+          t->wall = waIcewall;
+          HEAT(t) -= 1.2;
+          shot = true;
+          }
+        }
+      if(shot) c->stuntime = 4;
+      }
+    else if(m == moStormElemental) {
+      bool storm = false;
+      for(int i=0; i<isize(targets); i++) {
+        cell *t = targets[i];
+        if(celldistance(c, t) <= 2) storm = true;
+        }
+      if(storm) {
+        stormNextTurn(c);
+        c->stuntime = 6;
+        }
+      }
+    else if(m == moDeathElemental && !peace::on) {
+      bool summon = false;
+      
+      for(int i=0; i<isize(targets); i++) {
+        cell *t = targets[i];
+        if(celldistance(c, t) <= 3) summon = true;
+        }
+      if(summon) {
+        pathdata pd(moDeathElemental);
+        int ghostnum = 0;
+        cell *gtab[8];
+        for(int j=0; j<c->type; j++) if(c->move(j)) {
+          if(c->move(j)->pathdist < c->pathdist && c->move(j)->monst == moNone)
+            gtab[ghostnum++] = c->move(j);
+          }
+        if(ghostnum) {
+          cell *gr = gtab[hrand(ghostnum)];
+          gr->monst = moGhost;
+          gr->stuntime = 1;
+          c->stuntime = 8;
+          addMessage(XLAT("%The1 summons a ghost!", m));
+          playSound(c, "necromancy");
+          }
+        }
       }
 
     else if(m == moVampire) {
@@ -1985,6 +2155,8 @@ EX void movemonsters() {
     }
   DEBB(DF_TURN, ("earth"));
   if(havewhat & HF_EARTH) groupmove(moEarthElemental, 0);
+  DEBB(DF_TURN, ("winter"));
+  if(havewhat & HF_WINTER) groupmove(moWinterElemental, 0);
   DEBB(DF_TURN, ("water"));
   if(havewhat & HF_WATER) groupmove(moWaterElemental, 0);
   DEBB(DF_TURN, ("void"));

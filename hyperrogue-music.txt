@@ -160,6 +160,12 @@
 [89] */music/hr3-laboratory.ogg
 # Eclectic City
 [90] */music/hr-savino-palace.ogg
+# Paintscape
+[91] */music/hr3-laboratory.ogg
+# Necropolis
+[92] */music/hr3-graveyard.ogg
+# Hurricane
+[93] */music/hr3-rlyeh.ogg
 
 # None [00] (used when the window is out of focus)
 

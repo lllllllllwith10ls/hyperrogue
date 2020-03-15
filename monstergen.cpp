@@ -285,6 +285,20 @@ EX bool haveOrbPower() {
     }
   return false;
   }
+  
+EX bool haveNonChargingOrbPower() {
+  for(int i=0; i<ittypes; i++) if(itemclass(eItem(i)) == IC_ORB && items[i] && i != itOrbCharge) return true;
+  if(quotient) for(int i=0; i<isize(dcal); i++) {
+    cell *c = dcal[i];
+    if(itemclass(c->item) == IC_ORB && i != itOrbCharge) return true;
+    }
+  else if(sphere_narcm && WDIM == 2) for(int i=0; i<spherecells(); i++) {
+    cell *c = getDodecahedron(i)->c7;
+    if(itemclass(c->item) == IC_ORB && i != itOrbCharge) return true;
+    forCellEx(c2, c) if(itemclass(c2->item) == IC_ORB && i != itOrbCharge) return true;
+    }
+  return false;
+  }
 
 EX bool haveKraken() {
   for(int i=0; i<spherecells(); i++) {
@@ -699,6 +713,9 @@ EX void wandering() {
       
     else if(c->land == laAlchemist && wchance(items[itElixir], 3) && canReachPlayer(c, moSlime) && c->item == itNone)
       c->monst = moSlime; // ?
+    
+    else if(c->land == laPaint && wchance(items[itElixir], 20) && c->item == itNone)
+      c->monst = moArt; // ?
     
     else if(isElemental(c->land) && wchance(items[itElemental], 20) && !peace::on)
       c->monst = elementalOf(c->land);

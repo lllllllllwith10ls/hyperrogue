@@ -178,7 +178,6 @@ EX bool incompatible1(eLand l1, eLand l2) {
   if(l1 == laDragon && l2 == laDryForest) return true;
   if(l1 == laEFire && l2 == laWineyard) return true;
   if(l1 == laEFire && l2 == laDryForest) return true;
-  if(l1 == laGraveyard && l2 == laDryForest) return true;
   if(l1 == laGraveyard && l2 == laRuins) return true;
   if(l1 == laGraveyard && l2 == laRedRock) return true;
   if(l1 == laGraveyard && l2 == laEmerald) return true;
@@ -187,7 +186,7 @@ EX bool incompatible1(eLand l1, eLand l2) {
   if(l1 == laWarpSea && l2 == laKraken) return true;
   if(l1 == laPrairie && l2 == laCrossroads3) return true;
   if(l1 == laWet && l2 == laDesert) return true;
-  if(l1 == laFrog && l2 == laMotion) return true;
+  if(l1 == laHurricane && l2 == laKraken) return true;
   if(isElemental(l1) && isElemental(l2)) return true;
   return false;
   }
@@ -258,8 +257,8 @@ EX eLand pickluck(eLand l1, eLand l2) {
 
 EX eLand getNewSealand(eLand old) {
   while(true) {
-    eLand p = pick(laOcean, pick(laCaribbean, laLivefjord, laWarpSea, laKraken, laDocks));
-    if(p == laKraken && !landUnlocked(p)) continue;
+    eLand p = pick(laOcean, pick(laCaribbean, laLivefjord, laWarpSea, laKraken, laDocks, laHurricane));
+    if((p == laKraken || p == laHurricane) && !landUnlocked(p)) continue;
     if(p == laKraken && peace::on) continue;
     if(incompatible(old, p)) continue;
     if(p == old) continue;
@@ -270,7 +269,8 @@ EX eLand getNewSealand(eLand old) {
 
 EX bool createOnSea(eLand old) {
   return
-    old == laWarpSea || old == laCaribbean || old == laKraken ||
+    old == laWarpSea || old == laCaribbean || 
+    old == laKraken || old == laHurricane ||
     (old == laLivefjord && hrand(2)) || 
     (old == laDocks && hrand(2)) ||
     (old == laOcean && (chaosmode ? hrand(2) : !generatingEquidistant));
@@ -375,7 +375,7 @@ EX eLand getNewLand(eLand old) {
     laStorms, laWhirlwind, laOvergrown, laBlizzard, laDryForest, laWineyard, laVolcano,
     laDeadCaves, laRedRock, laVariant, laHell, laCocytus, laPower,
     laBull, laTerracotta, laRose, laGraveyard, laHive, laDragon, laTrollheim,
-    laWet, laFrog, laEclectic,
+    laWet, laFrog, laEclectic, laPaint,
     laCrossroads5,
     })
     if(landUnlocked(l)) tab[cnt++] = l;    
@@ -391,12 +391,14 @@ EX eLand getNewLand(eLand old) {
     clos{laZebra, laMotion, 2, 2}, {laZebra, laHunting, 2, 2},
     {laDragon, laReptile, 5, 5},
     {laVariant, laRuins, 5, 5}, {laVariant, laEmerald, 5, 5}, {laVariant, laGraveyard, 5, 5},
+    {laNecro, laGraveyard, 5, 5},
     {laPalace, laDungeon, 5, 0},
     {laJungle, laOvergrown, 5, 5},
     {laIce, laBlizzard, 5, 5}, {laCocytus, laBlizzard, 5, 5}, {laHell, laCocytus, 5, 5}, {laIce, laCocytus, 5, 5},
     {laWhirlwind, laBlizzard, 5, 5},
     {laAlchemist, laVolcano, 5, 5},
     {laDesert, laRedRock, 5, 5},
+    {laAlchemist, laPaint, 5, 5},
     {laFrog, laReptile, 2, 2}, {laFrog, laSwitch, 2, 2}, {laFrog, laZebra, 2, 2},
     {laEclectic, laStorms, 3, 3}, {laEclectic, laIce, 3, 3}, {laEclectic, laPalace, 3, 3}, {laEclectic, laDeadCaves, 3, 3},
     
@@ -485,10 +487,11 @@ EX vector<eLand> land_over = {
   laIvoryTower, laEndorian, laWestWall, laDungeon, laMountain, 
   laCrossroads2, 
   laDryForest, laWineyard, laDeadCaves, laGraveyard, laHaunted, laHive, 
-  laRedRock, laVolcano,
+  laRedRock, laPaint, laVolcano,
   laDragon, laTortoise,
-  laOvergrown, laClearing, laStorms, laBurial, laWhirlwind, 
+  laOvergrown, laClearing, laStorms, laBurial, laNecro, laWhirlwind, 
   laBlizzard,
+  laHurricane,
   laFrog, laEclectic,
   laRuins, laEmerald, laVariant, laCamelot, 
   laPrairie, laBull, laTerracotta, laRose,

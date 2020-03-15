@@ -99,7 +99,19 @@ EX void reduceOrbPowerAlways(eItem it) {
     }
   }
 
+EX void chargeOrbs() {
+  if(haveNonChargingOrbPower()) {
+    int totalOrbs = 0;
+    for(int i=0; i<ittypes; i++) if(itemclass(eItem(i)) == IC_ORB && items[i] && i != itOrbCharge) totalOrbs++;
+    for(int i=0; i<ittypes; i++) if(itemclass(eItem(i)) == IC_ORB && items[i] && i != itOrbCharge) items[i] += floor(items[itOrbCharge]/totalOrbs);
+    items[itOrbCharge] = 0;
+    }
+}
+
 EX void reduceOrbPowers() {
+  if(items[itOrbCharge]) {
+    chargeOrbs();
+  }
   if(haveMount()) markOrb(itOrbDomination);
   for(int i=0; i<ittypes; i++) 
     lastorbused[i] = orbused[i], orbused[i] = false;
@@ -160,6 +172,9 @@ EX void reduceOrbPowers() {
   reduceOrbPower(itOrbImpact, 120);
   reduceOrbPower(itOrbChaos, 120);
   reduceOrbPower(itOrbPlague, 120);
+  reduceOrbPower(itOrbColor, 120);
+  reduceOrbPower(itOrbBarr, 333);
+  reduceOrbPower(itOrbCharge, 777);
 
   reduceOrbPower(itOrbSide1, 120);
   reduceOrbPower(itOrbSide2, 120);
@@ -170,7 +185,6 @@ EX void reduceOrbPowers() {
   items[itStrongWind] = !items[itOrbAether] && whirlwind::qdirs == 1;
   items[itWarning] = 0;
   }
-
 EX void flashAlchemist(cell *c) {
   if(isAlch(c)) {
     if(isAlch(cwt.at))
@@ -751,7 +765,7 @@ EX eMonster summonedAt(cell *dest) {
     return moGhost;
   if(dest->wall == waClosePlate || dest->wall == waOpenPlate)
     return dest->land == laPalace ? moPalace : moBat;
-  if(dest->wall == waFloorA || dest->wall == waFloorB)
+  if(isAlch(dest))
     return moSlime;
   if(dest->wall == waCavefloor)
     return moTroll;
@@ -810,6 +824,7 @@ EX eMonster summonedAt(cell *dest) {
     if(dest->land == laDungeon) return moBat;
     if(dest->land == laIce) return moFireElemental;
     if(dest->land == laDesert) return moEarthElemental;
+    if(dest->land == laNecro) return moEarthElemental;
     if(dest->land == laJungle) return moWaterElemental;
     if(dest->land == laGraveyard) return moZombie;
     if(dest->land == laRlyeh || dest->land == laTemple) return moPyroCultist;
@@ -907,6 +922,21 @@ void tempWallAt(cell *dest) {
   dest->wparam = len;
   useupOrb(itOrbMatter, len);
   dest->item = itNone; // underwater items are destroyed by this
+  createNoise(2);
+  bfs();
+  checkmoveO();
+  }
+bool barrPossibleAt(cell *dest) {
+  if(dest->land == laWestWall) return false;
+  if(dest->monst) return false;
+  return dest->wall == waNone;
+  }
+void tempBarrAt(cell *dest) {
+  if(dest->wall == waNone) {
+    dest->wall = waPlayerBarrier;
+    dest->wparam = 10;
+    }
+  useupOrb(itOrbBarr, 10);
   createNoise(2);
   bfs();
   checkmoveO();
@@ -1388,6 +1418,11 @@ EX eItem targetRangedOrb(cell *c, orbAction a) {
     return itOrbMorph;
     }
   
+  // (5e) barriers
+  if(items[itOrbBarr] && barrPossibleAt(c)) {
+    if(!isCheck(a)) tempBarrAt(c), apply_impact(c);
+    return itOrbBarr;
+    }
   // (6) place fire (non-shmup variant)
   if(!shmup::on && items[itOrbDragon] && makeflame(c, 20, true)) {
     if(!isCheck(a)) useOrbOfDragon(c), apply_impact(c);
@@ -1561,7 +1596,16 @@ EX int orbcharges(eItem it) {
        
     case itOrbPlague:
       return 30;
-       
+     
+    case itOrbColor:
+      return 60;
+      
+    case itOrbBarr:
+      return 66; 
+      
+    case itOrbCharge:
+      return 66; 
+      
     default:
       return 0;
     }
@@ -1592,3 +1636,4 @@ EX void orboflava(int i) {
       }
   }
 }
+
