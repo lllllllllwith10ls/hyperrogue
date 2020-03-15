@@ -144,6 +144,38 @@ EX int watercolor(int phase) {
 EX int aircolor(int phase) {
   return 0x8080FF00 | int(32 + 32 * sintick(200, phase * 1. / cgi.S21));
   }
+  
+   
+EX int sealcolor(int phase IS(0)) {
+  return gradient(0xFFFFFF, 0x000000, -1, sintick(1000, phase/200./M_PI), 1);
+  }
+    
+EX int barriercolor(int phase IS(0)) {
+  return gradient(0x0000FF, 0x000000, -1, sintick(1000, phase/200./M_PI), 1);
+  }
+  
+EX int hurricanecolor(int phase IS(0), int type IS(0)) {
+  if(type == 0) {
+    return gradient(0x4040FF, 0x752080, 0, sintick(1000, phase/200./M_PI)+2, 2);
+    }
+  if(type == 1) {
+    return gradient(0x4040FF, 0x2020D4, 0, sintick(1000, phase/200./M_PI)+2, 2);
+    }
+  if(type == 2) {
+    return gradient(0x4040FF, 0x207580, 0, sintick(1000, phase/200./M_PI)+2, 2);
+    }
+  return 0x000000;
+  }
+EX int colorfulcolor(int phase) {
+  phase = int(fractick(650, phase) * 600);
+  if(phase < 100)      return gradient(0xFF0000, 0xFFFF00,    0, phase, 100);
+  else if(phase < 200) return gradient(0xFFFF00, 0x00FF00, 100, phase, 200);
+  else if(phase < 300) return gradient(0x00FF00, 0x00FFFF, 200, phase, 300);
+  else if(phase < 400) return gradient(0x00FFFF, 0x0000FF, 300, phase, 400);
+  else if(phase < 500) return gradient(0x0000FF, 0xFF00FF, 400, phase, 500);
+  else if(phase < 600) return gradient(0xFF00FF, 0xFF0000, 500, phase, 600);
+  return 0xFFFFFF;
+  }
 
 EX int fghostcolor(cell *c) {
   int phase = int(fractick(650, (int)(size_t)c) * 4000);
@@ -921,6 +953,7 @@ EX bool drawItemType(eItem it, cell *c, const transmatrix& V, color_t icol, int 
     
     if(it == itZebra) icol = 0xFFFFFF;
     if(it == itLotus) icol = 0x101010;
+    if(it == itStygian) icol = 0x101010;
     if(it == itSwitch) icol = minf[active_switch()].color;
     
     transmatrix V2 = Vit * spinptick(1500);
@@ -948,6 +981,7 @@ EX bool drawItemType(eItem it, cell *c, const transmatrix& V, color_t icol, int 
   
   else if(xch == 'o' || it == itInventory) {
     if(it == itOrbFire) icol = firecolor(100);
+    if(it == itOrbColor) icol = colorfulcolor(100);
     PPR prio = PPR::ITEM;
     bool inice = c && c->wall == waIcewall;
     if(inice) prio = PPR::HIDDEN;
@@ -1897,7 +1931,24 @@ EX bool drawMonsterType(eMonster m, cell *where, const transmatrix& V1, color_t 
       queuepoly(VSLIMEEYE, cgi.shSlimeEyes, 0xFF);
       return false;
       }
-
+    case moPaint: case moArt: {
+      ShadowV(V, cgi.shPBody);
+      const transmatrix VBS = VBODY * otherbodyparts(V, darkena(col, 0, 0xFF), m, footphase);
+      queuepoly(VBS, cgi.shPBody, darkena(col, 0, 0xFF));
+      queuepoly(VBS, cgi.shBrushBrush, darkena(col, 0, 0xFF));
+      queuepoly(VBS, cgi.shBrushHandle, darkena(0x6B6B4D, 0, 0xFF));
+      if(m == moArt) {
+        queuepoly(VBS, cgi.shPaletteCol1, darkena(0xF00000, 0, 0xFF));
+        queuepoly(VBS, cgi.shPaletteCol2, darkena(0xF0F000, 0, 0xFF));
+        queuepoly(VBS, cgi.shPaletteCol3, darkena(0x007000, 0, 0xFF));
+        queuepoly(VBS, cgi.shPaletteCol4, darkena(0x0000F0, 0, 0xFF));
+        queuepoly(VBS, cgi.shPalette, darkena(0x6B6B4D, 0, 0xFF));
+      }
+      queuepoly(VHEAD, cgi.shPFace, 0xFFE080FF);
+      queuepoly(VHEAD1, cgi.shPHead, darkena(col, 0, 0xFF));
+      humanoid_eyes(V, 0x000000FF);
+      return false;
+      }
     case moKrakenH: {
       queuepoly(VFISH, cgi.shKrakenHead, darkena(col, 0, 0xD0));
       queuepoly(VFISH, cgi.shKrakenEye, 0xFFFFFFC0 | UNTRANS);
@@ -2111,6 +2162,34 @@ EX bool drawMonsterType(eMonster m, cell *where, const transmatrix& V1, color_t 
       queuepoly(VHEAD1, cgi.shFemaleHair, darkena(col, 0, 0XFF));
       queuepoly(VHEAD, cgi.shPFace, 0xF0000080 | UNTRANS);
       humanoid_eyes(V, 0xD0D000FF, darkena(col, 1, 0xFF));
+      return false;
+      } 
+    case moWinterElemental: {
+      const transmatrix VBS = VBODY * otherbodyparts(V, darkena(col, 1, 0xFF), m, footphase);
+      ShadowV(V, cgi.shWaterElemental);
+      queuepoly(VBS, cgi.shWaterElemental, darkena(col, 0, 0xC0));
+      queuepoly(VHEAD1, cgi.shFemaleHair, darkena(col, 0, 0XFF));
+      queuepoly(VHEAD, cgi.shPFace, 0x0000F080 | UNTRANS);
+      humanoid_eyes(V, 0x0000D0FF, darkena(col, 1, 0xFF));
+      return false;
+      }  
+    case moDeathElemental: {
+      const transmatrix VBS = VBODY * otherbodyparts(V, darkena(col, 1, 0xFF), m, footphase);
+      ShadowV(V, cgi.shWaterElemental);
+      queuepoly(VBS, cgi.shWaterElemental, darkena(col, 0, 0xC0));
+      queuepoly(VHEAD1, cgi.shFemaleHair, darkena(col, 0, 0XFF));
+      queuepoly(VHEAD, cgi.shPFace, 0x30303080 | UNTRANS);
+      humanoid_eyes(V, 0x101010FF, darkena(col, 1, 0xFF));
+      return false;
+      }        
+
+    case moStormElemental: {
+      const transmatrix VBS = VBODY * otherbodyparts(V, darkena(col, 1, 0xFF), m, footphase);
+      ShadowV(V, cgi.shWaterElemental);
+      queuepoly(VBS, cgi.shWaterElemental, darkena(col, 0, 0xC0));
+      queuepoly(VHEAD1, cgi.shFemaleHair, darkena(col, 0, 0XFF));
+      queuepoly(VHEAD, cgi.shPFace, 0xDFDF0080 | UNTRANS);
+      humanoid_eyes(V, 0xA0A000FF, darkena(col, 1, 0xFF));
       return false;
       }        
 
@@ -3218,6 +3297,7 @@ EX void init_floorcolors() {
   floorcolors[laOvergrown] = 0x00C020;
   floorcolors[laClearing] = 0x60E080;
   floorcolors[laHaunted] = 0x609F60;
+  
 
   floorcolors[laMirror] = floorcolors[laMirrorWall] = floorcolors[laMirrorOld] = 0x808080;
   }
@@ -3516,6 +3596,8 @@ EX int getfd(cell *c) {
     case laCA:
     case laDual:
     case laBrownian:
+    case laPaint:
+    case laHurricane:
       return 1;
     
     case laVariant:

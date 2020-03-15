@@ -572,7 +572,7 @@ EX void killMonster(cell *c, eMonster who, flagtype deathflags IS(0)) {
       destroyHalfvine(c1);
       minerEffect(c1);
       brownian::dissolve_brownian(c1, 1);
-      if(c1->monst == moSlime || c1->monst == moSlimeNextTurn)
+      if(c1->monst == moSlime || c1->monst == moPaint || c1->monst == moArt || c1->monst == moSlimeNextTurn)
         killMonster(c1, who);
       }
     forCellEx(c2, c) {
@@ -714,7 +714,7 @@ EX void killMonster(cell *c, eMonster who, flagtype deathflags IS(0)) {
       }
     if(!toomany) c->item = itCompass;
     }
-  if(m == moSlime) { 
+  if(m == moSlime || m == moPaint) { 
     pcount = 0;
     drawParticles(c, winf[c->wall].color, 80, 200);
     playSound(c, "splash" + pick12());

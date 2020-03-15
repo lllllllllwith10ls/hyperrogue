@@ -379,6 +379,11 @@ MONSTER( 'B', 0xA00000, "Void Beast", moVoidBeast, CF_FACE_UP | CF_NONLIVING, RE
     "Are creatures of Void actual monsters, or just monster-shaped holes in the air?\n\nVoid Beasts move simply by letting the air move into their current location -- "
     "the hole will move to the place where the air came from! Void Beasts are great at moving against the wind, but they have problems "
     "moving with the wind.")
+MONSTER( 'E', 0x8080FF, "Winter Elemental", moWinterElemental, CF_FACE_UP | CF_NONLIVING, RESERVED, moWinterElemental, 
+    "A being formed from the intense coldness. "
+    "It freezes the area around it, leaves a trail of ice,"
+    " and can even freeze you too! "
+    )
 MONSTER( 'W', 0xA00000, "Lava Wolf", moLavaWolf, CF_FACE_SIDE, RESERVED, moYeti, 
     "While Ice Wolves love heat, their instincts usually will not let them leave the Icy Lands -- "
     "they are afraid that they will be unable to get back home, and that they will lose track of their prey. "
@@ -1003,8 +1008,8 @@ WALL( '?', 0xFF00FF, "<temporary>", waTemporary, WF_WALL, RESERVED, 0, sgNone,  
 WALL( '?', 0xFF00FF, "<earth d", waEarthD, WF_WALL, RESERVED, 0, sgNone,  NODESC)
 WALL( '?', 0xFF00FF, "<elemental tmp>", waElementalTmp, WF_WALL, RESERVED, 0, sgNone,  NODESC)
 WALL( '?', 0xFF00FF, "<elemental d>", waElementalD, WF_WALL, RESERVED, 0, sgNone,  NODESC)
-WALL( '+', 0x00F000, "green slime", waSlime1, ZERO, RESERVED, 0, sgNone,  NODESC)
-WALL( '+', 0xF0F000, "yellow slime", waSlime2, ZERO, RESERVED, 0, sgNone,  NODESC)
+WALL( '+', 0x007000, "green slime", waSlime1, ZERO | WF_ALCHEMY, RESERVED, 0, sgSlime1,  NODESC)
+WALL( '+', 0xF0F000, "yellow slime", waSlime2, ZERO | WF_ALCHEMY, RESERVED, 0, sgSlime2,  NODESC)
 WALL( '#', 0x764e7c, "rosebush", waRose, WF_WALL | WF_HIGHWALL | WF_THORNY, RESERVED, 0, sgNone, roselanddesc)
 WALL( '#', 0xC0C000, "warp gate", waWarpGate, WF_WALL | WF_HIGHWALL, RESERVED, 0, sgNone,
     "This gate separates the warped area from the normal land.")
@@ -1462,7 +1467,7 @@ LAND( 0xA06000, "Volcanic Wasteland", laVolcano, ZERO, itLavaLily, RESERVED, lav
   REQ(GOLD(R60) ITEMS(itElixir, U10))
 
 LAND( 0x8080FF, "Blizzard", laBlizzard, ZERO | LF_ICY, itBlizzard, RESERVED, blizzarddesc)
-  NATIVE((m == moVoidBeast || m == moIceGolem) ? 2 : 0)
+  NATIVE((m == moVoidBeast || m == moIceGolem || m == moWinterElemental) ? 2 : 0)
   REQ(ITEMS(itDiamond, U5) ITEMS(itWindstone, U5))
 
 LAND( 0x207068, "Hunting Ground", laHunting, ZERO, itHunting, RESERVED, huntingdesc)
@@ -1633,7 +1638,64 @@ ITEM( 'o', 0x808080, "Orb of Chaos", itOrbChaos, IC_ORB, ZERO, RESERVED, osUtili
   #define LST {itDiamond, itFulgurite, itPalace, itSilver}
   REQ(ITEMS_TOTAL(LST, variant_unlock_value()*4/3))
   #undef LST
+LAND( 0xFFFFFF, "Paintscape",    laPaint, ZERO, itPaint, RESERVED, 
+  "This area is filled with paint of many colors."
+  )
+ITEM( '?', 0xFFFFFF, "Painting", itPaint, IC_TREASURE, ZERO, RESERVED, osNone, 
+  "A valuable painting.")
+ITEM( 'o', 0xFFFFFF, "Orb of Color", itOrbColor, IC_ORB, ZERO, RESERVED, osUtility, 
+   "This orb changes the colors of cells around you, and adds color to cells."
+  )
+WALL( '+', 0xF07000, "orange slime", waSlime3, ZERO | WF_ALCHEMY, RESERVED, 0, sgSlime3,  NODESC)
+WALL( '+', 0x700070, "purple slime", waSlime4, ZERO | WF_ALCHEMY, RESERVED, 0, sgSlime4,  NODESC)
+MONSTER( 'P', 0xFFFFFF, "Painter", moPaint, CF_FACE_UP | CF_NOBLOW | CF_SLIME | CF_IGNORE_SMELL, RESERVED, moSlime, "Acts like a slime beast from the Alchemist Lab.")
+MONSTER( 'A', 0xFFFFFF, "Artist", moArt, CF_FACE_UP | CF_NOBLOW | CF_FLYING | CF_BIRD, RESERVED, moEagle, "Leaves a trail of color behind.")
+  NATIVE(among(m, moPaint, moArt) ? 2 : 0)
+  REQ(GOLD(R60) ITEMS(itElixir, U10))
 
+LAND( 0x606060, "Necropolis",    laNecro, ZERO, itStygian, RESERVED, 
+  "This area has a feeling of death everywhere. Watch out!"
+  )
+ITEM( '$', 0x606060, "Stygian Iron", itStygian, IC_TREASURE, ZERO, RESERVED, osNone, 
+  "A piece of iron turned black due to the magic of the Necropolis.")
+WALL( '#', 0xC0C0C0, "sealed wall", waSealWall, WF_WALL | WF_HIGHWALL | WF_SEAL, RESERVED, 0, sgNone, "This wall has a special spell cast on it that prevents ghosts from going through and will trap them behind it.")
+WALL( '+', 0xC0C0C0, "seal", waSeal, ZERO | WF_SEAL, RESERVED, 0, sgNone, "This area has a special spell cast on it that prevents ghosts from going through and will trap them behind it.")
+
+WALL( '+', 0xC0C0C0, "barrier", waPlayerBarrier, ZERO | WF_TIMEOUT, RESERVED, 0, sgNone, "A barrier only you can pass through.")
+ITEM( 'o', 0x0000FF, "Orb of Barriers", itOrbBarr, IC_ORB, ZERO | IF_RANGED, RESERVED, osRanged, 
+   "This orb creates barriers that only you can pass through."
+  )
+MONSTER( 'E', 0x505050, "Death Elemental", moDeathElemental, CF_FACE_UP | CF_NONLIVING, RESERVED, moYeti, 
+    "A rare spirit from the Necropolis. "
+    "It will summons ghosts when you get near."
+    )
+  NATIVE(among(m, moDeathElemental) ? 2 : (among(m, moGhost, moZombie) ? 1 : 0))
+  REQ(GOLD(R60) ITEMS(itBone, U10))
+
+
+LAND( 0x4040FF, "Hurricane",    laHurricane, ZERO | LF_SEA | LF_PURESEA, itThunderStone, RESERVED, 
+  "This land is ravaged by a hurricane. Wind here changes constantly. "
+  "You can only move from red cells to blue cells to green cells. "
+  "You can also move from cells to the same type, but only if there are only "
+  "the same color cells or cells that lead into it . "
+  "Red cells turn blue to red if there are enough red cells nearby, "
+  "blue turns green to blue if there is enough blue, and green."
+  "green turns red to green if there is enough green nearby."
+  )
+MONSTER( 'E', 0xFFFF00, "Storm Elemental", moStormElemental, CF_FACE_UP | CF_FLYING | CF_IGNORE_PLATE | CF_BIRD, RESERVED, moEagle, "Dangerous elemental. Creates a storms effect that will destroy everything next turn."
+  )
+
+WALL( '+', 0x0000A0, "boat", waBoatMoved, ZERO | WF_BOAT | WF_NOFLIGHT, RESERVED, 0, sgNone, 
+    NODESC
+    )
+ITEM( '*', 0xFFFF00, "Thunder Stone", itThunderStone, IC_TREASURE, ZERO, RESERVED, osNone, 
+  "A gem made of pure energy from the storm elementals.")
+  
+ITEM( 'o', 0xBFBF00, "Orb of Charging", itOrbCharge, IC_ORB, ZERO, RESERVED, osNone, 
+    "When you have this and other orbs, all other orbs gain charge based on your orb of charging charge."
+    )
+  NATIVE(among(m, moStormElemental) ? 2 : (among(m, moPirate, moAlbatross) ? 1 : 0))
+  REQ(ITEMS(itWhirlpool, U5) ITEMS(itWindstone, U5))
 //shmupspecials
 MONSTER( '@', 0xC0C0C0, "Rogue", moPlayer, CF_FACE_UP | CF_PLAYER, RESERVED, moNone, "In the Shoot'em Up mode, you are armed with thrown Knives.")
 MONSTER( '*', 0xC0C0C0, "Knife", moBullet, ZERO | CF_BULLET, RESERVED, moNone, "A simple, but effective, missile, used by rogues.")
@@ -1647,6 +1709,7 @@ MONSTER( '*', 0x0060E0, "Blueball", moCrushball, ZERO | CF_BULLET, RESERVED, moN
 MONSTER( '?', 0x00C000, "dead bug", moDeadBug, ZERO | CF_TECHNICAL, RESERVED, moNone, NODESC)
 // appears as 'killed by electric discharge'
 MONSTER( '?', 0xFFFF00, "electric discharge", moLightningBolt, ZERO | CF_TECHNICAL, RESERVED, moNone, elecdesc)
+MONSTER( '?', 0xFFFF00, "lightning bolt", moLightning, ZERO | CF_TECHNICAL, RESERVED, moNone, NODESC)
 MONSTER( '?', 0xE06000, "dead bird", moDeadBird, ZERO | CF_TECHNICAL, RESERVED, moNone, NODESC)
 MONSTER( '?', 0xE06000, "Energy Sword", moEnergySword, ZERO | CF_TECHNICAL, RESERVED, moNone, NODESC)
 MONSTER( '!', 0xFF0000, "Warning", moWarning, ZERO | CF_TECHNICAL, RESERVED, moNone, warningdesc)

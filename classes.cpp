@@ -421,7 +421,7 @@ const char *rock_description =
   "Shoot the Space Rocks for score. Large Rocks will split into two smaller rocks.";
 
 #if HDR
-enum eSlimegroup { sgNone, sgCave, sgWater, sgFloorA, sgFloorB, sgVine, sgTree };
+enum eSlimegroup { sgNone, sgCave, sgWater, sgFloorA, sgFloorB, sgVine, sgTree,  sgSlime1, sgSlime2,  sgSlime3, sgSlime4};
 #endif
 
 #if HDR
@@ -597,6 +597,7 @@ static const flagtype WF_TIMEOUT = Flag(18);
 static const flagtype WF_CISLAND = Flag(19);
 static const flagtype WF_SULPHURIC = Flag(20);
 static const flagtype WF_HALFVINE = Flag(21);
+static const flagtype WF_SEAL = Flag(22);
 
 struct walltype {
   char  glyph;

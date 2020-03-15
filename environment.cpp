@@ -43,6 +43,7 @@ namespace hr {
 #define HF_MONK       Flag(30)
 #define HF_WESTWALL   Flag(31)
 #define HF_JUMP       Flag(32)
+#define HF_WINTER     Flag(32)
 #endif
 
 EX flagtype havewhat, hadwhat;
@@ -332,6 +333,8 @@ EX void bfs() {
         dcal.push_back(c2);
         reachedfrom.push_back(c->c.spin(i));
         
+        
+        
         checkTide(c2);
                 
         if(c2->wall == waBigStatue && c2->land != laTemple) 
@@ -411,6 +414,8 @@ EX void bfs() {
             }
           else if(among(c2->monst, moFrog, moVaulter, moPhaser))
             havewhat |= HF_JUMP;
+          else if(c2->monst == moWinterElemental)
+            havewhat |= HF_WINTER;
           else if(c2->monst == moReptile) havewhat |= HF_REPTILE;
           else if(isLeader(c2->monst)) havewhat |= HF_LEADER;
           else if(c2->monst == moEarthElemental) havewhat |= HF_EARTH;
@@ -434,7 +439,6 @@ EX void bfs() {
         }
       }
     }
-
   for(int i=first7; i<isize(dcal); i++)
     forCellEx(c2, dcal[i])
       if(c2->wall == waThumperOn) {
@@ -731,6 +735,7 @@ EX void monstersTurn() {
   bfs();
   DEBB(DF_TURN, ("charge"));
   if(elec::havecharge) elec::act();
+  doLightningNextTurn();
   DEBB(DF_TURN, ("mmo"));
   int phase2 = (1 & items[itOrbSpeed]);
   if(!phase2) movemonsters();
@@ -757,9 +762,10 @@ EX void monstersTurn() {
   if(dual::state && items[itOrbSpeed]) phase1 = !phase1;
   DEBB(DF_TURN, ("lc"));
   if(!phase1) livecaves();
+  if(!phase1) hurricaneWind();
   if(!phase1) ca::simulate();
   if(!phase1) heat::processfires();
-  
+  if(!phase1)
   for(cell *c: crush_now) {
     changes.ccell(c);
     playSound(NULL, "closegate");

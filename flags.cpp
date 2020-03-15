@@ -44,6 +44,7 @@ WALLFLAGCHECK(isGrave, flag & WF_GRAVE)
 WALLFLAGCHECK(isReptile, flag & WF_REPTILE)
 WALLFLAGCHECK(useHeatColoring, flag & WF_HEATCOLOR)
 WALLFLAGCHECK(isThorny, flag & WF_THORNY)
+WALLFLAGCHECK(isSeal, flag & WF_SEAL)
 
 LANDFLAGCHECK(generateAll, flag & LF_GENERATE_ALL)
 LANDFLAGCHECK(isIcyLand, flag & LF_ICY)
@@ -249,7 +250,7 @@ EX bool haveRangedOrb() {
     items[itOrbFrog] || items[itOrbSummon] || items[itOrbMatter] ||
     items[itRevolver] || items[itOrbStunning] || items[itStrongWind] ||
     items[itOrbDomination] || items[itOrbNature] || items[itOrbDash] ||
-    items[itOrbMorph] || items[itOrbPhasing];
+    items[itOrbMorph] || items[itOrbPhasing] || items[itOrbBarr];
   }
 
 EX bool isFriendlyGhost(eMonster m) {
