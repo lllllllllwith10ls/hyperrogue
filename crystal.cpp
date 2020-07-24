@@ -461,7 +461,7 @@ shifttable get_canonical(coord co) {
   }
 #endif
 
-int crystal_period = 0;
+EX int crystal_period = 0;
 
 struct hrmap_crystal : hrmap_standard {
   heptagon *getOrigin() override { return get_heptagon_at(c0, S7); }
@@ -509,6 +509,15 @@ struct hrmap_crystal : hrmap_standard {
     h->alt = NULL;
     h->cdata = NULL;
     h->c7 = newCell(deg, h);
+    
+    /* in {6,4} we need emeraldval for some patterns, including (bitruncated) football and (bitruncated) three-color */
+    h->emeraldval = (c[0] ^ c[1] ^ c[2]) & 2;    
+    h->emeraldval ^= (c[1] & 4);
+    h->emeraldval ^= (c[0] & 4);
+    h->emeraldval ^= (c[2] & 4);
+    h->emeraldval ^= ((c[2] & 2) << 1);    
+    if(c[0] & 2) h->emeraldval ^= 1;
+
     h->distance = 0;
     if(ginf[gCrystal].vertex == 3) 
       h->fiftyval = fiftyrule(c);    
@@ -617,32 +626,33 @@ struct hrmap_crystal : hrmap_standard {
   map<int, transmatrix> adjs;
   
   transmatrix adj(heptagon *h, int d) override {
+    if(!crystal3()) return adj(h->c7, d);
     auto co = hcoords[h];
     int id = 0;
     for(int a=0; a<S7/2; a++) id = (2*id) + ((co[a]>>1) & 1);
     id = S7*id + d;
     if(adjs.count(id)) return adjs[id];
-    transmatrix T = reg3::adjmoves[d];
+    transmatrix T = cgi.adjmoves[d];
     reg3::generate_cellrotations();
     auto st = get_canonical(co);
     auto co1 = co + st[d];
     auto st1 = get_canonical(co1);
     int qty = 0;
     transmatrix res;
-    ld gdist = S7 == 12 ? hdist0(tC0(reg3::adjmoves[0])) : reg3::strafedist;
+    ld gdist = S7 == 12 ? hdist0(tC0(cgi.adjmoves[0])) : cgi.strafedist;
 
     for(auto& cr: cgi.cellrotations) {
 
       transmatrix U = T * cr.M;
       
-      ld go = hdist0(U * tC0(reg3::adjmoves[h->c.spin(d)]));
+      ld go = hdist0(U * tC0(cgi.adjmoves[h->c.spin(d)]));
       if(go > 1e-2) continue;
 
       for(int s=0; s<S7; s++) 
-        if(reg3::dirs_adjacent[d][s])
+        if(cgi.dirs_adjacent[d][s])
           for(int t=0; t<S7; t++) 
             if(st1[t] == st[s]) {
-              if(hdist(U * tC0(reg3::adjmoves[t]), tC0(reg3::adjmoves[s])) > gdist + .1)
+              if(hdist(U * tC0(cgi.adjmoves[t]), tC0(cgi.adjmoves[s])) > gdist + .1)
                 goto wrong;
               }
       res = U;
@@ -745,7 +755,7 @@ EX color_t colorize(cell *c, char whichCanvas) {
     for(int a=0; a<3; a++) co[a] = i%5, i /= 5;
     }
   #endif
-  else if(euclid) {
+  else if(euc::in()) {
     auto tab = euc::get_ispacemap()[c->master];
     for(int a=0; a<3; a++) co[a] = tab[a];
     if(PURE) for(int a=0; a<3; a++) co[a] *= 2;
@@ -827,7 +837,7 @@ EX bool crystal_cell(cell *c, transmatrix V) {
     queuestr(V, 0.3, its(d), 0xFFFFFF, 1);
     }
 
-  if(view_coordinates && cheater && WDIM == 2) {
+  if(view_coordinates && WDIM == 2 && cheater) {
     
     auto m = crystal_map();
     
@@ -1172,6 +1182,7 @@ EX void flip_z() {
     crug_rotation[i][2] *= -1;
   }
 
+#if CAP_RUG
 hyperpoint coord_to_flat(ldcoord co, int dim = 3) {
   auto& cs = crystal_map()->cs;
   hyperpoint res = Hypc;
@@ -1230,8 +1241,8 @@ void cut_triangle2(const hyperpoint pa, const hyperpoint pb, const hyperpoint pc
   
   rug::rugpoint *rac = rug::addRugpoint(hac, 0);
   rug::rugpoint *rbc = rug::addRugpoint(hbc, 0);
-  rac->flat = pac;
-  rbc->flat = pbc;
+  rac->native = pac;
+  rbc->native = pbc;
   rac->valid = true;
   rbc->valid = true;
   rug::triangles.push_back(rug::triangle(rac, rbc, NULL));
@@ -1270,7 +1281,7 @@ EX void build_rugdata() {
     
     if(!draw_cut) {
       rugpoint *v = addRugpoint(tC0(V), 0);
-      v->flat = coord_to_flat(co);
+      v->native = coord_to_flat(co);
       v->valid = true;
       
       rugpoint *p[MAX_EDGE_CRYSTAL];
@@ -1278,7 +1289,7 @@ EX void build_rugdata() {
       for(int i=0; i<c->type; i++) {
         p[i] = addRugpoint(V * get_corner_position(c, i), 0);
         p[i]->valid = true;
-        p[i]->flat = coord_to_flat(vcoord[i]);
+        p[i]->native = coord_to_flat(vcoord[i]);
         }
   
       for(int i=0; i<c->type; i++) addTriangle(v, p[i], p[(i+1) % c->type]);
@@ -1304,6 +1315,7 @@ EX void build_rugdata() {
   
   println(hlog, "cut ", cut_level, "r ", crug_rotation);
   }
+#endif
 
 EX void set_land(cell *c) {
   setland(c, specialland); 
@@ -1471,6 +1483,7 @@ EX void show() {
     dialog::editNumber(compass_probability, 0, 1, 0.1, 1, XLAT("compass probability"), compass_help()); 
     dialog::bound_low(0);
     });
+#if CAP_RUG
   if(cryst && WDIM == 2) {
     dialog::addBoolItem(XLAT("3D display"), rug::rugged, 'r');
     dialog::add_action_push(rug::show);
@@ -1489,6 +1502,7 @@ EX void show() {
       });
     }
   else dialog::addBreak(100);
+#endif
   dialog::addSelItem(XLAT("Crystal torus"), its(crystal_period), 'C');
   dialog::add_action([] {
     dialog::editNumber(crystal_period, 0, 16, 2, 0, XLAT("Crystal torus"), 

@@ -9,8 +9,8 @@
 namespace hr {
 
 #if HDR
+/** \brief This namespace has constants used as parameters in functions such as restart_game and wrongmode. */
 namespace rg {
-  // possible parameters e.g. for restart_game and wrongmode
   static const char nothing = 0;
   static const char peace = 'P';
   static const char inv = 'i';
@@ -27,36 +27,39 @@ namespace rg {
   static const char dualmode = 'U';
   static const char heptagons = '7';
   
-  // wrongmode only -- marks 'global' achievements not related to the current mode
+  /** \brief wrongmode only -- marks 'global' achievements not related to the current mode */
   static const char global = 'x'; 
-  // wrongmode only -- change vid.scfg.players then restart_game(rg::nothing) instead
+  /** \brief wrongmode only -- change vid.scfg.players then restart_game(rg::nothing) instead */
   static const char multi = 'm';
-  // wrongmode only -- mark achievements for special geometries/variations
+  /** \brief wrongmode only -- mark achievements for special geometries/variations */
   static const char special_geometry = 'g';
   }
 #endif
 
+/** \brief is a game map currently loaded (it is false after hr::stop_game and true after hr::start_game) */
 EX bool game_active;
 
-EX bool cblind;
+/** \brief God mode */
 EX bool autocheat;
+
+/** \brief which wall should we fill the Canvas with */
 EX eWall canvas_default_wall = waNone;
 
+/** \brief the number of Black Lotuses collected -- but updated only if we manage to escape */
 EX int truelotus;
-EX int gamecount;
 
 EX int asteroids_generated, asteroid_orbs_generated;
 
 EX time_t timerstart, savetime;
 EX bool timerstopped;
 EX int savecount;
-EX bool showoff = false;
 EX bool doCross = false;
 
 EX bool gamegen_failure;
 
 EX eLand top_land;
 
+/** \brief a comparator for version number strings */
 EX bool verless(string v, string cmp) {
   if(isdigit(v[0]) && isdigit(v[1])) 
     v = "A" + v;
@@ -65,17 +68,19 @@ EX bool verless(string v, string cmp) {
   return v < cmp;
   }
 
+/** \brief should we set the starting land to specialland */
 bool do_use_special_land() {
   return
     !safety &&
     (peace::on || tactic::on || geometry || NONSTDVAR || randomPatternsMode || yendor::on || racing::on);
   }
 
-EX hookset<bool()> *hooks_welcome_message;
+/** \brief Hooks for welcomeMessage. Return true to capture. */
+EX hookset<bool()> hooks_welcome_message;
 
+/** \brief Print the welcome message during the start of game. Depends on the current mode and other settings. */
 EX void welcomeMessage() {
   if(callhandlers(false, hooks_welcome_message)) return;
-  else if(tactic::trailer) return;
 #if CAP_TOUR
   else if(tour::on) return; // displayed by tour
 #endif
@@ -138,13 +143,10 @@ EX void welcomeMessage() {
 #endif
   }
 
-int trailer_cash0 = 5;
-int trailer_cash1 = 15;
-bool trailer_safety = true;
+/** \brief These hooks are called at the start of initgame. */
+EX hookset<void()> hooks_initgame;
 
-EX hookset<void()> *hooks_initgame;
-
-// initialize the game
+/** \brief initialize the game */
 EX void initgame() {
   DEBBI(DF_INIT, ("initGame"));
   callhooks(hooks_initgame); 
@@ -223,6 +225,9 @@ EX void initgame() {
     items[itOrbWinter] = 30;
     items[itOrbFlash] = 30;
     }
+  
+  if(firstland == laCA)
+    items[itOrbAether] = 2;
 
   if(tactic::on && firstland == laCaribbean) {
     if(hiitemsMax(itRedGem) >= 25) items[itRedGem] = min(hiitemsMax(itRedGem), 50);
@@ -230,9 +235,6 @@ EX void initgame() {
     if(hiitemsMax(itWine) >= 25) items[itWine] = min(hiitemsMax(itWine), 50);
     }
   
-  if(tactic::on && tactic::trailer)
-    items[treasureType(firstland)] = trailer_cash0;
-
   yendor::lastchallenge = yendor::challenge;
   
   if(shmup::on) shmup::init();
@@ -272,9 +274,7 @@ EX void initgame() {
   // extern int sightrange; sightrange = 9;
   // cwt.at->land = laHell; items[itHell] = 10;
   for(int i=BARLEV; i>=7 - getDistLimit() - genrange_bonus; i--) {
-    if(tactic::trailer && cwt.at->land != laClearing) safety = trailer_safety;
     setdist(cwt.at, i, NULL);
-    if(tactic::trailer) safety = false;
 
     currentmap->verify();
     }
@@ -308,9 +308,6 @@ EX void initgame() {
     multi::whereto[i].d = MD_UNDECIDED;
     }
     
-  if(tactic::on && tactic::trailer)
-    items[treasureType(firstland)] = trailer_cash1;
-  
   yendor::init(3);
   peace::simon::init();
   
@@ -339,7 +336,6 @@ EX void initgame() {
   if(!safety) {
     usedSafety = false;
     timerstart = time(NULL); turncount = 0; rosewave = 0; rosephase = 0;
-    patterns::whichShape = 0;
     noiseuntil = 0;
     sagephase = 0; hardcoreAt = 0;
     timerstopped = false;
@@ -347,6 +343,7 @@ EX void initgame() {
     cheater = 0;
     if(autocheat) cheater = 1;
     if(!wfc::use_eclectic) cheater = 1;
+    if(!autocheat && !cheater && geometry == gNormal) patterns::whichShape = 0;
     hauntedWarning = false;
     if(!autocheat) {
       timerghost = true;
@@ -398,45 +395,73 @@ bool havesave = true;
 
 #if CAP_SAVE
 
+/** \brief A namespace for loading and saving scores and saved games (system.cpp), and for displaying these scores (scores.cpp).
+ *
+ * Most ApplyBox functions are used both for saving savegames and scores to the logfile, loading savegames and scores from the logfile, 
+ * and loading highscore information from the logfile. The flags saving, loading, and loadingHi specify what is actually done.
+ */
+EX namespace scores {
+
 #if HDR
+/** \brief the amount of boxes reserved for each hr::score item */
 #define MAXBOX 500
+<<<<<<< HEAD
 #define POSSCORE 396 // update this when new boxes are added!
+=======
+/** \brief currently used boxes in hr::score */
+#define POSSCORE 387
+/** \brief a struct to keep local score from an earlier game */
+>>>>>>> 8fde64378f91b61ad47d7226c59369c5b684fe9e
 struct score {
+  /** \brief version used */
   string ver;
+  /** \brief all the data of the saved score, see applyBoxes() */
   int box[MAXBOX];
   };
 #endif
 
-EX int savebox[MAXBOX], boxid;
+/** \brief the current save */
+EX score save;
+/** \brief the index of the next box */
+EX int boxid;
+
+/** \brief see hr::applyBox */
 EX bool saving, loading, loadingHi;
 
+/** \brief names of all the boxes */
 EX string boxname[MAXBOX];
+/** \brief 'fake' boxes should not appear when examining local scores */
 EX bool fakebox[MAXBOX];
+/** \brief does this box contain monster kills */
 EX bool monsbox[MAXBOX];
 
+/** \brief the next box should contain t */
 void applyBox(int& t) {
-  if(saving) savebox[boxid++] = t;
-  else if(loading) t = savebox[boxid++];
+  if(saving) save.box[boxid++] = t;
+  else if(loading) t = save.box[boxid++];
   else boxid++;
   }
 
-void applyBoxBignum(bignum& tb) {
+/** \brief the next box should contain tb */
+void applyBoxBignum(bignum& tb, string name) {
   float tf;
   int ti;
   if(saving) tf = tb.approx_ld();
   if(saving) memcpy(&ti, &tf, 4);
-  applyBox(ti);
+  applyBoxNum(ti, name);
   if(loading) memcpy(&tf, &ti, 4);
   if(loading) tb = bignum(tf);
   }
 
+/** \brief the next box should contain i, and possibly be named name */
 EX void applyBoxNum(int& i, string name IS("")) {
-  fakebox[boxid] = (name == "");
+  fakebox[boxid] = (name == "" || name[0] == '@');
   boxname[boxid] = name;
   monsbox[boxid] = false;
   applyBox(i);
   }
 
+/** \brief the next box should contain b, and possibly be named name */
 void applyBoxBool(bool& b, string name = "") {
   int i = b;
   applyBoxNum(i, name);
@@ -444,13 +469,14 @@ void applyBoxBool(bool& b, string name = "") {
   b = i;
   }
 
-// just skips the value when loading
+/** \brief Save i while saving, do nothing while loading. Use together with hr::scores::applyBoxLoad and boxid++ */
 void applyBoxSave(int i, string name = "") {
   fakebox[boxid] = (name == "");
   boxname[boxid] = name;
   applyBox(i);
   }
 
+/** \brief Load i while loading, do nothing while saving. Use together with hr::scores::applyBoxSave and boxid++ */
 int applyBoxLoad(string name = "") {
   fakebox[boxid] = (name == "");
   boxname[boxid] = name;
@@ -458,12 +484,13 @@ int applyBoxLoad(string name = "") {
   return i;
   }
 
+/** \brief the next box is the number of collected items it */
 void applyBoxI(eItem it, bool f = false) {
   boxname[boxid] = iinf[it].name;
   fakebox[boxid] = f;
   monsbox[boxid] = false;
   if(loadingHi) { 
-    updateHi(it, savebox[boxid++]); 
+    updateHi(it, save.box[boxid++]); 
     }
   else applyBox(items[it]);
   }
@@ -474,11 +501,13 @@ void addinv(eItem it) {
   invorb.push_back(it);
   }
 
+/** \brief Handle the information about orb it. Need to call list_invorb later */
 void applyBoxOrb(eItem it) {
   applyBoxI(it, true);
   invorb.push_back(it);
   }  
 
+/** \brief Handle the OSM information for all orbs that applyBoxOrb has been called for so far */
 void list_invorb() {
   for(eItem it: invorb) {
 #if CAP_INV
@@ -493,6 +522,7 @@ void list_invorb() {
   invorb.clear();
   }
 
+/** \brief handle the number of monsters of type m killed */
 void applyBoxM(eMonster m, bool f = false) {
   fakebox[boxid] = f;
   boxname[boxid] = minf[m].name;
@@ -500,6 +530,7 @@ void applyBoxM(eMonster m, bool f = false) {
   applyBox(kills[m]);
   }
 
+/** \brief Call applyBox for all the required values. This will save the values if hr::scores::saving==true, load if hr::scores::loading==true, load into highscores if hr::scores::loadingHi==true */
 EX void applyBoxes() {
   invorb.clear();
 
@@ -548,9 +579,9 @@ EX void applyBoxes() {
   applyBoxNum(cheater, "number of cheats");
   
   fakebox[boxid] = true;
-  if(saving) applyBoxSave(items[itOrbSafety] ? safetyland : cwt.at->land, "");
-  else if(loading) firstland = safetyland = eLand(applyBoxLoad());
-  else lostin = eLand(savebox[boxid++]);
+  if(saving) applyBoxSave(items[itOrbSafety] ? safetyland : cwt.at->land, "@safetyland");
+  else if(loading) firstland = safetyland = eLand(applyBoxLoad("@safetyland"));
+  else lostin = eLand(save.box[boxid++]);
   
   for(int i=itOrbLightning; i<25; i++) applyBoxOrb(eItem(i));
   
@@ -596,9 +627,9 @@ EX void applyBoxes() {
   applyBoxOrb(itOrbSpace);
   
   int geo = geometry;
-  applyBoxNum(geo, ""); geometry = eGeometry(geo);
+  applyBoxNum(geo, "@geometry"); geometry = eGeometry(geo);
   applyBoxBool(hardcore, "hardcore");
-  applyBoxNum(hardcoreAt, "");
+  applyBoxNum(hardcoreAt, "@hardcoreAt");
   applyBoxBool(shmup::on, "shmup");
   if(saving) applyBoxSave(specialland, "euclid land");
   else if(loading) specialland = eLand(applyBoxLoad("euclid land"));
@@ -632,8 +663,8 @@ EX void applyBoxes() {
   applyBoxM(moPrincessMoved, false); // live Princess for Safety
   applyBoxM(moPrincessArmedMoved, false); // live Princess for Safety
   applyBoxM(moMouse);
-  applyBoxNum(princess::saveArmedHP, "");
-  applyBoxNum(princess::saveHP, "");
+  applyBoxNum(princess::saveArmedHP, "@saveArmedHP");
+  applyBoxNum(princess::saveHP, "@saveHP");
   
   applyBoxI(itIvory);
   applyBoxI(itElemental);
@@ -663,10 +694,10 @@ EX void applyBoxes() {
   applyBoxOrb(itOrbLuck);
   applyBoxOrb(itOrbStunning);
   
-  applyBoxBool(tactic::on, "");
-  applyBoxNum(elec::lightningfast, "");
+  applyBoxBool(tactic::on, "@tactic");
+  applyBoxNum(elec::lightningfast, "@lightningfast");
   
-  // if(savebox[boxid]) printf("lotus = %d (lost = %d)\n", savebox[boxid], isHaunted(lostin));
+  // if(save.box[boxid]) printf("lotus = %d (lost = %d)\n", save.box[boxid], isHaunted(lostin));
   if(loadingHi && isHaunted(lostin)) boxid++;
   else applyBoxI(itLotus);
   applyBoxOrb(itOrbUndeath);
@@ -676,7 +707,7 @@ EX void applyBoxes() {
   applyBoxOrb(itMutant2);
   applyBoxOrb(itOrbFreedom);
   applyBoxM(moRedFox);
-  applyBoxBool(survivalist);
+  applyBoxBool(survivalist, "@survivalist");
   if(loadingHi) applyBoxI(itLotus);
   else applyBoxNum(truelotus, "lotus/escape");
   
@@ -706,17 +737,17 @@ EX void applyBoxes() {
   applyBoxM(moDragonHead);
   applyBoxOrb(itOrbDomination);
   applyBoxI(itBabyTortoise);
-  applyBoxNum(tortoise::seekbits, "");
+  applyBoxNum(tortoise::seekbits, "@seekbits");
   applyBoxM(moTortoise);
   applyBoxOrb(itOrbShell);
   
-  applyBoxNum(safetyseed);
+  applyBoxNum(safetyseed, "@safetyseed");
 
   // (+18)
   for(int i=0; i<6; i++) {
-    applyBoxNum(multi::treasures[i]);
-    applyBoxNum(multi::kills[i]);
-    applyBoxNum(multi::deaths[i]);
+    applyBoxNum(multi::treasures[i], "@multi-treasures" + its(i));
+    applyBoxNum(multi::kills[i], "@multi-kills" + its(i));
+    applyBoxNum(multi::deaths[i], "@multi-deaths" + its(i));
     }
   // (+8)
   applyBoxM(moDragonTail);
@@ -733,7 +764,7 @@ EX void applyBoxes() {
   bool sph;
   sph = false; applyBoxBool(sph, "sphere"); if(sph) geometry = gSphere;
   sph = false; applyBoxBool(sph, "elliptic"); if(sph) geometry = gElliptic;
-  applyBox(princess::reviveAt);
+  applyBoxNum(princess::reviveAt, "@reviveAt");
   
   applyBoxI(itDodeca);
   applyBoxI(itAmethyst);
@@ -756,13 +787,13 @@ EX void applyBoxes() {
   applyBoxM(moGadfly);
 
   // 10.0:
-  applyBoxNum(hinttoshow); // 258
+  applyBoxNum(hinttoshow, "@hinttoshow"); // 258
   addinv(itOrbMirror);
   addinv(itGreenStone);
   list_invorb();
   applyBoxBool(inv::on, "inventory"); // 306
   #if CAP_INV
-  applyBoxNum(inv::rseed);
+  applyBoxNum(inv::rseed, "@inv-rseed");
   #else
   { int u; applyBoxNum(u); }
   #endif
@@ -805,16 +836,16 @@ EX void applyBoxes() {
   applyBoxM(moMonk);
   
   bool v2 = false;
-  applyBoxBool(v2); if(loading && v2) variation = eVariation::goldberg;
-  applyBox(gp::param.first);
-  applyBox(gp::param.second);
+  applyBoxBool(v2, "@variation"); if(loading && v2) variation = eVariation::goldberg;
+  applyBoxNum(gp::param.first, "@gp-first");
+  applyBoxNum(gp::param.second, "@gp-second");
   
   v2 = false; applyBoxBool(v2); if(loading && v2) variation = eVariation::irregular;
-  applyBox(irr::cellcount);
+  applyBoxNum(irr::cellcount, "@irr-cellcount");
 
   list_invorb();
 
-  applyBox(irr::bitruncations_performed);
+  applyBoxNum(irr::bitruncations_performed, "@irr-bitruncations");
   
   applyBoxI(itVarTreasure);
   applyBoxI(itBrownian);
@@ -832,8 +863,8 @@ EX void applyBoxes() {
   applyBoxM(moNarciss);
   applyBoxM(moMirrorSpirit);  
   
-  applyBox(clearing::direct);
-  applyBoxBignum(clearing::imputed);
+  applyBoxNum(clearing::direct, "@clearing-direct");
+  applyBoxBignum(clearing::imputed, "@clearing-imputed");
   
   applyBoxOrb(itOrbImpact);
   applyBoxOrb(itOrbChaos);
@@ -846,11 +877,15 @@ EX void applyBoxes() {
   applyBoxM(moVaulter);
   applyBoxM(moPike);
   applyBoxM(moRusalka);
+<<<<<<< HEAD
   
   applyBoxOrb(itOrbColor);
   applyBoxI(itPaint);
   applyBoxM(moPaint);
   applyBoxM(moArt);
+=======
+  list_invorb();
+>>>>>>> 8fde64378f91b61ad47d7226c59369c5b684fe9e
 
   applyBoxOrb(itOrbBarr);
   applyBoxI(itStygian);
@@ -859,32 +894,36 @@ EX void applyBoxes() {
   applyBoxI(itThunderStone);
   applyBoxM(moStormElemental);
   if(POSSCORE != boxid) printf("ERROR: %d boxes\n", boxid);
+  if(isize(invorb)) { println(hlog, "ERROR: Orbs not taken into account"); exit(1); }
   }
 
+/** \brief save the current game values to save */
 EX void saveBox() {
   boxid = 0; saving = true; applyBoxes(); saving = false;
   }
 
+/** \brief load the current game values from save */
 void loadBox() {
   // have boxid
   boxid = 0; loading = true; applyBoxes(); loading = false;
   }
 
+/** \brief load the current game values from save into the highscore tables */
 void loadBoxHigh() {
 
-  dynamicval<int> sp1(multi::players, savebox[197]);
-  dynamicval<eGeometry> sp2(geometry, (eGeometry) savebox[116]);
-  dynamicval<bool> sp3(shmup::on, savebox[119]);
-  dynamicval<int> sp4(chaosmode, savebox[196]);
-  dynamicval<eVariation> sp5(variation, (eVariation) savebox[186]);
-  dynamicval<int> sp7(gp::param.first, savebox[342]);
-  dynamicval<int> sp8(gp::param.second, savebox[343]);
-  dynamicval<bool> spinv(inv::on, savebox[306]);
+  dynamicval<int> sp1(multi::players, save.box[197]);
+  dynamicval<eGeometry> sp2(geometry, (eGeometry) save.box[116]);
+  dynamicval<bool> sp3(shmup::on, save.box[119]);
+  dynamicval<int> sp4(chaosmode, save.box[196]);
+  dynamicval<eVariation> sp5(variation, (eVariation) save.box[186]);
+  dynamicval<int> sp7(gp::param.first, save.box[342]);
+  dynamicval<int> sp8(gp::param.second, save.box[343]);
+  dynamicval<bool> spinv(inv::on, save.box[306]);
 
-  if(savebox[238]) geometry = gSphere;
-  if(savebox[239]) geometry = gElliptic;
-  if(savebox[341]) variation = eVariation::goldberg;
-  if(savebox[344]) variation = eVariation::irregular;
+  if(save.box[238]) geometry = gSphere;
+  if(save.box[239]) geometry = gElliptic;
+  if(save.box[341]) variation = eVariation::goldberg;
+  if(save.box[344]) variation = eVariation::irregular;
 
   if(multi::players < 1 || multi::players > MAXPLAYER)
     multi::players = 1;
@@ -895,6 +934,8 @@ void loadBoxHigh() {
     boxid = 0; loadingHi = true; applyBoxes(); loadingHi = false;
     }
   }
+
+EX }
 
 // certify that saves and achievements were received
 // in an official version of HyperRogue
@@ -911,7 +952,7 @@ EX }
 EX namespace anticheat {
   EX bool tampered;
   void save(FILE *f) {}
-  bool load(FILE *f, score& sc, const string& ver) {return true; }
+  bool load(FILE *f, scores::score& sc, const string& ver) {return true; }
   int certify(const string& s, int a, int b, int c, int d) { return d; }
   int check(int cv, const string& ver, const string& s, int a, int b, int c, int d=0) { return cv==d; }
   void nextid(int& tid, const string& ver, int cert) { tid++; }
@@ -930,7 +971,7 @@ EX void remove_emergency_save() {
   }
 
 EX void saveStats(bool emergency IS(false)) {
-  DEBBI(DF_INIT, ("saveStats [%s]", scorefile));
+  DEBBI(DF_INIT, ("saveStats [", scorefile, "]"));
 
   if(autocheat) return;
   #if CAP_TOUR
@@ -945,6 +986,8 @@ EX void saveStats(bool emergency IS(false)) {
   if(peace::on) return;
   if(dpgen::in) return;
   if(experimental) return;
+  if(ginf[geometry].xcode == no_code) return;
+  if(INVERSE) return;
   if(!gold()) return;
   
   remove_emergency_save();
@@ -961,8 +1004,6 @@ EX void saveStats(bool emergency IS(false)) {
     saveposition = ftell(f);
 //  if(!timerghost) addMessage(XLAT("Emergency save at ") + its(saveposition));
     }
-  
-  if(showoff) { fclose(f); return; }
   
   time_t timer;
   timer = time(NULL);
@@ -1013,9 +1054,9 @@ EX void saveStats(bool emergency IS(false)) {
     if(!shmup::on) kills[moPrincessArmedMoved] = countMyGolems(moPrincessArmed); 
     if(!shmup::on) princess::saveHP = countMyGolemsHP(moPrincess); 
     if(!shmup::on) princess::saveArmedHP = countMyGolemsHP(moPrincessArmed); 
-    saveBox();
+    scores::saveBox();
     
-    for(int i=0; i<boxid; i++) fprintf(f, " %d", savebox[i]);
+    for(int i=0; i<scores::boxid; i++) fprintf(f, " %d", scores::save.box[i]);
     anticheat::save(f);
 
     fprintf(f, "\n");
@@ -1048,10 +1089,9 @@ EX void saveStats(bool emergency IS(false)) {
   
   fprintf(f, "\n\n\n");
   
-#if ISMOBILE==0
+#if !ISMOBILE
   DEBB(DF_INIT, ("Game statistics saved to ", scorefile));
-  if(!tactic::trailer)
-    addMessage(XLAT("Game statistics saved to %1", scorefile));
+  addMessage(XLAT("Game statistics saved to %1", scorefile));
 #endif
   fclose(f);
   }
@@ -1064,12 +1104,10 @@ EX void loadsave() {
 #endif
   DEBBI(DF_INIT, ("loadSave"));
 
-  gamecount = 0;
-
   FILE *f = fopen(scorefile, "rt");
   havesave = f;
   if(!f) return;
-  score sc;
+  scores::score sc;
   bool ok = false;
   bool tamper = false;
   int coh = counthints();
@@ -1077,7 +1115,6 @@ EX void loadsave() {
     char buf[120];
     if(fgets(buf, 120, f) == NULL) break;
     if(buf[0] == 'H' && buf[1] == 'y') {
-      gamecount++;
       if(fscanf(f, "%s", buf) <= 0) break;
       sc.ver = buf;
       if(sc.ver[1] != '.') sc.ver = '0' + sc.ver;
@@ -1085,15 +1122,16 @@ EX void loadsave() {
       ok = true;
       for(int i=0; i<MAXBOX; i++) {
         if(fscanf(f, "%d", &sc.box[i]) <= 0) {
-          boxid = i;
+          scores::boxid = i;
                     
           tamper = anticheat::load(f, sc, sc.ver);
 
-          for(int i=0; i<boxid; i++) savebox[i] = sc.box[i];
-          for(int i=boxid; i<MAXBOX; i++) savebox[i] = 0, sc.box[i] = 0;
+          using namespace scores;
+          for(int i=0; i<boxid; i++) save.box[i] = sc.box[i];
+          for(int i=boxid; i<MAXBOX; i++) save.box[i] = 0, sc.box[i] = 0;
 
-          if(savebox[258] >= 0 && savebox[258] < coh) {
-             hints[savebox[258]].last = savebox[1];
+          if(save.box[258] >= 0 && save.box[258] < coh) {
+             hints[save.box[258]].last = save.box[1];
              }
 
           loadBoxHigh();
@@ -1115,7 +1153,7 @@ EX void loadsave() {
       char buf1[80], ver[10];
       int tid, land, score, tc, t, ts, cert;
       int xc = -1;
-      sscanf(buf, "%70s%10s%d%d%d%d%d%d%d%d",
+      sscanf(buf, "%70s%9s%d%d%d%d%d%d%d%d",
         buf1, ver, &tid, &land, &score, &tc, &t, &ts, &cert, &xc);
       
       eLand l2 = eLand(land);
@@ -1139,7 +1177,7 @@ EX void loadsave() {
     if(buf[0] == 'Y' && buf[1] == 'E' && buf[2] == 'N') {
       char buf1[80], ver[10];
       int cid, oy, won, tc, t, ts, cert=0, xc = -1;
-      sscanf(buf, "%70s%10s%d%d%d%d%d%d%d%d",
+      sscanf(buf, "%70s%9s%d%d%d%d%d%d%d%d",
         buf1, ver, &cid, &oy, &won, &tc, &t, &ts, &cert, &xc);
 
       if(xc == -1)
@@ -1164,9 +1202,10 @@ EX void loadsave() {
     anticheat::tampered = tamper;
 //  printf("box = %d (%d)\n", sc.box[65 + 4 + itOrbSafety - itOrbLightning], boxid);
 //  printf("boxid = %d\n", boxid);
-    for(int i=0; i<boxid; i++) savebox[i] = sc.box[i];
-    for(int i=boxid; i<MAXBOX; i++) savebox[i] = 0;
-//  for(int i=160; i<200; i++) printf("%d: %d ", i, savebox[i]);
+    using namespace scores;
+    for(int i=0; i<boxid; i++) save.box[i] = sc.box[i];
+    for(int i=boxid; i<MAXBOX; i++) save.box[i] = 0;
+//  for(int i=160; i<200; i++) printf("%d: %d ", i, save.box[i]);
     loadBox();
 //  printf("boxid = %d\n", boxid);
     if(items[itHolyGrail]) {
@@ -1225,17 +1264,17 @@ EX void stop_game() {
 #endif
   }
 
-eModel default_model() {
+EX eModel default_model() {
   if(nonisotropic) return mdGeodesic;
   if(GDIM == 3) return mdPerspective;
   return mdDisk;
   }
 
-EX purehookset on_geometry_change;
+EX purehookset hooks_on_geometry_change;
 
 EX void set_geometry(eGeometry target) {
   bool was_default = pmodel == default_model();
-  callhooks(on_geometry_change);
+  callhooks(hooks_on_geometry_change);
   if(geometry != target) {
     int old_DIM = GDIM;
     stop_game();
@@ -1267,8 +1306,12 @@ EX void set_geometry(eGeometry target) {
     if(bt::in() || WDIM == 3 || kite::in() || arb::in()) if(!hybri) variation = eVariation::pure;
     #endif
     if(S3 >= OINF) variation = eVariation::pure;
+    if(INVERSE) variation = gp::variation_for(gp::param);
+    if(ginf[target].default_variation == eVariation::pure && geometry != gArchimedean)
+      variation = eVariation::pure;
     if(was_default) pmodel = default_model();
     if(nonisotropic && old_DIM == 2 && vid.texture_step < 4) vid.texture_step = 4;
+    if(WDIM == 2 && (cgflags & qIDEAL) && vid.always3 && vid.texture_step < 32) vid.texture_step = 32;
     if(prod) { pmodel = mdPerspective; if(vid.texture_step < 4) vid.texture_step = 4; }
     if(WDIM == 3 && (cgflags & qIDEAL) && vid.texture_step < 4) vid.texture_step = 4;
     if(sl2) nisot::geodesic_movement = true;
@@ -1480,10 +1523,10 @@ EX void stop_game_and_switch_mode(char switchWhat IS(rg::nothing)) {
   switch_game_mode(switchWhat);
   }
 
-EX purehookset clearmemory;
+EX purehookset hooks_clearmemory;
 
 EX void clearMemory() {
-  callhooks(clearmemory);
+  callhooks(hooks_clearmemory);
   }
 
 EX bool fixseed = false;
@@ -1491,7 +1534,10 @@ EX int startseed = 0;
 
 EX eLand firstland0;
 
+EX purehookset hooks_initialize;
+
 EX void initAll() {
+  callhooks(hooks_initialize);
   init_floorcolors();
   showstartmenu = true;
   ca::init();
@@ -1524,7 +1570,7 @@ EX void initAll() {
   polygonal::solve();
   }
 
-EX purehookset final_cleanup;
+EX purehookset hooks_final_cleanup;
 
 EX void finishAll() {
   achievement_final(!items[itOrbSafety]);
@@ -1533,16 +1579,16 @@ EX void finishAll() {
   saveStats();
 #endif
   clearMemory();
-#if ISMOBILE==0
+#if !ISMOBILE
   cleargraph();
 #endif
   
   achievement_close();  
-  callhooks(final_cleanup);
+  callhooks(hooks_final_cleanup);
   }
 
 
-auto cgm = addHook(clearmemory, 40, [] () {
+auto cgm = addHook(hooks_clearmemory, 40, [] () {
   pathq.clear();
   dcal.clear();
   clearshadow();
@@ -1584,5 +1630,5 @@ addHook(hooks_removecells, 0, [] () {
   eliminate_if(butterflies, [] (pair<cell*,int>& p) { return is_cell_removed(p.first); });
   for(int i=0; i<SHSIZE; i++) for(int p=0; p<MAXPLAYER; p++)
     set_if_removed(shpos[p][i], NULL);
-  });;
+  });
 }

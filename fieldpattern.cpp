@@ -192,7 +192,7 @@ struct fpattern {
   
   void add(const matrix& M) {
     if(!matcode.count(M)) {
-      int i = matrices.size();
+      int i = isize(matrices);
       matcode[M] = i, matrices.push_back(M);
       for(int j=0; j<isize(qcoords); j++)
         addas(mmul(M, qcoords[j]), i);
@@ -284,7 +284,7 @@ struct fpattern {
     
   fpattern(int p) {
     force_hash = 0;
-    #if CAP_THREAD
+    #if CAP_THREAD && MAXMDIM >= 4
     dis = nullptr;
     #endif
     if(!p) return;
@@ -317,7 +317,7 @@ struct fpattern {
   #endif
   };
 
-#if CAP_THREAD
+#if CAP_THREAD && MAXMDIM >= 4
 struct discovery {
   fpattern experiment;
   std::shared_ptr<std::thread> discoverer;
@@ -404,39 +404,39 @@ vector<matrix> fpattern::generate_isometries3() {
   for(T[3][1]=low; T[3][1]<Prime; T[3][1]++)
   if(colprod(1, 1) == 1)
   if(colprod(1, 0) == 0) {
-    #if CAP_THREAD
+    #if CAP_THREAD && MAXMDIM >= 4
     if(dis) dis->check_suspend();
     if(dis && dis->stop_it) return res;
     #endif
 
-  for(T[0][2]=low; T[0][2]<Prime; T[0][2]++)
-  for(T[0][3]=low; T[0][3]<Prime; T[0][3]++)
-  if(rowcol(0, 0) == 1)
-  if(rowcol(0, 1) == 0)
-  for(T[1][2]=low; T[1][2]<Prime; T[1][2]++)
-  for(T[1][3]=low; T[1][3]<Prime; T[1][3]++)
-  if(rowcol(1, 0) == 0)
-  if(rowcol(1, 1) == 1)
-  for(T[2][2]=low; T[2][2]<Prime; T[2][2]++)
-  for(T[3][2]=low; T[3][2]<Prime; T[3][2]++)
-  if(colprod(2, 2) == 1)
-  if(colprod(2, 0) == 0)
-  if(colprod(2, 1) == 0)
-  for(T[2][3]=low; T[2][3]<Prime; T[2][3]++)
-  for(T[3][3]=low; T[3][3]<Prime; T[3][3]++)
-  if(rowcol(2, 0) == 0)
-  if(rowcol(2, 1) == 0)
-  if(rowcol(2, 2) == 1)
-  // if(colprod(3, 3) == 1)
-  if(add(colprod(3, 3), 1) == 0)
-  if(colprod(3, 0) == 0)
-  if(colprod(3, 1) == 0)
-  if(colprod(3, 2) == 0)
-  if(rowcol(3, 3) == 1)
-  if(rowcol(3, 0) == 0)
-  if(rowcol(3, 1) == 0)
-  if(rowcol(3, 2) == 0)
-    res.push_back(T);
+    for(T[0][2]=low; T[0][2]<Prime; T[0][2]++)
+    for(T[0][3]=low; T[0][3]<Prime; T[0][3]++)
+    if(rowcol(0, 0) == 1)
+    if(rowcol(0, 1) == 0)
+    for(T[1][2]=low; T[1][2]<Prime; T[1][2]++)
+    for(T[1][3]=low; T[1][3]<Prime; T[1][3]++)
+    if(rowcol(1, 0) == 0)
+    if(rowcol(1, 1) == 1)
+    for(T[2][2]=low; T[2][2]<Prime; T[2][2]++)
+    for(T[3][2]=low; T[3][2]<Prime; T[3][2]++)
+    if(colprod(2, 2) == 1)
+    if(colprod(2, 0) == 0)
+    if(colprod(2, 1) == 0)
+    for(T[2][3]=low; T[2][3]<Prime; T[2][3]++)
+    for(T[3][3]=low; T[3][3]<Prime; T[3][3]++)
+    if(rowcol(2, 0) == 0)
+    if(rowcol(2, 1) == 0)
+    if(rowcol(2, 2) == 1)
+    // if(colprod(3, 3) == 1)
+    if(add(colprod(3, 3), 1) == 0)
+    if(colprod(3, 0) == 0)
+    if(colprod(3, 1) == 0)
+    if(colprod(3, 2) == 0)
+    if(rowcol(3, 3) == 1)
+    if(rowcol(3, 0) == 0)
+    if(rowcol(3, 1) == 0)
+    if(rowcol(3, 2) == 0)
+      res.push_back(T);
     if(isize(res) > limitp) return res;
     }
 
@@ -445,14 +445,14 @@ vector<matrix> fpattern::generate_isometries3() {
 
 void fpattern::add1(const matrix& M) {
   if(!matcode.count(M)) {
-    int i = matrices.size();
+    int i = isize(matrices);
     matcode[M] = i, matrices.push_back(M);
     }
   }
 
 void fpattern::add1(const matrix& M, const transmatrix& Full) {
   if(!matcode.count(M)) {
-    int i = matrices.size();
+    int i = isize(matrices);
     matcode[M] = i, matrices.push_back(M), fullv.push_back(Full);
     }
   }
@@ -482,8 +482,8 @@ bool fpattern::generate_all3() {
   add1(Id);
   fullv = {hr::Id};
   for(int i=0; i<isize(matrices); i++) {
-    add1(mmul(matrices[i], R), fullv[i] * reg3::full_R);
-    add1(mmul(matrices[i], X), fullv[i] * reg3::full_X);
+    add1(mmul(matrices[i], R), fullv[i] * cgi.full_R);
+    add1(mmul(matrices[i], X), fullv[i] * cgi.full_X);
     }
   local_group = isize(matrices);
   for(int i=0; i<(int)matrices.size(); i++) {
@@ -507,7 +507,7 @@ int fpattern::solve3() {
 
   int cmb = 0;
   
-  int N = isize(reg3::rels);
+  int N = isize(cgi.rels);
   
   vector<int> fails(N);
   
@@ -516,33 +516,33 @@ int fpattern::solve3() {
   for(auto& M: iso3) {
     if(check_order(M, 2)) 
       possible_X.push_back(M);
-    if(check_order(M, reg3::r_order)) 
+    if(check_order(M, cgi.r_order)) 
       possible_R.push_back(M);
     }
   for(auto& M: iso4) 
     if(check_order(M, 2)) 
       possible_P.push_back(M);
     
-  DEBB(DF_FIELD, ("field = ", Field, " #P = ", isize(possible_P), " #X = ", isize(possible_X), " #R = ", isize(possible_R), " r_order = ", reg3::r_order, " xp_order = ", reg3::xp_order));
+  DEBB(DF_FIELD, ("field = ", Field, " #P = ", isize(possible_P), " #X = ", isize(possible_X), " #R = ", isize(possible_R), " r_order = ", cgi.r_order, " xp_order = ", cgi.xp_order));
                                                                                                                                
   for(auto& xX: possible_X)
-  for(auto& xP: possible_P) if(check_order(mmul(xP, xX), reg3::xp_order))
-  for(auto& xR: possible_R) if(check_order(mmul(xR, xX), reg3::rx_order)) { // if(xR[0][0] == 1 && xR[0][1] == 0) 
-    #if CAP_THREAD
+  for(auto& xP: possible_P) if(check_order(mmul(xP, xX), cgi.xp_order))
+  for(auto& xR: possible_R) if(check_order(mmul(xR, xX), cgi.rx_order)) { // if(xR[0][0] == 1 && xR[0][1] == 0) 
+    #if CAP_THREAD && MAXMDIM >+ 4
     if(dis) dis->check_suspend();
     if(dis && dis->stop_it) return 0;
     #endif
     auto by = [&] (char ch) -> matrix& { return ch == 'X' ? xX : ch == 'R' ? xR : xP; };
     for(int i=0; i<N; i++) {
       matrix ml = Id;
-      for(char c: reg3::rels[i].first) { ml = mmul(ml, by(c)); if(ml == Id) { fails[i]++; goto bad; }}
+      for(char c: cgi.rels[i].first) { ml = mmul(ml, by(c)); if(ml == Id) { fails[i]++; goto bad; }}
       matrix mr = Id;
-      for(char c: reg3::rels[i].second) { mr = mmul(mr, by(c)); if(mr == Id) { fails[i]++; goto bad; }}
+      for(char c: cgi.rels[i].second) { mr = mmul(mr, by(c)); if(mr == Id) { fails[i]++; goto bad; }}
       if(ml != mr) { fails[i]++; goto bad;}
       }
     P = xP; R = xR; X = xX;
     if(!generate_all3()) continue;
-    #if CAP_THREAD
+    #if CAP_THREAD && MAXMDIM >= 4
     if(dis) { dis->discovered(); continue; }
     #endif
     if(force_hash && compute_hash() != force_hash) continue;
@@ -554,7 +554,7 @@ int fpattern::solve3() {
   ok:
 
   DEBB(DF_FIELD, ("cmb = ", cmb, " for field = ", Field));
-  for(int i=0; i<N; i++) if(fails[i]) DEBB(DF_FIELD, (reg3::rels[i], " fails = ", fails[i]));
+  for(int i=0; i<N; i++) if(fails[i]) DEBB(DF_FIELD, (cgi.rels[i], " fails = ", fails[i]));
   
   return cmb;
   }
@@ -801,7 +801,7 @@ void fpattern::analyze() {
     }
     
   DEBB(DF_FIELD, ("variation = %d\n", int(variation)));
-  int N = connections.size();
+  int N = isize(connections);
   
   markers.resize(N);
   
@@ -1085,6 +1085,7 @@ EX bool quotient_field_changed;
 #define STR(x) string(x, sizeof(x))
 
 EX struct fpattern& getcurrfp() {
+  if(fake::in()) return *FPIU(&getcurrfp());
   if(geometry == gFieldQuotient && quotient_field_changed)
     return current_quotient_field;
   if(geometry == gSpace535) {
@@ -1149,31 +1150,55 @@ EX struct fpattern& getcurrfp() {
     fp.Prime = 5; fp.force_hash = 0x9FDE7B38u; fp.solve();
     return fp;
     }
+  if(geometry == gSpace345) {
+    static fpattern fp(0);
+    if(fp.Prime) return fp;
+    // 30 cells in 02ADCAA4 (3^2)
+    // 650 cells in 7EFE8D98 (5^2)
+    // 55 cells in F447F75C (11)
+    fp.Prime = 11; fp.force_hash = 0xF447F75Cu; fp.solve();
+    return fp;
+    }
+  if(geometry == gSpace353) {
+    static fpattern fp(0);
+    if(fp.Prime) return fp;
+    // 130 cells in 1566EBAC (5^2)
+    // 11 cells in 5A2E2B88 (11)
+    fp.Prime = 11; fp.force_hash = 0x5A2E2B88u; fp.solve();
+    return fp;
+    }
+  if(geometry == gSpace354) {
+    static fpattern fp(0);
+    if(fp.Prime) return fp;
+    fp.Prime = 11; fp.force_hash = 0x363D8DA4u; fp.solve();
+    return fp;
+    }
+  if(!hyperbolic) return fp_invalid;
   if(WDIM == 3 && !quotient && !hybri && !bt::in()) {
     static fpattern fp(0);
     if(fp.Prime) return fp;
-    for(int p=2; p<8; p++) { fp.Prime = p; if(!fp.solve()) break; }
+    for(int p=2; p<20; p++) { fp.Prime = p; if(!fp.solve()) break; }
     DEBB(DF_FIELD, ("set prime = ", fp.Prime));
     return fp;
     }
-  if(S7 == 8 && S3 == 3) {
+  if(S7 == 8 && S3 == 3 && !bt::in()) {
     static fpattern fp(17);
     return fp;
     }
-  if(S7 == 5 && S3 == 4) {
+  if(S7 == 5 && S3 == 4 && !bt::in()) {
     static fpattern fp(11);
     return fp;
     }
-  if(S7 == 6 && S3 == 4) {
+  if(S7 == 6 && S3 == 4 && !bt::in()) {
     static fpattern fp(13);
     return fp;
     }
-  if(S7 == 7 && S3 == 4) {
+  if(S7 == 7 && S3 == 4 && !bt::in()) {
     static fpattern fp(13);
     return fp;
     }
   if(sphere || euclid) return fp_invalid;
-  if(S7 == 7 && S3 == 3)
+  if(S7 == 7 && S3 == 3 && !bt::in())
     return fp43;
   return fp_invalid;
   }
@@ -1214,7 +1239,7 @@ EX void nextPrime(fgeomextra& ex) {
     fp.Prime = nextprime;
     if(fp.solve() == 0) {
       fp.build();
-      int cells = fp.matrices.size() / S7;
+      int cells = isize(fp.matrices) / S7;
       ex.primes.emplace_back(primeinfo{nextprime, cells, (bool) fp.wsquare});
       ex.dualval.emplace_back(fp.dual);
       break;
@@ -1254,7 +1279,7 @@ EX void field_from_current() {
   fieldpattern::quotient_field_changed = true;  
   }
 
-#if CAP_THREAD
+#if CAP_THREAD && MAXMDIM >= 4
 EX map<string, discovery> discoveries;
 
 void discovery::activate() {
@@ -1295,12 +1320,13 @@ discovery::~discovery() { schedule_destruction(); if(discoverer) discoverer->joi
 
 int hk = 
 #if CAP_THREAD
-  + addHook(on_geometry_change, 100, [] { for(auto& d:discoveries) if(!d.second.is_suspended) d.second.suspend(); })
-  + addHook(final_cleanup, 100, [] { 
+  + addHook(hooks_on_geometry_change, 100, [] { for(auto& d:discoveries) if(!d.second.is_suspended) d.second.suspend(); })
+  + addHook(hooks_final_cleanup, 100, [] { 
       for(auto& d:discoveries) { d.second.schedule_destruction(); if(d.second.is_suspended) d.second.activate(); }
       discoveries.clear();
       })
 #endif
+#if CAP_COMMANDLINE
   + addHook(hooks_args, 0, [] {
       using namespace arg;
       if(0) ;
@@ -1309,9 +1335,20 @@ int hk =
       else if(argis("-q3-limitv")) { shift(); limitv = argi(); }
       else return 1;
       return 0;
-      });
+      })
+#endif
+  + 0;
 
-EX purehookset on_geometry_change;
+EX purehookset hooks_on_geometry_change;
+
+EX int field_celldistance(cell *c1, cell *c2) {
+  if(geometry != gFieldQuotient) return DISTANCE_UNKNOWN;
+  if(GOLDBERG) return DISTANCE_UNKNOWN;
+  auto v1 =fieldpattern::fieldval(c1);
+  auto v2 =fieldpattern::fieldval(c2);
+  int d = currfp.getdist(v1, v2);
+  return d;
+  }
 
 EX }
 

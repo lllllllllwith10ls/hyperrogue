@@ -4,6 +4,8 @@
 // Kohonen's self-organizing networks. 
 // This is a part of RogueViz, not a part of HyperRogue.
 
+#include "rogueviz.h"
+
 namespace rogueviz { namespace staircase {
 
 ld scurvature = 0;
@@ -28,7 +30,7 @@ hyperpoint spcoord(hyperpoint h) {
 
 rug::rugpoint *pt(hyperpoint h, hyperpoint c) {
   auto r = rug::addRugpoint(C0, -1);
-  r->flat = spcoord(h);
+  r->native = spcoord(h);
   r->x1 = c[0];
   r->y1 = c[1];
   r->valid = true;
@@ -118,17 +120,17 @@ void make_staircase() {
 
   println(hlog, "scurvature = ", scurvature, " progress = ", progress, " strafe=", strafex, ",", strafey);
   rug::renderonce = true;
-  rug::rug_perspective = true;
+  vid.rug_config.model = mdPerspective;
   if(scurvature > -1e-6 && scurvature < 1e-6) { 
-    rug::gwhere = gEuclid;
+    rug::gwhere = rug::rgEuclid;
     acurvature = 1;
     }
   else if(scurvature < 0) {
-    rug::gwhere = gNormal;
+    rug::gwhere = rug::rgHyperbolic;
     acurvature = -scurvature;
     }
   else {
-    rug::gwhere = gSphere;
+    rug::gwhere = rug::rgSphere;
     acurvature = scurvature;
     }
   rug::ruggospeed = acurvature;
@@ -290,6 +292,40 @@ void showMenu() {
     };
   }
 
+// see: https://www.youtube.com/watch?v=HZNRo6mr5pk
+
+void staircase_video(int from, int num, int step) {
+  int TSIZE = rug::texturesize; // recommended 4096
+  resetbuffer rb;
+  renderbuffer rbuf(TSIZE, TSIZE, true);
+  vid.stereo_mode = sODS;
+
+  for(int i=from; i<num; i+=step) { 
+    ld t = i * 1. / num;
+    t = pow(t, .3);
+    staircase::scurvature = t * t * (t-.95) * 4;
+    staircase::progress = i / 30.;
+    
+    staircase::strafex = (sin(i / 240.) - sin(i / 501.)) / 2.5;
+    staircase::strafey = (cos(i / 240.) - cos(i / 501.)) / 2.5;
+    
+    staircase::make_staircase();
+
+    rbuf.enable();
+    dynamicval<int> vx(vid.xres, TSIZE);
+    dynamicval<int> vy(vid.yres, TSIZE);
+    dynamicval<int> vxc(current_display->xcenter, TSIZE/2);
+    dynamicval<int> vyc(current_display->ycenter, TSIZE/2);
+    printf("draw scene\n");
+    rug::drawRugScene();
+    
+    IMAGESAVE(rbuf.render(), ("staircase/" + format("%05d", i) + IMAGEEXT).c_str());
+    printf("GL %5d/%5d\n", i, num);
+    }
+  
+  rb.reset();
+  }
+
 #if CAP_COMMANDLINE
 int readArgs() {
   using namespace arg;
@@ -302,12 +338,34 @@ int readArgs() {
     pushScreen(showMenu);
     }
 
+  else if(argis("-staircase_video")) {
+    staircase_video(0, 128*30, 1); // goal: 168*30
+    }
+
   else return 1;
   return 0;
   }
 #endif
 
 int phooks = addHook(hooks_args, 100, readArgs)
-  + addHook(hooks_fixticks, 100, check);
+  + addHook(hooks_fixticks, 100, check)
+  + addHook(hooks_rvmenu_replace, 100, [] {
+     if(staircase::on) { staircase::showMenu(); return true; }
+     return false;
+     })
+  + addHook(rvtour::hooks_build_rvtour, 141, [] (vector<tour::slide>& v) {
+    using namespace tour;
+    v.push_back(
+      tour::slide{"unsorted/Spiral Staircase", 62, LEGAL::NONE | QUICKGEO,
+     "Spiral Staircase Demo. Press '5' to change the curvature or other parameters.",
+     
+    [] (presmode mode) {
+      if(mode == 1) staircase::make_staircase();
+      if(mode == 3) rug::close();
+      slidecommand = "staircase menu";
+      if(mode == 4) pushScreen(staircase::showMenu);
+      }}
+      );
+    });
 
 }}

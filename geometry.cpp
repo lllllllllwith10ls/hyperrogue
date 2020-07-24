@@ -50,9 +50,13 @@ struct hpcshape {
 #define SIDE_BSHA 12
 #define SIDEPARS  13
 
+#ifndef BADMODEL
 #define BADMODEL 0
+#endif
 
+#ifndef WINGS
 static const int WINGS = (BADMODEL ? 1 : 4);
+#endif
 
 typedef array<hpcshape, WINGS+1> hpcshape_animated;
 
@@ -115,6 +119,33 @@ struct geometry_information {
   /** distance from heptagon center to heptagon vertex (either hexf or hcrossf) */
   ld rhexf;
 
+  /** basic parameters for 3D geometries */
+  map<int, int> close_distances;
+
+  int loop, face, schmid;
+
+  vector<hyperpoint> cellshape;
+  vector<hyperpoint> vertices_only;
+  
+  transmatrix spins[32], adjmoves[32];
+
+  ld adjcheck;
+  ld strafedist;
+  bool dirs_adjacent[32][32];
+
+  ld ultra_mirror_dist, ultra_material_part, ultra_mirror_part;
+  
+  vector<transmatrix> ultra_mirrors;  
+
+  /** \brief for adjacent directions a,b, next_dir[a][b] is the next direction adjacent to a, in (counter?)clockwise order from b */
+  int next_dir[32][32];
+
+  vector<pair<string, string> > rels;
+  int xp_order, r_order, rx_order;
+
+  transmatrix full_X, full_R, full_P;
+  
+  /** for 2D geometries */
   vector<transmatrix> heptmove, hexmove, invhexmove;
 
   int base_distlimit;
@@ -135,6 +166,13 @@ struct geometry_information {
   int single_step;
   /** the number of levels in SL2 */
   int steps;
+
+  /** for binary tilings */
+  transmatrix direct_tmatrix[14];
+  transmatrix inverse_tmatrix[14];
+
+  /** a bitmask for hr::bt::use_direct_for */  
+  int use_direct;
   
   /** various parameters related to the 3D view */
   ld INFDEEP, BOTTOM, HELLSPIKE, LAKE, WALL, FLOOR, STUFF,
@@ -300,7 +338,7 @@ hpcshape
 
   int SD3, SD6, SD7, S12, S14, S21, S28, S42, S36, S84;
   
-  vector<int> walloffsets;
+  vector<pair<int, cell*>> walloffsets;
   
   vector<array<int, 3>> symmetriesAt;
   
@@ -403,17 +441,19 @@ hpcshape
     transmatrix corners;
     ld alpha;
     int area;
+    int pshid[3][8][32][32][8];
+    int nextid;
     };
-  shared_ptr<gpdata_t> gpdata;
+  shared_ptr<gpdata_t> gpdata = nullptr;
   #endif
   
-  int state;
-  int usershape_state;
+  int state = 0;
+  int usershape_state = 0;
 
   /** contains the texture point coordinates for 3D models */
   basic_textureinfo models_texture;
   
-  geometry_information() { last = NULL; state = usershape_state = 0; gpdata = NULL; }
+  geometry_information() { last = NULL; }
   
   void require_basics() { if(state & 1) return; state |= 1; prepare_basics(); }
   void require_shapes() { if(state & 2) return; state |= 2; prepare_shapes(); }
@@ -444,9 +484,18 @@ void geometry_information::prepare_basics() {
   ld ALPHA = 2 * M_PI / S7;
   
   ld fmin, fmax;  
+  
+  ld s3, beta;
 
   if(arcm::in() && !prod) 
     ginf[gArchimedean].cclass = gcHyperbolic;
+  
+  dynamicval<eVariation> gv(variation, variation);
+  bool inv = INVERSE;
+  if(INVERSE) {
+    variation = gp::variation_for(gp::param);
+    println(hlog, "bitruncated = ", BITRUNCATED);
+    }
 
   if(hybri) {
     auto t = this;
@@ -471,12 +520,17 @@ void geometry_information::prepare_basics() {
     hexhexdist = 0.566256;
     goto finish;
     }
+  
+  s3 = S3;
+  if(fake::in() && !arcm::in()) s3 = fake::around;
+  
+  beta = (S3 >= OINF && !fake::in()) ? 0 : 2*M_PI/s3;
 
-  tessf = euclid ? 1 : edge_of_triangle_with_angles(S3 >= OINF ? 0 : 2*M_PI/S3, M_PI/S7, M_PI/S7);
+  tessf = euclid ? 1 : edge_of_triangle_with_angles(beta, M_PI/S7, M_PI/S7);
   
-  if(elliptic && S7 == 4) tessf = M_PI/2;
+  if(elliptic && S7 == 4 && !fake::in()) tessf = M_PI/2;
   
-  hcrossf = euclid ? (S3 == 3 ? sqrt(3)/3 : sqrt(2)/2) : edge_of_triangle_with_angles(M_PI/2, M_PI/S7, M_PI/S3);
+  hcrossf = euclid ? tessf / 2 / sin(M_PI/s3) : edge_of_triangle_with_angles(M_PI/2, M_PI/S7, beta/2);
 
   crossf = BITRUNCATED ? hcrossf : tessf;
   
@@ -487,6 +541,20 @@ void geometry_information::prepare_basics() {
     hyperpoint H1 = spin(2*M_PI/S7) * H;
     hyperpoint H2 = xpush0(tessf-f);
     ld v1 = intval(H, H1), v2 = intval(H, H2);
+
+    if(fake::in() && WDIM == 2) {
+      hexvdist = hdist(xpush0(f), xspinpush0(ALPHA/2, hcrossf));
+      v2 = hdist(
+        spin(M_PI/2/S3) * xpush0(hexvdist),
+        spin(-M_PI/2/S3) * xpush0(hexvdist)
+        );
+      
+      v1 = hdist(
+        spin(M_PI/S7) * xpush0(f),
+        spin(-M_PI/S7) * xpush0(f)
+        );
+      }
+
     if(v1 < v2) fmin = f; else fmax = f;
     }
   hexf = fmin;
@@ -510,10 +578,12 @@ void geometry_information::prepare_basics() {
 
   for(int d=0; d<S7; d++) invhexmove[d] = inverse(hexmove[d]);
 
-  hexhexdist = hdist(xpush0(crossf), xspinpush0(M_PI*2/S7, crossf));
-  
   hexvdist = hdist(xpush0(hexf), xspinpush0(ALPHA/2, hcrossf));
 
+  hexhexdist = fake::in() ?
+    2 * hdist0(mid(xspinpush0(M_PI/S6, hexvdist), xspinpush0(-M_PI/S6, hexvdist)))
+    : hdist(xpush0(crossf), xspinpush0(M_PI*2/S7, crossf));
+  
   DEBB(DF_GEOM | DF_POLY,
     (format("S7=%d S6=%d hexf = " LDF" hcross = " LDF" tessf = " LDF" hexshift = " LDF " hexhex = " LDF " hexv = " LDF "\n", S7, S6, hexf, hcrossf, tessf, hexshift, 
     hexhexdist, hexvdist)));  
@@ -521,17 +591,19 @@ void geometry_information::prepare_basics() {
   base_distlimit = ginf[geometry].distlimit[!BITRUNCATED];
 
   #if CAP_GP
-  gp::compute_geometry();  
+  gp::compute_geometry(inv);  
   #endif
   #if CAP_IRR
   irr::compute_geometry();
   #endif
   #if CAP_ARCM
   if(arcm::in()) {
-    arcm::current.compute_geometry();
-    crossf = hcrossf7 * arcm::current.scale();
-    hexvdist = arcm::current.scale() * .5;
-    rhexf = arcm::current.scale() * .5;
+    auto& ac = arcm::current_or_fake();
+    if(fake::in()) ac = arcm::current;
+    ac.compute_geometry();
+    crossf = hcrossf7 * ac.scale();
+    hexvdist = ac.scale() * .5;
+    rhexf = ac.scale() * .5;
     }
   #endif
   #if CAP_BT
@@ -542,11 +614,43 @@ void geometry_information::prepare_basics() {
   #if CAP_BT && MAXMDIM >= 4
   if(bt::in()) bt::build_tmatrix();
   #endif
+  #if MAXMDIM >= 4
+  if(reg3::in()) reg3::generate();
+  if(euc::in(3)) euc::generate();
+  #endif
   
   hybrid_finish:
   
   scalefactor = crossf / hcrossf7;
   orbsize = crossf;
+
+  if(fake::in() && WDIM == 2) {
+    auto& u = *fake::underlying_cgip;
+    geometry = fake::underlying;
+    ld orig = xpush0(u.hcrossf)[0] / xpush0(u.hcrossf)[GDIM];
+    geometry = gFake;
+    ld our = xpush0(hcrossf)[0] / xpush0(hcrossf)[GDIM];
+    fake::scale = our / orig;
+    // if(debugflags & DF_GEOM) 
+    }
+
+  if(fake::in() && WDIM == 3) {
+    auto& u = fake::underlying_cgip;
+    crossf = u->crossf * fake::scale;
+    scalefactor = u->scalefactor * fake::scale;
+    orbsize = u->orbsize * fake::scale;
+    hexf = u->hexf * fake::scale;
+    rhexf = u->rhexf * fake::scale;
+    hexvdist = u->hexvdist * fake::scale;
+    hcrossf = u->hcrossf * fake::scale;
+    }
+  
+  if(arb::in()) {
+    auto csc = arb::current_or_slided().cscale;
+    scalefactor = csc;
+    hcrossf = crossf = orbsize = hcrossf7 * csc;
+    hexf = rhexf = hexvdist = csc * .5;
+    }
 
   if(scale_used()) scalefactor *= vid.creature_scale;
 
@@ -678,24 +782,24 @@ EX namespace geom3 {
   void geometry_information::prepare_compute3() {
     using namespace geom3;
     DEBBI(DF_INIT | DF_POLY | DF_GEOM, ("geom3::compute"));
-    // tanh(depth) / tanh(camera) == vid.alpha
+    // tanh(depth) / tanh(camera) == pconf.alpha
     invalid = "";
     
     if(GDIM == 3) ;
     else if(vid.tc_alpha < vid.tc_depth && vid.tc_alpha < vid.tc_camera)
-      vid.alpha = tan_auto(vid.depth) / tan_auto(vid.camera);
+      pconf.alpha = tan_auto(vid.depth) / tan_auto(vid.camera);
     else if(vid.tc_depth < vid.tc_alpha && vid.tc_depth < vid.tc_camera) {
-      ld v = vid.alpha * tan_auto(vid.camera);
+      ld v = pconf.alpha * tan_auto(vid.camera);
       if(hyperbolic && (v<1e-6-12 || v>1-1e-12)) invalid = "cannot adjust depth", vid.depth = vid.camera;
       else vid.depth = atan_auto(v);
       }
     else {
-      ld v = tan_auto(vid.depth) / vid.alpha;
+      ld v = tan_auto(vid.depth) / pconf.alpha;
       if(hyperbolic && (v<1e-12-1 || v>1-1e-12)) invalid = "cannot adjust camera", vid.camera = vid.depth;
       else vid.camera = atan_auto(v);
       }
     
-    if(fabs(vid.alpha) < 1e-6) invalid = "does not work with perfect Klein";
+    if(fabs(pconf.alpha) < 1e-6) invalid = "does not work with perfect Klein";
   
     if(invalid != "") {
       INFDEEP = .7;
@@ -809,7 +913,9 @@ EX void apply_always3() {
   #if MAXMDIM >= 4
 EX void switch_always3() {
     if(dual::split(switch_always3)) return;
+    #if CAP_GL
     if(rug::rugged) rug::close();
+    #endif
     vid.always3 = !vid.always3;
     apply_always3();
     swapmatrix(View);
@@ -819,20 +925,20 @@ EX void switch_always3() {
 
   EX void switch_tpp() {
     if(dual::split(switch_fpp)) return;
-    if(pmodel == mdDisk && vid.camera_angle) {
+    if(pmodel == mdDisk && pconf.camera_angle) {
       vid.yshift = 0;
-      vid.camera_angle = 0;
-      vid.xposition = 0;
-      vid.yposition = 0;
-      vid.scale = 1;      
+      pconf.camera_angle = 0;
+      pconf.xposition = 0;
+      pconf.yposition = 0;
+      pconf.scale = 1;      
       vid.fixed_facing = false;
       }
     else {
       vid.yshift = -0.3;
-      vid.camera_angle = -45;
-      vid.scale = 18/16. * vid.xres / vid.yres / multi::players;
-      vid.xposition = 0;
-      vid.yposition = -0.9;
+      pconf.camera_angle = -45;
+      pconf.scale = 18/16. * vid.xres / vid.yres / multi::players;
+      pconf.xposition = 0;
+      pconf.yposition = -0.9;
       vid.fixed_facing = true;
       vid.fixed_facing_dir = 90;
       }
@@ -840,7 +946,9 @@ EX void switch_always3() {
     
   EX void switch_fpp() {
 #if MAXMDIM >= 4
+    #if CAP_GL
     if(rug::rugged) rug::close();
+    #endif
     if(dual::split(switch_fpp)) return;
     check_cgi(); cgi.require_basics();
     View = inverse(models::rotmatrix()) * View;
@@ -862,6 +970,8 @@ EX void switch_always3() {
       if(pmodel == mdDisk) pmodel = mdPerspective;
       swapmatrix(View);
       callhooks(hooks_swapdim);
+      if(cgflags & qIDEAL && vid.texture_step < 32)
+        vid.texture_step = 32;
 #if CAP_RACING
       racing::player_relative = true;
 #endif
@@ -894,13 +1004,26 @@ EX int last_texture_step;
 
 int ntimestamp;
 
-EX void check_cgi() {
+EX string cgi_string() {
   string s;
   auto V = [&] (string a, string b) { s += a; s += ": "; s += b; s += "; "; };
   V("GEO", its(int(geometry)));
   V("VAR", its(int(variation)));
   
-  if(GOLDBERG) V("GP", its(gp::param.first) + "," + its(gp::param.second));
+  if(arb::in() && arb::using_slided) {
+    for(auto& sl: arb::current.sliders)
+      V("AS", fts(sl.current));
+    }
+  
+  if(fake::in()) {
+    if(hyperbolic) V("H", fts(fake::around));
+    if(euclid) V("E", fts(fake::around));
+    if(sphere) V("S", fts(fake::around));
+    V("G", FPIU(cgi_string()));
+    return s;
+    }
+  
+  if(GOLDBERG_INV) V("GP", its(gp::param.first) + "," + its(gp::param.second));
   if(IRREGULAR) V("IRR", its(irr::irrid));
 
   if(arcm::in()) V("ARCM", arcm::current.symbol);
@@ -944,16 +1067,23 @@ EX void check_cgi() {
 
   V("LQ", its(vid.linequality));
   
+  return s;
+  }
+
+EX void check_cgi() {
+  string s = cgi_string();
+  
   cgip = &cgis[s];
   cgi.timestamp = ++ntimestamp;
   if(hybri) hybrid::underlying_cgip->timestamp = ntimestamp;
+  if(fake::in()) fake::underlying_cgip->timestamp = ntimestamp;
   
   if(isize(cgis) > 4) {
     vector<pair<int, string>> timestamps;
     for(auto& t: cgis) timestamps.emplace_back(-t.second.timestamp, t.first);
     sort(timestamps.begin(), timestamps.end());
     while(isize(timestamps) > 4) {
-      println(hlog, "erasing geometry ", timestamps.back().second);
+      DEBB(DF_GEOM, ("erasing geometry ", timestamps.back().second));
       cgis.erase(timestamps.back().second);
       timestamps.pop_back();
       }
@@ -965,7 +1095,7 @@ EX void check_cgi() {
     floor_textures = NULL;
     }
   
-  #if MAXMDIM >= 4
+  #if MAXMDIM >= 4 && CAP_GL
   if(!floor_textures && GDIM == 3 && (cgi.state & 2)) 
     make_floor_textures();
   #endif

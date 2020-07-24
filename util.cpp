@@ -13,7 +13,7 @@ namespace hr {
 int lastusec;
 int uticks;
 
-int SDL_GetTicks() {
+EX int SDL_GetTicks() {
   struct timeval tim;
   gettimeofday(&tim, NULL);
   int newusec = tim.tv_usec;
@@ -61,6 +61,10 @@ EX ld frac(ld x) {
   }
 
 EX ld lerp(ld a0, ld a1, ld x) {
+  return a0 + (a1-a0) * x;
+  }
+
+EX cld lerp(cld a0, cld a1, ld x) {
   return a0 + (a1-a0) * x;
   }
 
@@ -130,7 +134,13 @@ struct hr_parse_exception : hr_exception {
 struct exp_parser {
   string s;
   int at;
-  exp_parser() { at = 0; }
+  int line_number, last_line;
+  exp_parser() { at = 0; line_number = 1; last_line = 0; }
+  
+  string where() { 
+    if(s.find('\n')) return "(line " + its(line_number) + ", pos " + its(at-last_line) + ")";
+    else return "(pos " + its(at) + ")";
+    }
   
   map<string, cld> extra_params;
 
@@ -153,7 +163,7 @@ struct exp_parser {
 
   cld parse(int prio = 0);
 
-  ld rparse(int prio = 0) { return real(parse(prio)); }
+  ld rparse(int prio = 0) { return validate_real(parse(prio)); }
   int iparse(int prio = 0) { return int(floor(rparse(prio) + .5)); }
 
   cld parsepar() {
@@ -161,17 +171,28 @@ struct exp_parser {
     force_eat(")");
     return res;
     }
+
+  ld validate_real(cld x) {
+    if(kz(imag(x))) throw hr_parse_exception("expected real number but " + lalign(-1, x) + " found at " + where());
+    return real(x);
+    }
   
   void force_eat(const char *c) {
     skip_white();
-    if(!eat(c)) throw hr_parse_exception("expected: " + string(c));
+    if(!eat(c)) throw hr_parse_exception("expected: " + string(c) + " at " + where());
     }
 
   };
 #endif
 
 void exp_parser::skip_white() {
-  while(next() == ' ' || next() == '\n' || next() == '\r' || next() == '\t') at++;
+  while(next() == ' ' || next() == '\n' || next() == '\r' || next() == '\t') {
+    if(next() == '\r') last_line++;
+    if(next() == '\n') {
+      line_number++, last_line = at;
+      }
+    at++;
+    }
   }
 
 string exp_parser::next_token() {
@@ -208,22 +229,88 @@ cld exp_parser::parse(int prio) {
   else if(eat("re(")) res = real(parsepar());
   else if(eat("im(")) res = imag(parsepar());
   else if(eat("conj(")) res = std::conj(parsepar());
-  else if(eat("floor(")) res = floor(real(parsepar()));
-  else if(eat("frac(")) { res = parsepar(); res = res - floor(real(res)); }
+  else if(eat("floor(")) res = floor(validate_real(parsepar()));
+  else if(eat("frac(")) { res = parsepar(); res = res - floor(validate_real(res)); }
   else if(eat("to01(")) { res = parsepar(); return atan(res) / ld(M_PI) + ld(0.5); }
   else if(eat("edge(")) {
+    ld a = rparse(0);
+    force_eat(",");
+    ld b = rparse(0);
+    force_eat(")");
+    res = edge_of_triangle_with_angles(2*M_PI/a, M_PI/b, M_PI/b);
+    }
+  else if(eat("edge_angles(")) {
     cld a = rparse(0);
     force_eat(",");
     cld b = rparse(0);
+    force_eat(",");
+    cld c = rparse(0);
     force_eat(")");
-    return edge_of_triangle_with_angles(2*M_PI/real(a), M_PI/real(b), M_PI/real(b));
+
+    if(extra_params.count("angleunit")) {    
+      
+      a *= extra_params["angleunit"];
+      b *= extra_params["angleunit"];
+      c *= extra_params["angleunit"];
+      }
+
+    return edge_of_triangle_with_angles(real(a), real(b), real(c));
     }
   else if(eat("regradius(")) {
-    cld a = rparse(0);
+    ld a = rparse(0);
     force_eat(",");
-    cld b = rparse(0);
+    ld b = rparse(0);
     force_eat(")");
-    return edge_of_triangle_with_angles(M_PI/2, M_PI/real(a), M_PI/real(b));
+    res = edge_of_triangle_with_angles(M_PI/2, M_PI/a, M_PI/b);
+    }
+  else if(eat("arcmedge(")) {
+    vector<int> vals;
+    vals.push_back(iparse(0));
+    while(true) {
+      skip_white();
+      if(eat(",")) vals.push_back(iparse(0));
+      else break;
+      }
+    force_eat(")");
+    arcm::archimedean_tiling test;
+    test.faces = vals;
+    test.compute_sum();
+    test.compute_geometry();
+    res = test.edgelength;
+    if(extra_params.count("distunit"))
+      res /= extra_params["distunit"];
+    }
+  else if(eat("regangle(")) {
+    cld edgelen = parse(0);
+    if(extra_params.count("distunit")) {
+      edgelen = edgelen * extra_params["distunit"];
+      }
+    
+    force_eat(",");
+    ld edges = rparse(0);
+    force_eat(")");
+    ld alpha = M_PI / edges;
+    ld c = asin_auto(sin_auto(validate_real(edgelen)/2) / sin(alpha));
+    hyperpoint h = xpush(c) * spin(M_PI - 2*alpha) * xpush0(c);
+    ld result = 2 * atan2(h);
+    if(result < 0) result = -result;
+    while(result > 2 * M_PI) result -= 2 * M_PI;
+    if(result > M_PI) result = 2 * M_PI - result;
+    
+    if(arb::legacy) {
+      res = M_PI - result;
+      if(extra_params.count("angleofs"))
+        res -= extra_params["angleofs"];
+      }
+    else
+      res = result;
+
+    if(extra_params.count("angleunit"))
+      res /= extra_params["angleunit"];    
+    }
+  else if(eat("test(")) {
+    res = parsepar();
+    println(hlog, "res = ", res, ": ", fts(real(res), 10), ",", fts(imag(res), 10));
     }
   else if(eat("ifp(")) {
     cld cond = parse(0);
@@ -231,14 +318,14 @@ cld exp_parser::parse(int prio) {
     cld yes = parse(0);
     force_eat(",");
     cld no = parsepar();
-    return real(cond) > 0 ? yes : no;
+    res = real(cond) > 0 ? yes : no;
     }  
   else if(eat("wallif(")) {
     cld val0 = parse(0);
     force_eat(",");
     cld val1 = parsepar();
-    if(real(extra_params["p"]) >= 3.5) return val0;
-    else return val1;
+    if(real(extra_params["p"]) >= 3.5) res = val0;
+    else res = val1;
     }
   else if(eat("rgb(")) {     
     cld val0 = parse(0);
@@ -247,10 +334,10 @@ cld exp_parser::parse(int prio) {
     force_eat(",");
     cld val2 = parsepar();
     switch(int(real(extra_params["p"]) + .5)) {
-      case 1: return val0;
-      case 2: return val1;
-      case 3: return val2;
-      default: return 0;
+      case 1: res = val0; break;
+      case 2: res = val1; break;
+      case 3: res = val2; break;
+      default: res = 0;
       }
     }
   else if(eat("let(")) {
@@ -259,48 +346,80 @@ cld exp_parser::parse(int prio) {
     cld val = parse(0);
     force_eat(",");
     dynamicval<cld> d(extra_params[name], val);
-    return parsepar();
+    res = parsepar();
     }
   #if CAP_TEXTURE
   else if(eat("txp(")) {
     cld val = parsepar();
-    return texture::get_txp(real(val), imag(val), int(real(extra_params["p"]) + .5)-1);
+    res = texture::get_txp(real(val), imag(val), int(real(extra_params["p"]) + .5)-1);
     }
   #endif
   else if(next() == '(') at++, res = parsepar(); 
   else {
     string number = next_token();
-    if(number == "e") res = exp(1);
+    if(extra_params.count(number)) res = extra_params[number];
+    else if(params.count(number)) res = params.at(number);
+    else if(number == "e") res = exp(1);
     else if(number == "i") res = cld(0, 1);
     else if(number == "p" || number == "pi") res = M_PI;
     else if(number == "" && next() == '-') { at++; res = -parse(prio); }
-    else if(number == "") throw hr_parse_exception("number missing");
+    else if(number == "") throw hr_parse_exception("number missing, " + where());
     else if(number == "s") res = ticks / 1000.;
     else if(number == "ms") res = ticks;
     else if(number[0] == '0' && number[1] == 'x') res = strtoll(number.c_str()+2, NULL, 16);
     else if(number == "mousex") res = mousex;
     else if(number == "deg") res = degree;
+    else if(number == "ultra_mirror_dist") res = cgi.ultra_mirror_dist;
+    else if(number == "step") res = hdist0(tC0(currentmap->adj(cwt.at, 0)));
     else if(number == "mousey") res = mousey;
     else if(number == "random") res = randd();
     else if(number == "mousez") res = cld(mousex - current_display->xcenter, mousey - current_display->ycenter) / cld(current_display->radius, 0);
     else if(number == "shot") res = inHighQual ? 1 : 0;
-    else if(extra_params.count(number)) res = extra_params[number];
-    else if(params.count(number)) res = params.at(number);
     else if(number[0] >= 'a' && number[0] <= 'z') throw hr_parse_exception("unknown value: " + number);
     else { std::stringstream ss; res = 0; ss << number; ss >> res; }
     }
   while(true) {
+    skip_white();
     #if CAP_ANIMATIONS
     if(next() == '.' && next(1) == '.' && prio == 0) {
-      vector<cld> rest = { res };
+      static const cld NO_DERIVATIVE(3.1, 2.5);
+      vector<array<cld, 4>> rest = { make_array(res, NO_DERIVATIVE, res, NO_DERIVATIVE) };
+      bool second = true;
       while(next() == '.' && next(1) == '.') {
-        at += 2; rest.push_back(parse(10));
+        /* spline interpolation */
+        if(next(2) == '/') {
+          at += 3;
+          rest.back()[second ? 3 : 1] = parse(10);
+          continue;
+          }
+        /* sharp end */
+        else if(next(2) == '|') {
+          at += 3;
+          rest.back()[2] = parse(10);
+          rest.back()[3] = NO_DERIVATIVE;
+          second = true;
+          continue;
+          }
+        at += 2; 
+        auto val = parse(10);
+        rest.emplace_back(make_array(val, NO_DERIVATIVE, val, NO_DERIVATIVE));
+        second = false;
         }
       ld v = ticks * (isize(rest)-1.) / anims::period;
       int vf = v;
       v -= vf;
       vf %= (isize(rest)-1);
-      res = rest[vf] + (rest[vf+1] - rest[vf]) * v;
+      auto& lft = rest[vf];
+      auto& rgt = rest[vf+1];
+      if(lft[3] == NO_DERIVATIVE && rgt[1] == NO_DERIVATIVE)
+        res = lerp(lft[2], rgt[0], v);
+      else if(rgt[1] == NO_DERIVATIVE)
+        res = lerp(lft[2] + lft[3] * v, rgt[0], v*v);
+      else if(lft[3] == NO_DERIVATIVE)
+        res = lerp(lft[2], rgt[0] + rgt[1] * (v-1), (2-v)*v);
+      else {
+        res = lerp(lft[2] + lft[3] * v, rgt[0] + rgt[1] * (v-1), v*v*(3-2*v));
+        }
       return res;
       }
     else 
@@ -388,6 +507,15 @@ struct bignum {
     return digits[0] + digits[1] * (long long) BASE;
     }
   
+  #if CAP_GMP
+  mpq_class as_mpq() const {
+    string s = get_str(999999);
+    string t;
+    for(char c: s) if(c != ' ') t += c;
+    return mpq_class(t);
+    }
+  #endif
+  
   friend inline bignum operator +(bignum a, const bignum& b) { a.addmul(b, 1); return a; }
   friend inline bignum operator -(bignum a, const bignum& b) { a.addmul(b, -1); return a; }
   };
@@ -428,7 +556,7 @@ bignum bignum::randomized_div(int x) const {
     carry += digits[i];
     // strange compiler buug:
     // if I do / and %, function 'divmod' is called, and it complains on launch that divmod is unimplemented
-    res.digits[i] = carry / x;
+    res.digits[i] = int(carry / x);
     carry -= res.digits[i] * (long long)(x);
     }
   while(isize(res.digits) && res.digits.back() == 0) res.digits.pop_back();
@@ -446,10 +574,10 @@ void bignum::addmul(const bignum& b, int factor) {
     l += carry;
     if(i < K) l += b.digits[i] * factor;
     carry = 0;
-    if(l >= BASE) carry = l / BASE;
-    if(l < 0) carry = -(BASE-1-l) / BASE;
+    if(l >= BASE) carry = int(l / BASE);
+    if(l < 0) carry = -int((BASE-1-l) / BASE);
     l -= carry * BASE;
-    digits[i] = l;
+    digits[i] = int(l);
     }
   if(carry < 0) digits.back() -= BASE;
   while(isize(digits) && digits.back() == 0) digits.pop_back();
@@ -530,7 +658,7 @@ EX string short_form(bignum b) {
 
     int digits = q * 9;
     while(val >= 1000) { val /= 10; digits++; }
-    string str = its(val) + "E" + its(digits + 2);
+    string str = its(int(val)) + "E" + its(digits + 2);
     str.insert(1, ".");
     return str;
     }

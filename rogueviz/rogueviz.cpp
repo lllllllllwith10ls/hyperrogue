@@ -15,21 +15,13 @@
 //   https://bitbucket.org/HaiZhung/hyperbolic-embedder/overview
 //   (it uses the same format)
 
-// hyper -tol <filename.xml> -- visualize the tree of life,
-//   based on a XML dump from https://tree.opentreeoflife.org/
-
 // hyper -tess <parameter file> -- visualize a horocyclic tesselation,
 
-#include "../hyper.h"
 #include "rogueviz.h"
 
-namespace hr {
-  namespace linepatterns {
-    extern linepattern patPalace, patZebraTriangles, patZebraLines;
-    }
-  }
-
 namespace rogueviz {
+
+string weight_label;
 
 ld fat_edges = 0;
 ld ggamma = 1;
@@ -37,8 +29,6 @@ ld ggamma = 1;
 using namespace hr;
 
 edgetype default_edgetype = { .1, .1, .1, DEFAULT_COLOR, 0xFF0000FF, "default" };
-
-void init();
 
 bool showlabels = false;
 bool specialmark = false;
@@ -52,10 +42,6 @@ string fname;
 
 // const char *fname;
 // const char *cfname;
-
-eVizkind kind;
-
-bool on;
 
 vector<shared_ptr<edgetype>> edgetypes;
 
@@ -72,7 +58,8 @@ color_t parse1(const string& s) {
   // color can be given as RRGGBB
   // or as 'Rmax,min,alpha,step,start', for rainbow Collatz
   if(s[0] == 'R') {
-    int mh = 192, minh = 0, alpha = 255, step = 50, start = 0;
+    color_t mh = 192, minh = 0, alpha = 255;
+    int step = 50, start = 0;
     sscanf(s.c_str(), "R%x,%x,%x,%d,%d", &mh, &minh, &alpha, &step, &start);
     vector<color_t> hues;
     color_t difh = mh - minh;
@@ -172,10 +159,6 @@ colorpair parse(string s) {
 
 vector<vertexdata> vdata;
 
-transmatrix cspin(int i, int ch) {
-  return spin(M_PI + (2 * M_PI * (i+1)) / (ch+1));
-  }
-
 map<string, int> labeler;
 
 int getid(const string& s) {
@@ -268,131 +251,6 @@ void storeall(int from) {
 
 colorpair dftcolor = 0x282828FF;
 
-namespace spiral {
-
-  ld mul;
-  
-  transmatrix at(double d) {
-    return spin(log(d) * 2 * M_PI / log(mul)) * xpush(log(d));
-    }
-
-  void place(int N, ld _mul) {
-    mul = _mul;
-    init(); kind = kSpiral;
-    vdata.resize(N);
-  
-    for(int i=0; i<N; i++) {
-      vertexdata& vd = vdata[i];
-      
-      double d = i + 1;
-      
-      transmatrix h = at(d);
-  
-      createViz(i, cwt.at, h);
-      vd.name = its(i+1);
-      virtualRebase(vd.m);
-  
-      vd.cp = dftcolor;
-      }
-  
-    storeall();
-    }
-  
-  void edge(ld shift, ld mul) {
-    int N = isize(vdata);
-    auto t = add_edgetype(fts(shift)+" " + fts(mul));
-    t->visible_from = 1. / (N+.5);
-    for(int i=0; i<N; i++) {
-      int i0 = i+1;
-      int j0 = int(i0 * mul + shift) - 1;
-      if(j0 >= 0 && j0 < N) addedge(i, j0, 1/(i+1), false, t);
-      }
-    }
-  
-  void color(ld start, ld period, colorpair c) {
-    int N = isize(vdata);
-    int maxw = N;
-    while(start >= 0 && start < N) {
-      int i = int(start);
-      vdata[i].cp = c;
-      start += period;
-      maxw--; if(maxw <= 0) break;
-      }
-    }
-  }
-
-namespace collatz {
-
-  double s2, s3, p2, p3;
-  double cshift = -1;
-  
-  transmatrix T2, T3;
-  
-  edgetype *collatz1, *collatz2;
-  
-  void start() {
-    init(); kind = kCollatz;
-    collatz1 = add_edgetype("1");
-    collatz2 = add_edgetype("2");
-    vdata.resize(1);
-    vertexdata& vd = vdata[0];
-    createViz(0, cwt.at, xpush(cshift));
-    virtualRebase(vd.m);
-    vd.cp = dftcolor;
-    vd.data = 0;
-    addedge(0, 0, 1, false, collatz::collatz1);
-    vd.name = "1";
-    storeall();
-
-    T2 = spin(collatz::s2) * xpush(collatz::p2);
-    T3 = spin(collatz::s3) * xpush(collatz::p3);
-    }
-  
-  void lookup(long long reached, int bits) {
-    while(reached < (1ll<<bits)) {
-      if(reached%3 == 2 && (2*reached-1) % 9 && hrand(100) < 50)
-        reached = (2*reached-1) / 3;
-      else reached *= 2;
-      }
-    printf("reached = %lld\n", reached);
-    vector<string> seq;
-    while(reached>1) { 
-      seq.push_back(llts(reached));
-      if(reached&1) reached += (reached>>1)+1;
-      else reached >>= 1;
-      }
-    // seq.push_back("1");
-    reverse(seq.begin(), seq.end());
-    
-    int id = 0;
-    int next = 0;
-    
-    int steps = 0;
-    while(true) {
-      steps++;
-      if(std::isnan(View[0][0])) exit(1);
-      shmup::turn(100);
-      drawthemap();
-      centerpc(100); optimizeview();
-      fixmatrix(View);
-      bfs(); setdist(cwt.at, 7 - getDistLimit() - genrange_bonus, NULL);
-      vertexdata& vd = vdata[id];
-      for(int e=0; e<isize(vd.edges); e++) {
-        int id2 = vd.edges[e].first;
-        if(vdata[id2].name == seq[next]) {
-          id = id2; next++;
-          cwt.at = vdata[id2].m->base;
-          if(shmup::on) shmup::pc[0]->base = cwt.at;
-          if(next == isize(seq)) goto found;
-          }
-        }
-      }
-    
-    found:
-    printf("steps = %d\n", steps);    
-    }
-  }
-
 int readLabel(fhstream& f) {
   string s = scan<string>(f);
   if(s == "") return -1;
@@ -404,7 +262,8 @@ namespace anygraph {
   vector<pair<double, double> > coords;
   
   edgetype *any;
-
+  
+  int vzid;
   
   int N;
                
@@ -421,7 +280,7 @@ namespace anygraph {
   void tst() {}
 
   void read(string fn, bool subdiv, bool doRebase, bool doStore) {
-    init(); kind = kAnyGraph;
+    init(&vzid, RV_GRAPH);
     any = add_edgetype("embedded edges");
     fname = fn;
     fhstream f(fn + "-coordinates.txt", "rt");
@@ -482,574 +341,7 @@ namespace anygraph {
   
   }
 
-namespace tree {
-
-  edgetype *tree_edge;
-
-  struct treevertex {
-    int origid;
-    int parent;
-    int depth;
-    int spos, epos;
-    vector<int> children;
-    };
-  
-  vector<treevertex> tol;
-  
-  void child(int pid, int id) {
-    if(isize(tol) <= id) tol.resize(id+1);
-    
-    treevertex& v = tol[id];
-    v.parent = pid;
-    tol.push_back(v);
-    if(pid >= 0) tol[pid].children.push_back(id);
-    }
-
-  void readnode(FILE *f, int pid) {
-    string lab = "";
-    while(true) {
-      int c = fgetc(f);
-      if(c == EOF) { fprintf(stderr, "Ended prematurely\n"); exit(1); }
-      if(c == ',') break;
-      if(c == ')') { int id = getnewid(lab); child(pid, id); return; }
-      lab += c;
-      }
-    int id = getnewid(lab);
-    child(pid, id);
-    while(true) {
-      int c = fgetc(f);
-//      printf("c=%c at %d/%d\n", c, pid, id);
-      if(c == EOF) { fprintf(stderr, "Ended prematurely\n"); exit(1); }
-      if(c == ' ' || c == 10 || c == 13 || c == 9 || c == ',') continue;
-      else if(c == '(') readnode(f, id);
-      else if(c == ')') break;
-      }
-    }
-  
-  int xpos;
-  void spos(int at, int d) {
-    tol[at].spos = xpos++;
-    tol[at].depth = d;
-    for(int i=0; i<isize(tol[at].children); i++)
-      spos(tol[at].children[i], d+1);
-    tol[at].epos = ++xpos;
-    }
-    
-  void read(string fn) {
-    fname = fn;
-    init(); kind = kTree;
-    tree_edge = add_edgetype("tree edge");
-    printf("Reading the tree of life...\n");
-    FILE *f = fopen(fname.c_str(), "rt");
-    if(!f) { printf("Failed to open tree file: %s\n", fname.c_str()); exit(1); }
-    if(fgetc(f) != '(') {
-      printf("Error: bad format\n");
-      exit(1);
-      }
-    readnode(f, -1);
-    fclose(f);
-    int N = isize(vdata);
-    printf("N = %d\n", N);
-    printf("Assigning spos/epos...\n");
-    spos(0, 0);
-    xpos *= 6;
-    printf("Creating vertices...\n");
-    for(int i=0; i<N; i++) {
-      treevertex& lv = tol[i];
-      vertexdata& vd = vdata[i];
-    
-      transmatrix h = spin((lv.spos + lv.epos) * M_PI / xpos) * xpush(-1.2 + (log(xpos) - log(lv.epos - lv.spos)));
-
-      vd.special = false;
-      vd.m = new shmup::monster;
-      vd.m->pid = i;
-      vd.data = lv.parent;
-      createViz(i, cwt.at, h);
-      vd.cp = dftcolor; 
-      
-      if(tol[i].parent >= 0) 
-        addedge(i, tol[i].parent, 1, true, tree_edge);
-      }
-    
-    for(int i=0; i<isize(vdata); i++) {
-      vertexdata& vd = vdata[i];
-      virtualRebase(vd.m);
-      }
-    
-    printf("Clearing the TOL data...\n");
-    tol.clear();
-    storeall();
-    }
-  }
-
 ld maxweight;
-
-namespace sag {
-
-  int sagpar = 0;
-
-  enum eSagmode { sagOff, sagHC, sagSA };
-  
-  eSagmode sagmode; // 0 - off, 1 - hillclimbing, 2 - SA
-
-  const char *sagmodes[3] = {"off", "HC", "SA"};
-  
-  ld temperature = -4;
-  const int INSNAKE = 117;
-  int numsnake;
-  const char *loadfname;
-  
-  #define MAXSNAKETAB 1000
-  int sdist[MAXSNAKETAB][MAXSNAKETAB];
-  int insnaketab = 0;
-
-  vector<cell*> snakecells;
-  vector<int> snakefirst, snakelast;
-  vector<int> snakenode;
-  vector<int> snakeid;
-  vector<int> lpbak;
-  vector<int> wpbak;
-  
-  bool snake_enabled;
-
-  void setsnake(cellwalker& cw, int i) {
-    lpbak[i] = cw.at->landparam;
-    wpbak[i] = cw.at->wparam;
-    cw.at->landparam = i; cw.at->wparam = INSNAKE;
-    // cw.at->monst = moWormtail; cw.at->mondir = cw.spin;
-    snakecells[i] = cw.at;
-    }
-  
-  void snakeswitch() { 
-    for(int i=0; i<numsnake; i++) {
-      cell *c = snakecells[i];
-      int x;
-      x = lpbak[i]; lpbak[i] = c->landparam; c->landparam = x;
-      x = wpbak[i]; wpbak[i] = c->wparam; c->wparam = x;
-      }
-    snake_enabled = !snake_enabled;
-    }
-    
-  void enable_snake() { if(!snake_enabled) snakeswitch(); }
-    
-  void disable_snake() { if(snake_enabled) snakeswitch(); }
-    
-  int snakedist(int i, int j) {
-    if(i < insnaketab && j < insnaketab) return sdist[i][j];
-    if(bounded) return celldistance(snakecells[i], snakecells[j]);
-    int i0 = i, i1 = i, j0 = j, j1 = j;
-    int cost = 0;
-    // intersect
-    while(true) {
-      if(j0 > i1+1) { j0 = snakefirst[j0], j1 = snakelast[j1]; cost++; }
-      else if(i0 > j1+1) { i0 = snakefirst[i0], i1 = snakelast[i1]; cost++; }
-      else if(j1+1 == i0) return cost+1;
-      else if(i1+1 == j0) return cost+1;
-      else return cost;
-      }
-    }
-  
-  void initSnake(int n) {
-    if(bounded) n = isize(currentmap->allcells());
-    numsnake = n;
-    snakecells.resize(numsnake);
-    snakefirst.resize(numsnake);
-    snakelast.resize(numsnake);
-    snakenode.resize(numsnake);
-    lpbak.resize(numsnake);
-    wpbak.resize(numsnake);
-    if(bounded) {
-      for(int i=0; i<n; i++) {
-        cellwalker cw(currentmap->allcells()[i], 0);
-        setsnake(cw, i);
-        }
-      }
-    else {
-      cellwalker cw = cwt;
-      setsnake(cw, 0);
-      cw += wstep;
-      setsnake(cw, 1);
-      for(int i=2; i<=numsnake; i++) {
-        if(i == numsnake && sphere) break;
-        cw += wstep;
-        snakefirst[i-1] = cw.at->landparam;
-        while(cw.at->wparam == INSNAKE) {
-          snakelast[i-1] = cw.at->landparam;
-          cw = cw + wstep + 1 + wstep;
-          }
-        if(i == numsnake) break;
-        setsnake(cw, i); cw += 1;
-        }
-      }
-    int stab = min(numsnake, MAXSNAKETAB);
-    for(int i=0; i<stab; i++)
-    for(int j=0; j<stab; j++)
-      sdist[i][j] = snakedist(i,j);
-    insnaketab = stab;
-    snake_enabled = true;
-    }
-  
-  double costat(int vid, int sid) {
-    if(vid < 0) return 0;
-    double cost = 0;
-    vertexdata& vd = vdata[vid];
-    for(int j=0; j<isize(vd.edges); j++) {
-      edgeinfo *ei = vd.edges[j].second;
-      int t2 = vd.edges[j].first;
-      if(snakeid[t2] != -1) cost += snakedist(sid, snakeid[t2]) * ei->weight2;
-      }
-    /* cell *c = snakecells[id];
-    for(int i=0; i<c->type; i++) {
-      cell *c2 = c->move(i);
-      if(c2 && c2->wparam == INSNAKE && snakenode[c2->landparam] >= 0)
-        cost += 100;
-      } */
-    return cost;
-    }
-  
-  // std::mt19937 los;
-
-  bool infullsa;
-  
-  double cost;
-  int N;
-
-  vector<double> chgs;  
-  
-  edgetype *sag_edge;
-
-  void forgetedges(int id) {
-    for(int i=0; i<isize(vdata[id].edges); i++) 
-      vdata[id].edges[i].second->orig = NULL;
-    }
-  
-  bool chance(double p) {
-    p *= double(hrngen.max()) + 1;
-    auto l = hrngen();
-    auto pv = (decltype(l)) p;
-    if(l < pv) return true;
-    if(l == pv) return chance(p-pv);
-    return false;
-    }
-
-  void saiter() {
-    aiter:
-
-    int t1 = hrand(N);
-    int sid1 = snakeid[t1];
-    
-    int sid2;
-    
-    int s = hrand(6);
-    
-    if(s == 3) s = 2;
-    if(s == 4) s = 5;
-    
-    if((sagpar&1) && (s == 2 || s == 3 || s == 4)) return;
-    
-    if(s == 5) sid2 = hrand(numsnake);
-    
-    else {
-      cell *c;
-      if(s>=2 && isize(vdata[t1].edges)) c = snakecells[snakeid[hrand(isize(vdata[t1].edges))]];
-      else c = snakecells[sid1];
-      
-      int it = s<2 ? (s+1) : s-2;
-      for(int ii=0; ii<it; ii++) {
-        int d = hrand(c->type);
-        c = c->move(d);
-        if(!c) goto aiter;
-        if(c->wparam != INSNAKE) goto aiter;
-        }
-      sid2 = c->landparam;
-      }
-    int t2 = snakenode[sid2];
-    
-    snakenode[sid1] = -1; snakeid[t1] = -1;
-    snakenode[sid2] = -1; if(t2 >= 0) snakeid[t2] = -1;
-    
-    double change = 
-      costat(t1,sid2) + costat(t2,sid1) - costat(t1,sid1) - costat(t2,sid2);
-
-    snakenode[sid1] = t1; snakeid[t1] = sid1;
-    snakenode[sid2] = t2; if(t2 >= 0) snakeid[t2] = sid2;
-    
-    if(change < 0) chgs.push_back(-change);
-      
-    if(change > 0 && (sagmode == sagHC || !chance(exp(-change * exp(-temperature))))) return;
-
-    snakenode[sid1] = t2; snakenode[sid2] = t1;
-    snakeid[t1] = sid2; if(t2 >= 0) snakeid[t2] = sid1;
-    if(vdata[t1].m) vdata[t1].m->base = snakecells[sid2];
-    if(t2 >= 0 && vdata[t2].m) vdata[t2].m->base = snakecells[sid1];
-    cost += 2*change;
-    
-    if(t1 >= 0) forgetedges(t1);
-    if(t2 >= 0) forgetedges(t2);
-    }
-  
-  void organize() {
-    for(int i=0; i<numsnake; i++) snakenode[i] = -1;
-    vector<int> freenodes;
-    for(int i=0; i<N; i++) 
-      if(snakeid[i] != -1)
-        snakenode[snakeid[i]] = i;
-
-    for(int i=0; i<N; i++) 
-      if(snakeid[i] != -1)
-        if(snakenode[snakeid[i]] != i)
-          snakeid[i] = -1;
-
-    for(int i=0; i<numsnake; i++) 
-      if(snakenode[i] == -1)
-        freenodes.push_back(i);
-    
-    int j = 0;
-    for(int i=0; i<N; i++) 
-      if(snakeid[i] == -1) {
-        snakeid[i] = freenodes[j];
-        snakenode[freenodes[j]] = i;
-        j++;
-        }
-    cost = 0; for(int i=0; i<N; i++) cost += costat(i, i);
-    }
-  
-  void loadsnake(const string& fname) {
-    printf("Loading the sag from: %s\n", fname.c_str());
-    FILE *sf = fopen(fname.c_str(), "rt");
-    if(!sf) { printf("Failed to open file.\n"); exit(1); }
-    if(sf) while(true) {
-      string lab;
-      while(true) {
-        int c = fgetc(sf);
-        if(c == EOF) goto afterload;
-        else if(c == 10 || c == 13 || c == 32 || c == 9) ;
-        else if(c == ',' || c == ';') break;
-        else lab += c;
-        }
-      int sid = -1;
-      int err = fscanf(sf, "%d", &sid);
-      if(sid < 0 || sid >= numsnake || err < 1) sid = -1;
-      if(!labeler.count(lab)) {
-        printf("unknown vertex: %s\n", lab.c_str());
-        }
-      else {
-        int id = getid(lab);
-        snakeid[id] = sid;
-        }
-      }
-    afterload: 
-    if(sf) fclose(sf);
-
-    organize();
-    for(int i=0; i<N; i++) {
-      if(vdata[i].m) vdata[i].m->base = snakecells[sag::snakeid[i]];
-      forgetedges(i);
-      }
-
-    shmup::fixStorage();
-    }
-  
-  vector<edgeinfo> sagedges;
-  
-  /* bool totcmp(int i, int j) {
-    return totwei[i] > totwei[j];
-    } */
-  
-  int ipturn = 100;
-  int numiter = 0;
-  
-  int hightemp = 10;
-  int lowtemp = -15;
-  
-  void dofullsa(int satime) {
-    sagmode = sagSA;
-    enable_snake();
-    int t1 = SDL_GetTicks();
-    
-    while(true) {
-      int t2 = SDL_GetTicks();
-      double d = (t2-t1) / (1000. * satime);
-      if(d > 1) break;
-      temperature = hightemp - (d*(hightemp-lowtemp));
-      chgs.clear();
-      for(int i=0; i<50000; i++) {
-        numiter++;
-        sag::saiter();
-        }
-      DEBB(DF_LOG, (format("it %8d temp %6.4f [1/e at %13.6f] cost = %f ", 
-        numiter, double(sag::temperature), (double) exp(sag::temperature),
-        double(sag::cost))));
-      
-      sort(chgs.begin(), chgs.end());
-      int cc = chgs.size() - 1;
-      DEBB(DF_LOG, (format("%9.4f .. %9.4f .. %9.4f .. %9.4f .. %9.4f\n", 
-        double(chgs[0]), double(chgs[cc/4]), double(chgs[cc/2]), double(chgs[cc*3/4]), double(chgs[cc]))));
-      fflush(stdout);
-      }
-    
-    temperature = -5;
-    disable_snake();
-    sagmode = sagOff;
-    }
-
-  void iterate() {
-    if(!sagmode) return;
-    int t1 = SDL_GetTicks();
-    enable_snake();
-    for(int i=0; i<ipturn; i++) {
-      numiter++;
-      sag::saiter();
-      }
-    disable_snake();
-    int t2 = SDL_GetTicks();
-    int t = t2 - t1;
-    if(t < 50) ipturn *= 2;
-    else if(t > 200) ipturn /= 2;
-    else ipturn = ipturn * 100 / t;
-    DEBB(DF_LOG, ("it %8d temp %6.4f [2:%8.6f,10:%8.6f,50:%8.6f] cost = %f\n", 
-      numiter, double(sag::temperature), 
-      (double) exp(-2 * exp(-sag::temperature)),
-      (double) exp(-10 * exp(-sag::temperature)),
-      (double) exp(-50 * exp(-sag::temperature)),
-      (double) sag::cost));
-    }
-  
-  void savesnake(const string& fname) {
-    FILE *f = fopen(fname.c_str(), "wt");
-    for(int i=0; i<N; i++)
-      fprintf(f, "%s;%d\n", vdata[i].name.c_str(), snakeid[i]);
-    fclose(f);
-    }
-  
-  void loglik() {
-    int indist[30], pedge[30];
-    for(int d=0; d<30; d++) indist[d] = 0, pedge[d] = 0;
-    
-    for(int i=0; i<N; i++)
-    for(int j=0; j<i; j++)
-      indist[snakedist(snakeid[i], snakeid[j])]++;
-      
-    for(int i=0; i<isize(sagedges); i++) {
-      edgeinfo& ei = sagedges[i];
-      if(snakedist(snakeid[ei.i], snakeid[ei.j]) == 0) {
-        printf("zero between %d (%s) and %d (%s)\n", 
-          snakeid[ei.i], vdata[ei.i].name.c_str(),
-          snakeid[ei.j], vdata[ei.j].name.c_str());
-        }
-      if(ei.weight >= sag_edge->visible_from)
-        pedge[snakedist(snakeid[ei.i], snakeid[ei.j])]++;
-      }
-    
-    for(int d=0; d<30; d++) 
-      if(indist[d])
-        printf("%2d: %7d/%7d %7.3lf\n", 
-          d, pedge[d], indist[d], double(pedge[d] * 100. / indist[d]));
-        
-    ld loglik = 0;
-    for(int d=0; d<30; d++) {
-      int p = pedge[d], pq = indist[d];
-      int q = pq - p;
-      if(p && q)
-        loglik += p * log(p) + q * log(q) - pq * log(pq);
-      }
-    
-    println(hlog, "loglikelihood = ", fts(loglik));
-    }
-  
-  void readsag(const char *fname) {
-    maxweight = 0;
-    sag_edge = add_edgetype("SAG edge");
-    fhstream f(fname, "rt");
-    if(!f.f) { printf("Failed to open SAG file: %s\n", fname); exit(1); }
-    // while(fgetc(f) != 10 && fgetc(f) != 13 && !feof(f)) ;
-    while(!feof(f.f)) {
-      string l1, l2;
-      while(true) {
-        int c = fgetc(f.f);
-        if(c == EOF) return;
-        else if(c == ';') break;
-        else if(c == 10 || c == 13 || c == 32 || c == 9) ;
-        else l1 += c;
-        }
-      while(true) {
-        int c = fgetc(f.f);
-        if(c == EOF) return;
-        else if(c == ';') break;
-        else if(c == 10 || c == 13 || c == 32 || c == 9) ;
-        else l2 += c;
-        }
-      ld wei;
-      if(!scan(f, wei)) continue;
-      edgeinfo ei(sag_edge);
-      ei.i = getid(l1);
-      ei.j = getid(l2);
-      ei.weight = wei;
-      sagedges.push_back(ei);
-      }
-    }
-  
-  ld edgepower=1, edgemul=1;
-
-  void read(string fn) {
-    fname = fn;
-    init(); kind = kSAG;
-    temperature = 0; sagmode = sagOff;
-    readsag(fname.c_str());
-    
-    N = isize(vdata);
-    // totwei.resize(N);
-    // for(int i=0; i<N; i++) totwei[i] = 0;
-    
-    for(int i=0; i<N; i++) vdata[i].data = 0;
-    /* for(int i=0; i<isize(sagedges); i++) {
-      edgeinfo& ei = sagedges[i];
-      // maxwei[ei.i] = max(maxwei[ei.i], ei.weight);
-      // maxwei[ei.j] = max(maxwei[ei.j], ei.weight);
-      // totwei[ei.i] += ei.weight;
-      // totwei[ei.j] += ei.weight;
-      } */
-    for(int i=0; i<isize(sagedges); i++) {
-      edgeinfo& ei = sagedges[i];
-      // (ei.weight >= maxwei[ei.i] / 5 || ei.weight >= maxwei[ei.j] / 5);
-
-      ei.weight2 = pow((double) ei.weight, (double) edgepower) * edgemul;
-      // LANG:: pow(ei.weight, .4) / 50;      
-      
-      // ei.weight2 = 0; int w = ei.weight; while(w) { w >>= 1; ei.weight2++; }      
-      /* if(totwei[ei.i] <= 0 || totwei[ei.j] <= 0) {
-        printf("BAD TOTWEI\n");
-        exit(1);
-        }
-      ei.weight2 = 3 * (
-        sqrt(ei.weight * 1. / totwei[ei.i]) * log(totwei[ei.i]) * log(totwei[ei.i]) +
-        sqrt(ei.weight * 1. / totwei[ei.j]) * log(totwei[ei.j]) * log(totwei[ei.j])); */
-      // printf("%f\n", ei.weight2);
-      addedge0(ei.i, ei.j, &ei);
-      }
-  
-    initSnake(N*2);
-    printf("numsnake = %d\n", numsnake);
-    if(numsnake < N) {
-      printf("Error: snake does not fit\n");
-      exit(1);
-      }
-    snakeid.resize(N);
-    for(int i=0; i<N; i++) snakeid[i] = -1;
-    organize();
-    disable_snake();
-
-    for(int i=0; i<N; i++) {
-      int ii = i;
-      vertexdata& vd = vdata[ii];
-      vd.cp = colorpair(dftcolor);
-      createViz(ii, sag::snakecells[sag::snakeid[i]], Id);
-      }
-
-    storeall();
-    }
-
-  }
 
 bool edgecmp(edgeinfo *e1, edgeinfo *e2) {
   return e1->weight > e2->weight;
@@ -1092,7 +384,7 @@ void rogueviz_help(int id, int pagenumber) {
     int k = ei->i ^ ei->j ^ id;
     hex.text = vdata[k].name;
     hex.color = vdata[k].cp.color1 >> 8;
-    if(kind == kSAG) {
+    if(vizflags & RV_WHICHWEIGHT) {
       if(which_weight)
         hex.subtext = fts(ei->weight2);
       else
@@ -1112,7 +404,7 @@ void rogueviz_help(int id, int pagenumber) {
     help_extensions.push_back(hex);
     }
   
-  if(kind == kSAG && noedges) {
+  if((vizflags & RV_WHICHWEIGHT) && noedges) {
     help_extension hex;
     hex.key = 'w';
     hex.text = "displayed weight";
@@ -1293,7 +585,7 @@ bool drawVertex(const transmatrix &V, cell *c, shmup::monster *m) {
 
   int lid = shmup::lmousetarget ? shmup::lmousetarget->pid : -2;
   
-  if(!leftclick) for(int j=0; j<isize(vd.edges); j++) {
+  if(!lshiftclick) for(int j=0; j<isize(vd.edges); j++) {
     edgeinfo *ei = vd.edges[j].second;
     vertexdata& vd1 = vdata[ei->i];
     vertexdata& vd2 = vdata[ei->j];
@@ -1318,7 +610,7 @@ bool drawVertex(const transmatrix &V, cell *c, shmup::monster *m) {
       color_t col = (hilite ? ei->type->color_hi : ei->type->color);
       auto& alpha = part(col, 0);
       
-      if(kind == kSAG) {
+      if(vizflags & RV_AUTO_MAXWEIGHT) {
         if(ei->weight2 > maxweight) maxweight = ei->weight2;
         alpha *= pow(ei->weight2 / maxweight, ggamma);
         }
@@ -1369,23 +661,11 @@ bool drawVertex(const transmatrix &V, cell *c, shmup::monster *m) {
         col &= 0xFF;
         col |= (forecolor << 8);
         }
+      
+      if(callhandlers(false, hooks_alt_edges, ei, false)) ;
 
-      bool onspiral = kind == kSpiral && abs(ei->i - ei->j) == 1;      
-
-      if((pmodel || onspiral) && !fat_edges) {
-        if(onspiral) {
-          const int prec = 20; 
-          transmatrix T = ggmatrix(currentmap->gamestart());
-          hyperpoint l1 = T*tC0(spiral::at(1+ei->i));
-          for(int z=1; z<=prec; z++) {
-            hyperpoint l2 = T*tC0(spiral::at(1+ei->i+(ei->j-ei->i) * z / (prec+.0)));
-            queueline(l1, l2, col, vid.linequality).prio = PPR::STRUCT0;
-            l1 = l2;
-            }
-          }
-        else {
-          queueline(h1, h2, col, 2 + vid.linequality).prio = PPR::STRUCT0;
-          }
+      else if(pmodel && !fat_edges) {
+        queueline(h1, h2, col, 2 + vid.linequality).prio = PPR::STRUCT0;
         }
       else {
       
@@ -1399,7 +679,8 @@ bool drawVertex(const transmatrix &V, cell *c, shmup::monster *m) {
           
           transmatrix T = inverse(ggmatrix(ei->orig));
           
-          if(fat_edges) {
+          if(callhandlers(false, hooks_alt_edges, ei, true)) ;
+          else if(fat_edges) {
             ei->tinf.tvertices.clear();
             transmatrix T1 = inverse(gm1 * vd1.m->at);
             hyperpoint goal = T1 * h2;
@@ -1416,17 +697,6 @@ bool drawVertex(const transmatrix &V, cell *c, shmup::monster *m) {
               store(a+30, 0);
               store(a, d);
               store(a+30, d);
-              }
-            }
-          else if(kind == kSpiral && abs(ei->i - ei->j) == 1) {
-            ei->orig = currentmap->gamestart();
-            hyperpoint l1 = tC0(spiral::at(1+ei->i));
-            storevertex(ei->prec, l1);
-            const int prec = 20; 
-            for(int z=1; z<=prec; z++) {
-              hyperpoint l2 = tC0(spiral::at(1+ei->i+(ei->j-ei->i) * z / (prec+.0)));
-              storeline(ei->prec, l1, l2);
-              l1 = l2;
               }
             }
           else 
@@ -1447,7 +717,7 @@ bool drawVertex(const transmatrix &V, cell *c, shmup::monster *m) {
   
   if(showlabels) {
     bool doshow = true;
-    if(kind == kTree && i > 0 && !vd.virt) {
+    if((vizflags & RV_COMPRESS_LABELS) && i > 0 && !vd.virt) {
       vertexdata& vdp = vdata[vd.data];
       hyperpoint h2 = ggmatrix(vdp.m->base) * vdp.m->at * C0;
       if(hdist(h2, V * m->at * C0) < 0.1) doshow = false;
@@ -1463,66 +733,7 @@ bool drawVertex(const transmatrix &V, cell *c, shmup::monster *m) {
       }
     }
 
-  if(kind == kCollatz) {
-    if(c->cpdist > 7 && euclid) ;
-    else if(vd.data == 2) {
-      // doubler vertex
-      string s = vd.name;
-      colorpair cp = vd.cp;
-      vd.data = 20;
-      int i0 = isize(vdata);
-      vdata.resize(i0+1);
-      vertexdata& vdn = vdata[i0];
-      createViz(i0, m->base, m->at * collatz::T2);
-      
-      virtualRebase(vdn.m);
-      vdn.cp = perturb(cp);
-      vdn.data = 0;
-      addedge(i, i0, 1, false, collatz::collatz1);
-      vdn.m->store();
-      int carry = 0;
-      string s2 = s;
-      for(int i=isize(s2)-1; i>=0; i--) {
-        int x = 2*(s2[i] - '0') + carry;
-        carry = x>=10;
-        if(carry) x-=10;
-        s2[i] = '0'+x;
-        }
-      if(carry) s2 = "1" + s2;
-      vdn.name = s2;
-      
-      int m3 = 0;
-      for(int i=0; i<isize(s); i++) m3 += s[i] - '0';
-      
-      if(m3 % 3 == 2 && s != "2" && s != "1") {
-        vdata.resize(i0+2);
-        vertexdata& vdn = vdata[i0+1];
-        createViz(i0+1, m->base, m->at * collatz::T3);
-        virtualRebase(vdn.m);
-        vdn.cp = perturb(cp);
-        vdn.data = 0;
-        addedge(i, i0+1, 1, false, collatz::collatz2);
-        vdn.m->store();
-        int carry = -1;
-        string s2 = s;
-        for(int i=isize(s2)-1; i>=0; i--) {
-          carry += 2 * (s2[i] - '0');
-          int ncarry = 0;
-          while(carry % 3) carry += 10, ncarry--;
-          if(carry >= 30) carry -= 30, ncarry += 3;
-          s2[i] = '0'+carry/3;
-          carry = ncarry;
-          }
-        if(s2[0] == '0') s2 = s2.substr(1);
-        vdn.name = s2;
-        vdn.cp = perturb(vdn.cp);
-        }
-      }
-    else if(vd.data < 2) {
-      vd.data++;
-      fixmatrix(vd.m->at);
-      }
-    }
+  callhooks(hooks_drawvertex, vd, c, m, i);
 
   return true;
   }
@@ -1535,7 +746,7 @@ color_t chosen_legend_color = DEFAULT_COLOR;
 
 bool rogueviz_hud() {
   color_t legend_color = chosen_legend_color == DEFAULT_COLOR ? forecolor : chosen_legend_color;
-  if(!rogueviz::on) return false;
+  if(!vizid) return false;
   if(cmode & sm::DRAW) return false;
 
   int qet = isize(edgetypes);
@@ -1582,33 +793,6 @@ bool rogueviz_hud() {
   return true;
   }
 
-void drawExtra() {
-  
-  if(kind == kFullNet) {
-    for(map<cell*, transmatrix>::iterator it = gmatrix.begin(); it != gmatrix.end(); it++) {
-      cell *c = it->first;
-      c->wall = waChasm;
-      }
-    int index = 0;
-
-    for(map<cell*, transmatrix>::iterator it = gmatrix.begin(); it != gmatrix.end(); it++) {
-      cell *c = it->first;
-      bool draw = true;
-      for(int i=0; i<isize(named); i++) if(named[i] == c) draw = false;
-      if(draw && gmatrix.count(c))
-        queuedisk(it->second, dftcolor, false, NULL, index++);
-        // queuepolyat(it->second, shDisk, dftcolor., PPR::LINE);
-      }
-    
-    for(int i=0; i<isize(named); i++) if(gmatrix.count(named[i])) {
-      string s = ""; s += 'A'+i;
-      queuestr(gmatrix[named[i]], 1, s, forecolor, 1);
-      }
-    
-    canmove = true; items[itOrbAether] = true;
-    }
-  }
-
 void readcolor(const string& cfname) {
   FILE *f = fopen(cfname.c_str(), "rt");
   if(!f) { printf("color file missing\n"); exit(1); }
@@ -1625,19 +809,9 @@ void readcolor(const string& cfname) {
     colorpair x;
     int c2 = fgetc(f);
     int known_id = -1;
-    bool force = false;
-
-    if(kohonen::samples && c2 == '!') {
-      force = true;
-      c2 = fgetc(f);
-      if(c2 == 10 || c2 == 13) continue;
-      }
     
-    if(kohonen::samples && c2 == '+') {
-      known_id = kohonen::showsample(lab);
-      c2 = fgetc(f);
-      if(c2 == 10 || c2 == 13) continue;
-      }
+    if(callhandlers(false, hooks_readcolor, c2, lab, f)) continue;
+
     if(c2 == '#') {
       while(c2 != 10 && c2 != 13 && c2 != -1) c2 = fgetc(f);
       continue;
@@ -1676,7 +850,7 @@ void readcolor(const string& cfname) {
           vdata[i].cp = x;
           }
       }
-    else if(kohonen::samples && !force) {
+    else if(isize(lab) && lab[0] == '!') {
       for(int i=0; i<isize(vdata); i++)
         if(vdata[i].name == lab) {
           vdata[i].cp = x;
@@ -1686,7 +860,7 @@ void readcolor(const string& cfname) {
       int i = getid(lab);
       again: vdata[i].cp = x;
       
-      if(kind == kTree) {
+      if(vizflags & RV_COLOR_TREE) {
         i = vdata[i].data;
         if(i >= 0) goto again;
         }
@@ -1694,8 +868,8 @@ void readcolor(const string& cfname) {
     }
   }
 
-void init() {
-  if(on) return;
+void init(void *_vizid, flagtype _vizflags) {
+
   autocheat = true; 
   showstartmenu = false;
 #if !ISWEB
@@ -1708,7 +882,6 @@ void init() {
   firstland = specialland = laCanvas;
   restart_game(rg::nothing);
 #endif
-  on = true;
   autocheat = true;
   items[itOrbLife] = 0;
   timerghost = false;
@@ -1717,7 +890,9 @@ void init() {
   calcparam();
   drawthemap();
   gmatrix0 = gmatrix;
-  addMessage("RogueViz enabled");
+
+  vizid = _vizid;
+  vizflags = _vizflags;
   }
 
 int search_for = -1;
@@ -1732,32 +907,10 @@ void close() {
   for(int i=0; i<isize(edgeinfos); i++) delete edgeinfos[i];
   edgeinfos.clear();
   anygraph::coords.clear();
-  sag::sagedges.clear();
+  callhooks(hooks_close);
   edgetypes.clear();
-  on = false;
+  vizid = nullptr;
   relmatrices.clear();
-  }
-
-bool turn(int delta) {
-  if(!on) return false;
-  if(kind == kSAG) sag::iterate(), timetowait = 0;
-  if(kind == kKohonen) kohonen::steps(), timetowait = 0;
-  return false;
-  // shmup::pc[0]->rebase();
-  }
-
-#ifndef CAP_RVSLIDES
-#define CAP_RVSLIDES (CAP_TOUR && !ISWEB)
-#endif
-
-int dimid(char x) {
-  if(x >= 'a' && x < 'a' + GDIM) return x - 'a';
-  else if(x >= '0' && x < '0' + GDIM) return x - '0';
-  else if(x >= 'x' && x < 'x' + GDIM) return x - 'x';
-  else {
-    println(hlog, "incorrect dimension ID");
-    throw hr_exception();
-    }
   }
 
 #if CAP_COMMANDLINE
@@ -1770,65 +923,6 @@ int readArgs() {
     shift(); dftcolor = parse(args());
     }  
 
-// tree visualizer (e.g. Tree of Life)
-//-------------------------------------
-
-  else if(argis("-tree")) {
-    PHASE(3); shift(); tree::read(args());
-    }
-
-// SAG visualizer (e.g. Reddit roguelikes, GitHub languages)
-//-----------------------------------------------------------
-
-// (1) configure edge weights
-  else if(argis("-edgepower")) {
-    shift_arg_formula(sag::edgepower);
-    shift_arg_formula(sag::edgemul);
-    }
-// (1) configure temperature (high, low)
-  else if(argis("-sagtemp")) {
-    shift(); sag::hightemp = argi();
-    shift(); sag::lowtemp = argi();
-    }
-  else if(argis("-sagmin")) {
-    shift_arg_formula(default_edgetype.visible_from);
-    default_edgetype.visible_from_hi = default_edgetype.visible_from;
-    default_edgetype.visible_from_help = default_edgetype.visible_from;    
-    }
-  else if(argis("-sagminhi")) {
-    shift_arg_formula(default_edgetype.visible_from_hi);
-    }
-  else if(argis("-sagminhelp")) {
-    shift_arg_formula(default_edgetype.visible_from_help);
-    }
-// (2) read the edge data
-  else if(argis("-sagpar")) {
-    PHASE(3);
-    shift();
-    sag::sagpar = argi();
-    }
-  else if(argis("-sag")) {
-    PHASE(3); 
-    shift(); sag::read(args());
-    }
-// (3) load the initial positioning
-  else if(argis("-gload")) {
-    PHASE(3); shift(); sag::loadsnake(args());
-    }
-// (4) perform simulated annealing: -fullsa <time in seconds>
-  else if(argis("-fullsa")) {
-    shift(); sag::dofullsa(argi());
-    }
-// (5) save the positioning
-  else if(argis("-gsave")) {
-    PHASE(3); shift(); sag::savesnake(args());
-    }
-// (6) output loglikelihood
-  else if(argis("-lik")) {
-    sag::loglik();
-    }
-
-
 // graph visualizer
 //------------------
 
@@ -1838,78 +932,6 @@ int readArgs() {
     PHASE(3); shift(); anygraph::read(args());
     }
   
-// draw spirals 
-//--------------
-
-// example commandline:
-// -spiral 2,10000 -spiraledge 0,2 -spiraledge 1,1 -lab -spiralcolor 2 FF4040FF
-
-  else if(argis("-collatz")) {
-    PHASE(3); 
-    using namespace collatz; 
-    shift(); sscanf(argcs(), "%lf,%lf,%lf,%lf", &s2, &p2, &s3, &p3);
-    start();
-    }
-
-  else if(argis("-collatz-go")) {
-    if(kind != kCollatz) { printf("not in Collatz\n"); throw hr_exception(); }
-    shift(); int i = argi(); shift(); int j = argi();
-    if(i <= 0) i = 763;
-    if(j < 0 || j > 61) j = 61;
-    collatz::lookup(i, j);
-    }
-
-  else if(argis("-collatz3")) {
-    PHASE(3); 
-    using namespace collatz; 
-    s2 = p2 = s3 = p3 = 0;
-    start();
-    transmatrix *T = &T2;
-    while(true) {
-      lshift();
-      if(arg::nomore()) break;
-      else if(argis("fd")) { shift(); *T = *T * xpush(argf()); }
-      else if(argcs()[0] == 't') { int x = dimid(argcs()[1]); int y = dimid(argcs()[2]); shift(); *T = *T * hr::cspin(x, y, argf()); }
-      else if(argis("/")) { if(T == &T2) T = &T3; else break; }
-      else break;
-      }
-    unshift();
-    }
-
-  else if(argis("-spiral")) {
-    PHASE(3); 
-    ld mul = 2;
-    int N = 1000;
-    shift(); sscanf(argcs(), LDF ",%d", &mul, &N);
-    spiral::place(N, mul);
-    }
-
-  else if(argis("-net")) {
-    PHASE(3);
-    init(); kind = kFullNet;
-    linepatterns::patTriTree.color = 0x30;
-    linepatterns::patTriOther.color = 0x10;
-    linepatterns::patTriRings.color = 0xFF;
-    }
-
-  else if(argis("-spiraledge")) {
-    PHASE(3); 
-    ld shft = 1;
-    ld mul = 1;
-    shift(); sscanf(argcs(), LDF "," LDF, &shft, &mul);
-    spiral::edge(shft, mul);
-    }
-
-  else if(argis("-spiralcolor")) {
-    PHASE(3); 
-    ld period = 1;
-    ld start = 1;
-    shift(); sscanf(argcs(), LDF "," LDF, &period, &start);
-    start--;
-    shift();
-    spiral::color(start, period, parse(args()));
-    }
-
 // graphical parameters
 //------------------
 
@@ -1943,9 +965,6 @@ int readArgs() {
   else if(argis("-ggamma")) {
     shift(); ggamma = argf();
     }
-  else if(argis("-cshift")) {
-    shift_arg_formula(collatz::cshift);
-    }
   else if(argis("-rvwarp")) {
     patterns::whichShape = '8';
     }
@@ -1954,7 +973,7 @@ int readArgs() {
     }
 #if CAP_RVSLIDES
   else if(argis("-rvpres")) {
-    tour::slides = rvtour::rvslides;
+    tour::slides = rvtour::gen_rvtour();
     }
 #endif
   else if(argis("-nolegend")) {
@@ -1984,7 +1003,6 @@ void configure_edge_display() {
   static int mode = 0;
   gamescreen(0);  
   dialog::init(XLAT("rogueviz edges"));
-  string s3 = kind == kSAG ? "min weight" : kind == kKohonen ? "quantity" : "extent";
   for(int i=0; i<isize(edgetypes); i++) {
     auto t = edgetypes[i];
     switch(mode) {
@@ -1997,7 +1015,7 @@ void configure_edge_display() {
           });
         break;
       case 1:
-        if(kind == kSAG) {
+        if(!(vizflags & RV_INVERSE_WEIGHT)) {
           dialog::addSelItem(t->name, fts(t->visible_from), 'a'+i);
           dialog::add_action([t] {
             dialog::editNumber(t->visible_from, 0.001, 1000, .1, .1, "min weight", "");
@@ -2006,10 +1024,10 @@ void configure_edge_display() {
           }
         else {
           dialog::addSelItem(t->name, its(1 / t->visible_from), 'a'+i);
-          dialog::add_action([t,s3] {
+          dialog::add_action([t] {
             static int i;
             i = 1 / t->visible_from;
-            dialog::editNumber(i, 1, 1000000, 1, 500, s3, "");
+            dialog::editNumber(i, 1, 1000000, 1, 500, weight_label, "");
             dialog::reaction = [t] () { t->visible_from = i ? 1. / i : 5; };
             dialog::scaleLog(); dialog::ne.step = .2;
             });
@@ -2019,9 +1037,9 @@ void configure_edge_display() {
       }
     }
   dialog::addBreak(100);
-  if(among(kind, kSAG, kKohonen, kSpiral)) {
+  if(vizflags & RV_HAVE_WEIGHT) {
     dialog::addBoolItem_choice("color/alpha", mode, 0, '1');
-    dialog::addBoolItem_choice(s3, mode, 1, '2');
+    dialog::addBoolItem_choice(weight_label, mode, 1, '2');
     }
   else mode = 0;
   
@@ -2075,57 +1093,43 @@ void showVertexSearch() {
   }
 
 void showMenu() {
-  if(staircase::on) { staircase::showMenu(); return; }
+  if(callhandlers(false, hooks_rvmenu_replace)) return;
   cmode = sm::SIDE | sm::MAYDARK | sm::DIALOG_STRICT_X;
   gamescreen(0);  
 
   dialog::init(XLAT("rogueviz configuration"));
 
-  dialog::addSelItem(XLAT("temperature"), fts(sag::temperature), 't');
-  if(kind == kSAG)
-    dialog::addSelItem(XLAT("SAG mode"), sag::sagmodes[sag::sagmode], 'm');
-  dialog::addBoolItem(XLAT("show labels"), showlabels, 'l');
-  dialog::addBoolItem(XLAT("mark special vertices"), specialmark, 'x');
+  dialog::addBoolItem_action(XLAT("show labels"), showlabels, 'l');
+  dialog::addBoolItem_action(XLAT("mark special vertices"), specialmark, 'x');
   dialog::addSelItem(XLAT("background color"), itsh(backcolor), 'b');
-  if(isize(edgetypes))
+  dialog::add_action_push([] {backcolor ^= 0xFFFFFF, bordcolor ^= 0xFFFFFF, forecolor ^= 0xFFFFFF; });
+  if(isize(edgetypes)) {
     dialog::addSelItem(XLAT("edge types"), its(isize(edgetypes)), 'g');
-  dialog::addBoolItem(XLAT("vertices in 3D"), rog3, 'v');
+    dialog::add_action_push(configure_edge_display);
+    }
+  dialog::addBoolItem_action(XLAT("vertices in 3D"), rog3, 'v');
   dialog::addSelItem(XLAT("vertex shape"), its(vertex_shape), 'w');
+  dialog::add_action_push([] { vertex_shape = (1 + vertex_shape) & 3; });
+
+  dialog::add_key_action('z', [] {
+    for(int i=0; i<isize(named)-1; i++) if(named[i] == cwt.at)
+      swap(named[i], named[i+1]);
+    if(!isize(named) || named[isize(named)-1] != cwt.at) named.push_back(cwt.at);
+    printf("named = %d\n", isize(named));
+    popScreen();
+    });
 
   dialog::addItem(XLAT("vertex search"), '/');
   dialog::add_action_push(showVertexSearch);
   
-  if(kind == kKohonen)
-    kohonen::showMenu();
+  dialog::addBreak(50);
 
+  callhooks(hooks_rvmenu);
+  
   dialog::addBreak(50);
   dialog::addBack();
 
   dialog::display();
-  
-  keyhandler = [] (int sym, int uni) {
-    dialog::handleNavigation(sym, uni);
-    if(uni == 't')
-      dialog::editNumber(sag::temperature, sag::lowtemp, sag::hightemp, 1, 0, XLAT("temperature"), "");
-    else if(uni == 'm') {
-      sag::sagmode = sag::eSagmode( (1+sag::sagmode) % 3 );
-      }
-    else if(uni == 'l') showlabels = !showlabels;
-    else if(uni == 'v') rog3 = !rog3;
-    else if(uni == 'w') vertex_shape = (1 + vertex_shape) & 3;
-    else if(uni == 'x') specialmark = !specialmark;
-    else if(uni == 'b') backcolor ^= 0xFFFFFF, bordcolor ^= 0xFFFFFF, forecolor ^= 0xFFFFFF;
-    else if(uni == 'g') pushScreen(configure_edge_display);
-    else if(uni == 'z') {
-      for(int i=0; i<isize(named)-1; i++) if(named[i] == cwt.at)
-        swap(named[i], named[i+1]);
-      if(!isize(named) || named[isize(named)-1] != cwt.at) named.push_back(cwt.at);
-      printf("named = %d\n", isize(named));
-      popScreen();
-      }
-    else if(kind == kKohonen && kohonen::handleMenu(sym, uni)) ;
-    else if(doexiton(sym, uni)) popScreen();
-    };
   }
 
 #if CAP_RVSLIDES
@@ -2133,53 +1137,25 @@ namespace rvtour {
 
 using namespace tour;
 
-string cname() {
-  if(euclid) return "coord-6.txt";
-  if(PURE) return "coord-7.txt";
-  return "coord-67.txt";
-  }
+vector<slide> rvslides;
+extern vector<slide> rvslides_default;
 
-template<class T> function<void(presmode)> roguevizslide(char c, const T& t) {
-  return [c,t] (presmode mode) {
-    patterns::canvasback = 0x101010;
-    setCanvas(mode, c);
-    if(mode == 1 || mode == pmGeometryStart) t();
-  
-    if(mode == 3 || mode == pmGeometry || mode == pmGeometryReset) {
-      rogueviz::close();
-      shmup::clearMonsters();
-      if(mode == pmGeometryReset) t();
+slide *gen_rvtour() {
+  rvslides = rvslides_default;
+  callhooks(hooks_build_rvtour, rvslides);
+  rvslides.emplace_back(
+    slide{"THE END", 99, LEGAL::ANY | FINALSLIDE,
+    "Press '5' to leave the presentation.",
+    [] (presmode mode) {
+      firstland = specialland = laIce;
+      if(mode == 4) restart_game(rg::tour);
       }
-  
-    slidecommand = "toggle the player";
-    if(mode == 4) 
-      mapeditor::drawplayer = !mapeditor::drawplayer;
-    pd_from = NULL;
-    };
+    });
+  return &rvslides[0];
   }
 
-template<class T, class U>
-function<void(presmode)> roguevizslide_action(char c, const T& t, const U& act) {
-  return [c,t,act] (presmode mode) {
-    patterns::canvasback = 0x101010;
-    setCanvas(mode, c);
-    if(mode == pmStart || mode == pmGeometryStart) t();
-  
-    act(mode);
-
-    if(mode == pmStop || mode == pmGeometry || mode == pmGeometryReset) {
-      rogueviz::close();
-      shmup::clearMonsters();
-      if(mode == pmGeometryReset) t();
-      }
-  
-    };
-  }
-
-#define RVPATH HYPERPATH "rogueviz/"
-
-slide rvslides[] = {
-    {"RogueViz", 999, LEGAL_ANY, 
+vector<slide> rvslides_default = {
+    {"RogueViz", 999, LEGAL::ANY, 
       "This is a presentation of RogueViz, which "
       "is an adaptation of HyperRogue as a visualization tool "
       "rather than a game. Hyperbolic space is great "
@@ -2199,7 +1175,7 @@ slide rvslides[] = {
           }
         }
       },
-    {"straight lines in the Palace", 999, LEGAL_ANY, 
+    {"straight lines in the Palace", 999, LEGAL::ANY, 
       "One simple slide about HyperRogue. Press '5' to show some hyperbolic straight lines.",
       [] (presmode mode) {
        using namespace linepatterns;
@@ -2208,178 +1184,6 @@ slide rvslides[] = {
        if(mode == 3) patPalace.color = 0xFFD50000;
         }
       },
-  {"Collatz conjecture", 51, LEGAL_UNLIMITED | QUICKGEO,
-    "The following slide is a visualization of the Collatz conjecture. "
-    "Press '5' for a spiral rendering of the Collatz conjecture visualization.\n\n"
-    "Note that this, and many other RogueViz visualizations, have "
-    "Euclidean versions (press ESC).\n",
-    roguevizslide('d', [] () {
-      rogueviz::dftcolor = 0x206020FF;
-      
-      int fac = euclid ? 2 : 1;
-
-      rogueviz::collatz::s2 = .3;
-      rogueviz::collatz::p2 = .5 * fac;
-      rogueviz::collatz::s3 = -.4;
-      rogueviz::collatz::p3 = .4 * fac;
-
-      rogueviz::showlabels = true;
-      
-      rogueviz::on = true;
-      gmatrix.clear();
-      drawthemap();
-      gmatrix0 = gmatrix;
-
-      rogueviz::collatz::start();
-      })
-    },
-
-  {"Roguelikes", 63, LEGAL_UNLIMITED | QUICKGEO,
-    "A visualization of roguelikes, based on discussion on /r/reddit. "
-    "See: http://www.roguetemple.com/z/hyper/reddit.php",
-    roguevizslide('0', [] () {
-      rogueviz::dftcolor = 0x282828FF;
-
-      rogueviz::showlabels = true;
-      part(rogueviz::default_edgetype.color, 0) = 181;
-      rogueviz::sag::edgepower = 1;
-      rogueviz::sag::edgemul = 1;
-      
-      rogueviz::on = true;
-      gmatrix.clear();
-      drawthemap();
-      gmatrix0 = gmatrix;
-
-      rogueviz::sag::read(RVPATH "roguelikes/edges.csv");
-      rogueviz::readcolor(RVPATH "roguelikes/color.csv");
-      rogueviz::sag::loadsnake(RVPATH "roguelikes/" + cname());
-      })    
-    },
-  {"Programming languages of GitHub", 64, LEGAL_UNLIMITED | QUICKGEO,
-    "A visualization of programming languages.",
-    roguevizslide('0', [] () {
-      rogueviz::dftcolor = 0x282828FF;
-
-      rogueviz::showlabels = true;
-      part(rogueviz::default_edgetype.color, 0) = 128;
-      rogueviz::sag::edgepower = .4;
-      rogueviz::sag::edgemul = .02;
-      
-      rogueviz::on = true;
-      gmatrix.clear();
-      drawthemap();
-      gmatrix0 = gmatrix;
-
-      rogueviz::sag::read(RVPATH "lang/edges.csv");
-      rogueviz::readcolor(RVPATH "lang/color.csv");
-      rogueviz::sag::loadsnake(RVPATH "lang/" + cname());
-      if(euclid) rogueviz::legend.clear();
-      })
-    },
-    {"Boardgames", 62, LEGAL_UNLIMITED | QUICKGEO,
-        "A visualization of board games, based on discussions on Reddit.",
-    roguevizslide('0', [] () {
-      rogueviz::dftcolor = 0x282828FF;
-
-      rogueviz::showlabels = true;
-      part(rogueviz::default_edgetype.color, 0) = 157;
-      rogueviz::sag::edgepower = 1;
-      rogueviz::sag::edgemul = 1;
-      
-      rogueviz::on = true;
-      gmatrix.clear();
-      drawthemap();
-      gmatrix0 = gmatrix;
-
-      rogueviz::sag::read(RVPATH "boardgames/edges.csv");
-      rogueviz::readcolor(RVPATH "boardgames/color.csv");
-      rogueviz::sag::loadsnake(RVPATH "boardgames/" + cname());
-      })
-        },
-    {"Tree of Life", 61, LEGAL_UNLIMITED | QUICKGEO,
-      "Not described.",
-
-    roguevizslide('0', [] () {
-
-      rogueviz::dftcolor = 0x206020FF;
-
-      rogueviz::showlabels = true;
-      
-      rogueviz::on = true;
-      gmatrix.clear();
-      drawthemap();
-      gmatrix0 = gmatrix;
-
-      rogueviz::tree::read(RVPATH "treeoflife/tol.txt");
-      })},
-    {"Spiral Staircase", 62, LEGAL_NONE | QUICKGEO,
-     "Spiral Staircase Demo. Press '5' to change the curvature or other parameters.",
-     
-    [] (presmode mode) {
-      if(mode == 1) staircase::make_staircase();
-      if(mode == 3) rug::close();
-      slidecommand = "staircase menu";
-      if(mode == 4) pushScreen(staircase::showMenu);
-      }},
-    {"Banach-Tarski-like", 62, LEGAL_NONE,
-     "Banach-Tarski-like decomposition. Break a hyperbolic plane into two hyperbolic planes.\n\n"
-     "Press '5' to show the decomposition. Press any key to stop.\n\n"
-     "You will see a map of the decomposition. Press '5' again to return.",
-     
-    [] (presmode mode) {
-      slidecommand = "staircase menu";
-      if(mode == 3) {
-        while(gamestack::pushed()) stop_game(), gamestack::pop();
-        banachtarski::bmap = false;
-        banachtarski::on = false;
-        }
-      if(mode == 4) {
-        if(!banachtarski::on) {
-          bool b = mapeditor::drawplayer;
-          specialland = cwt.at->land;
-          gamestack::push();
-          banachtarski::init_bantar();
-          airmap.clear();
-          dynamicval<int> vs(sightrange_bonus, 3);
-          dynamicval<int> vg(genrange_bonus, 3);
-          doOvergenerate();
-          banachtarski::bantar_anim();
-          quitmainloop = false;
-          mapeditor::drawplayer = b;
-          banachtarski::init_bantar_map();
-          resetview();
-          }
-        else if(banachtarski::on && banachtarski::bmap) {
-          banachtarski::bmap = false;
-          banachtarski::on = false;
-          gamestack::pop();
-          }
-        }
-      }},
-    {"Pentagonal Exploration", 62, LEGAL_NONE | QUICKGEO,
-     "Pentagonal Exploration explained at: http://www.roguetemple.com/z/sims/snub/\n\n"
-     "Move the mouse nearer and further away from the X.\n\n"
-     "Press 3 4 5 6 7 8 9 shift+4 shift+5 shift+6 to change the geometry.",
-     
-    [] (presmode mode) {
-      if(mode == 1) {
-        pentagonal::run_snub(5, 3);
-        }
-      if(mode == 3) {
-        printf("stopping\n");
-        set_geometry(gNormal);
-        set_variation(eVariation::bitruncated);
-        rug::close();
-        start_game();
-        }
-      }},
-  {"THE END", 99, LEGAL_ANY | FINALSLIDE,
-    "Press '5' to leave the presentation.",
-    [] (presmode mode) {
-      firstland = specialland = laIce;
-      if(mode == 4) restart_game(rg::tour);
-      }
-    }
   };
 
 int rvtour_hooks = 
@@ -2393,7 +1197,7 @@ int rvtour_hooks =
           "common HyperRogue tutorial first is useful too, "
           "as an introduction to hyperbolic geometry.";         
       if(mode == 4) {
-        slides = rogueviz::rvtour::rvslides;
+        slides = gen_rvtour();
         while(tour::on) restart_game(rg::tour);
         tour::start();
         }
@@ -2405,48 +1209,40 @@ int rvtour_hooks =
 #endif
 
 bool default_help() {
-  if(!rogueviz::on) return false;
+  if(!vizid) return false;
 
   help = 
     "This is RogueViz, a visualization engine based on HyperRogue.\n\nUse WASD to move, v for menu.\n\n"
     "Read more about RogueViz on : http://roguetemple.com/z/hyper/rogueviz.php\n\n";
-  if(kind == kAnyGraph)
-    help += "Current visualization: any graph\n\n" + fname;
-  if(kind == kTree)
-    help += "Current visualization: tree\n\n" + fname;
-  if(kind == kSpiral)
-    help += "Current visualization: spiral\n\n";
-  if(kind == kSAG)
-    help += "Current visualization: SAG\n\n" + fname;
-  if(kind == kCollatz)
-    help += "Current visualization: Collatz conjecture\n\n";
-  if(kind == kFullNet)
-    help += "Current visualization: full net\n\n";
 
   help_extensions.push_back(help_extension{'u', XLAT("RogueViz menu"), [] () { popScreen(); pushScreen(showMenu); }});    
   return true;
   }
 
-named_functionality o_key() {
-  if(rogueviz::on) return named_dialog(XLAT("rogueviz menu"), rogueviz::showMenu);
-  return named_functionality();
+void o_key(o_funcs& v) {
+  if(vizid) v.push_back(named_dialog(XLAT("rogueviz menu"), rogueviz::showMenu));
   }
 
 auto hooks  = 
-  addHook(hooks_frame, 0, drawExtra) +
 #if CAP_COMMANDLINE
   addHook(hooks_args, 100, readArgs) +
 #endif
-#if CAP_RVSLIDES
-  addHook(hooks_config, 0, [] () { tour::ss::list(rogueviz::rvtour::rvslides); }) +
-#endif
-  addHook(clearmemory, 0, close) +
+  addHook(hooks_clearmemory, 0, close) +
   addHook(hooks_prestats, 100, rogueviz_hud) +
   addHook(shmup::hooks_draw, 100, drawVertex) +
   addHook(shmup::hooks_describe, 100, describe_monster) +
-  addHook(shmup::hooks_turn, 100, turn) + 
   addHook(shmup::hooks_kill, 100, activate) +
   addHook(hooks_o_key, 100, o_key) +
+  
+#if CAP_RVSLIDES
+  addHook(tour::ss::hooks_extra_slideshows, 100, [] (bool view) {
+    if(!view) return 1;
+    dialog::addBoolItem(XLAT("RogueViz Tour"), tour::ss::wts == &rvtour::rvslides[0], 'r');
+    dialog::add_action([] { tour::ss::wts = rvtour::gen_rvtour(); popScreen(); });    
+    return 0;
+    }) +
+#endif
+  
   addHook(dialog::hooks_display_dialog, 100, [] () {
     if(current_screen_cfunction() == showMainMenu) {
       dialog::addItem(XLAT("rogueviz menu"), 'u'); 
@@ -2456,8 +1252,8 @@ auto hooks  =
     if(current_screen_cfunction() == showStartMenu) {
       dialog::addBreak(100);
       dialog::addBigItem(XLAT("RogueViz"), 'r');
-      dialog::add_action([] () {
-        tour::slides = rogueviz::rvtour::rvslides;
+      dialog::add_action([] () {        
+        tour::slides = rogueviz::rvtour::gen_rvtour();
         popScreenAll();
         tour::start();
         printf("tour start\n");
@@ -2467,27 +1263,11 @@ auto hooks  =
     #endif
     }) +
   addHook(hooks_welcome_message, 100, [] () {
-    if(rogueviz::on) addMessage(XLAT("Welcome to RogueViz!"));
-    return rogueviz::on;
+    if(vizid) addMessage(XLAT("Welcome to RogueViz!"));
+    return bool(vizid);
     }) +
   addHook(hooks_default_help, 100, default_help) +
   addHook(hooks_markers, 100, search_marker) +
  0;
 
-};
-
-#include "kohonen.cpp"
-#include "staircase.cpp"
-#include "banachtarski.cpp"
-#include "video.cpp"
-#include "pentagonal.cpp"
-#include "functions.cpp"
-#include "fundamental.cpp"
-#include "sunflower.cpp"
-#include "flocking.cpp"
-#include "magiccube.cpp"
-#include "cvl.cpp"
-#include "newconf.cpp"
-#include "grigorchuk.cpp"
-#include "qtm.cpp"
-#include "rewriting.cpp"
+}

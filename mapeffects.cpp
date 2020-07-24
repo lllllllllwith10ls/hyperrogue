@@ -404,7 +404,8 @@ EX bool makeflame(cell *c, int timeout, bool checkonly) {
     return false;
   else if(c->wall == waBoat) {
     if(isPlayerOn(c) && markOrb(itOrbWinter)) {
-      addMessage(XLAT("%the1 protects your boat!", itOrbWinter));
+      if(!checkonly) addMessage(XLAT("%the1 protects your boat!", itOrbWinter));
+      return true;
       }
     if(checkonly) return true;
     if(c->cpdist <= 7)
@@ -466,13 +467,17 @@ EX void explosion(cell *c, int power, int central) {
   playSound(c, "explosion");
   drawFireParticles(c, 30, 150);
   
+  #if CAP_COMPLEX2
   brownian::dissolve_brownian(c, 2);
+  #endif
   makeflame(c, central, false);
   
   forCellEx(c2, c) {
     changes.ccell(c2);
     destroyTrapsOn(c2);
+    #if CAP_COMPLEX2
     brownian::dissolve_brownian(c2, 1);
+    #endif
     if(c2->wall == waRed2 || c2->wall == waRed3)
       c2->wall = waRed1;
     else if(c2->wall == waDeadTroll || c2->wall == waDeadTroll2 || c2->wall == waPetrified || c2->wall == waGargoyle) {
@@ -510,7 +515,9 @@ EX void explodeMine(cell *c) {
   changes.ccell(c);
   c->wall = waMineOpen;
   explosion(c, 20, 20);
+  #if CAP_COMPLEX2
   mine::auto_teleport_charges();
+  #endif
   }
 
 EX void explodeBarrel(cell *c) {
@@ -732,7 +739,8 @@ EX bool makeEmpty(cell *c) {
     else c->monst = moNone;
     }
 
-  if(c->land == laCocytus)
+  if(c->land == laCanvas) ;
+  else if(c->land == laCocytus)
     c->wall = waFrozenLake;
   else if(c->land == laAlchemist || c->land == laPaint || c->land == laCanvas)
     ;

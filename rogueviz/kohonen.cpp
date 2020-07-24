@@ -4,7 +4,11 @@
 // Kohonen's self-organizing maps. 
 // This is a part of RogueViz, not a part of HyperRogue.
 
+#include "rogueviz.h"
+
 namespace rogueviz { namespace kohonen {
+
+int kohonen_id;
 
 int columns;
 
@@ -277,7 +281,7 @@ void analyze() {
   }
 
 bool coloring_3d(cell *c, const transmatrix& V) {
-  if(WDIM == 3 && on) 
+  if(WDIM == 3 && vizid == &kohonen_id) 
     queuepoly(face_the_player(V), cgi.shRing, darkena(c->landparam_color, 0, 0xFF));
   return false;
   }
@@ -480,14 +484,14 @@ void verify_crawlers() {
     if(allcrawlers.count(id.first)) {
       bool b = verify_crawler(allcrawlers[id.first], cellwalker(c, id.second));
       if(!b) {
-        printf("cell %p: type = %d id = %d dir = %d / earlier crawler failed\n", c, c->type, id.first, id.second);
+        printf("cell %p: type = %d id = %d dir = %d / earlier crawler failed\n", hr::voidp(c), c->type, id.first, id.second);
         failures++;
         }
       }
     else {
       for(int i=0; i<c->type; i++)
       for(auto& cc: allcrawlers) if(verify_crawler(cc.second, cellwalker(c, i))) {
-        printf("cell %p: type = %d id = %d dir = %d / also works id %d in direction %d\n", c, c->type, id.first, id.second, cc.first, i);
+        printf("cell %p: type = %d id = %d dir = %d / also works id %d in direction %d\n", hr::voidp(c), c->type, id.first, id.second, cc.first, i);
         uniq--;
         goto breakcheck;
         }
@@ -646,7 +650,8 @@ void sominit(int initto, bool load_compressed) {
       exit(1);
       }
     
-    init(); kind = kKohonen;
+    init(&kohonen_id, RV_GRAPH | RV_HAVE_WEIGHT);
+    weight_label = "quantity";
     
     printf("Initializing SOM (1)\n");
   
@@ -740,7 +745,7 @@ void sominit(int initto, bool load_compressed) {
 
 void describe_cell(cell *c) {
   if(cmode & sm::HELP) return;
-  if(kind != kKohonen) return;
+  if(vizid != &kohonen_id) return;
   neuron *n = getNeuronSlow(c);
   if(!n) return;
   string h;
@@ -1197,7 +1202,14 @@ void steps() {
     }
   }
 
+void shift_color(int i) {
+  whattodraw[i]++;
+  if(whattodraw[i] == columns) whattodraw[i] = -5;
+  coloring();
+  }
+
 void showMenu() {
+  if(vizid != &kohonen_id) return;
   string parts[3] = {"red", "green", "blue"};
   for(int i=0; i<3; i++) {
     string c;
@@ -1209,28 +1221,15 @@ void showMenu() {
     else if(whattodraw[i] == -6) c = "sample names to colors";
     else c = colnames[whattodraw[i]];
     dialog::addSelItem(XLAT("coloring (%1)", parts[i]), c, '1'+i);
+    dialog::add_action([i] { shift_color(i); });
     }
   dialog::addItem("coloring (all)", '0');
+  dialog::add_action([] {
+    shift_color(0); shift_color(1); shift_color(2);
+    });
+    
   dialog::addItem("level lines", '4');
-  }
-
-bool handleMenu(int sym, int uni) {
-  if(uni >= '1' && uni <= '3') {
-    int i = uni - '1';
-    whattodraw[i]++;
-    if(whattodraw[i] == columns) whattodraw[i] = -5;
-    coloring();
-    return true;
-    }
-  if(uni == '0') {
-    for(char x: {'1','2','3'}) handleMenu(x, x);
-    return true;
-    }
-  if(uni == '4') {
-    pushScreen(levelline::show);
-    return true;
-    }
-  return false;
+  dialog::add_action_push(levelline::show);
   }
 
 void save_compressed(string name) {
@@ -1530,8 +1529,29 @@ int readArgs() {
 auto hooks = addHook(hooks_args, 100, readArgs);
 #endif
 
+bool turn(int delta) {
+  if(vizid == &kohonen_id) kohonen::steps(), timetowait = 0;
+  return false;
+  // shmup::pc[0]->rebase();
+  }
+
+bool kohonen_color(int& c2, string& lab, FILE *f) {
+  if(c2 == '+') {
+    int known_id = kohonen::showsample(lab);
+    c2 = fgetc(f);
+    if(c2 == '@') {
+      legend.push_back(known_id);
+      return true;
+      }
+    }
+  return false;
+  }
+
 auto hooks2 = addHook(hooks_frame, 50, levelline::draw)
-  + addHook(hooks_mouseover, 100, describe_cell);
+  + addHook(hooks_mouseover, 100, describe_cell)
+  + addHook(shmup::hooks_turn, 100, turn)
+  + addHook(rogueviz::hooks_rvmenu, 100, showMenu)
+  + addHook(hooks_readcolor, 100, kohonen_color);
 
 void clear() {
   printf("clearing Kohonen...\n");
@@ -1553,7 +1573,7 @@ void clear() {
 namespace rogueviz {
   void mark(cell *c) {
     using namespace kohonen;
-    if(kind == kKohonen && inited >= 1) {
+    if(vizid == &kohonen_id && inited >= 1) {
       distfrom = getNeuronSlow(c);
       coloring();
       }

@@ -75,6 +75,10 @@
 #define CAP_ZLIB 1
 #endif
 
+#ifndef CAP_GMP
+#define CAP_GMP 0
+#endif
+
 #define CAP_FRAMELIMIT (!ISMOBWEB)
 
 #if ISMOBILE
@@ -83,6 +87,10 @@
 
 #ifndef NOLICENSE
 #define NOLICENSE ISSTEAM
+#endif
+
+#ifndef CAP_VERTEXBUFFER
+#define CAP_VERTEXBUFFER (ISWEB)
 #endif
 
 #ifndef CAP_SHADER
@@ -153,6 +161,10 @@
 #define CAP_SURFACE CAP_RUG
 #endif
 
+#ifndef CAP_KUEN_MAP
+#define CAP_KUEN_MAP 0
+#endif
+
 #ifndef CAP_EDIT
 #define CAP_EDIT (CAP_FILES && !ISWEB && !ISMINI)
 #endif
@@ -165,6 +177,10 @@
 #define CAP_ODS 0
 #endif
 
+#ifndef CAP_VIDEO
+#define CAP_VIDEO (CAP_SHOT && ISLINUX && CAP_SDL)
+#endif
+
 #ifndef MAXMDIM
 #define MAXMDIM 4
 #endif
@@ -174,7 +190,7 @@
 #endif
 
 #ifndef CAP_MODEL
-#define CAP_MODEL (!ISMOBWEB && !ISMINI)
+#define CAP_MODEL (!ISMOBWEB && !ISMINI && CAP_SDL)
 #endif
 
 #ifndef CAP_SAVE
@@ -210,7 +226,7 @@
 #endif
 
 #ifndef CAP_ORIENTATION
-#define CAP_ORIENTATION ISMOBILE
+#define CAP_ORIENTATION (ISMOBILE || ISWEB)
 #endif
 
 #ifndef CAP_MOUSEGRAB
@@ -225,6 +241,10 @@
 
 #ifndef CAP_SVG
 #define CAP_SVG (CAP_FILES && !ISMOBILE && !ISMINI)
+#endif
+
+#ifndef CAP_WRL
+#define CAP_WRL (CAP_FILES && !ISMOBILE && !ISMINI && !ISWEB)
 #endif
 
 #ifndef CAP_POLY
@@ -405,8 +425,11 @@ extern "C" {
     #include <GL/gl.h>
     #include <GL/glu.h>
     #include <GL/glext.h>
-    #endif
   #endif
+#endif
+#else
+typedef int GLint;
+typedef unsigned GLuint;
 #endif
 
 #include <functional>
@@ -419,17 +442,28 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 #include <string>
+#include <cassert>
 #include <map>
 #include <queue>
+#include <sstream>
 #include <stdexcept>
 #include <array>
 #include <set>
 #include <random>
 #include <complex>
 #include <new>
+#include <limits.h>
+
+#if CAP_VIDEO
+#include <sys/wait.h>
+#endif
 
 #if CAP_ZLIB
 #include <zlib.h>
+#endif
+
+#if CAP_GMP
+#include <gmpxx.h>
 #endif
 
 #if CAP_THREAD
@@ -536,6 +570,10 @@ union SDL_Event;
 
 #ifndef CAP_FIELD
 #define CAP_FIELD (!(ISMINI))
+#endif
+
+#ifndef CAP_RAY
+#define CAP_RAY (MAXMDIM >= 4 && !ISWEB && !ISMOBILE && CAP_GL)
 #endif
 
 #ifndef CAP_MEMORY_RESERVE

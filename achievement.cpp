@@ -130,11 +130,12 @@ EX bool wrongMode(char flags) {
 
 EX set<string> got_achievements;
 
-EX void achievement_gain_once(const string& s) {
-  LATE(achievement_gain_once(s));
+EX void achievement_gain_once(const string& s, char flags IS(0)) {
+  LATE(achievement_gain_once(s, flags));
+  if(wrongMode(flags)) return;
   if(got_achievements.count(s)) return;
   got_achievements.insert(s);
-  achievement_gain(s.c_str());
+  achievement_gain(s.c_str(), flags);
   }
 
 EX void achievement_log(const char* s, char flags) {
@@ -194,12 +195,14 @@ void achievement_gain(const char* s, char flags IS(0)) {
 
 // gain the achievement for collecting a number of 'it'.
 EX void achievement_collection(eItem it) {
+  achievement_collection2(it, items[it]);
+  }
+
+EX void achievement_collection2(eItem it, int q) {
   if(cheater) return;
   if(randomPatternsMode) return;
-  LATE( achievement_collection(it); )
+  LATE( achievement_collection2(it, q); )
 
-  int q = items[it];
-  
   if(it == itTreat && q == 50 && (geometry == gSphere || geometry == gElliptic) && BITRUNCATED) 
     achievement_gain("HALLOWEEN1", rg::special_geometry);
 
@@ -949,12 +952,12 @@ EX void achievement_display() {
     col /= 10; col *= 0x10101;
     displayfr(vid.xres/2, vid.yres/4, 2, vid.fsize * 2, achievementMessage[0], col & 0xFFFF00, 8);
     int w = 2 * vid.fsize;
-#if ISMOBILE==0
+#if !ISMOBILE
     while(w>3 && textwidth(w, achievementMessage[1]) > vid.xres) w--;
 #endif
     displayfr(vid.xres/2, vid.yres/4 + vid.fsize*2, 2, w, achievementMessage[1], col, 8);
     w = vid.fsize;
-#if ISMOBILE==0
+#if !ISMOBILE
     while(w>3 && textwidth(w, achievementMessage[2]) > vid.xres) w--;
 #endif
     displayfr(vid.xres/2, vid.yres/4 + vid.fsize*4, 2, w, achievementMessage[2], col, 8);
@@ -964,7 +967,7 @@ EX void achievement_display() {
 
 EX bool isAscending(int i) { 
   return i == 13 || i == 14 || i == 15 || i == 16 || i == 29 || i == 30 || i == 45;
-  };
+  }
 
 EX int score_default(int i) {
   if(isAscending(i)) return 1999999999;

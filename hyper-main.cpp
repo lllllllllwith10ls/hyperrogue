@@ -29,12 +29,13 @@ void moreStack() {
 #endif
 
 namespace hr {
-EX hookset<bool(int argc, char** argv)> *hooks_main;
+EX hookset<bool(int argc, char** argv)> hooks_main;
 
 EX int hyper_main(int argc, char **argv) {
   using namespace hr; 
 #if ISWEB
   emscripten_get_commandline();
+#elif ISMOBILE
 #else
   arg::init(argc, argv);
 #endif

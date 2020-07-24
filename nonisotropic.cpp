@@ -85,7 +85,7 @@ EX namespace sn {
   void tabled_inverses::load() {
     if(loaded) return;
     FILE *f = fopen(fname.c_str(), "rb");
-    // if(!f) f = fopen("/usr/lib/soltable.dat", "rb");
+    if(!f) f = fopen((rsrcdir + fname).c_str(), "rb");
     if(!f) { addMessage(XLAT("geodesic table missing")); pmodel = mdPerspective; return; }
     ignore(fread(&PRECX, 4, 1, f));
     ignore(fread(&PRECY, 4, 1, f));
@@ -104,7 +104,7 @@ EX namespace sn {
     hyperpoint res;
     
     if(lazy) {
-      return decompress(get_int(int(ix), int(iy), int(iz)));
+      return decompress(get_int(int(ix+.5), int(iy+.5), int(iz+.5)));
       }
     
     else {
@@ -224,7 +224,7 @@ EX namespace sn {
   EX hyperpoint table_to_azeq(hyperpoint x) {
     // Poincare to azimuthal equidistant  
     ld hr = sqhypot_d(3, x);
-    if(hr == 0) return point3(0,0,0);    
+    if(hr < 1e-5) return x * 2;
     if(hr >= 1) return x * 60;
     ld hz = (1 + hr) / (1 - hr);
     ld d = (hz+1) * acosh(hz) / sinh(acosh(hz));    
@@ -552,43 +552,41 @@ EX namespace sn {
       }
     }
   
-  EX hyperpoint get_inverse_exp_symsol(hyperpoint h, bool lazy, bool just_direction) {
+  EX hyperpoint get_inverse_exp_symsol(hyperpoint h, flagtype flags) {
     auto& s = get_tabled();
     s.load();
     
     ld ix = h[0] >= 0. ? sn::x_to_ix(h[0]) : sn::x_to_ix(-h[0]);
     ld iy = h[1] >= 0. ? sn::x_to_ix(h[1]) : sn::x_to_ix(-h[1]);
-    ld iz = tanh(h[2]);
-    
+    ld iz = sn::z_to_iz(h[2]);
+
     if(h[2] < 0.) { iz = -iz; swap(ix, iy); }
     
-    hyperpoint res = s.get(ix, iy, iz, lazy);
+    hyperpoint res = s.get(ix, iy, iz, flags & pfNO_INTERPOLATION);
   
     if(h[2] < 0.) { swap(res[0], res[1]); res[2] = -res[2]; }
     if(h[0] < 0.) res[0] = -res[0];
     if(h[1] < 0.) res[1] = -res[1];
     
-    if(!just_direction) return table_to_azeq(res);
-
-    return res;
+    if(flags & pfNO_DISTANCE) return res;
+    return table_to_azeq(res);
     }
 
-  EX hyperpoint get_inverse_exp_nsym(hyperpoint h, bool lazy, bool just_direction) {
+  EX hyperpoint get_inverse_exp_nsym(hyperpoint h, flagtype flags) {
     auto& s = get_tabled();
     s.load();
     
     ld ix = h[0] >= 0. ? sn::x_to_ix(h[0]) : sn::x_to_ix(-h[0]);
     ld iy = h[1] >= 0. ? sn::x_to_ix(h[1]) : sn::x_to_ix(-h[1]);
-    ld iz = (tanh(h[2]/4)+1)/2;
+    ld iz = sn::z_to_iz(h[2]);
     
-    hyperpoint res = s.get(ix, iy, iz, lazy);
+    hyperpoint res = s.get(ix, iy, iz, flags & pfNO_INTERPOLATION);
   
     if(h[0] < 0.) res[0] = -res[0];
     if(h[1] < 0.) res[1] = -res[1];
     
-    if(!just_direction) return table_to_azeq(res);
-
-    return res;
+    if(flags & pfNO_DISTANCE) return res;
+    return table_to_azeq(res);
     }
 
   EX string shader_symsol = sn::common +
@@ -609,9 +607,25 @@ EX namespace sn {
     "float cz = iz*(1.-1./PRECZ) + .5/PRECZ;"
 
     // "if(ix > .5 && iy > .6 && ix < iy + .05 && iz < .2 && iz < (iy - 0.5) * 0.6)"
-    "if(ix > .65 + iz * .25 && iy > .55) res = vec4(0.,0.,0.,1.); "
-    
-     "else "
+    "\n#ifndef SOLV_ALL\n"
+
+    "bool ok = true;"
+
+    // hard to tell which triangles fall on the other sides
+    "if(iz < .03 && ix > .65 && iy > .65) ok = false;"
+    "if(iz < .013 && ix > .55 && iy > .55) ok = false;"
+    "if(iz < .0075 && ix > .45 && iy > .45) ok = false;"  
+    "if(iz > 0.004 && ix > 0.4 && iy > 0.4 && ix < .6 && iy < .6) ok = true;"
+    "if(iz > 0.000004 && ix > 0.4 && ix < 0.7 && iy > 0.4 && iy < 0.7) ok = true;"
+    "if(iz < 0.04 && ix > 0.70 && ix < 0.8 && iy > 0.5 && iy < 0.7) ok = false;"
+    "if(iz < 0.05 && ix > .45 && iy > .75 && ix < .55 && iy < .95) ok = false;"
+    "if(iz < 0.05 && ix > .85 && iy > .45 && iy < .75) ok = false;"
+    "if(iz < 0.025 && ix > .65 && iy > .65 && ix < .8 && iy < .8) ok = false;"
+
+    "if(!ok) res = vec4(0,0,0,1);"
+    "else "
+
+    "\n#endif\n"
   
       "res = texture3D(tInvExpTable, vec3(cx, cy, cz));"
 
@@ -745,7 +759,7 @@ EX namespace nilv {
       );
     }
   
-  EX hyperpoint get_inverse_exp(hyperpoint h, int iterations) {
+  EX hyperpoint get_inverse_exp(hyperpoint h, flagtype prec IS(pNORMAL)) {
     ld wmin, wmax;
     
     ld side = h[2] - h[0] * h[1] / 2;
@@ -769,11 +783,13 @@ EX namespace nilv {
     
     ld s = sin(2 * alpha_total);
     
+    int max_iter = (prec & pfLOW_BS_ITER) ? 5 : 20;
+    
     for(int it=0;; it++) {
       ld w = (wmin + wmax) / 2;
       ld z = b * b * (s + (sin(w) - w)/(cos(w) - 1)) + w;
 
-      if(it == iterations) {
+      if(it == max_iter) {
         ld alpha = alpha_total - w/2;
         ld c = b / sin(w/2);
         return point3(c * w * cos(alpha), c * w * sin(alpha), w);
@@ -967,7 +983,7 @@ EX namespace nilv {
 
   EX hyperpoint on_geodesic(hyperpoint s0, hyperpoint s1, ld x) {
     hyperpoint local = inverse(nisot::translate(s0)) * s1;
-    hyperpoint h = get_inverse_exp(local, 100);
+    hyperpoint h = get_inverse_exp(local);
     return nisot::translate(s0) * formula_exp(h * x);
     }
 
@@ -1048,6 +1064,24 @@ EX namespace hybrid {
   EX geometry_information *underlying_cgip;
 
   EX eGeometryClass under_class() { return ginf[hybrid::underlying].cclass; }  
+
+  EX transmatrix ray_iadj(cell *c, int i) {
+    if(prod && i == c->type-2) return (mscale(Id, +cgi.plevel));
+    if(prod && i == c->type-1) return (mscale(Id, -cgi.plevel));
+    if(WDIM == 2) {
+      return to_other_side(get_corner_position(c, i), get_corner_position(c, (i+1)));
+      }
+    if(prod) {
+      transmatrix T;
+      cell *cw = hybrid::get_where(c).first;
+      hybrid::in_underlying_geometry([&] {
+        T = to_other_side(get_corner_position(cw, i), get_corner_position(cw, (i+1)));
+        });
+      return T;
+      }
+    if(rotspace) return rots::ray_iadj(c, i);
+    return currentmap->iadj(c, i);
+    }
   
   EX void configure(eGeometry g) {
     if(WDIM == 3) return;
@@ -1060,6 +1094,7 @@ EX namespace hybrid {
     auto keep = ginf[g].menu_displayed_name;
     ginf[g] = ginf[underlying];
     ginf[g].menu_displayed_name = keep;
+    ginf[g].xcode = no_code;
     if(g == gRotSpace) {
       ginf[g].g = sph ? giSphere3 : giSL2;
       ginf[g].tiling_name = "Iso(" + ginf[g].tiling_name + ")";
@@ -1147,7 +1182,7 @@ EX namespace hybrid {
     
     ~hrmap_hybrid() {
       in_underlying([] { delete currentmap; });
-      for(auto& p: at) tailored_delete(p.second);
+      for(auto& p: at) destroy_cell(p.second);
       }
   
     virtual transmatrix spin_to(cell *c, int d, ld bonus) override { if(d >= c->type-2) return Id; c = get_where(c).first; return in_underlying([&] { return currentmap->spin_to(c, d, bonus); }); }
@@ -1221,6 +1256,11 @@ EX namespace hybrid {
 
   EX hyperpoint get_corner(cell *c, int i, int next, ld z) {
     ld lev = cgi.plevel * z / 2;
+    if(WDIM == 2) {
+      ld zz = lerp(cgi.FLOOR, cgi.WALL, (1+z) / 2);
+      hyperpoint h = zshift(get_corner_position(c, i+next), zz);
+      return h;
+      }
     if(prod) {
       dynamicval<eGeometry> g(geometry, hybrid::underlying);
       dynamicval<geometry_information*> gc(cgip, hybrid::underlying_cgip);
@@ -1242,19 +1282,27 @@ EX namespace hybrid {
     }
   
   EX int wall_offset(cell *c) {
-    int id = hybrid::underlying == gArchimedean ? arcm::id_of(c->master) + 20 * arcm::parent_index_of(c->master) : shvid(c);
-    if(isize(cgi.walloffsets) <= id) cgi.walloffsets.resize(id+1, -1);
-    int &wo = cgi.walloffsets[id];
+    if(GOLDBERG) {
+      /* a bit slow... */
+      cell *c1 = WDIM == 2 ? c : get_where(c).first;
+      gp::draw_li = WDIM == 2 ? gp::get_local_info(c1) : PIU(gp::get_local_info(c1));
+      }
+    auto ugeometry = hybri ? hybrid::underlying : geometry;    
+    int id = ugeometry == gArchimedean ? arcm::id_of(c->master) + 20 * arcm::parent_index_of(c->master) : shvid(c);
+    if(isize(cgi.walloffsets) <= id) cgi.walloffsets.resize(id+1, {-1, nullptr});
+    auto &wop = cgi.walloffsets[id];
+    int &wo = wop.first;
+    if(!wop.second) wop.second = c;
     if(wo == -1) {
-      cell *c1 = hybrid::get_where(c).first;
+      cell *c1 = hybri ? hybrid::get_where(c).first : c;
       wo = isize(cgi.shWall3D);
-      int won = wo + c->type;
+      int won = wo + c->type + (WDIM == 2 ? 2 : 0);
       if(!cgi.wallstart.empty()) cgi.wallstart.pop_back();
       cgi.reserve_wall3d(won);
       
-      if(prod) for(int i=0; i<c1->type; i++) {
+      if(prod || WDIM == 2) for(int i=0; i<c1->type; i++) {
         hyperpoint w;
-        ((hrmap_hybrid*)currentmap)->in_underlying([&] { 
+        auto f = [&] { 
           /* mirror image of C0 in the axis h1-h2 */
           hyperpoint h1 = get_corner_position(c1, i);
           hyperpoint h2 = get_corner_position(c1, i+1);
@@ -1263,7 +1311,11 @@ EX namespace hybrid {
           w = T * C0;
           w[1] = -w[1];
           w = inverse(T) * w;
-          });
+          };
+        if(prod)
+          ((hrmap_hybrid*)currentmap)->in_underlying(f);
+        else
+          f();
         cgi.walltester[wo + i] = w;
         } 
 
@@ -1275,7 +1327,7 @@ EX namespace hybrid {
         int z = a ? 1 : -1;
         hyperpoint ctr = zpush0(z * cgi.plevel/2);
         for(int i=0; i<c1->type; i++)
-          if(prod)
+          if(prod || WDIM == 2)
             l.push_back(hybrid::get_corner(c1, i, 0, z));
           else {
             l.push_back(ctr);
@@ -1294,6 +1346,20 @@ EX namespace hybrid {
       cgi.extra_vertices();
       }
     return wo;
+    }
+
+  auto clear_samples = addHook(hooks_clearmemory, 40, [] () {
+    for(auto& c: cgis) for(auto& v: c.second.walloffsets)
+      v.second = nullptr;
+    });
+  
+  EX vector<pair<int, cell*>> gen_sample_list() {
+    if(!hybri && WDIM != 2) return {make_pair(0, centerover), make_pair(centerover->type, nullptr)};
+    vector<pair<int, cell*>> result;
+    for(auto& v: cgi.walloffsets) if(v.first >= 0) result.push_back(v);
+    sort(result.begin(), result.end());
+    result.emplace_back(isize(cgi.wallstart)-1, nullptr);
+    return result;
     }
 
   vector<cell*> to_link;
@@ -1815,6 +1881,47 @@ EX namespace rots {
     return cspin(3, 2, -z) * cspin(0, 1, -z);
     }
   
+  EX transmatrix lift_matrix(const transmatrix& T) {
+    hyperpoint d;
+    ld alpha, beta, distance;
+    transmatrix Spin;
+    hybrid::in_underlying_geometry([&] {
+      hyperpoint h = tC0(T);
+      Spin = inverse(gpushxto0(h) * T);
+      d = hr::inverse_exp(h);
+      alpha = atan2(Spin[0][1], Spin[0][0]);
+      distance = hdist0(h);
+      beta = atan2(h[1], h[0]);
+      });
+    for(int k=0; k<3; k++) Spin[3][k] = Spin[k][3] = 0; Spin[3][3] = 1;
+    return spin(beta) * uxpush(distance/2) * spin(-beta+alpha);
+    }
+  
+  std::unordered_map<int, transmatrix> saved_matrices_ray;
+
+  EX transmatrix ray_iadj(cell *c1, int i) {
+    if(i == c1->type-1) return uzpush(+cgi.plevel) * spin(-2*cgi.plevel);
+    if(i == c1->type-2) return uzpush(+cgi.plevel) * spin(+2*cgi.plevel);
+    cell *c2 = c1->cmove(i);
+    int id1 = hybrid::underlying == gArchimedean ? arcm::id_of(c1->master) + 20 * arcm::parent_index_of(c1->master) : shvid(c1);
+    int id2 = hybrid::underlying == gArchimedean ? arcm::id_of(c2->master) + 20 * arcm::parent_index_of(c2->master) : shvid(c2);
+    int j = c1->c.spin(i);
+    int id = id1 + (id2 << 10) + (i << 20) + (j << 26);
+    auto &M = saved_matrices_ray[id];
+    if(M[3][3]) return M;
+    
+    cell *cw = hybrid::get_where(c1).first;
+    
+    transmatrix T;
+    hybrid::in_underlying_geometry([&] {
+      hyperpoint h0 = get_corner_position(cw, i);
+      hyperpoint h1 = get_corner_position(cw, (i+1));
+      T = to_other_side(h0, h1);
+      });
+
+    return M = lift_matrix(T);
+    }
+
   struct hrmap_rotation_space : hybrid::hrmap_hybrid {
 
     std::unordered_map<int, transmatrix> saved_matrices;
@@ -1830,26 +1937,8 @@ EX namespace rots {
       auto &M = saved_matrices[id];
       if(M[3][3]) return M;
       
-      /*if(PURE && hybrid::underlying != gArchimedean) {
-        ld A = master_to_c7_angle();
-        transmatrix Q = spin(-A + 2 * M_PI * i / S7) * uxpush(cgi.tessf) * spin(M_PI - 2 * M_PI * j / S7 + A);
-        return Q;
-        } */
-      hyperpoint d;
-      ld alpha, beta, distance;
-      transmatrix Spin;
       cell *cw = where[c1].first;
-      in_underlying([&] {
-        transmatrix T = currentmap->adj(cw, i);
-        hyperpoint h = tC0(T);
-        Spin = inverse(gpushxto0(h) * T);
-        d = hr::inverse_exp(h, iTable);
-        alpha = atan2(Spin[0][1], Spin[0][0]);
-        distance = hdist0(h);
-        beta = atan2(h[1], h[0]);
-        });
-      for(int k=0; k<3; k++) Spin[3][k] = Spin[k][3] = 0; Spin[3][3] = 1;
-      return M = spin(beta) * uxpush(distance/2) * spin(-beta+alpha);
+      return M = lift_matrix(PIU(currentmap->adj(cw, i)));      
       }
     
     virtual transmatrix relative_matrix(cell *c2, cell *c1, const hyperpoint& hint) override { 
@@ -1864,6 +1953,7 @@ EX namespace rots {
 
   /** reinterpret the given point of rotspace as a rotation matrix in the underlying geometry */
   EX transmatrix qtm(hyperpoint h) {
+
     ld& x = h[0];
     ld& y = h[1];
     ld& z = h[2];
@@ -1896,6 +1986,16 @@ EX namespace rots {
     M[1][2] = -2 * (yz + xw);
     M[2][1] = -2 * (yz - xw);
   
+    if(hyperbolic) {
+      swap(M[0][2], M[1][2]);
+      swap(M[2][0], M[2][1]);
+      M[1][2] *= -1;
+      M[2][0] *= -1;
+      M[2][2] = xx + yy + zz + ww;
+      return M;
+      }
+
+
     return M;
     }
   
@@ -1932,13 +2032,18 @@ EX namespace rots {
       dynamicval<bool> pf(playerfound, true);
       dynamicval<cell*> m5(centerover, co);
       dynamicval<transmatrix> m2(View, inprod ? pView : ypush(0) * qtm(h));
+      if(PURE) View = View * pispin;
       dynamicval<transmatrix> m3(playerV, Id);
       dynamicval<transmatrix> m4(actual_view_transform, Id);
       dynamicval<eModel> pm(pmodel, mdDisk);
-      dynamicval<ld> pss(vid.scale, (sphere ? 10 : 1) * underlying_scale);
-      dynamicval<ld> psa(vid.alpha, sphere ? 10 : 1);
+      dynamicval<ld> pss(pconf.scale, (sphere ? 10 : 1) * underlying_scale);
+      dynamicval<ld> psa(pconf.alpha, sphere ? 10 : 1);
       dynamicval<hrmap*> p(hybrid::pmap, NULL);
       dynamicval<int> psr(sightrange_bonus, 0);
+
+      dynamicval<int> psx(vid.use_smart_range, 2);
+      dynamicval<ld> psy(vid.smart_range_detail, 1);
+
       calcparam();
       reset_projection(); current_display->set_all(0);
       ptds.clear();
@@ -1955,6 +2060,86 @@ EX namespace rots {
 
 EX }
 
+/** stretched rotation space (S3 or SLR) */
+EX namespace stretch {
+
+  EX ld factor;  
+
+  EX bool applicable() {
+    return rotspace || among(geometry, gCell120, gECell120, gCell24, gECell24, gCell8, gECell8);
+    }
+
+  EX bool in() {
+    return factor && applicable();
+    }
+
+  EX transmatrix translate(hyperpoint h) {
+    if(!sphere) return slr::translate(h);
+    return matrix4(
+      h[3], -h[2],  h[1],  h[0],
+      h[2],  h[3], -h[0],  h[1],
+     -h[1],  h[0],  h[3],  h[2],
+     -h[0], -h[1], -h[2],  h[3]
+      );
+    }
+  
+  EX transmatrix itranslate(hyperpoint h) {
+    h[0] = -h[0];
+    h[1] = -h[1];
+    h[2] = -h[2];
+    if(!sphere) return slr::translate(h);
+    return translate(h);
+    }
+
+  hyperpoint mulz(const hyperpoint at, const hyperpoint velocity, ld factor) {
+    auto vel = itranslate(at) * velocity;
+    vel[2] *= factor;
+    return translate(at) * vel;
+    }
+  
+  EX ld squared() {
+    return abs(1 + factor);
+    }
+
+  EX ld not_squared() {
+    return sqrt(squared());
+    }
+  
+  hyperpoint isometric_to_actual(const hyperpoint at, const hyperpoint velocity) {
+    return mulz(at, velocity, 1/not_squared());
+    }
+  
+  hyperpoint actual_to_isometric(const hyperpoint at, const hyperpoint velocity) {
+    return mulz(at, velocity, not_squared());
+    }
+  
+  hyperpoint christoffel(const hyperpoint at, const hyperpoint velocity, const hyperpoint transported) {
+  
+    auto vel = itranslate(at) * velocity;
+    auto tra = itranslate(at) * transported;  
+    
+    hyperpoint c;
+    
+    auto K = factor;
+    
+    if(!sphere) K = -2 - K;
+    
+    c[0] = -K * (vel[1] * tra[2] + vel[2] * tra[1]);
+    c[1] =  K * (vel[0] * tra[2] + vel[2] * tra[0]);
+    c[2] = 0;
+    c[3] = 0;
+    
+    return translate(at) * c;
+    }  
+
+  EX ld sqnorm(hyperpoint at, hyperpoint h) {
+    if(sphere)
+      return sqhypot_d(4, h);
+    h = itranslate(at) * h;    
+    return h[0] * h[0] + h[1] * h[1] + h[2] * h[2];
+    }
+EX }
+
 EX namespace nisot {
 
   EX hyperpoint christoffel(const hyperpoint at, const hyperpoint velocity, const hyperpoint transported) {
@@ -1962,6 +2147,7 @@ EX namespace nisot {
     #if CAP_SOLV
     else if(sn::in()) return sn::christoffel(at, velocity, transported);
     #endif
+    else if(stretch::in()) return stretch::christoffel(at, velocity, transported);
     else if(sl2) return slr::christoffel(at, velocity, transported);
     else return point3(0, 0, 0);
     }
@@ -1972,37 +2158,43 @@ EX namespace nisot {
     #endif
     return true;
     }
-  
-  EX void geodesic_step(hyperpoint& at, hyperpoint& velocity) {
-    auto acc = christoffel(at, velocity, velocity);
-    
-    auto at2 = at + velocity / 2;
-    auto velocity2 = velocity + acc / 2;
-    
-    auto acc2 = christoffel(at2, velocity2, velocity2);
-    
-    at = at + velocity + acc2 / 2;
-    
-    velocity = velocity + acc;
+
+  EX hyperpoint get_acceleration(const hyperpoint& at, const hyperpoint& vel) {
+    return christoffel(at, vel, vel);
     }
   
-  EX hyperpoint numerical_exp(hyperpoint v, int steps) {
+  EX void geodesic_step(hyperpoint& at, hyperpoint& vel) {
+    /* RK4 method */
+    auto acc1 = get_acceleration(at, vel);
+    auto acc2 = get_acceleration(at + vel/2, vel + acc1/2);
+    auto acc3 = get_acceleration(at + vel/2 + acc1/4, vel + acc2/2);
+    auto acc4 = get_acceleration(at + vel + acc2/2, vel + acc3);
+    
+    at += vel + (acc1+acc2+acc3)/6;
+    vel += (acc1+2*acc2+2*acc3+acc4)/6;
+    }
+  
+  EX int rk_steps = 20;
+
+  EX hyperpoint numerical_exp(hyperpoint v) {
     hyperpoint at = point31(0, 0, 0);
-    v /= steps;
+    v /= rk_steps;
     v[3] = 0;
-    for(int i=0; i<steps; i++) geodesic_step(at, v);
+    for(int i=0; i<rk_steps; i++) geodesic_step(at, v);
     return at;
     }
 
   EX transmatrix parallel_transport_bare(transmatrix Pos, hyperpoint h) {
   
+    bool stretch = stretch::in();
+
     h[3] = 0;
   
     auto tPos = transpose(Pos);
     
     const ld eps = 1e-4;
-
-    if(sl2) {
+    
+    if(sl2 && !stretch) {
       hyperpoint p = slr::to_phigans(tPos[3]);
       for(int i=0; i<3; i++)
         tPos[i] = (slr::to_phigans(tPos[3] + tPos[i] * eps) - p) / eps;
@@ -2011,16 +2203,70 @@ EX namespace nisot {
       }
     else h = Pos * h;
 
-    int steps = 100;
+    int steps = rk_steps;
     h /= steps;
     
-    for(int i=0; i<steps; i++) {
-      for(int j=0; j<3; j++)
-        tPos[j] += christoffel(tPos[3], h, tPos[j]);
-      geodesic_step(tPos[3], h);
+    auto& at = tPos[3];
+    auto& vel = h;
+    
+    array<ld, 4> ms;
+    
+    if(stretch) {
+      for(int i=0; i<3; i++) {
+        ms[i] = stretch::sqnorm(at, tPos[i]);
+        tPos[i] = stretch::isometric_to_actual(at, tPos[i]);
+        }
+      ms[3] = stretch::sqnorm(at, vel);
+      if(!ms[3]) return Pos;
+      vel = stretch::isometric_to_actual(at, vel);
       }
-                                                                                  
-    if(sl2) {
+
+    for(int i=0; i<steps; i++) {
+      auto acc1 = get_acceleration(at, vel);
+      auto at1 = at + vel/2; auto vel1 = vel + acc1/2;
+      auto acc2 = get_acceleration(at1, vel1);
+      auto at2 = at1 + acc1/4; auto vel2 = vel + acc2/2;
+      auto acc3 = get_acceleration(at2, vel2);
+      auto at3 = at + vel + acc2/2; auto vel3 = vel + acc3;
+      auto acc4 = get_acceleration(at3, vel3);
+
+      for(int j=0; j<3; j++) {
+        auto& tra = tPos[j];
+        
+        auto tacc1 = christoffel(at, vel, tra);
+        auto tacc2 = christoffel(at1, vel1, tra + tacc1/2);
+        auto tacc3 = christoffel(at2, vel2, tra + tacc2/2);
+        auto tacc4 = christoffel(at3, vel3, tra + tacc3);
+        
+        tra += (tacc1+tacc2*2+tacc3*2+tacc4) / 6;
+        }
+
+      at += vel + (acc1+acc2+acc3)/6;
+      vel += (acc1+2*acc2+2*acc3+acc4)/6;
+      
+      if(stretch) {
+        at = normalize(at);
+        
+        auto fix = [&] (hyperpoint& h, ld& m) {
+          h = stretch::itranslate(at) * h;
+          h[3] = 0;
+          ld m1 = h[0] * h[0] + h[1] * h[1] + h[2] * h[2] * stretch::squared();
+          h /= sqrt(m1/m);
+          h = stretch::translate(at) * h;
+          };
+
+        for(int i=0; i<3; i++) fix(tPos[i], ms[i]);
+        fix(vel, ms[3]); 
+        }
+
+      }
+
+    if(stretch) {
+      vel = stretch::actual_to_isometric(at, vel);
+      for(int i=0; i<3; i++) tPos[i] = stretch::actual_to_isometric(at, tPos[i]);
+      }
+    
+    else if(sl2) {
       hyperpoint p = slr::from_phigans(tPos[3]);
       for(int i=0; i<3; i++)
         tPos[i] = (slr::from_phigans(tPos[3] + tPos[i] * eps) - p) / eps;
@@ -2031,6 +2277,7 @@ EX namespace nisot {
     }
 
   EX void fixmatrix(transmatrix& T) {
+    if(sphere) return hr::fixmatrix(T);
     transmatrix push = eupush( tC0(T) );
     transmatrix push_back = inverse(push);
     transmatrix gtl = push_back * T;
@@ -2045,12 +2292,12 @@ EX namespace nisot {
     return parallel_transport_bare(P, direction);
     }
   
-  EX transmatrix spin_towards(const transmatrix Position, const hyperpoint goal) {
+  EX transmatrix spin_towards(const transmatrix Position, const hyperpoint goal, flagtype prec IS(pNORMAL)) {
 
     hyperpoint at = tC0(Position);
     transmatrix push_back = inverse(translate(at));
     hyperpoint back_goal = push_back * goal;
-    back_goal = inverse_exp(back_goal, iTable);
+    back_goal = inverse_exp(back_goal, prec);
     
     transmatrix back_Position = push_back * Position;
 
@@ -2067,6 +2314,7 @@ EX namespace nisot {
     return NULL;
     }
   
+  #if CAP_COMMANDLINE
   auto config = addHook(hooks_args, 0, [] () {
     using namespace arg;
     #if CAP_SOLV
@@ -2132,6 +2380,11 @@ EX namespace nisot {
       shift_arg_formula(nilv::nilwidth);
       return 0;
       }
+    else if(argis("-rk-steps")) {
+      PHASEFROM(2);
+      shift(); rk_steps = argi();
+      return 0;
+      }      
     else if(argis("-nilv")) {
       PHASEFROM(2);
       if(nil) stop_game();
@@ -2154,6 +2407,11 @@ EX namespace nisot {
       hybrid::reconfigure();
       return 0;
       }
+    else if(argis("-rot-stretch")) {
+      PHASEFROM(2);
+      shift_arg_formula(stretch::factor, ray::reset_raycaster);
+      return 0;
+      }
     else if(argis("-prodturn")) {
       PHASEFROM(2);
       if(prod) stop_game();
@@ -2163,7 +2421,7 @@ EX namespace nisot {
       }
     return 1;
     });
-    
+  #endif  
   }
 
 }

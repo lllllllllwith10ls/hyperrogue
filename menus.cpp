@@ -230,7 +230,7 @@ EX void showMainMenu() {
   dialog::addItem(XLAT(inSpecialMode() ? "reset special modes" : "back to the start menu"), 'R');
   
   string q;
-  #if ISMOBILE==1
+  #if ISMOBILE
   dialog::addItem(XLAT("visit the website"), 'q');
   #else
   q = quitsaves() ? "save" : "quit"; 
@@ -248,7 +248,7 @@ EX void showMainMenu() {
   if(inv::on)
     dialog::addItem(XLAT("inventory"), 'i');    
 
-#if ISMOBILE==1
+#if ISMOBILE
 #if CAP_ACHIEVE
   dialog::addItem(XLAT("leaderboards/achievements"), '3'); 
 #endif
@@ -305,7 +305,7 @@ EX void showMainMenu() {
 #endif
     else if(sym == SDLK_ESCAPE) 
       showMissionScreen();
-  #if ISMOBILE==1
+  #if ISMOBILE
   #ifdef HAVE_ACHIEVEMENTS
     else if(NUMBERKEY == '3') {
       achievement_final(false);
@@ -323,7 +323,7 @@ EX void showMainMenu() {
 // -- display modes --
 
 EX void editScale() {
-  dialog::editNumber(vid.scale, .001, 1000, .1, 1, XLAT("scale factor"), 
+  dialog::editNumber(vpconf.scale, .001, 1000, .1, 1, XLAT("scale factor"), 
     XLAT("Scale the displayed model."));
   dialog::scaleSinh();
   }
@@ -335,10 +335,10 @@ EX void showGraphQuickKeys() {
   dialog::init(XLAT("quick options"));
 
   if(GDIM == 2) {
-    dialog::addBoolItem(XLAT("orthogonal projection"), vid.alpha >= 500, '1');
-    dialog::addBoolItem(XLAT(sphere ? "stereographic projection" : euclid ? "zoomed out" : "small Poincaré model"), vid.alpha == 1 && vid.scale < 1, '2');
-    dialog::addBoolItem(XLAT(sphere ? "zoomed stereographic projection" : euclid ? "zoomed in" : "big Poincaré model"), vid.alpha == 1 && vid.scale >= 1, '3');
-    dialog::addBoolItem(XLAT((sphere || euclid) ? "gnomonic projection" : "Klein-Beltrami model"), vid.alpha == 0, '4');
+    dialog::addBoolItem(XLAT("orthogonal projection"), vpconf.alpha >= 500, '1');
+    dialog::addBoolItem(XLAT(sphere ? "stereographic projection" : euclid ? "zoomed out" : "small Poincaré model"), vpconf.alpha == 1 && vpconf.scale < 1, '2');
+    dialog::addBoolItem(XLAT(sphere ? "zoomed stereographic projection" : euclid ? "zoomed in" : "big Poincaré model"), vpconf.alpha == 1 && vpconf.scale >= 1, '3');
+    dialog::addBoolItem(XLAT((sphere || euclid) ? "gnomonic projection" : "Klein-Beltrami model"), vpconf.alpha == 0, '4');
     }
   else {
     dialog::addBoolItem(XLAT("first person perspective"), vid.yshift == 0 && vid.sspeed > -5, '1');
@@ -382,7 +382,7 @@ EX void enable_cheat() {
   else if(!cheater) dialog::cheat_if_confirmed([] {
     cheater++;
     addMessage(XLAT("You activate your demonic powers!"));
-#if ISMOBILE==0
+#if !ISMOBILE
     addMessage(XLAT("Shift+F, Shift+O, Shift+T, Shift+L, Shift+U, etc."));
 #endif
     popScreen();
@@ -418,12 +418,7 @@ EX void showCreative() {
 #if CAP_EDIT
   dialog::addItem(XLAT("map editor"), 'm');
   dialog::add_action([] {
-    if(tactic::on) 
-      addMessage(XLAT("Not available in the pure tactics mode!"));
-    else if(daily::on) {
-      addMessage(XLAT("Not available in the daily challenge!"));
-      }
-    else dialog::cheat_if_confirmed([] {
+    dialog::cheat_if_confirmed([] {
       cheater++;
       pushScreen(mapeditor::showMapEditor);
       lastexplore = turncount;
@@ -433,10 +428,22 @@ EX void showCreative() {
 #endif
 
 #if CAP_EDIT
-  dialog::addItem(XLAT("vector graphics editor"), 'g');
+  dialog::addItem(XLAT("shape editor"), 'g');
   dialog::add_action([] {
+    mapeditor::drawing_tool = false;
     pushScreen(mapeditor::showDrawEditor);
     mapeditor::initdraw(cwt.at);
+    });
+#endif
+
+#if CAP_EDIT
+  dialog::addItem(XLAT("drawing tool"), 'd');
+  dialog::add_action([] {
+    dialog::cheat_if_confirmed([] {
+      mapeditor::drawing_tool = true;
+      pushScreen(mapeditor::showDrawEditor);
+      mapeditor::initdraw(cwt.at);
+      });
     });
 #endif
 
@@ -875,11 +882,11 @@ EX void showStartMenu() {
         specialland = laHalloween;
         set_geometry(gSphere);
         start_game();
-        vid.alpha = 999;
-        vid.scale = 998;
+        pconf.alpha = 999;
+        pconf.scale = 998;
         }
       }
-#if CAP_RACING
+#if CAP_RACING && MAXMDIM >= 4
     else if(uni == 'r' - 96) {
       popScreenAll();
       resetModes();
@@ -889,13 +896,13 @@ EX void showStartMenu() {
       specialland = racing::race_lands[rand() % isize(racing::race_lands)];
       start_game();
       pmodel = mdBand;
-      models::model_orientation = racing::race_angle;
+      pconf.model_orientation = racing::race_angle;
       racing::race_advance = 1;
       vid.yshift = 0;
-      vid.camera_angle = 0;
-      vid.xposition = 0;
-      vid.yposition = 0;
-      vid.scale = 1;
+      pconf.camera_angle = 0;
+      pconf.xposition = 0;
+      pconf.yposition = 0;
+      pconf.scale = 1;
       vid.use_smart_range = 1;
       vid.smart_range_detail = 3;
       }
@@ -947,48 +954,73 @@ EX void showStartMenu() {
 // -- overview --
 
 #if HDR
-typedef pair<string, reaction_t> named_functionality;
+struct named_functionality {
+    std::string first;
+    reaction_t second;
+    explicit named_functionality() = default;
+    explicit named_functionality(std::string s, reaction_t r) : first(std::move(s)), second(std::move(r)) {}
+    friend bool operator==(const named_functionality& a, const named_functionality& b) { return a.first == b.first; }
+    friend bool operator!=(const named_functionality& a, const named_functionality& b) { return a.first != b.first; }
+};
 inline named_functionality named_dialog(string x, reaction_t dialog) { return named_functionality(x, [dialog] () { pushScreen(dialog); }); }
 #endif
 
-EX hookset<named_functionality()> *hooks_o_key;
+#if HDR
+using o_funcs = vector<named_functionality>;
+#endif
+
+EX hookset<void(o_funcs&)> hooks_o_key;
 
 EX named_functionality get_o_key() {
+  vector<named_functionality> res;
+  callhooks(hooks_o_key, res);
 
-  if(hooks_o_key) for(auto& h: *hooks_o_key) {
-    auto res = h.second();
-    if(res.first != "") return res;
-    }
+  if(in_full_game())
+    res.push_back(named_dialog(XLAT("world overview"), showOverview));
   
 #if CAP_DAILY
   if(daily::on) 
-    return named_functionality(XLAT("Strange Challenge"), [] () {
+    res.push_back(named_functionality(XLAT("Strange Challenge"), [] () {
       achievement_final(false);
       pushScreen(daily::showMenu);
-      });
+      }));
 #endif
 
   if(viewdists)
-    return named_functionality(XLAT("experiment with geometry"), runGeometryExperiments);
+    res.push_back(named_functionality(XLAT("experiment with geometry"), runGeometryExperiments));
 
   if(tactic::on)
-    return named_dialog(XLAT("Pure Tactics mode"), tactic::showMenu);
+    res.push_back(named_dialog(XLAT("Pure Tactics mode"), tactic::showMenu));
     
   if(yendor::on)
-    return named_dialog(XLAT("Yendor Challenge"), yendor::showMenu);
+    res.push_back(named_dialog(XLAT("Yendor Challenge"), yendor::showMenu));
 
   if(peace::on)
-    return named_dialog(XLAT("peaceful mode"), peace::showMenu);
+    res.push_back(named_dialog(XLAT("peaceful mode"), peace::showMenu));
+  
+  #if CAP_TEXTURE
+  if(texture::config.tstate)
+    res.push_back(named_dialog(XLAT("texture mode"), texture::showMenu));
+  #endif
 
   dialog::infix = "";
 
-  if(in_full_game())
-    return named_dialog(XLAT("world overview"), showOverview);
+  if((geometry != gNormal || NONSTDVAR) && !daily::on)
+    res.push_back(named_functionality(XLAT("experiment with geometry"), runGeometryExperiments));
   
-  if(geometry != gNormal || NONSTDVAR)
-    return named_functionality(XLAT("experiment with geometry"), runGeometryExperiments);
-
-  return named_dialog(XLAT("world overview"), showOverview);
+  if(res.empty()) return named_dialog(XLAT("world overview"), showOverview);
+  
+  if(isize(res) == 1) return res[0];
+  
+  return named_dialog(res[0].first + "/...", [res] {
+    dialog::init();
+    char id = 'o';
+    for(auto& r: res) {
+      dialog::addItem(r.first, id++);
+      dialog::add_action([r] { popScreen(); r.second(); });
+      }
+    dialog::display();
+    });
   }
 
 EX int messagelogpos;

@@ -484,10 +484,10 @@ S(
  "информацию про объекты. Кликая по изображаемым числам, можно смотреть, "
  "что они означают.\n")
 
-S("Move with mouse, num pad, qweadzxc, or hjklyubn. Wait by pressing 's' or '.'. Spin the world with arrows, PageUp/Down, and Home/Space. "
+S("Move with mouse, num pad, qweadzxc, or hjklyubn. Wait by pressing 's' or '.'. Spin the world with arrows, PageUp/Down, and Space. "
   "To save the game you need an Orb of Safety. Press 'v' for the main menu (configuration, special modes, etc.), ESC for the quest status.\n\n",
  "Двигайтесь с помощью мышки, нумпада, qweadzxc или hjklyubn. Ждите, нажимая 's' или '.'. "
- "Поворачивайте карту стрелками, PageUp/Down или Home/Space. "
+ "Поворачивайте карту стрелками, PageUp/Down или Space. "
  "Чтобы сохраниться, Вам нужна сфера безопасности. Нажмите 'v' для настроек, Esc для статуса квеста или меню.")
  
 S("See more on the website: ", "Смотрите далее на сайте: ")
@@ -4676,7 +4676,7 @@ S("(Distances reported by the vector graphics editor "
   "are not about points on the ground level, but "
   "about the matching points on the plane P -- "
   "divide them by the factor above to get actual "
-  "distances.",
+  "distances.)",
  
   "(Расстояния в редакторе векторной графики относятся"
   "не к точкам на поверхности, а к их проекциям на плоскость P.)")
@@ -5354,7 +5354,7 @@ S("Hyperbolic geometry has been discovered by the 19th century mathematicians wh
   "Wander further, and you should find Crossroads quickly -- "
   "the Great Walls are straight lines, and indeed, they work differently than in "
   "Euclidean. On the other side of Great Walls, you see other lands -- "
-  "there are about 50 lands in HyperRogue, based "
+  "there are about 60 lands in HyperRogue, based "
   "on different mechanics and aspects of hyperbolic geometry.",
  
   "Гиперболическая геометрия была открыта в 19 веке математиками, которые интересовались "
@@ -5366,7 +5366,7 @@ S("Hyperbolic geometry has been discovered by the 19th century mathematicians wh
   "Но другие земли, где у тебя нет сокровищ, всё ещё (относительно) безопасны.\n\n"
   "Исследуй дальше, и ты скоро найдёшь Перекрёсток -- Великие стены являются "
   "прямыми, и они ведут себя не так, как в евклидовой геометрии. "
-  "По другую сторону от Великих стен ты видишь другие земли -- их около 50, "
+  "По другую сторону от Великих стен ты видишь другие земли -- их около 60, "
   "основанных на разных особенностях гиперболической геометрии.")
  
 S("Running Dogs", "Бегущие собаки")
@@ -6220,7 +6220,7 @@ S("would be destroyed in %the1", "будет уничтожено %abl1")
 S(" to go cold", " чтобы остыть")
 S("%The1 is destroyed by lava!", "%1 уничтожен%E1 лавой!")
 S("%The1 is killed by lava!", "%1 убит%E1 лавой!")
-S("Run away from the lava!", "Беги из лавы!")
+S("Run away from the magma!", "Беги из лавы!")
 
 // Terracotta Army
 //-----------------
@@ -6760,7 +6760,7 @@ N("Chrysoberyl", GEN_O, "Хризоберилл", "Хризобериллы", "�
 S("Fragment of the past glory.", "Фрагмент былой славы.")
  
 N("Red Raider", GEN_M, "Красный Рейдер", "Красные Рейдеры", "Красного Рейдера", "Красным Рейдером")
-S("Red Raiders travel in pairs. They have promised to always watch another one's back. They are able to destroy walls on their way",
+S("Red Raiders travel in pairs. They have promised to always watch each other's backs. They are able to destroy walls on their way.",
   "Красные рейдеры путешествуют парами. Они обещали, что будут защищать спины друг друга. Они могут разрушать стены на своем пути.")
  
 N("Gray Raider", GEN_M, "Серый Рейдер", "Серые Рейдеры", "Серого Рейдера", "Серым Рейдером")

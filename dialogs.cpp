@@ -37,7 +37,7 @@ EX namespace dialog {
     bool positive;
     };
 
-  static inline ld identity_f(ld x) { return x; };
+  static inline ld identity_f(ld x) { return x; }
   
   const static scaler identity = {identity_f, identity_f, false};
   const static scaler logarithmic = {log, exp, true};
@@ -100,7 +100,7 @@ EX namespace dialog {
       if(clicked) hr::displayfr(x * zoomf + shiftx, y * zoomf + shifty, b, size * zoomf, s, hicolor, align);
       return clicked;
       }
-    EX };
+    EX }
 
 #if CAP_MENUSCALING && CAP_SDL
   EX void handleZooming(SDL_Event &ev) {
@@ -142,7 +142,7 @@ EX namespace dialog {
   EX void handler(int sym, int uni) {
     dialog::handleNavigation(sym, uni);
     if(doexiton(sym, uni)) popScreen();
-    };
+    }
 
   EX void init() {
     items.clear();
@@ -606,8 +606,9 @@ EX namespace dialog {
       for(int i=0; i<10; i++) if(colorhistory[i] == (color << shift))
         inHistory = true;
       if(!inHistory) { colorhistory[lch] = (color << shift); lch++; lch %= 10; }
-      if(reaction) reaction();
       popScreen();
+      if(reaction) reaction();
+      if(reaction_final) reaction_final();
       }
     else if(uni >= '0' && uni <= '9') {
       color = colorhistory[uni - '0'] >> shift;
@@ -631,6 +632,7 @@ EX namespace dialog {
       }
     else if(doexiton(sym, uni)) {
       popScreen();
+      if(reaction_final) reaction_final();
       }
     }
   
@@ -803,7 +805,7 @@ EX namespace dialog {
     else
       addSlider(ne.sc.direct(ne.vmin), ne.sc.direct(*ne.editwhat), ne.sc.direct(ne.vmax), 500);
     addBreak(100);
-#if ISMOBILE==0
+#if !ISMOBILE
     addHelp(XLAT("You can scroll with arrow keys -- Ctrl to fine-tune"));
     addBreak(100);
 #endif
@@ -1246,6 +1248,22 @@ EX namespace dialog {
     dialog::add_action([&b] { b = !b; });
     }
 
+  EX bool cheat_forbidden() {
+    if(tactic::on && !cheater) {
+      addMessage(XLAT("Not available in the pure tactics mode!"));
+      return true;
+      }
+    if(daily::on) {
+      addMessage(XLAT("Not available in the daily challenge!"));
+      return true;
+      }
+    return false;
+    }
+  
+  EX void add_action_confirmed(const reaction_t& act) {
+    dialog::add_action(dialog::add_confirmation(act));
+    }
+
   #if HDR
 
   template<class T> void addBoolItem_choice(const string&  s, T& b, T val, char c) {
@@ -1254,6 +1272,8 @@ EX namespace dialog {
     }
 
   inline void cheat_if_confirmed(const reaction_t& act) {
+    if(cheat_forbidden())
+      return;
     if(needConfirmationEvenIfSaved()) pushScreen([act] () { confirm_dialog(XLAT("This will enable the cheat mode, making this game ineligible for scoring. Are you sure?"), act); });
     else act();
     }
@@ -1263,11 +1283,15 @@ EX namespace dialog {
     else act();
     }
 
+  inline void push_confirm_dialog(const reaction_t& act, const string& s) {
+    pushScreen([act, s] () { confirm_dialog(s, act); });
+    }
+
   inline reaction_t add_confirmation(const reaction_t& act) {
     return [act] { do_if_confirmed(act); };
     }
   #endif
 
-  };
+  }
 
 }

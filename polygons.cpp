@@ -70,21 +70,24 @@ void geometry_information::shift(hpcshape& sh, double dx, double dy, double dz) 
   }
 
 void geometry_information::initPolyForGL() {
-
+#if CAP_GL
   ourshape.clear();
 
   for(auto& h: hpc)
     ourshape.push_back(glhr::pointtogl(h));
 
   glhr::store_in_buffer(ourshape);
+#endif
   }
 
 void geometry_information::extra_vertices() {
+#if CAP_GL
   while(isize(ourshape) < isize(hpc))
     ourshape.push_back(glhr::pointtogl(hpc[isize(ourshape)]));
   glhr::store_in_buffer(ourshape);
   glhr::current_vertices = NULL;
   prehpc = isize(hpc);
+#endif
   }
 
 transmatrix geometry_information::ddi(int a, ld x) { return xspinpush(a * M_PI / S42, x); }
@@ -219,7 +222,7 @@ void geometry_information::bshape(hpcshape& sh, PPR prio, double shzoom, int sha
   while(polydata[whereis + 2*qty] != NEWSHAPE) qty++;
   double shzoomx = shzoom;
   double shzoomy = shzoom;
-  if(shzoom == WOLF) shzoomx = 1.5 * (!BITRUNCATED && !arcm::in() ? scalefactor : 1), shzoomy = 1.6 * (!BITRUNCATED && !arcm::in() ? scalefactor : 1);
+  if(shzoom == WOLF) shzoomx = 1.5 * scalefactor, shzoomy = 1.6 * scalefactor;
   if(&sh == &cgi.shPikeBody) shzoomx *= 1.1, shzoomy *= 1.5;
   if(&sh == &cgi.shPikeEye) shzoomx *= 1.1, shzoomy *= 1.5;
   int rots2 = rots;
@@ -524,9 +527,9 @@ void geometry_information::procedural_shapes() {
     }
 
   bshape(shEgg, PPR::ITEM);
-
+  
   RING(i)
-    hpcpush(hpxy(sin(i*2*M_PI/S84)*.15, cos(i*2*M_PI/S84)*.11));
+    hpcpush(hpxy(sin(i*2*M_PI/S84)*0.242 * orbsize, cos(i*2*M_PI/S84)*0.177*orbsize));
 
   bshape(shRing, PPR::ITEM);
   RING(i)
@@ -713,7 +716,7 @@ void geometry_information::procedural_shapes() {
   bshape(shSwitchDisk, PPR::FLOOR); for(int i=0; i<=S84; i+=S3) hpcpush(ddi(i, .06) * C0);
   }
 
-vector<ld> equal_weights(20, 1);
+vector<ld> equal_weights(1000, 1);
 
 #if !(CAP_BT && MAXMDIM >= 4)
 void geometry_information::make_wall(int id, vector<hyperpoint> vertices, vector<ld> weights) { }
@@ -756,7 +759,7 @@ void geometry_information::make_wall(int id, vector<hyperpoint> vertices, vector
   ld yy = log(2) / 2;
 
   bshape(shWall3D[id], PPR::WALL);
-  last->flags |= POLY_TRIANGLES;
+  last->flags |= POLY_TRIANGLES | POLY_PRINTABLE;
   
   hyperpoint center = Hypc;
   int n = isize(vertices);
@@ -811,7 +814,7 @@ void geometry_information::make_wall(int id, vector<hyperpoint> vertices, vector
         h = zshift(normalize_flat(h), center_altitude * (1-x-y) + altitudes[a] * x + altitudes[b] * y);
         hpcpush(h); return; 
         }
-      if(sn::in() || !bt::in()) { hpcpush(normalize(h)); return; }
+      if(sn::in() || !bt::in()) { hpcpush(ultra_normalize(h)); return; }
       hyperpoint res = bt::parabolic3(h[0], h[1]) * xpush0(yy*h[2]);
       hpcpush(res);
       });
@@ -829,7 +832,7 @@ void geometry_information::make_wall(int id, vector<hyperpoint> vertices, vector
         }
       if(nil)
         h = nilv::on_geodesic(vertices[a], vertices[(a+1)%n], y * 1. / STEP);
-      if(sn::in() || !bt::in()) { hpcpush(normalize(h)); continue; }
+      if(sn::in() || !bt::in()) { hpcpush(ultra_normalize(h)); continue; }
       hyperpoint res = bt::parabolic3(h[0], h[1]) * xpush0(yy*h[2]);
       hpcpush(res);
       }
@@ -842,8 +845,13 @@ void geometry_information::make_wall(int id, vector<hyperpoint> vertices, vector
     hpcpush(mid(C0, hpc[a]));
   if(shWall3D[id].flags & POLY_TRIANGLES)
     last->flags |= POLY_TRIANGLES;
+  if(shWall3D[id].flags & POLY_PRINTABLE)
+    last->flags |= POLY_PRINTABLE;
 
   finishshape();
+  
+  shWall3D[id].intester = C0;
+  shMiniWall3D[id].intester = C0;
 
   shPlainWall3D[id] = shWall3D[id]; // force_triangles ? shWall3D[id] : shWireframe3D[id];
   }
@@ -967,67 +975,14 @@ void geometry_information::create_wall3d() {
     walloffsets.clear();
     }
 
-  if(GDIM == 3 && euclid && S7 == 6) {
-    for(int w=0; w<6; w++) {
-      vector<hyperpoint> vertices;
-      for(int a=0; a<4; a++) {
-        int t[3];
-        t[0] = (w>=3) ? -1 : 1;
-        t[1] = among(a, 0, 3) ? -1 : 1;
-        t[2] = among(a, 2, 3) ? -1 : 1;
-        int x = w%3;
-        int y = (x+2)%3;
-        int z = (y+2)%3;
-        vertices.push_back(hpxy3(t[x]/2., t[y]/2., t[z]/2.));
-        }
-      make_wall(w, vertices);
-      }
-    }
-
-  if(GDIM == 3 && euclid && S7 == 12) {
-    auto v = euc::get_shifttable();
-    for(int w=0; w<12; w++) {
-      auto co = v[w];
-      vector<int> valid;
-      for(int c=0; c<3; c++) if(co[c]) valid.push_back(c);
-      int third = 3 - valid[1] - valid[0];
-      hyperpoint v0 = cpush0(valid[0], co[valid[0]] > 0 ? 1 : -1);
-      hyperpoint v1 = cpush0(valid[1], co[valid[1]] > 0 ? 1 : -1);
-      make_wall(w, {v0, v0/2 + v1/2 + cpush0(third, .5) - C0, v1, v0/2 + v1/2 + cpush0(third, -.5) - C0});
-      }
-    }
-
-  if(GDIM == 3 && euclid && S7 == 14) {
-    auto v = euc::get_shifttable();
-    for(int w=0; w<14; w++) {
-      bshape(shWall3D[w], PPR::WALL);
-      if(w%7 < 3) {
-        int z = w>=7?-1:1;
-        make_wall(w, {
-          cpush0(w%7, z) + cpush0((w%7+1)%3, 1/2.) - C0,
-          cpush0(w%7, z) + cpush0((w%7+2)%3, 1/2.) - C0,
-          cpush0(w%7, z) + cpush0((w%7+1)%3,-1/2.) - C0,
-          cpush0(w%7, z) + cpush0((w%7+2)%3,-1/2.) - C0
-          });
-        }
-      else {
-        auto t = v[w];
-        ld x = t[0], y = t[1], z = t[2];
-        make_wall(w, {
-          hpxy3(x, y/2, 0), hpxy3(x/2, y, 0), hpxy3(0, y, z/2),
-          hpxy3(0, y/2, z), hpxy3(x/2, 0, z), hpxy3(x, 0, z/2)
-          });
-        }
-      }
-    }
-
-  if(GDIM == 3 && !euclid && !bt::in() && !nonisotropic && !hybri && !kite::in()) {
-    reg3::generate();
-    int facesize = isize(reg3::cellshape) / S7;
+  if(euc::in() || reg3::in()) {
+    int facesize = isize(cgi.cellshape) / S7;
+    int next = 0;
     for(int w=0; w<S7; w++) {
       vector<hyperpoint> vertices;
+      if(S7 == 14) facesize = (w%7 < 3 ? 4 : 6);
       for(int a=0; a<facesize; a++)
-        vertices.push_back(reg3::cellshape[w*facesize+a]);
+        vertices.push_back(cgi.cellshape[next++]);
       make_wall(w, vertices);
       }
     }
@@ -1131,7 +1086,7 @@ void geometry_information::configure_floorshapes() {
   if(0);
   #if CAP_ARCM
   else if(arcm::in())
-    shFullFloor.configure(arcm::current.scale()/2, arcm::current.scale()/2);
+    shFullFloor.configure(arcm::current_or_fake().scale()/2, arcm::current_or_fake().scale()/2);
   #endif
   else
     shFullFloor.configure(hexvdist, rhexf);
@@ -1185,15 +1140,15 @@ void geometry_information::configure_floorshapes() {
 
 void geometry_information::prepare_shapes() {
   require_basics();
-  #if MAXMDIM >= 4
+  if(cgflags & qRAYONLY) return;
+  #if MAXMDIM >= 4 && CAP_GL
   if(GDIM == 3 && !floor_textures) make_floor_textures();
   #endif
 
+  if(fake::in()) { FPIU( cgi.require_shapes() ); }
+
   symmetriesAt.clear();
   allshapes.clear();
-  #if CAP_GP
-  gp::clear_plainshapes();
-  #endif
   DEBBI(DF_POLY, ("buildpolys"));
 
   if(WDIM == 3 && !hybri) {

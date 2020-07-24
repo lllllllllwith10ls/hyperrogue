@@ -65,7 +65,6 @@ struct texture_data {
 struct texture_config {
   string texturename;
   string configname;
-  color_t paint_color;
   eTextureState tstate;
   eTextureState tstate_max;
 
@@ -121,7 +120,6 @@ struct texture_config {
     texturename = "textures/hyperrogue-texture.png";
     configname = "textures/hyperrogue.txc";
     itt = Id; 
-    paint_color = 0x000000FF;
     grid_color = 0;
     mesh_color = 0;
     master_color = 0xFFFFFF30;
@@ -355,7 +353,7 @@ hyperpoint texture_config::texture_coordinates(hyperpoint h) {
   hyperpoint inmodel;
   applymodel(h, inmodel);
   inmodel[0] *= current_display->radius * 1. / current_display->scrsize;
-  inmodel[1] *= current_display->radius * vid.stretch / current_display->scrsize;
+  inmodel[1] *= current_display->radius * pconf.stretch / current_display->scrsize;
   inmodel[2] = 1;
   inmodel = itt * inmodel;
   inmodel[0] = (inmodel[0] + 1) / 2;
@@ -531,7 +529,7 @@ void texture_config::mark_triangles() {
       }
   }
 
-static const auto current_texture_parameters = tie(geometry, variation, patterns::whichPattern, patterns::subpattern_flags, pmodel, vid.scale, vid.alpha);
+static const auto current_texture_parameters = tie(geometry, variation, patterns::whichPattern, patterns::subpattern_flags, pmodel, pconf.scale, pconf.alpha);
 
 void texture_config::clear_texture_map() {
   texture_map.clear();
@@ -624,9 +622,9 @@ void texture_config::saveFullTexture(string tn) {
   addMessage(XLAT("Saving full texture to %1...", tn));
   dynamicval<color_t> dd(grid_color, 0);
   dynamicval<color_t> dm(mesh_color, 0);
-  dynamicval<ld> dx(vid.xposition, 0);
-  dynamicval<ld> dy(vid.yposition, 0);
-  dynamicval<ld> dvs(vid.scale, (pmodel == mdDisk && !euclid) ? 1 : vid.scale);
+  dynamicval<ld> dx(pconf.xposition, 0);
+  dynamicval<ld> dy(pconf.yposition, 0);
+  dynamicval<ld> dvs(pconf.scale, (pmodel == mdDisk && !euclid) ? 1 : pconf.scale);
   dynamicval<bool> dro(rug::rugged, false);
   dynamicval<bool> dnh(nohud, true);
   texture::saving = true;
@@ -741,9 +739,9 @@ struct magic_param {
   
   void apply(ld delta) {
     if(have_mp(mpProjection))
-      vid.alpha *= exp(delta * proj);
+      pconf.alpha *= exp(delta * proj);
     if(have_mp(mpScale))
-      vid.scale *= exp(delta * scale);
+      pconf.scale *= exp(delta * scale);
 
     if(do_spin) {
       if(have_mp(mpRotate))
@@ -853,7 +851,7 @@ void mousemovement() {
       // do not zoom in portrait!
       if(nonzero && !newmove) {
         View = inverse(spintox(mouseeu)) * spintox(lastmouse) * View;
-        vid.scale = vid.scale * sqhypot_d(2, mouseeu) / sqhypot_d(2, lastmouse);
+        pconf.scale = pconf.scale * sqhypot_d(2, mouseeu) / sqhypot_d(2, lastmouse);
         config.perform_mapping();
         }
       if(nonzero) lastmouse = mouseeu;
@@ -863,7 +861,7 @@ void mousemovement() {
     
     case tpsProjection: {
       if(nonzero && !newmove) {          
-        vid.alpha = vid.alpha * sqhypot_d(2, mouseeu) / sqhypot_d(2, lastmouse);
+        pconf.alpha = pconf.alpha * sqhypot_d(2, mouseeu) / sqhypot_d(2, lastmouse);
         }
       if(nonzero) lastmouse = mouseeu;
       newmove = false;
@@ -944,6 +942,8 @@ eGeometry targetgeometry;
 
 string csymbol;
 
+string tes;
+
 void init_textureconfig() {
 #if CAP_CONFIG
   texturesavers = move(savers);  
@@ -956,11 +956,12 @@ void init_textureconfig() {
     addsaver(View[i][j], "viewmatrix_" + its(i) + its(j), i==j ? 1 : 0);
 
   addsaverenum(targetgeometry, "geometry", gNormal);
+  addsaver(tes, "tes", "");
   addsaverenum(pmodel, "used model", mdDisk);
   addsaver(vid.yshift, "Y shift", 0);
-  addsaver(vid.yposition, "Y position", 0);
-  addsaver(vid.xposition, "X position", 0);
-  addsaver(vid.camera_angle, "camera angle", 0);
+  addsaver(pconf.yposition, "Y position", 0);
+  addsaver(pconf.xposition, "X position", 0);
+  addsaver(pconf.camera_angle, "camera angle", 0);
   addsaverenum(targetvariation, "bitruncated", eVariation::bitruncated);
   // ... geometry parameters
 
@@ -977,9 +978,9 @@ void init_textureconfig() {
   addsaver(config.color_alpha, "alpha color", 0);
   addsaver(config.mesh_color, "mesh color", 0);
   
-  addsaver(vid.alpha, "projection", 1);
-  addsaver(vid.scale, "scale", 1);
-  addsaver(vid.stretch, "stretch", 1);
+  addsaver(pconf.alpha, "projection", 1);
+  addsaver(pconf.scale, "scale", 1);
+  addsaver(pconf.stretch, "stretch", 1);
   addsaver(vid.binary_width, "binary-tiling-width", 1);
   
   addsaver(config.texturename, "texture filename", "");
@@ -1013,6 +1014,8 @@ bool texture_config::save() {
 
   cell *ctr = centerover;
   si_save = patterns::getpatterninfo0(ctr);
+
+  if(arb::in()) tes = arb::current.filename;
   
   if(arcm::in()) csymbol = arcm::current.symbol;
   else csymbol = "";
@@ -1052,6 +1055,10 @@ bool texture_config::load() {
           addMessage("Error: " + arcm::current.errormsg);
           return false;
           }
+        }
+      if(targetgeometry == gArbitrary) {
+        arb::run(tes);
+        stop_game();
         }
       set_geometry(targetgeometry);
       start_game();
@@ -1235,15 +1242,48 @@ EX void showMenu() {
   if(config.tstate == tsOff) {
     dialog::init(XLAT("texture mode (off)"));
     dialog::addItem(XLAT("select geometry/pattern"), 'r');
-    if(config.tstate_max == tsAdjusting || config.tstate_max == tsActive)
+    dialog::add_action(patterns::pushChangeablePatterns);
+    if(config.tstate_max == tsAdjusting || config.tstate_max == tsActive) {
       dialog::addItem(XLAT("reactivate the texture"), 't');
-    if(GDIM == 2 && !rug::rugged) dialog::addItem(XLAT("open PNG as texture"), 'o');
+      dialog::add_action([] {
+        config.tstate = config.tstate_max;
+        });    
+      }
+    if(GDIM == 2 && !rug::rugged) {
+      dialog::addItem(XLAT("open PNG as texture"), 'o');
+      dialog::add_action([] {
+        dialog::openFileDialog(config.texturename, XLAT("open PNG as texture"), ".png", 
+          [] () {
+            if(config.data.readtexture(config.texturename) && config.data.loadTextureGL()) {
+              if(config.tstate_max == tsOff) config.tstate_max = tsAdjusting;
+              config.tstate = config.tstate_max;
+              config.perform_mapping();
+              config.finish_mapping();
+              return true;
+              }
+            else return false;
+            });
+        });
+      }
     dialog::addItem(XLAT("load texture config"), 'l');
+    dialog::add_action([] {
+      dialog::openFileDialog(config.configname, XLAT("load texture config"), ".txc", 
+        [] () {
+          return config.load();
+          });
+      });
     dialog::addSelItem(XLAT("texture size"), its(config.data.twidth), 'w');
+    dialog::add_action([] {
+      config.data.twidth *= 2;
+      if(config.data.twidth > 9000) config.data.twidth = 256;
+      config.tstate_max = tsOff;
+      });
 #if CAP_EDIT
-    if(GDIM == 2) dialog::addItem(XLAT("paint a new texture"), 'n');
+    if(GDIM == 2) {
+      dialog::addItem(XLAT("paint a new texture"), 'n');
+      dialog::add_action(start_editor);
+      }
 #endif
-    dialog::addSelItem(XLAT("precision"), its(config.gsplits), 'P');
 
     dialog::addBoolItem(XLATN("Canvas"), specialland == laCanvas, 'X');
     dialog::add_action([] () {
@@ -1263,15 +1303,25 @@ EX void showMenu() {
   if(config.tstate == tsAdjusting) {
     dialog::init(XLAT("texture mode (overlay)"));
     dialog::addItem(XLAT("select the texture's pattern"), 'r');
+    dialog::add_action(patterns::pushChangeablePatterns);
     dialog::addItem(XLAT("enable the texture"), 't');
+    dialog::add_action([] {
+      config.tstate = config.tstate_max = tsActive;
+      config.finish_mapping();
+      });
     dialog::addItem(XLAT("cancel the texture"), 'T');
+    dialog::add_action([] {
+      config.tstate = tsOff;
+      config.tstate_max = tsOff;
+      });    
     dialog::addBoolItem_choice(XLAT("move the model"), panstate, tpsModel, 'm');
     dialog::addBoolItem_choice(XLAT("move the texture"), panstate, tpsMove, 'a');
-    dialog::addBoolItem_choice(XLAT("zoom/scale the texture"), panstate, tpsScale, 'x');
-    dialog::addBoolItem_choice(XLAT("zoom/scale the model"), panstate, tpsZoom, 'z');
+    dialog::addBoolItem_choice(XLAT("scale/rotate the texture"), panstate, tpsScale, 'x');
+    dialog::addBoolItem_choice(XLAT("scale/rotate the model"), panstate, tpsZoom, 'z');
     dialog::addBoolItem_choice(XLAT("projection"), panstate, tpsProjection, 'p');
     dialog::addBoolItem_choice(XLAT("affine transformations"), panstate, tpsAffine, 'y');
     dialog::addBoolItem(XLAT("magic"), false, 'A');
+    dialog::add_action_push(showMagicMenu);
     
     dialog::addBreak(50);
 
@@ -1280,39 +1330,76 @@ EX void showMenu() {
     dialog::addBoolItem_choice(XLAT("fine tune vertices"), panstate, tpsTune, 'F');
 
     dialog::addColorItem(XLAT("grid color (master)"), config.master_color, 'M');
+    dialog::add_action([] { dialog::openColorDialog(config.master_color, NULL); });
     dialog::addColorItem(XLAT("grid color (copy)"), config.slave_color, 'K');
-    
+    dialog::add_action([] { dialog::openColorDialog(config.slave_color, NULL); });    
+
     dialog::addBreak(50);
     
-    dialog::addSelItem(XLAT("precision"), its(config.gsplits), 'P');
 #if CAP_SHOT
     dialog::addItem(XLAT("save the raw texture"), 'S');
+    dialog::add_action([] {
+      dialog::openFileDialog(config.texturename, XLAT("save the raw texture"), ".png", 
+        [] () {
+          config.data.saveRawTexture(config.texturename); return true;
+          });
+      });
 #endif
     }
   
   if(config.tstate == tsActive) {
     dialog::init(XLAT("texture mode (active)"));
-    /* dialog::addSelItem(XLAT("texture scale"), fts(iscale), 's');
-    dialog::addSelItem(XLAT("texture angle"), fts(irotate), 'a');
-    dialog::addSelItem(XLAT("texture position X"), fts(ix), 'x');
-    dialog::addSelItem(XLAT("texture position Y"), fts(iy), 'y'); */
     dialog::addItem(XLAT("deactivate the texture"), 't');
+    dialog::add_action([] { config.tstate = tsOff; });
     dialog::addItem(XLAT("back to overlay mode"), 'T');
+    dialog::add_action([] {config.tstate = tsAdjusting; });
     dialog::addItem(XLAT("change the geometry"), 'r');
+    dialog::add_action(patterns::pushChangeablePatterns);
     dialog::addColorItem(XLAT("grid color"), config.grid_color, 'g');
+    dialog::add_action([] { dialog::openColorDialog(config.grid_color, NULL); });
     dialog::addColorItem(XLAT("mesh color"), config.mesh_color, 'm');
+    dialog::add_action([] { dialog::openColorDialog(config.mesh_color, NULL); });
     dialog::addSelItem(XLAT("color alpha"), its(config.color_alpha), 'c');
-    dialog::addSelItem(XLAT("precision"), its(config.gsplits), 'P');
+    dialog::add_action([] {
+      dialog::editNumber(config.color_alpha, 0, 255, 15, 0, XLAT("color alpha"),      
+        XLAT("The higher the value, the less important the color of underlying terrain is."));
+      });
     dialog::addBoolItem_action(XLAT("aura from texture"), texture_aura, 'a');
 #if CAP_EDIT
-    if(GDIM == 2) dialog::addItem(XLAT("edit the texture"), 'e');
+    if(GDIM == 2) {
+      dialog::addItem(XLAT("edit the texture"), 'e');
+      dialog::add_action([] {
+        mapeditor::initdraw(cwt.at);
+        pushScreen(mapeditor::showDrawEditor);
+        });
+      }
 #endif
 #if CAP_SHOT
     dialog::addItem(XLAT("save the full texture image"), 'S');
+    dialog::add_action([] {
+      dialog::openFileDialog(config.texturename, XLAT("save the full texture image"), ".png", 
+        [] () {
+          config.saveFullTexture(config.texturename);
+          return true;
+          });
+      });
 #endif
     dialog::addItem(XLAT("save texture config"), 's');
+    dialog::add_action([] {
+      dialog::openFileDialog(config.configname, XLAT("save texture config"), ".txc", 
+        [] () {
+          return config.save();
+          });
+      });
     }
   
+  dialog::addSelItem(XLAT("precision"), its(config.gsplits), 'P');
+  dialog::add_action([] {
+    dialog::editNumber(config.gsplits, 0, 4, 1, 1, XLAT("precision"),
+      XLAT("precision"));
+    if(config.tstate == tsActive) dialog::reaction = [] () { config.finish_mapping();
+      };
+    });
   dialog::addHelp();
   dialog::addBack();
   
@@ -1324,113 +1411,13 @@ EX void showMenu() {
   
   keyhandler = [] (int sym, int uni) {
     // handlePanning(sym, uni);
-    dialog::handleNavigation(sym, uni);
-    
+    dialog::handleNavigation(sym, uni);    
     if(uni == '-' && config.tstate == tsAdjusting) {
       if(!holdmouse) {
         holdmouse = true;
         newmove = true;
         }
       }
-
-    else if(uni == 'A' && config.tstate == tsAdjusting) 
-      pushScreen(showMagicMenu);
-
-    else if(uni == 's' && config.tstate == tsActive) 
-      dialog::openFileDialog(config.configname, XLAT("save texture config"), ".txc", 
-        [] () {
-          return config.save();
-          });
-
-    else if(uni == 'l' && config.tstate == tsOff) 
-      dialog::openFileDialog(config.configname, XLAT("load texture config"), ".txc", 
-        [] () {
-          return config.load();
-          });
-
-    else if(uni == 'r')
-      patterns::pushChangeablePatterns();
-
-    else if(uni == 'o' && config.tstate == tsOff) 
-      dialog::openFileDialog(config.texturename, XLAT("open PNG as texture"), ".png", 
-        [] () {
-          if(config.data.readtexture(config.texturename) && config.data.loadTextureGL()) {
-            if(config.tstate_max == tsOff) config.tstate_max = tsAdjusting;
-            config.tstate = config.tstate_max;
-            config.perform_mapping();
-            config.finish_mapping();
-            return true;
-            }
-          else return false;
-          });
-
-    else if(uni == 'w' && config.tstate == tsOff) {
-      config.data.twidth *= 2;
-      if(config.data.twidth > 9000) config.data.twidth = 256;
-      config.tstate_max = tsOff;
-      }
-
-#if CAP_EDIT    
-    else if(uni == 'e' && config.tstate == tsActive) {
-      mapeditor::initdraw(cwt.at);
-      pushScreen(mapeditor::showDrawEditor);
-      }
-
-    else if(uni == 'n' && config.tstate == tsOff) start_editor();
-#endif
-
-    else if(uni == 't' && config.tstate == tsOff) 
-      config.tstate = config.tstate_max;
-    
-    else if(uni == 't' && config.tstate == tsAdjusting) {
-      config.tstate = config.tstate_max = tsActive;
-      config.finish_mapping();
-      }
-
-    else if(uni == 't' && config.tstate == tsActive) 
-      config.tstate = tsOff;
-      
-    else if(uni == 'T' && config.tstate == tsAdjusting) {
-      config.tstate = tsOff;
-      config.tstate_max = tsOff;
-      }
-      
-    else if(uni == 'T' && config.tstate == tsActive)
-      config.tstate = tsAdjusting;
-        
-    else if(uni == 'g' && config.tstate == tsActive) 
-      dialog::openColorDialog(config.grid_color, NULL);
-    else if(uni == 'm' && config.tstate == tsActive) 
-      dialog::openColorDialog(config.mesh_color, NULL);
-
-    else if(uni == 'M' && config.tstate == tsAdjusting) 
-      dialog::openColorDialog(config.master_color, NULL);
-    else if(uni == 'K' && config.tstate == tsAdjusting) 
-      dialog::openColorDialog(config.slave_color, NULL);
-
-    else if(uni == 'c' && config.tstate == tsActive) {
-      dialog::editNumber(config.color_alpha, 0, 255, 15, 0, XLAT("color alpha"),
-        XLAT("The higher the value, the less important the color of underlying terrain is."));
-      }    
-    else if(uni == 'P') {
-      dialog::editNumber(config.gsplits, 0, 4, 1, 1, XLAT("precision"),
-        XLAT("precision"));
-      if(config.tstate == tsActive) dialog::reaction = [] () { config.finish_mapping();
-        };
-      }
-#if CAP_SHOT
-    else if(uni == 'S' && config.tstate == tsAdjusting) 
-      dialog::openFileDialog(config.texturename, XLAT("save the raw texture"), ".png", 
-        [] () {
-          config.data.saveRawTexture(config.texturename); return true;
-          });
-    else if(uni == 'S' && config.tstate == tsActive) 
-      dialog::openFileDialog(config.texturename, XLAT("save the full texture image"), ".png", 
-        [] () {
-          config.saveFullTexture(config.texturename);
-          return true;
-          });
-#endif
     else if(uni == SDLK_F1)
       gotoHelp(texturehelp);
     else if(doexiton(sym, uni))
@@ -1448,8 +1435,6 @@ point ptc(hyperpoint h) {
 array<point, 3> ptc(const array<hyperpoint, 3>& h) {
   return make_array(ptc(h[0]), ptc(h[1]), ptc(h[2]));
   }
-
-EX ld penwidth = .02;
 
 int texture_distance(pair<int, int> p1, pair<int, int> p2) {
   return max(abs(p1.first-p2.first), abs(p1.second - p2.second));
@@ -1521,7 +1506,7 @@ void filltriangle(const array<hyperpoint, 3>& v, const array<point, 3>& p, color
 
 void splitseg(const transmatrix& A, const array<ld, 2>& angles, const array<hyperpoint, 2>& h, const array<point, 2>& p, color_t col, int lev) {
   ld newangle = (angles[0] + angles[1]) / 2;
-  hyperpoint nh = A * xspinpush0(newangle, penwidth);
+  hyperpoint nh = A * xspinpush0(newangle, mapeditor::dtwidth);
   auto np = ptc(nh);
   
   filltriangle(make_array(h[0],h[1],nh), make_array(p[0],p[1],np), col, lev);
@@ -1538,7 +1523,7 @@ void fillcircle(hyperpoint h, color_t col) {
   
   ld step = M_PI * 2/3;
   
-  array<hyperpoint, 3> mh = make_array(A * xpush0(penwidth), A * xspinpush0(step, penwidth), A * xspinpush0(-step, penwidth));
+  array<hyperpoint, 3> mh = make_array(A * xpush0(mapeditor::dtwidth), A * xspinpush0(step, mapeditor::dtwidth), A * xspinpush0(-step, mapeditor::dtwidth));
   auto mp = ptc(mh);
 
   filltriangle(mh, mp, col, 0);
@@ -1596,7 +1581,7 @@ EX void drawPixel(hyperpoint h, color_t col) {
   }
 
 EX void drawLine(hyperpoint h1, hyperpoint h2, color_t col, int steps IS(10)) {
-  if(steps > 0 && hdist(h1, h2) > penwidth / 3) {
+  if(steps > 0 && hdist(h1, h2) > mapeditor::dtwidth / 3) {
     hyperpoint h3 = mid(h1, h2);
     drawLine(h1, h3, col, steps-1);
     drawLine(h3, h2, col, steps-1);
@@ -1609,7 +1594,7 @@ void texture_config::true_remap() {
   models::configure();
   drawthemap();
   if(GDIM == 3) return;
-  clear_texture_map();
+  texture_map.clear();
   missing_cells_known.clear();
   for(cell *c: dcal) {
     auto si = patterns::getpatterninfo0(c);
@@ -1657,6 +1642,11 @@ void texture_config::true_remap() {
 
 void texture_config::remap() {
   if(tstate == tsActive) {
+    if(geometry == gFake) {
+      /* always correct */
+      true_remap();
+      return;
+      }
     patterns::computeCgroup();
     correctly_mapped = patterns::compatible(texture::cgroup, patterns::cgroup);
     if(!correctly_mapped)
@@ -1725,7 +1715,7 @@ int textureArgs() {
 
 auto texture_hook = 
   addHook(hooks_args, 100, textureArgs)
-+ addHook(clearmemory, 100, [] () { config.data.pixels_to_draw.clear(); });
++ addHook(hooks_clearmemory, 100, [] () { config.data.pixels_to_draw.clear(); });
 
 int lastupdate;
 

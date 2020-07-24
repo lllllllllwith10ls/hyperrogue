@@ -180,6 +180,41 @@ EX namespace history {
   EX ld lvspeed = 1;
   EX int bandhalf = 200;
   EX int bandsegment = 16000;
+  
+  EX int saved_ends;
+  
+  EX cell* first_center_at;
+  EX transmatrix first_center_view;
+  
+  EX void save_end() {
+    if(!allowIncreasedSight()) {
+      addMessage("Enable cheat mode or GAME OVER to use this");
+      return;
+      }
+    if(cheater) cheater++;
+    switch(saved_ends) {
+      case 0:
+        first_center_at = centerover;
+        first_center_view = View;
+        saved_ends = 1;
+        return;
+      
+      case 1: {
+        shmup::monster *m = new shmup::monster;
+        m->at = inverse(first_center_view);
+        m->base = first_center_at;
+        v.push_back(m);
+        create(first_center_at, centerover, inverse(ggmatrix(centerover)));
+        if(on) saved_ends = 2;
+        return;
+        }
+      
+      case 2:
+        on = false;
+        saved_ends = 0;
+        return;
+      }
+    }
 
   EX bool autoband = false;
   EX bool autobandhistory = false;
@@ -194,6 +229,37 @@ EX namespace history {
     int N = isize(v);
     for(int i=0; i<N; i++) delete v[i];
     v.resize(0);
+    }
+  
+  EX void smoothen_line() {
+    int Q = isize(v)-1;
+    // virtualRebase(v[0], false);
+    // virtualRebase(v[Q], false);
+    
+    for(int i=0; i<1000; i++) {
+      progress(XLAT("Preparing the line (%1/1000)...", its(i+1)));
+
+      for(int j=1; j<Q; j++) if((j^i)&1) {
+      
+        // virtualRebase(v[j], false);
+        
+        hyperpoint prev = calc_relative_matrix(v[j-1]->base, v[j]->base, C0) *
+          v[j-1]->at * C0;
+
+        hyperpoint next = calc_relative_matrix(v[j+1]->base, v[j]->base, C0) * 
+          v[j+1]->at * C0;
+        
+        hyperpoint hmid = mid(prev, next);
+        
+        transmatrix at = rgpushxto0(hmid);
+
+        v[j]->at = at * rspintox(inverse(at) * next);
+        fixmatrix(v[j]->at);
+        }
+      }
+    
+    hyperpoint next0 = calc_relative_matrix(v[1]->base, v[0]->base, C0) * v[1]->at * C0;
+    v[0]->at = v[0]->at * rspintox(inverse(v[0]->at) * next0);    
     }
 
   EX void create(cell *start, cell *target, transmatrix last) {
@@ -223,35 +289,8 @@ EX namespace history {
     
     v.back()->at = last;
   
-    int Q = isize(v)-1;
-    // virtualRebase(v[0], false);
-    // virtualRebase(v[Q], false);
+    smoothen_line();
   
-    for(int i=0; i<1000; i++) {
-      progress(XLAT("Preparing the line (%1/1000)...", its(i+1)));
-
-      for(int j=1; j<Q; j++) if((j^i)&1) {
-      
-        // virtualRebase(v[j], false);
-        
-        hyperpoint prev = calc_relative_matrix(v[j-1]->base, v[j]->base, C0) *
-          v[j-1]->at * C0;
-
-        hyperpoint next = calc_relative_matrix(v[j+1]->base, v[j]->base, C0) * 
-          v[j+1]->at * C0;
-        
-        hyperpoint hmid = mid(prev, next);
-        
-        transmatrix at = rgpushxto0(hmid);
-
-        v[j]->at = at * rspintox(inverse(at) * next);
-        fixmatrix(v[j]->at);
-        }
-      }
-    
-    hyperpoint next0 = calc_relative_matrix(v[1]->base, v[0]->base, C0) * v[1]->at * C0;
-    v[0]->at = v[0]->at * rspintox(inverse(v[0]->at) * next0);
-    
     llv = ticks;
     phase = 0;
     }
@@ -323,7 +362,7 @@ EX namespace history {
     }
   
   ld measureLength() {
-    ld r = bandhalf * vid.scale;
+    ld r = bandhalf * pconf.scale;
     
     ld tpixels = 0;
     int siz = isize(v);
@@ -487,13 +526,22 @@ EX namespace history {
     dialog::addBoolItem(XLAT("include history"), (includeHistory), 'i');
     
     // bool notconformal0 = (pmodel >= 5 && pmodel <= 6) && !euclid;
-    // bool notconformal = notconformal0 || abs(vid.alpha-1) > 1e-3;
+    // bool notconformal = notconformal0 || abs(pconf.alpha-1) > 1e-3;
 
     dialog::addSelItem(XLAT("projection"), current_proj_name(), 'm');
     
     dialog::addBoolItem(XLAT("animate from start to current player position"), (on), 'e');
     dialog::addBoolItem(XLAT("animate from last recenter to current view"), (on), 'E');
     dialog::addBoolItem(XLAT("animate from last recenter to precise current view"), (on), 'E'-64);
+    
+    if(saved_ends == 0)
+      dialog::addItem(XLAT("save the animation starting point"), '1');
+    else if(saved_ends == 1)
+      dialog::addItem(XLAT("animate from the starting point"), '1');
+    else
+      dialog::addItem(XLAT("reset animation"), '1');
+    dialog::add_action(save_end);
+    
     if(on) dialog::addSelItem(XLAT("animation speed"), fts(lvspeed), 'a');
     else dialog::addBreak(100);
     dialog::addSelItem(XLAT("extend the ends"), fts(extra_line_steps), 'p');
@@ -524,11 +572,11 @@ EX namespace history {
     if(uni == 'e' || uni == 'E' || uni == 'E'-64) {
       if(on) clear();
       else {
-        if(canmove && !cheater) {
+        if(!allowIncreasedSight()) {
           addMessage("Enable cheat mode or GAME OVER to use this");
           return;
           }
-        if(canmove && cheater) cheater++;
+        if(cheater) cheater++;
         if(uni == 'E') create_recenter_to_view(false);
         else if(uni == 'E'-64) create_recenter_to_view(true);
         else create_playerpath();
@@ -555,11 +603,11 @@ EX namespace history {
         );
     else if(uni == 'g') { dospiral = !dospiral; }
     else if(uni == 'i') { 
-      if(canmove && !cheater) {
+      if(!allowIncreasedSight()) {
         addMessage("Enable cheat mode or GAME OVER to use this");
         return;
         }
-      if(canmove && cheater) cheater++;
+      if(cheater) cheater++;
       includeHistory = !includeHistory; 
       }
 #if CAP_SDL
@@ -641,13 +689,14 @@ EX namespace history {
   auto hookArg = addHook(hooks_args, 100, readArgs);
   #endif  
 
-  auto hooks = addHook(clearmemory, 0, [] () {
+  auto hooks = addHook(hooks_clearmemory, 0, [] () {
     history::renderAutoband();
     history::on = false;
     history::killhistory.clear();
     history::findhistory.clear();
     history::movehistory.clear();
     history::path_for_lineanimation.clear();
+    history::saved_ends = 0;
     history::includeHistory = false;
     });
 

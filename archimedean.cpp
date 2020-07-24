@@ -32,6 +32,8 @@ struct archimedean_tiling {
 
   int repetition;
   int N;
+  
+  bool regular;
 
   ld euclidean_angle_sum;
 
@@ -42,6 +44,7 @@ struct archimedean_tiling {
   
   void make_match(int a, int i, int b, int j);
   void prepare();
+  void compute_sum();
   void compute_geometry();
   
   void parse();
@@ -75,10 +78,12 @@ struct archimedean_tiling {
   string world_size();
   void get_nom_denom(int& anom, int& adenom);
   
-  geometryinfo1& get_geometry();
+  geometryinfo1& get_geometry(ld mul = 1);
   eGeometryClass get_class() { return get_geometry().kind; }
 
   bool get_step_values(int& steps, int& single_step);
+
+  transmatrix adjcell_matrix(heptagon *h, int d);
   
   ld scale();
   };
@@ -95,6 +100,12 @@ static const int sfSEMILINE = 16;
 #endif
 
 EX archimedean_tiling current;
+EX archimedean_tiling fake_current;
+
+EX archimedean_tiling& current_or_fake() {
+  if(fake::in()) return fake_current;
+  return current;
+  }
 
 /** id of vertex in the archimedean tiling
  *  odd numbers = reflected tiles
@@ -135,10 +146,19 @@ void archimedean_tiling::make_match(int a, int i, int b, int j) {
 /** mostly to protect the user from entering too large numbers */
 const int MAX_EDGE_ARCM = FULL_EDGE;
 
-void archimedean_tiling::prepare() {
-
+void archimedean_tiling::compute_sum() {
+  N = isize(faces);
   euclidean_angle_sum = 0;
   for(int f: faces) euclidean_angle_sum += (f-2.) / f;
+
+  real_faces = 0, real_face_type = 0;
+  for(int i=0; i<N; i++) if(faces[i] > 2) real_faces++, real_face_type += faces[i];
+  real_face_type /= 2;
+  }
+
+void archimedean_tiling::prepare() {
+
+  compute_sum();
 
   for(int i: faces) if(i > MAX_EDGE_ARCM) {
     errormsg = XLAT("currently no more than %1 edges", its(MAX_EDGE_ARCM));
@@ -160,10 +180,23 @@ void archimedean_tiling::prepare() {
     errors++;
     return;
     }
-
-  real_faces = 0, real_face_type = 0;
-  for(int i=0; i<N; i++) if(faces[i] > 2) real_faces++, real_face_type += faces[i];
-  real_face_type /= 2;
+  
+  for(int i=0; i<N; i++) {
+    bool forward = false;
+    int f = faces[i];
+    int i0 = i;
+    for(int k=0; k<f; k++) {
+      forward ^= invert[i0];
+      i0 = adj[i0];
+      if(forward) { if(faces[i0] != f) { errormsg = XLAT("face mismatch"); errors++; return; } i0++; if(i0 == N) i0 = 0; }
+      else { if(i0 == 0) i0 = N; i0--; if(faces[i0] != f) { errormsg = XLAT("face mismatch"); errors++; return; } }
+      }
+    for(int k=0; k<N; k++) {
+      f = faces[(i+N-k-1) % N];
+      if(forward) { if(faces[i0] != f) { errormsg = XLAT("face mismatch II "); errors++; return; } i0++; if(i0 == N) i0 = 0; }
+      else { if(i0 == 0) i0 = N; i0--; if(faces[i0] != f) { errormsg = XLAT("face mismatch II"); errors++; return; } }
+      }
+    }
 
   if(real_faces) {
     for(int i=1; i<isize(faces); i++) if(faces[i] == 2 && faces[i-1] == 2) {
@@ -189,7 +222,6 @@ void archimedean_tiling::prepare() {
 
   /* build the 'adjacent' table */
 
-  N = isize(faces);
   int M = 2 * N + 2;
   adjacent.clear();
   adjacent.resize(M);
@@ -332,9 +364,9 @@ void archimedean_tiling::regroup() {
     }
   }
 
-geometryinfo1& archimedean_tiling::get_geometry() {
-  if(euclidean_angle_sum < 1.999999) return ginf[gSphere].g;
-  else if(euclidean_angle_sum > 2.000001) return ginf[gNormal].g;
+geometryinfo1& archimedean_tiling::get_geometry(ld mul) {
+  if(euclidean_angle_sum * mul < 1.999999) return ginf[gSphere].g;
+  else if(euclidean_angle_sum * mul > 2.000001) return ginf[gNormal].g;
   else return ginf[gEuclid].g;
   }
 
@@ -344,6 +376,8 @@ void archimedean_tiling::compute_geometry() {
   
   DEBB(DF_GEOM, (format("euclidean_angle_sum = %f\n", float(euclidean_angle_sum))));
   
+  bool infake = fake::in();
+  
   dynamicval<eGeometry> dv(geometry, gArchimedean);
   
   /* compute the geometry */
@@ -351,6 +385,15 @@ void archimedean_tiling::compute_geometry() {
   circumradius.resize(N);
   alphas.resize(N);
   ld elmin = 0, elmax = hyperbolic ? 10 : sphere ? M_PI : 1;
+  
+  ld total = M_PI;
+
+  dynamicval<geometryinfo1> dgi(ginf[geometry].g, ginf[geometry].g);
+
+  if(infake) {
+    total *= N / fake::around;
+    ginf[geometry].g = get_geometry(fake::around / N);
+    }
   
   /* inradius[N] is used in farcorner and nearcorner. Probably a bug */
   
@@ -380,29 +423,27 @@ void archimedean_tiling::compute_geometry() {
     ld alpha_total = 0;
 
     for(int i=0; i<N; i++) {
-      ld crmin = 0, crmax = sphere ? M_PI/2 : 10;
-      ld el = 0;
-      for(int q=0; q<100; q++) {
-        circumradius[i] = (crmin + crmax) / 2;
-        hyperpoint p1 = xpush0(circumradius[i]);
-        hyperpoint p2 = spin(2 * M_PI / faces[i]) * p1;
-        inradius[i] = hdist0(mid(p1, p2));
-        el = hdist(p1, p2);
-        if(el > edgelength) crmax = circumradius[i];
-        else crmin = circumradius[i];
-        }
-      if(el < edgelength - 1e-3) alpha_total += 100; // could not make an edge that long
-      hyperpoint h = xpush(edgelength/2) * xspinpush0(M_PI/2, inradius[i]);
-      ld a = atan2(-h[1], h[0]);
-      if(a < 0) a += 2 * M_PI;
+
+      ld gamma = M_PI / faces[i];
+      
+      auto& c = circumradius[i];
+
+      c = asin_auto(sin_auto(edgelength/2) / sin(gamma));
+      inradius[i] = hdist0(mid(xpush0(circumradius[i]), xspinpush0(2*gamma, circumradius[i])));
+      
+      hyperpoint h = xpush(c) * spin(M_PI - 2*gamma) * xpush0(c);
+      ld a = atan2(h);
+      cyclefix(a, 0);
+      if(a < 0) a = -a;
       alphas[i] = a;
-      // printf("  H = %s alp = %f\n", display(h), (float) atan2(-h[1], h[0]));
       alpha_total += alphas[i];
       }
     
-    // printf("el = %f alpha = %f\n", float(edgelength), float(alpha_total));
-
-    if(sphere ^ (alpha_total > M_PI)) elmin = edgelength;
+    if(debugflags & DF_GEOM)
+      println(hlog, "edgelength = ", edgelength, " angles = ", alphas, " inradius = ", inradius, " circumradius = ", circumradius);
+    
+    if(isnan(alpha_total)) elmax = edgelength;
+    else if(sphere ^ (alpha_total > total)) elmin = edgelength;
     else elmax = edgelength;
     if(euclid) break;
     }
@@ -432,7 +473,9 @@ void archimedean_tiling::compute_geometry() {
     for(auto& t: ts) DEBB0(DF_GEOM, (format(" %f@%f", float(t.first), float(t.second))));
     DEBB(DF_GEOM, ());
     }
-  
+
+  regular = true;
+  for(int i: faces) if(i != faces[0]) regular = false;  
   }
 
 ld archimedean_tiling::scale() {
@@ -454,7 +497,13 @@ bool skip_digons(heptspin hs, int step);
 void connect_digons_too(heptspin h1, heptspin h2);
 void fixup_matrix(transmatrix& T, const transmatrix& X, ld step);
 void connectHeptagons(heptspin hi, heptspin hs);
-transmatrix adjcell_matrix(heptagon *h, int d);
+
+/** @brief should we use gmatrix to compute relative_matrix faster? (not while in fake Archimedean) */
+EX bool use_gmatrix = true;
+
+/** @brief like adj, but in pure 
+ *  not used by arcm itself, but used in fake arcm
+ */
 
 struct hrmap_archimedean : hrmap {
   map<gp::loc, struct cdata> eucdata;
@@ -552,8 +601,10 @@ struct hrmap_archimedean : hrmap {
 
   heptagon *create_step(heptagon *h, int d) override {
   
-    DEBB(DF_GEOM, (format("%p.%d ~ ?\n", h, d)));
-  
+    DEBB(DF_GEOM, (format("%p.%d ~ ?\n", hr::voidp(h), d)));
+
+    dynamicval<geometryinfo1> gi(ginf[geometry].g, ginf[gArchimedean].g);
+    
     heptspin hi(h, d);
     
     while(skip_digons(hi, 1)) hi++;
@@ -648,7 +699,7 @@ struct hrmap_archimedean : hrmap {
         if(DUAL && (i&1)) continue;
         h->cmove(i);
         if(PURE && id >= 2*current.N && h->move(i) && id_of(h->move(i)) >= 2*current.N) continue;
-        transmatrix V1 = V * adjcell_matrix(h, i);
+        transmatrix V1 = V * current.adjcell_matrix(h, i);
         bandfixer bf(V1);
         dq::enqueue(h->move(i), V1);
         }
@@ -660,21 +711,22 @@ struct hrmap_archimedean : hrmap {
     }
   
   transmatrix relative_matrix(heptagon *h2, heptagon *h1, const hyperpoint& hint) override {
-    if(gmatrix0.count(h2->c7) && gmatrix0.count(h1->c7))
+    if(use_gmatrix && gmatrix0.count(h2->c7) && gmatrix0.count(h1->c7))
       return inverse(gmatrix0[h1->c7]) * gmatrix0[h2->c7];
     transmatrix gm = Id, where = Id;
+    auto& cof = current_or_fake();
     while(h1 != h2) {
       for(int i=0; i<neighbors_of(h1); i++) {
         if(h1->move(i) == h2) {
-          return gm * adjcell_matrix(h1, i) * where;
+          return gm * cof.adjcell_matrix(h1, i) * where;
           }
         }
       if(h1->distance > h2->distance) {
-        gm = gm * adjcell_matrix(h1, 0);
+        gm = gm * cof.adjcell_matrix(h1, 0);
         h1 = h1->move(0);
         }
       else {
-        where = inverse(adjcell_matrix(h2, 0)) * where;
+        where = inverse(cof.adjcell_matrix(h2, 0)) * where;
         h2 = h2->move(0);
         }
       }
@@ -682,16 +734,17 @@ struct hrmap_archimedean : hrmap {
     }
       
   ld spin_angle(cell *c, int d) override {
+    auto &cof = current_or_fake();
     if(PURE) {
-      auto& t1 = arcm::current.get_triangle(c->master, d-1);
+      auto& t1 = cof.get_triangle(c->master, d-1);
       return -(t1.first + M_PI / c->type);
       }
     else if(DUAL) {
-      auto& t1 = arcm::current.get_triangle(c->master, 2*d);
+      auto& t1 = cof.get_triangle(c->master, 2*d);
       return -t1.first;
       }
     else { /* BITRUNCATED */
-      auto& t1 = arcm::current.get_triangle(c->master, d);
+      auto& t1 = cof.get_triangle(c->master, d);
       return -t1.first;
       }
     }
@@ -702,7 +755,7 @@ EX hrmap *new_map() { return new hrmap_archimedean; }
 heptagon *build_child(heptspin p, pair<int, int> adj) {
   indenter ind;
   auto h = buildHeptagon1(tailored_alloc<heptagon> (isize(current.adjacent[adj.first])), p.at, p.spin, hstate(1), 0);
-  DEBB(DF_GEOM, (format("NEW %p.%d ~ %p.0\n", p.at, p.spin, h)));
+  DEBB(DF_GEOM, (format("NEW %p.%d ~ %p.0\n", hr::voidp(p.at), p.spin, hr::voidp(h))));
   id_of(h) = adj.first;
   parent_index_of(h) = adj.second;
   int nei = neighbors_of(h);
@@ -746,13 +799,13 @@ void connect_digons_too(heptspin h1, heptspin h2) {
     // no need to specify archimedean_gmatrix and altmap
     hnew->c.connect(1, h2);
     h1--, h2++;
-    DEBB(DF_GEOM, (format("OL2 %p.%d ~ %p.%d\n", h1.at, h1.spin, h2.at, h2.spin)));
+    DEBB(DF_GEOM, (format("OL2 %p.%d ~ %p.%d\n", hr::voidp(h1.at), h1.spin, hr::voidp(h2.at), h2.spin)));
     h1.at->c.connect(h1.spin, h2);
     }
   }
 
 void connectHeptagons(heptspin hi, heptspin hs) {
-  DEBB(DF_GEOM, (format("OLD %p.%d ~ %p.%d\n", hi.at, hi.spin, hs.at, hs.spin)));
+  DEBB(DF_GEOM, (format("OLD %p.%d ~ %p.%d\n", hr::voidp(hi.at), hi.spin, hr::voidp(hs.at), hs.spin)));
   if(hi.at->move(hi.spin) == hs.at && hi.at->c.spin(hi.spin) == hs.spin) {
     DEBB(DF_GEOM, (format("WARNING: already connected\n")));
     return;
@@ -806,13 +859,13 @@ pair<ld, ld>& archimedean_tiling::get_triangle(const pair<int, int>& p, int delt
   return triangles[p.first][gmod(p.second + delta, isize(adjacent[p.first]))];
   }
 
-transmatrix adjcell_matrix(heptagon *h, int d) {
-  auto& t1 = current.get_triangle(h, d);
+transmatrix archimedean_tiling::adjcell_matrix(heptagon *h, int d) {
+  auto& t1 = get_triangle(h, d);
 
   heptagon *h2 = h->move(d);
 
   int d2 = h->c.spin(d);
-  auto& t2 = current.get_triangle(h2, d2);
+  auto& t2 = get_triangle(h2, d2);
   
   return spin(-t1.first) * xpush(t1.second) * spin(M_PI + t2.first);
   }
@@ -994,7 +1047,7 @@ int cHyperSemi = 0xC04040;
 
 int cWeird = 0xA000A0;
 
-vector<pair<string, int> > samples = {
+EX vector<pair<string, int> > samples = {
   /* Euclidean */
   {"(3,3,3,3,3,3)", cEucRegular},
   {"(4,4,4,4)", cEucRegular},
@@ -1069,6 +1122,9 @@ vector<pair<string, int> > samples = {
   {"(3l,5l,5,5,5,5) (0 1)(2 4)[3 5]", cHyperSemi},
   {"(3l,5l,5,5,5,5) (0 1)[2 4](3)(5)", cHyperSemi}, 
   {"(3,5,5,5,5,5) (0 1)(2)(3)(4)(5)", cHyperSemi}, 
+  {"(3,3,4,3,5)(0,4)(1)(2,3)", cHyperSemi},
+  {"(3,14,14)", cHyperSemi},
+  {"(3,3,3,3,3,4)[0](1,2)(3,4)[5]", cHyperSemi},
   
   /* interesting symmetry variants */
   {"(3,3,3,3,3,3) (0,1)(2,3)(4,5)", cEucRegular},
@@ -1139,7 +1195,7 @@ function<void()> setcanvas(char c) {
     patterns::whichCanvas = c;
     start_game();
     };
-  };
+  }
 
 EX void show() {
   if(lastsample < isize(samples)) {

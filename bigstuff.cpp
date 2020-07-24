@@ -168,10 +168,10 @@ void hrmap::generateAlts(heptagon *h, int levs, bool link_cdata) {
     }
   if(relspin == -4 && geometry != gFieldQuotient) {
     if(h->alt != h->alt->alt) {
-      printf("relspin {%p:%p}\n", h->alt, h->alt->alt);
-      {for(int i=0; i<S7; i++) printf("%p ", h->alt->move(i));} printf(" ALT\n");
-      {for(int i=0; i<S7; i++) printf("%p ", h->move(i));} printf(" REAL\n");
-      {for(int i=0; i<S7; i++) printf("%p ", h->move(i)->alt);} printf(" REAL ALT\n");
+      printf("relspin {%p:%p}\n", hr::voidp(h->alt), hr::voidp(h->alt->alt));
+      {for(int i=0; i<S7; i++) printf("%p ", hr::voidp(h->alt->move(i)));} printf(" ALT\n");
+      {for(int i=0; i<S7; i++) printf("%p ", hr::voidp(h->move(i)));} printf(" REAL\n");
+      {for(int i=0; i<S7; i++) printf("%p ", hr::voidp(h->move(i)->alt));} printf(" REAL ALT\n");
       }
     relspin = 3;
     } }
@@ -183,8 +183,8 @@ void hrmap::generateAlts(heptagon *h, int levs, bool link_cdata) {
     heptagon *hm = h->alt->move(ir);
     heptagon *ho = createStep(h, i);
 //  printf("[%p:%d ~ %p:%d] %p ~ %p\n", 
-//    h, i, h->alt, ir, 
-//    ho, hm);
+//    hr::voidp(h), i, hr::voidp(h->alt), ir, 
+//    hr::voidp(ho), hr::voidp(hm));
     if(ho->alt && ho->alt != hm) {
       if(ho->alt->alt == hm->alt && !quotient) {
         printf("ERROR: alt cross! [%d -> %d]\n", ho->alt->distance, hm->distance);
@@ -202,7 +202,7 @@ void hrmap::generateAlts(heptagon *h, int levs, bool link_cdata) {
 #if MAXMDIM >= 4
 EX int hrandom_adjacent(int d) {
   vector<int> choices = {d};
-  for(int a=0; a<S7; a++) if(reg3::dirs_adjacent[d][a]) choices.push_back(a);
+  for(int a=0; a<S7; a++) if(cgi.dirs_adjacent[d][a]) choices.push_back(a);
   return hrand_elt(choices, d);
   }
 #endif
@@ -287,7 +287,7 @@ EX heptagon *createAlternateMap(cell *c, int rad, hstate firststate, int special
   
   heptagon *alt = tailored_alloc<heptagon> (h->type);
   allmaps.push_back(newAltMap(alt));
-//printf("new alt {%p}\n", alt);
+//printf("new alt {%p}\n", hr::voidp(alt));
   alt->s = firststate;
   alt->emeraldval = 0;
   alt->zebraval = 0;
@@ -328,7 +328,7 @@ EX heptagon *createAlternateMap(cell *c, int rad, hstate firststate, int special
     }
   
   return alt;
-//for(int d=rad; d>=0; d--) printf("%3d. %p {%d}\n", d, cx[d]->master, cx[d]->master->alt->distance);
+//for(int d=rad; d>=0; d--) printf("%3d. %p {%d}\n", d, hr::voidp(cx[d]->master), cx[d]->master->alt->distance);
   }
 
 EX void beCIsland(cell *c) {
@@ -393,7 +393,7 @@ EX void generateTreasureIsland(cell *c) {
       if(cc->wall != waCTree)
         end = false;
       }
-    // printf("%p: end=%d, qc=%d, dist=%d\n", c, end, qc, celldistAlt(c));
+    // printf("%p: end=%d, qc=%d, dist=%d\n", hr::voidp(c), end, qc, celldistAlt(c));
     if(end) c->item = itPirate;
     else c->item = itCompass;
     }
@@ -567,7 +567,7 @@ EX void buildEquidistant(cell *c) {
   eLand b = c->land;
   if(chaosmode && !inmirror(b)) return;
   if(!b) { 
-    printf("land missing at %p\n", c); 
+    printf("land missing at %p\n", hr::voidp(c)); 
     describeCell(c);
     for(int i=0; i<c->type; i++) if(c->move(i))
       describeCell(c->move(i));
@@ -693,7 +693,7 @@ EX void buildEquidistant(cell *c) {
           if(cw.at->landparam != c->landparam-1) continue;
           if(!cw.at->landflags) continue;
           if(S7 == 6) c->landflags = 1;
-          else for(int j=0; j<S7; j++) if(cw.at->move(j) && cw.at->move(j)->landparam == c->landparam - 2 && !reg3::dirs_adjacent[j][cw.spin])
+          else for(int j=0; j<S7; j++) if(cw.at->move(j) && cw.at->move(j)->landparam == c->landparam - 2 && !cgi.dirs_adjacent[j][cw.spin])
             if(c->landparam == 2 ? cw.at->move(j)->land != laEndorian : cw.at->move(j)->landparam)
               c->landflags = 1;
           }
@@ -717,7 +717,7 @@ EX void buildEquidistant(cell *c) {
           if(cw.at->landparam != c->landparam-1) continue;
           if(!cw.at->landflags) continue;
           if(S7 == 6) c->landflags = 1;
-          else for(int j=0; j<S7; j++) if(cw.at->move(j) && cw.at->move(j)->landparam == c->landparam - 2 && !reg3::dirs_adjacent[j][cw.spin] && cw.at->move(j)->landflags)
+          else for(int j=0; j<S7; j++) if(cw.at->move(j) && cw.at->move(j)->landparam == c->landparam - 2 && !cgi.dirs_adjacent[j][cw.spin] && cw.at->move(j)->landflags)
             c->landflags = 1;
           }
         }
@@ -1332,10 +1332,13 @@ EX bool quickfind(eLand l) {
 #define I2000 (INVLUCK?600:2000)
 #define I10000 (INVLUCK?3000:10000)
 
+EX hookset<int(cell*, bool)> hooks_wallchance;
+
 EX int wallchance(cell *c, bool deepOcean) {
+  int i = callhandlers(-1, hooks_wallchance, c, deepOcean);
+  if(i != -1) return i;
   eLand l = c->land;
   return
-    showoff ? (cwt.at->mpdist > 7 ? 0 : 10000) : 
     inmirror(c) ? 0 :
     isGravityLand(l) ? 0 :
     generatingEquidistant ? 0 :
@@ -1356,7 +1359,7 @@ EX int wallchance(cell *c, bool deepOcean) {
     l == laCrossroads4 ? (weirdhyperbolic ? 5000 : 0) :
     (l == laMirror && !yendor::generating) ? 6000 :
     l == laTerracotta ? 250 :
-    (tactic::on && !tactic::trailer) ? 0 :
+    tactic::on ? 0 :
     racing::on ? 0 :
     l == laCaribbean ? 500 :
     (l == laWarpSea || l == laWarpCoast) ? 500 :
@@ -1372,6 +1375,7 @@ EX int wallchance(cell *c, bool deepOcean) {
 
 /** should we generate the horocycles in the current geometry? */
 EX bool horo_ok() {  
+  if(INVERSE) return false;
   return hyperbolic && !bt::in() && !arcm::in() && !kite::in() && !experimental && !hybri;
   }
 
@@ -1418,6 +1422,7 @@ EX bool deep_ocean_at(cell *c, cell *from) {
 EX bool good_for_wall(cell *c) {
   if(arcm::in()) return true;
   if(WDIM == 3) return true;
+  if(INVERSE) return true;
   return pseudohept(c);
   }
 

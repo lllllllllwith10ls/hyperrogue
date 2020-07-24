@@ -66,7 +66,7 @@ void launch(int seed, int elimit, int hlimit) {
   dual::switch_to(0);
   specialland = firstland = laCanvas;
   canvas_default_wall = waSea;
-  vid.scale = .5;
+  pconf.scale = .5;
   dual::switch_to(1);
   specialland = firstland = laCanvas;
   shrand(seed);
@@ -234,6 +234,7 @@ EX void show_menu() {
   dialog::display();
   }
 
+#if CAP_COMMANDLINE
 auto sbhook = addHook(hooks_args, 100, [] {
   using namespace arg;
            
@@ -257,10 +258,10 @@ auto sbhook = addHook(hooks_args, 100, [] {
     }
   else return 1;
   return 0;
-  }) + addHook(hooks_o_key, 91, [] { 
-    if(in) return named_dialog(XLAT("select a puzzle"), show_menu);
-    else return named_functionality();
+  }) + addHook(hooks_o_key, 91, [] (o_funcs& v) {
+    if(in) v.push_back(named_dialog(XLAT("select a puzzle"), show_menu));
     });
+#endif
 
 EX }
 }

@@ -4,6 +4,8 @@
 // good parameters: -fixx 10 -W Cros -bantar_anim
 // use -bantar_map to see how it works
 
+#include "rogueviz.h"
+
 namespace rogueviz { namespace banachtarski {
 
 bool on;
@@ -151,10 +153,8 @@ void recursive_paint(cwpath& pinv, vector<int>& way, int noway) {
   else
     gid = 3;
   
-  infos[c] = cellinfo{c, gid, 0};
-  infos[c].way = way;
-  infos[c].pinv = pinv;
-  
+  infos[c] = cellinfo{c, gid, 0, waNone, itNone, laNone, moNone, way, pinv};
+
   // c->landparam ^= ((isize(way)&1) * 0x3F3F3F);
   // c->landparam = hsh; // d * 5 + 256 * (hsh&0xFFFF) + 0x400000;
   if(cidd>112899) c->landparam = 0x101010;
@@ -291,7 +291,6 @@ ld alphaof(hyperpoint h) {
 #define ForInfos for(auto& cci: infos) 
 
 void bantar_frame() {
-  setGLProjection();
   
   ForInfos
     cci.second.w = cci.second.c->wall,
@@ -387,7 +386,7 @@ void bantar_frame() {
     
     gmatrix.clear();
     
-    currentmap->draw();
+    drawthemap();
     if(0) for(auto p: parent) if(gmatrix.count(p.first) && gmatrix.count(p.second) && infos[p.first].gid == i && infos[p.second].gid == i)
       queueline(tC0(gmatrix[p.first]), tC0(gmatrix[p.second]), 0xFFFFFFFF, 2);
     subscr[i] = move(ptds);
@@ -396,15 +395,15 @@ void bantar_frame() {
   map<int, map<int, vector<unique_ptr<drawqueueitem>>>> xptds;
   for(int i=0; i<4; i++) for(auto& p: subscr[i])
     xptds[int(p->prio)][i].push_back(move(p));
-  
+
   for(auto& sm: xptds) for(auto& sm2: sm.second) {
     int i = sm2.first;
     ptds.clear();
     for(auto& p: sm2.second) ptds.push_back(move(p));
 
-    vid.scale = .5;
-    vid.xposition = (!(i&2)) ? xdst : -xdst;
-    vid.yposition = (!(i&1)) ? ydst : -ydst;
+    pconf.scale = .5;
+    pconf.xposition = (!(i&2)) ? xdst : -xdst;
+    pconf.yposition = (!(i&1)) ? ydst : -ydst;
     calcparam();
     drawqueue();
     }
@@ -414,6 +413,8 @@ void bantar_frame() {
     cci.second.c->item = cci.second.it,
     cci.second.c->monst = cci.second.mo,
     cci.second.c->land = cci.second.land;
+  
+  ptds.clear();
   }
 
 void bantar_anim() {
@@ -425,17 +426,18 @@ void bantar_anim() {
   while(!breakanim) {
     ticks = SDL_GetTicks() - t;
     
-    bantar_frame();
+    pushScreen(bantar_frame);
+    drawscreen();
+    popScreen();
     
-    SDL_GL_SwapBuffers();
     SDL_Event ev;
     while(SDL_PollEvent(&ev)) 
       if(ev.type == SDL_KEYDOWN || ev.type == SDL_MOUSEBUTTONDOWN)
         breakanim = true;      
     }
   mapeditor::drawplayer = true;
-  vid.xposition = vid.yposition = 0;
-  vid.scale = 1;
+  pconf.xposition = pconf.yposition = 0;
+  pconf.scale = 1;
   }
 
 bool bmap;
@@ -479,6 +481,32 @@ void init_bantar_map() {
     }
   }
   
+// see: https://twitter.com/ZenoRogue/status/1001127253747658752
+// see also: https://twitter.com/ZenoRogue/status/1000043540985057280 (older version)
+
+void bantar_record() {
+  int TSIZE = rug::texturesize; // recommended 2048
+  resetbuffer rb;
+  renderbuffer rbuf(TSIZE, TSIZE, true);
+
+  int fr = 0;
+  
+  for(int i=0; i < 10000; i += 33) {
+    if(i % 1000 == 999) i++;
+    ticks = i;
+
+    rbuf.enable();
+    vid.xres = vid.yres = TSIZE;
+    banachtarski::bantar_frame();
+    
+    IMAGESAVE(rbuf.render(), ("bantar/" + format("%05d", fr) + IMAGEEXT).c_str());
+    printf("GL %5d/%5d\n", i, 10000);
+    fr++;
+    }
+  
+  rb.reset();
+  }
+
 int readArgs() {
   using namespace arg;
            
@@ -514,12 +542,61 @@ int readArgs() {
   else if(argis("-btry")) {
     shift(); notry = argi();
     }
+  else if(argis("-bantar_record")) {
+    using namespace banachtarski;
+    PHASE(3);
+    peace::on = true;
+    airmap.clear();
+    ForInfos if(cci.second.c->monst == moAirElemental)
+      cci.second.c->monst = moFireElemental;
+    bantar_record();
+    }
   else return 1;
   return 0;
   }
 
 auto hook = addHook(hooks_args, 100, readArgs)
   + addHook(hooks_initgame, 100, bantar)
-  + addHook(hooks_frame, 100, bantar_stats);
+  + addHook(hooks_frame, 100, bantar_stats)
+  + addHook(rvtour::hooks_build_rvtour, 140, [] (vector<tour::slide>& v) {
+    using namespace rvtour;
+    v.push_back(
+      tour::slide{"unsorted/Banach-Tarski-like", 62, LEGAL::NONE,
+     "Banach-Tarski-like decomposition. Break a hyperbolic plane into two hyperbolic planes.\n\n"
+     "Press '5' to show the decomposition. Press any key to stop.\n\n"
+     "You will see a map of the decomposition. Press '5' again to return.",
+     
+    [] (presmode mode) {
+      slidecommand = "Banach-Tarski switch";
+      if(mode == 3) {
+        while(gamestack::pushed()) stop_game(), gamestack::pop();
+        banachtarski::bmap = false;
+        banachtarski::on = false;
+        }
+      if(mode == 4) {
+        if(!banachtarski::on) {
+          bool b = mapeditor::drawplayer;
+          specialland = cwt.at->land;
+          gamestack::push();
+          banachtarski::init_bantar();
+          airmap.clear();
+          dynamicval<int> vs(sightrange_bonus, 3);
+          dynamicval<int> vg(genrange_bonus, 3);
+          doOvergenerate();
+          banachtarski::bantar_anim();
+          quitmainloop = false;
+          mapeditor::drawplayer = b;
+          banachtarski::init_bantar_map();
+          resetview();
+          }
+        else if(banachtarski::on && banachtarski::bmap) {
+          banachtarski::bmap = false;
+          banachtarski::on = false;
+          gamestack::pop();
+          }
+        }
+      }}
+      );
+    });
 
 }}

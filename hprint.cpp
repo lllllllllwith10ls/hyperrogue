@@ -25,7 +25,8 @@ EX FILE *debugfile;
 #define DF_GP             2048
 #define DF_POLY           4096
 #define DF_LOG            8192
-#define DF_KEYS "imwesxufgbtopl"
+#define DF_VERTEX        16384
+#define DF_KEYS "imwesxufgbtoplv"
 #endif
 
 EX int debugflags = DF_INIT | DF_ERROR | DF_WARN | DF_MSG | DF_TIME | DF_LOG;
@@ -43,7 +44,7 @@ EX string fts(ld x, int prec IS(6)) {
   return ss.str();
   }
 
-map<void*, int> pointer_indices;
+EX map<void*, int> pointer_indices;
 
 EX string index_pointer(void *v) {
   if(v == nullptr) return "0";
@@ -81,6 +82,8 @@ inline void hwrite(hstream& hs, const string& s) {
     hs.write_char((char)255);
     hs.write<int>(isize(s));
     }
+  else 
+    hs.write_char(isize(s));    
   for(char c: s) hs.write_char(c);
   }
 inline void hread(hstream& hs, string& s) {
@@ -226,7 +229,7 @@ template<class... T> void print(hstream& hs, const tuple<T...> & t) {
 inline void special_log(char c) { if(debugfile) fputc(c, debugfile); putchar(c); }
 #endif
 
-#if !CAP_SDL && !ISFAKEMOBILE
+#if !CAP_SDL && CAP_TIMEOFDAY
 int SDL_GetTicks();
 #endif
 
@@ -277,6 +280,22 @@ struct indenter_finish : indenter {
   };
 
 #endif
+
+EX void print(hstream& hs, cld x) { 
+  int parts = 0;
+  if(kz(real(x))) {
+    print(hs, real(x)); 
+    parts++;
+    }
+  
+  if(kz(imag(x))) {
+    if(parts && imag(x) > 0) print(hs, "+");
+    parts++;
+    print(hs, imag(x), "i"); 
+    }
+  
+  if(!parts) print(hs, 0);
+  }
 
 EX string fts_fixed(ld x, int prec IS(6)) {
   std::stringstream ss;
@@ -354,6 +373,13 @@ EX transmatrix kz(transmatrix h) {
   return h;
   }
 
+#if HDR
+template<class T> vector<T> kz(vector<T> v) {
+  for(auto& el: v) el = kz(el);
+  return v;
+  }
+#endif
+
 EX string pick123() { return cts('1' + rand() % 3); }
 EX string pick12() { return cts('1' + rand() % 2); }
 
@@ -393,4 +419,19 @@ EX string as_cstring(string o) {
 #endif
 #endif
 
+#if CAP_GMP
+EX string its(mpq_class x) { std::stringstream ss; ss << x; return ss.str(); }
+EX void print(hstream& hs, const mpq_class& x) {
+  std::stringstream ss; ss << x; print(hs, ss.str()); 
+  }
+#endif
+
+#if HDR
+template<class... T> string lalign(int len, T... t) {
+  shstream hs;
+  print(hs, t...);
+  while(isize(hs.s) < len) hs.s += " ";
+  return hs.s;
+  }
+#endif
 }

@@ -36,6 +36,18 @@ struct gamedata {
       }
     index += ssize;
     }
+  template<class T> void store_ptr(T& x) {
+    T* copy;
+    if(mode == 0) {
+      copy = new T;
+      *copy = move(x);
+      }
+    store(copy);
+    if(mode != 0) {
+      x = move(*copy);
+      delete copy;
+      }
+    }
   };
 #endif
 
@@ -49,7 +61,7 @@ void gamedata_all(gamedata& gd) {
   gd.store(chaosmode);
   gd.store(*current_display);
   gd.store(cgip);
-  gd.store(vid);
+  gd.store_ptr(vid);
   gd.store(sightrange_bonus);
   gd.store(genrange_bonus);
   gd.store(gamerange_bonus);
@@ -82,7 +94,7 @@ void gamedata::restoregame() {
   gamedata_all(*this);
   }
 
-EX hookset<void(gamedata*)> *hooks_gamedata;
+EX hookset<void(gamedata*)> hooks_gamedata;
 
 EX namespace gamestack {
 

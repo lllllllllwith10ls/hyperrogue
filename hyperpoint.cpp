@@ -13,7 +13,11 @@
 namespace hr {
 
 #if HDR
+static const ld full_circle = 2 * M_PI;
+static const ld quarter_circle = M_PI / 2;
 static const ld degree = M_PI / 180;
+static const ld golden_phi = (sqrt(5)+1)/2;
+static const ld log_golden_phi = log(golden_phi);
 #endif
 
 eGeometry geometry;
@@ -22,6 +26,7 @@ eVariation variation;
 
 #if HDR
 /** \brief A point in our continuous space
+ *
  *  Originally used for representing points in the hyperbolic plane.
  *  Currently used for all kinds of supported spaces, as well as
  *  for all vector spaces (up to 4 dimensions). We are using
@@ -100,6 +105,7 @@ struct hyperpoint : array<ld, MAXMDIM> {
   };
 
 /** \brief A matrix acting on hr::hyperpoint 
+ *
  *  Since we are using homogeneous coordinates for hr::hyperpoint,
  *  rotations and translations can be represented
  *  as matrix multiplications. Other applications of matrices in HyperRogue 
@@ -108,7 +114,7 @@ struct hyperpoint : array<ld, MAXMDIM> {
 struct transmatrix {
   ld tab[MAXMDIM][MAXMDIM];
   hyperpoint& operator [] (int i) { return (hyperpoint&)tab[i][0]; }
-  const ld * operator [] (int i) const { return tab[i]; }
+  const hyperpoint& operator [] (int i) const { return (const hyperpoint&)tab[i]; }
   
   inline friend hyperpoint operator * (const transmatrix& T, const hyperpoint& H) {
     hyperpoint z;
@@ -228,6 +234,7 @@ EX ld acos_auto(ld x) {
     }
   }
 
+/** \brief volume of a three-dimensional ball of radius r in the current isotropic geometry */
 EX ld volume_auto(ld r) {
   switch(cgclass) {
     case gcEuclid: return 4 * r * r * r / 3 * M_PI;
@@ -235,6 +242,22 @@ EX ld volume_auto(ld r) {
     case gcSphere: return M_PI * (2 * r - sin(2*r));
     default: return 0;
     }
+  }
+
+/** \brief area of a circle of radius r in the current isotropic geometry */
+EX ld area_auto(ld r) {
+  switch(cgclass) {
+    case gcEuclid: return r * r * M_PI;
+    case gcHyperbolic: return 2 * M_PI * (cosh(r) - 1);
+    case gcSphere: return 2 * M_PI * (1 - cos(r));
+    default: return 0;
+    }
+  }
+
+/** \brief volume in 3D, area in 2D */
+EX ld wvolarea_auto(ld r) {
+  if(WDIM == 3) return volume_auto(r);
+  else return area_auto(r);
   }
 
 EX ld asin_clamp(ld x) { return x>1 ? M_PI/2 : x<-1 ? -M_PI/2 : std::isnan(x) ? 0 : asin(x); }
@@ -305,7 +328,9 @@ EX ld edge_of_triangle_with_angles(ld alpha, ld beta, ld gamma) {
   }
 
 EX hyperpoint hpxy(ld x, ld y) { 
-  return hpxyz(x,y, sl2 ? sqrt(1+x*x+y*y) : translatable ? 1 : sphere ? sqrt(1-x*x-y*y) : sqrt(1+x*x+y*y));
+  if(sl2) return hyperpoint(x, y, 0, sqrt(1+x*x+y*y));
+  if(rotspace) return hyperpoint(x, y, 0, sqrt(1-x*x-y*y));
+  return PIU(hpxyz(x,y, translatable ? 1 : sphere ? sqrt(1-x*x-y*y) : sqrt(1+x*x+y*y)));
   }
 
 EX hyperpoint hpxy3(ld x, ld y, ld z) { 
@@ -358,7 +383,39 @@ EX ld sqhypot_d(int d, const hyperpoint& h) {
 EX ld hypot_d(int d, const hyperpoint& h) {
   return sqrt(sqhypot_d(d, h));
   }
+
+/** @brief h1 and h2 define a line; to_other_side(h1,h2)*x is x moved orthogonally to this line, by double the distance from C0 
+ *  (I suppose it could be done better)
+ */
+EX transmatrix to_other_side(hyperpoint h1, hyperpoint h2) {
+
+  ld d = hdist(h1, h2);
   
+  hyperpoint v;  
+  if(euclid)
+    v = (h2 - h1) / d;    
+  else
+    v = (h1 * cos_auto(d) - h2) / sin_auto(d);
+
+  ld d1;
+  if(euclid)
+    d1 = -(v|h1) / (v|v);
+  else
+    d1 = atan_auto(-v[LDIM] / h1[LDIM]);
+  
+  hyperpoint hm = h1 * cos_auto(d1) + (sphere ? -1 : 1) * v * sin_auto(d1);
+  
+  return rspintox(hm) * xpush(-hdist0(hm) * 2) * spintox(hm);
+  }
+
+/** @brief positive for a material vertex, 0 for ideal vertex, negative for ultra-ideal vertex */
+EX ld material(const hyperpoint& h) {
+  if(sphere) return intval(h, Hypc);
+  else if(hyperbolic) return -intval(h, Hypc);
+  else if(sl2) return h[2]*h[2] + h[3]*h[3] - h[0]*h[0] - h[1]*h[1];
+  else return h[LDIM];
+  }
+
 EX ld zlevel(const hyperpoint &h) {
   if(sl2) return sqrt(-intval(h, Hypc));
   else if(translatable) return h[LDIM];
@@ -387,6 +444,14 @@ EX hyperpoint normalize(hyperpoint H) {
   ld Z = zlevel(H);
   for(int c=0; c<MDIM; c++) H[c] /= Z;
   return H;
+  }
+
+/** like normalize but makes (ultra)ideal points material */
+EX hyperpoint ultra_normalize(hyperpoint H) {
+  if(material(H) <= 0) {
+    H[MDIM-1] = hypot_d(MDIM-1, H) + 1e-6;
+    }
+  return normalize(H);
   }
 
 /** normalize, and in product geometry, also flatten */
@@ -436,10 +501,10 @@ EX transmatrix spin(ld alpha) { return cspin(0, 1, alpha); }
 EX transmatrix random_spin() {
   if(WDIM == 2) return spin(randd() * 2 * M_PI);
   else {
-    ld alpha2 = acos(randd() * 2 - 1);
+    ld alpha2 = asin(randd() * 2 - 1);
     ld alpha = randd() * 2 * M_PI;
     ld alpha3 = randd() * 2 * M_PI;
-    return cspin(0, 2, alpha2) * cspin(0, 1, alpha) * cspin(1, 2, alpha3);
+    return cspin(0, 1, alpha) * cspin(0, 2, alpha2) * cspin(1, 2, alpha3);
     }
   }
 
@@ -510,7 +575,7 @@ EX hyperpoint orthogonal_move(const hyperpoint& h, ld z) {
   if(nil) return nisot::translate(h) * cpush0(2, z);
   if(translatable) return hpxy3(h[0], h[1], h[2] + z);
   ld u = 1;
-  if(h[2]) z += asin_auto(h[2]), u /= acos_auto(z);
+  if(h[2]) z += asin_auto(h[2]), u /= cos_auto(asin_auto(h[2]));
   u *= cos_auto(z);
   return hpxy3(h[0] * u, h[1] * u, sinh(z));
   }
@@ -679,6 +744,8 @@ EX transmatrix rpushxto0(const hyperpoint& H) {
 
 EX transmatrix ggpushxto0(const hyperpoint& H, ld co) {
   if(translatable) {
+    if(nonisotropic)
+      return co > 0 ? eupush(H) : inverse(eupush(H));
     return eupush(co * H);
     }
   if(prod) {
@@ -711,6 +778,7 @@ EX transmatrix rgpushxto0(const hyperpoint& H) {
   }
 
 /** \brief Fix the numerical inaccuracies in the isometry T
+ *
  *  The nature of hyperbolic geometry makes the computations numerically unstable.
  *  The numerical errors tend to accumulate, eventually destroying the projection.
  *  This function fixes this problem by replacing T with a 'correct' isometry.
@@ -718,25 +786,34 @@ EX transmatrix rgpushxto0(const hyperpoint& H) {
 
 EX void fixmatrix(transmatrix& T) {
   if(nonisotropic) ; // T may be inverse... do not do that
+  else if(cgflags & qAFFINE) ; // affine
   else if(prod) {
     auto z = zlevel(tC0(T));
     T = mscale(T, -z);
     PIU(fixmatrix(T));
     T = mscale(T, +z);
     }
-  else if(euclid) {
-    for(int x=0; x<GDIM; x++) for(int y=0; y<=x; y++) {
-      ld dp = 0;
-      for(int z=0; z<GDIM; z++) dp += T[z][x] * T[z][y];
-      
-      if(y == x) dp = 1 - sqrt(1/dp);
-      
-      for(int z=0; z<GDIM; z++) T[z][x] -= dp * T[z][y];
-      }
-    for(int x=0; x<GDIM; x++) T[LDIM][x] = 0;
-    T[LDIM][LDIM] = 1;
+  else if(euclid)
+    fixmatrix_euclid(T);
+  else
+    orthonormalize(T);
+  }
+
+EX void fixmatrix_euclid(transmatrix& T) {
+  for(int x=0; x<GDIM; x++) for(int y=0; y<=x; y++) {
+    ld dp = 0;
+    for(int z=0; z<GDIM; z++) dp += T[z][x] * T[z][y];
+    
+    if(y == x) dp = 1 - sqrt(1/dp);
+    
+    for(int z=0; z<GDIM; z++) T[z][x] -= dp * T[z][y];
     }
-  else for(int x=0; x<MDIM; x++) for(int y=0; y<=x; y++) {
+  for(int x=0; x<GDIM; x++) T[LDIM][x] = 0;
+  T[LDIM][LDIM] = 1;
+  }
+
+EX void orthonormalize(transmatrix& T) {
+  for(int x=0; x<MDIM; x++) for(int y=0; y<=x; y++) {
     ld dp = 0;
     for(int z=0; z<MDIM; z++) dp += T[z][x] * T[z][y] * sig(z);
     
@@ -1006,13 +1083,13 @@ EX bool asign(ld y1, ld y2) { return signum(y1) != signum(y2); }
 
 EX ld xcross(ld x1, ld y1, ld x2, ld y2) { return x1 + (x2 - x1) * y1 / (y1 - y2); }
 
-EX transmatrix parallel_transport(const transmatrix Position, const transmatrix& ori, const hyperpoint direction, int precision IS(100)) {
+EX transmatrix parallel_transport(const transmatrix Position, const transmatrix& ori, const hyperpoint direction) {
   if(nonisotropic) return nisot::parallel_transport(Position, direction);
   else if(prod) {
     hyperpoint h = product::direct_exp(ori * direction);
     return Position * rgpushxto0(h);
     }
-  else return Position * rgpushxto0(direct_exp(direction, precision));
+  else return Position * rgpushxto0(direct_exp(direction));
   }
 
 EX void apply_parallel_transport(transmatrix& Position, const transmatrix orientation, const hyperpoint direction) {
@@ -1127,8 +1204,8 @@ EX hyperpoint tangent_length(hyperpoint dir, ld length) {
   }
 
 /** exponential function: follow the geodesic given by v */
-EX hyperpoint direct_exp(hyperpoint v, int steps) {
-  if(sn::in()) return nisot::numerical_exp(v, steps);
+EX hyperpoint direct_exp(hyperpoint v) {
+  if(sn::in()) return nisot::numerical_exp(v);
   if(nil) return nilv::formula_exp(v);
   if(sl2) return slr::formula_exp(v);
   if(prod) return product::direct_exp(v);
@@ -1139,32 +1216,44 @@ EX hyperpoint direct_exp(hyperpoint v, int steps) {
   }
 
 #if HDR
-enum iePrecision { iLazy, iTable };
+constexpr flagtype pfNO_INTERPOLATION = 1; /**< in tables (sol/nih geometries), do not use interpolations */
+constexpr flagtype pfNO_DISTANCE      = 2; /**< we just need the directions -- this makes it a bit faster in sol/nih geometries */
+constexpr flagtype pfLOW_BS_ITER      = 4; /**< low iterations in binary search (nil geometry, sl2 not affected currently) */
+
+constexpr flagtype pQUICK     = pfNO_INTERPOLATION | pfLOW_BS_ITER;
+
+constexpr flagtype pNORMAL    = 0;
 #endif
   
 /** inverse exponential function \see hr::direct_exp */
-EX hyperpoint inverse_exp(const hyperpoint h, iePrecision p, bool just_direction IS(true)) {
+EX hyperpoint inverse_exp(const hyperpoint h, flagtype prec IS(pNORMAL)) {
   #if CAP_SOLV
   if(sn::in()) {
     if(nih) 
-      return sn::get_inverse_exp_nsym(h, p == iLazy, just_direction);
+      return sn::get_inverse_exp_nsym(h, prec);
     else
-      return sn::get_inverse_exp_symsol(h, p == iLazy, just_direction);
+      return sn::get_inverse_exp_symsol(h, prec);
     }
   #endif
-  if(nil) return nilv::get_inverse_exp(h, p == iLazy ? 5 : 20);
+  if(nil) return nilv::get_inverse_exp(h, prec);
   if(sl2) return slr::get_inverse_exp(h);
   if(prod) return product::inverse_exp(h);
   ld d = acos_auto_clamp(h[GDIM]);
-  hyperpoint v;
+  hyperpoint v = Hypc;
   if(d && sin_auto(d)) for(int i=0; i<GDIM; i++) v[i] = h[i] * d / sin_auto(d);
   v[3] = 0;
   return v;
   }
 
-EX ld geo_dist(const hyperpoint h1, const hyperpoint h2, iePrecision p) {
+EX ld geo_dist(const hyperpoint h1, const hyperpoint h2, flagtype prec IS(pNORMAL)) {
   if(!nonisotropic) return hdist(h1, h2);
-  return hypot_d(3, inverse_exp(inverse(nisot::translate(h1)) * h2, p, false));
+  return hypot_d(3, inverse_exp(inverse(nisot::translate(h1)) * h2, prec));
+  }
+
+EX ld geo_dist_q(const hyperpoint h1, const hyperpoint h2, flagtype prec IS(pNORMAL)) {
+  auto d = geo_dist(h1, h2, prec);
+  if(elliptic && d > M_PI/2) return M_PI - d;
+  return d;
   }
 
 EX hyperpoint lp_iapply(const hyperpoint h) {
@@ -1190,12 +1279,12 @@ EX ld raddif(ld a, ld b) {
   return d;
   }
 
-EX int bucketer(ld x) {
-  return (long long)(x * 10000 + 100000.5) - 100000;
+EX unsigned bucketer(ld x) {
+  return unsigned((long long)(x * 10000 + 100000.5) - 100000);
   }
 
-EX int bucketer(hyperpoint h) {
-  int dx = 0;
+EX unsigned bucketer(hyperpoint h) {
+  unsigned dx = 0;
   if(prod) {
     auto d = product_decompose(h);
     h = d.second;
@@ -1205,5 +1294,26 @@ EX int bucketer(hyperpoint h) {
   if(MDIM == 4) dx += bucketer(h[3]) * 1000000001;
   return dx;
   }  
+
+/** @brief project the origin to the triangle [h1,h2,h3] */
+EX hyperpoint project_on_triangle(hyperpoint h1, hyperpoint h2, hyperpoint h3) {
+  h1 /= h1[3];
+  h2 /= h2[3];
+  h3 /= h3[3];
+  transmatrix T;
+  T[0] = h1; T[1] = h2; T[2] = h3;
+  T[3] = C0;
+  ld det_orig = det(T);
+  hyperpoint orthogonal = (h2 - h1) ^ (h3 - h1);
+  T[0] = orthogonal; T[1] = h2-h1; T[2] = h3-h1;
+  ld det_orth = det(T);
+  hyperpoint result = orthogonal * (det_orig / det_orth);
+  result[3] = 1;
+  return normalize(result);
+  }
+
+EX hyperpoint lerp(hyperpoint a0, hyperpoint a1, ld x) {
+  return a0 + (a1-a0) * x;
+  }
 
 }

@@ -407,9 +407,9 @@ struct shmup_configurer {
       dialog::addItem(XLAT("configure player 5"), '5');
     else if(!shmup::on && !multi::alwaysuse) {
       if(GDIM == 2) {
-        const char *axmodes[5] = {"OFF", "auto", "light", "heavy", "arrows"};
+        const char *axmodes[7] = {"OFF", "auto", "light", "heavy", "arrows", "WASD keys", "VI keys"};
         dialog::addSelItem(XLAT("help for keyboard users"), XLAT(axmodes[vid.axes]), 'h');
-        dialog::add_action([] {vid.axes += 60 + (shiftmul > 0 ? 1 : -1); vid.axes %= 5; } );
+        dialog::add_action([] {vid.axes += 70 + (shiftmul > 0 ? 1 : -1); vid.axes %= 7; } );
         }
       else dialog::addBreak(100);
       }
@@ -549,7 +549,7 @@ EX void initConfig() {
   t[(int)'s'] = 16 + 6;
   t[(int)'a'] = 16 + 7;
 
-#if ISMOBILE==0
+#if !ISMOBILE
   t[SDLK_KP8] = 16 + 4;
   t[SDLK_KP6] = 16 + 5;
   t[SDLK_KP2] = 16 + 6;
@@ -572,7 +572,7 @@ EX void initConfig() {
   t[(int)'p'] = 32 + 10;
   t[(int)'['] = 32 + pcCenter;
 
-#if ISMOBILE==0
+#if !ISMOBILE
   t[SDLK_UP] = 48 ;
   t[SDLK_RIGHT] = 48 + 1;
   t[SDLK_DOWN] = 48 + 2;
@@ -927,10 +927,17 @@ EX void handleInput(int delta) {
         }
       
       multi::cpid = 0;
-      if(multimove()) {
+      if(multimove()) {      
         multi::aftermove = false;
-        monstersTurn();
-        checklastmove();
+        if(shmup::delayed_safety) {
+          activateSafety(shmup::delayed_safety_land);
+          shmup::delayed_safety = false;
+          checklastmove();
+          }
+        else {          
+          monstersTurn();
+          checklastmove();
+          }
         }
       }
     }

@@ -525,22 +525,22 @@ public class HyperRogue extends Activity implements SensorEventListener {
   if(curland == 17) id = R.raw.graveyard; // Dead Cave
   if(curland == 18) id = R.raw.motion; // Hive
   if(curland == 19) id = R.raw.mirror; // Land of Power
-  if(curland == 20) id = R.raw.hell; // Camelot
+  if(curland == 20) id = R.raw.palace; // Camelot
   if(curland == 21) id = R.raw.rlyeh; // Temple of Cthulhu
   if(curland == 22) id = R.raw.crossroads; // Crossroads II
-  if(curland == 23) id = R.raw.crossroads; // Caribbean
+  if(curland == 23) id = R.raw.caribbean; // Caribbean
   if(curland == 24) id = R.raw.desert; // Red Rock Valley
   if(curland == 25) id = R.raw.hell; // Minefield
-  if(curland == 26) id = R.raw.caves; // Ocean
+  if(curland == 26) id = R.raw.ocean; // Ocean
   if(curland == 27) id = R.raw.rlyeh; // Whirlpool
-  if(curland == 28) id = R.raw.crossroads; // Palace
-  if(curland == 29) id = R.raw.caves; // Living Fjord
-  if(curland == 30) id = R.raw.hell; // Ivory Tower
+  if(curland == 28) id = R.raw.palace; // Palace
+  if(curland == 29) id = R.raw.ocean; // Living Fjord
+  if(curland == 30) id = R.raw.ivory; // Ivory Tower
   if(curland == 31) id = R.raw.motion; // Zebra
   if(curland == 32) id = R.raw.hell; // Plane of Fire
   if(curland == 33) id = R.raw.motion; // Plane of Air
   if(curland == 34) id = R.raw.caves; // Plane of Earth
-  if(curland == 35) id = R.raw.crossroads; // Plane of Water
+  if(curland == 35) id = R.raw.caribbean; // Plane of Water
   if(curland == 36) id = R.raw.crossroads; // Crossroads III
   if(curland == 39) id = R.raw.laboratory; // Canvas
   if(curland == 41) id = R.raw.caves; // Wild West
@@ -548,21 +548,21 @@ public class HyperRogue extends Activity implements SensorEventListener {
   if(curland == 43) id = R.raw.jungle; // Overgrown Woods
   if(curland == 44) id = R.raw.jungle; // Clearing
   if(curland == 45) id = R.raw.graveyard; // Haunted Woods
-  if(curland == 48) id = R.raw.laboratory; // Windy Plains
+  if(curland == 48) id = R.raw.ivory; // Windy Plains
   if(curland == 49) id = R.raw.hell; // Rose Garden
-  if(curland == 50) id = R.raw.caves; // Warped Coast
+  if(curland == 50) id = R.raw.ocean; // Warped Coast
   if(curland == 52) id = R.raw.crossroads; // Crossroads IV
-  if(curland == 53) id = R.raw.laboratory; // Yendorian Forest
+  if(curland == 53) id = R.raw.ivory; // Yendorian Forest
   if(curland == 54) id = R.raw.crossroads; // Gal�pagos
   if(curland == 55) id = R.raw.caves; // Dragon Chasms
   if(curland == 56) id = R.raw.rlyeh; // Kraken Depths
   if(curland == 57) id = R.raw.graveyard; // Burial Grounds
   if(curland == 58) id = R.raw.desert; // Trollheim
-  if(curland == 56) id = R.raw.rlyeh; // Kraken Depths
+  if(curland == 56) id = R.raw.ocean; // Kraken Depths
   if(curland == 57) id = R.raw.graveyard; // Burial Grounds
   if(curland == 58) id = R.raw.desert; // Trollheim
   if(curland == 59) id = R.raw.graveyard; // Halloween
-  if(curland == 60) id = R.raw.desert; // Dungeon
+  if(curland == 60) id = R.raw.palace; // Dungeon
   if(curland == 61) id = R.raw.rlyeh; // Lost Mountain
   if(curland == 62) id = R.raw.mirror; // Reptiles
   if(curland == 63) id = R.raw.rlyeh; // Prairie
@@ -581,6 +581,13 @@ public class HyperRogue extends Activity implements SensorEventListener {
   if(curland == 80) id = R.raw.graveyard; // Ruined City
   if(curland == 81) id = R.raw.caves; // Magnetosphere
   if(curland == 82) id = R.raw.laboratory; // Jelly Kingdom
+  if(curland == 84) id = R.raw.caribbean; // Brown Island
+  if(curland == 85) id = R.raw.ivory; // Free Fall
+  if(curland == 86) id = R.raw.palace; // Irradiated Field
+  if(curland == 87) id = R.raw.crossroads;
+  if(curland == 88) id = R.raw.graveyard;
+  if(curland == 89) id = R.raw.laboratory;
+  if(curland == 90) id = R.raw.palace;
 
           if(id > 0) backgroundmusic = MediaPlayer.create(this, id);
     	  if(backgroundmusic != null) {
@@ -628,8 +635,8 @@ public class HyperRogue extends Activity implements SensorEventListener {
 
      Sensor mRotation; // mAccelerometer, mMagneticField;
 
-     final int[] msgn = {1, 1, -1};
-     final int[] msgnl = {1, -1, 1};
+     final int[] msgn = {1, 1, 1};
+     final int[] msgnl = {1, 1, -1};
      final int[] lsc = {1, 0, 2};
 
   double getOrientation(int i, int j) {
@@ -649,11 +656,23 @@ public class HyperRogue extends Activity implements SensorEventListener {
         }});
       }
       int rotation =  getWindowManager().getDefaultDisplay().getRotation();
-      if((rotation & 1) == 1)
-          return mRotationMatrix[lsc[j]+3*lsc[i]]*msgnl[i]*msgnl[j];
 
+      switch(rotation) {
+        case android.view.Surface.ROTATION_0:
+          return mRotationMatrix[j+3*i];
 
-      return mRotationMatrix[j+3*i]*msgn[i]*msgn[j];
+        case android.view.Surface.ROTATION_90:
+          return mRotationMatrix[lsc[j]+3*i] * (j==0?-1:1);
+
+        case android.view.Surface.ROTATION_270:
+          return mRotationMatrix[lsc[j]+3*i]*(j==1?-1:1);
+
+        case android.view.Surface.ROTATION_180:
+          return mRotationMatrix[j+3*i]*(j<2?-1:1);
+
+        default:
+          return mRotationMatrix[j+3*i];
+        }
     }
 
  @Override
@@ -698,6 +717,7 @@ class HRConfigChooser implements EGLConfigChooser {
                 EGL10.EGL_GREEN_SIZE, 6,
                 EGL10.EGL_BLUE_SIZE, 5,
                 EGL10.EGL_STENCIL_SIZE, 1,
+                EGL10.EGL_DEPTH_SIZE, 8,
                 EGL10.EGL_NONE
          };
 
@@ -723,9 +743,10 @@ class HRConfigChooser implements EGLConfigChooser {
             int b = getValue(egl, display, config, EGL10.EGL_BLUE_SIZE);
             int a = getValue(egl, display, config, EGL10.EGL_ALPHA_SIZE);
             int score = 10000;
-            if (s == 0) score -= 1000;
+            if (s == 0) score -= 2000;
             score -= s;
-            score -= d;
+            if (d < 8) score -= 1000;
+            score += d;
             score -= a;
             int all = r + g + b;
             if (all < 24) score -= 10 * (24 - all);

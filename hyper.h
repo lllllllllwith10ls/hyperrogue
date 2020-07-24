@@ -13,26 +13,34 @@
 #define _HYPER_H_
 
 // version numbers
-#define VER "11.3b"
-#define VERNUM_HEX 0xA822
+#define VER "11.3r"
+#define VERNUM_HEX 0xA832
 
 #include "sysconfig.h"
 
 #include <stdarg.h>
 #include "hyper_function.h"
 
+/** \brief the main namespace of HyperRogue */
 namespace hr {
 
+/** \brief A helper structure that acts as a boolean which is always false. Helpful when disabling stuff with compiler flags. */
 struct always_false {
   operator bool() const { return false; };
   bool operator = (bool b) const { return b; };
   };
 
+/** \brief placate GCC's overzealous -Wunused-result */
 template<class T>
 void ignore(T&&) {
-  // placate GCC's overzealous -Wunused-result
   }
 
+/** \brief a simple static_cast<void*> for use with printf("%p") */
+inline const void *voidp(const void *p) {
+  return p;
+  }
+
+/** \brief Is the value of first parameter equal to one of the remaining parameters? */
 template<class T, class V, class... U> bool among(T x, V y) { return x == y; }
 template<class T, class V, class... U> bool among(T x, V y, U... u) { return x==y || among(x,u...); }
 
@@ -112,7 +120,7 @@ void addMessage(string s, char spamtype = 0);
 #define S3 cginf.vertex
 #define hyperbolic_37 (S7 == 7 && S3 == 3 && !bt::in() && !arcm::in())
 #define hyperbolic_not37 ((S7 > 7 || S3 > 3 || bt::in() || arcm::in()) && hyperbolic)
-#define weirdhyperbolic ((S7 > 7 || S3 > 3 || !STDVAR || bt::in() || arcm::in()) && hyperbolic)
+#define weirdhyperbolic ((S7 > 7 || S3 > 3 || !STDVAR || bt::in() || arcm::in() || arb::in()) && hyperbolic)
 #define stdhyperbolic (S7 == 7 && S3 == 3 && STDVAR && !bt::in() && !arcm::in())
 
 #define cgflags cginf.flags 
@@ -134,6 +142,7 @@ void addMessage(string s, char spamtype = 0);
 #define sl2 (cgclass == gcSL2)
 #define prod (cgclass == gcProduct)
 #define hybri (cgflags & qHYBRID)
+#define rotspace (geometry == gRotSpace)
 #define hyperbolic (cgclass == gcHyperbolic)
 #define nonisotropic (among(cgclass, gcSolNIH, gcNil, gcSL2))
 #define translatable (euclid || nonisotropic)
@@ -167,6 +176,14 @@ void addMessage(string s, char spamtype = 0);
 #define SG3 (S3==3?3:2)
 #define SG2 (S3==3?2:1)
 
+#define GOLDBERG_INV (GOLDBERG || INVERSE)
+
+#define INVERSE among(variation, eVariation::unrectified, eVariation::warped, eVariation::untruncated )
+
+#define UNRECTIFIED (variation == eVariation::unrectified)
+#define WARPED (variation == eVariation::warped)
+#define UNTRUNCATED (variation == eVariation::untruncated)
+
 #define GOLDBERG (variation == eVariation::goldberg)
 #define IRREGULAR (variation == eVariation::irregular)
 #define PURE (variation == eVariation::pure)
@@ -179,11 +196,7 @@ void addMessage(string s, char spamtype = 0);
 #define STDVAR (PURE || BITRUNCATED)
 #define NONSTDVAR (!STDVAR)
 
-#if CAP_ARCM
-#define VALENCE (BITRUNCATED ? 3 : arcm::in() ? arcm::valence() : S3)
-#else
-#define VALENCE (BITRUNCATED ? 3 : S3)
-#endif
+#define VALENCE current_valence()
 
 #define NUMWITCH 7
 
@@ -220,9 +233,46 @@ enum eStereo { sOFF, sAnaglyph, sLR, sODS };
 
 enum eModel : int;
 
+/** configuration of the projection */
+struct projection_configuration {
+  eModel model;            /**< which projection, see classes.cpp */
+  ld xposition, yposition; /**< move the center to another position */
+  ld scale, alpha, camera_angle, fisheye_param, twopoint_param, stretch, ballangle, ballproj, euclid_to_sphere;
+  ld clip_min, clip_max;
+  ld model_orientation, halfplane_scale, model_orientation_yz;  
+  ld collignon_parameter; 
+  bool collignon_reflected;
+  string formula;
+  eModel basic_model;
+  ld top_z;
+  ld model_transition;
+  ld spiral_angle;
+  ld spiral_x;
+  ld spiral_y;
+  bool use_atan;
+  ld right_spiral_multiplier;
+  ld any_spiral_multiplier;
+  ld sphere_spiral_multiplier;
+  ld spiral_cone;
+  ld skiprope;
+  ld product_z_scale;
+
+  projection_configuration() { 
+    formula = "z^2"; top_z = 5; model_transition = 1; spiral_angle = 70; spiral_x = 10; spiral_y = 7; 
+    right_spiral_multiplier = 1;
+    any_spiral_multiplier = 1;
+    sphere_spiral_multiplier = 2;
+    spiral_cone = 360;
+    use_atan = false;
+    product_z_scale = 1;
+    }
+  };
+
 struct videopar {
-  ld scale, alpha, sspeed, mspeed, yshift, camera_angle;
-  ld ballangle, ballproj, euclid_to_sphere, twopoint_param, fisheye_param, stretch, binary_width, fixed_facing_dir;
+  projection_configuration projection_config, rug_config;
+  ld yshift;
+  ld sspeed, mspeed;
+  ld binary_width, fixed_facing_dir;
   int mobilecompasssize;
   int radarsize; // radar for 3D geometries
   ld radarrange;
@@ -242,8 +292,6 @@ struct videopar {
   int xres, yres, framelimit;
   
   int xscr, yscr;
-  
-  ld xposition, yposition;
   
   bool grid;
   bool particles;
@@ -296,8 +344,6 @@ struct videopar {
   int cells_drawn_limit;
   int cells_generated_limit; // limit on cells generated per frame
   
-  ld skiprope;
-
   eStereo stereo_mode;
   ld ipd;
   ld lr_eyewidth, anaglyph_eyewidth;
@@ -311,7 +357,6 @@ struct videopar {
   ld depth;      // world level below the plane
   ld camera;     // camera level above the plane
   ld wall_height, creature_scale, height_width;
-  eModel vpmodel;
   ld lake_top, lake_bottom;
   ld rock_wall_ratio;
   ld human_wall_ratio;
@@ -323,7 +368,6 @@ struct videopar {
   ld eye;
   bool auto_eye;
 
-  ld collignon_parameter; bool collignon_reflected;
   ld plevel_factor;
   bool bubbles_special, bubbles_threshold, bubbles_all;
   int joysmooth;
@@ -333,7 +377,7 @@ extern videopar vid;
 
 #define WDIM cginf.g.gameplay_dimension
 #define GDIM cginf.g.graphical_dimension
-#define MDIM cginf.g.homogeneous_dimension
+#define MDIM (MAXMDIM == 3 ? 3 : cginf.g.homogeneous_dimension)
 #define LDIM (MDIM-1)
 #define cclass g.kind
 
@@ -399,8 +443,41 @@ struct movedir {
 
 // shmup
 
-template<class T> class hookset : public map<int, function<T>> {};
-typedef hookset<void()> *purehookset;
+template<class T>
+class hookset {
+    std::map<int, std::function<T>> *map_ = nullptr;
+
+public:
+    template<class U>
+    int add(int prio, U&& hook) {
+        if (map_ == nullptr) map_ = new std::map<int, std::function<T>>();
+        while (map_->count(prio)) {
+            prio++;
+        }
+        map_->emplace(prio, static_cast<U&&>(hook));
+        return 0;
+    }
+
+    template<class... U>
+    void callhooks(U&&... args) const {
+        if (map_ == nullptr) return;
+        for (const auto& p : *map_) {
+            p.second(static_cast<U&&>(args)...);
+        }
+    }
+
+    template<class V, class... U>
+    V callhandlers(V zero, U&&... args) const {
+        if (map_ == nullptr) return zero;
+        for (const auto& p : *map_) {
+            auto z = p.second(static_cast<U&&>(args)...);
+            if (z != zero) return z;
+        }
+        return zero;
+    }
+};
+
+using purehookset = hookset<void()>;
 
 static const int NOHINT = -1;
 
@@ -497,12 +574,6 @@ void IMAGESAVE(SDL_Surface *s, const char *fname);
 #define IMAGESAVE SDL_SaveBMP
 #endif
 
-#endif
-
-// for some reason I need this to compile under OSX
-
-#if ISMAC
-extern "C" { void *_Unwind_Resume = 0; }
 #endif
 
 template<class T> struct dynamicval {
@@ -619,33 +690,28 @@ enum orbAction { roMouse, roKeyboard, roCheck, roMouseForce, roMultiCheck, roMul
 
 #define MODELCOUNT ((int) mdGUARD)
 
-#define pmodel (vid.vpmodel)
+#define pconf vid.projection_config
+#if CAP_RUG
+#define vpconf (rug::rugged ? vid.rug_config : vid.projection_config)
+#else
+#define vpconf pconf
+#endif
+#define pmodel (pconf.model)
 
 color_t darkena(color_t c, int lev, int a);
 
 static const int DISTANCE_UNKNOWN = 127;
 
-#include <functional>
-
-template<class T, class U> int addHook(hookset<T>*& m, int prio, const U& hook) {
-  if(!m) m = new hookset<T> ();
-  while(m->count(prio)) {
-    prio++;
-    }
-  (*m)[prio] = hook;
-  return 0;
+template<class T, class U> int addHook(hookset<T>& m, int prio, U&& hook) {
+  return m.add(prio, static_cast<U&&>(hook));
   }
 
-template<class T, class... U> void callhooks(hookset<T> *h, U... args) {
-  if(h) for(auto& p: *h) p.second(args...);
+template<class T, class... U> void callhooks(const hookset<T>& h, U&&... args) {
+  return h.callhooks(static_cast<U&&>(args)...);
   }
 
-template<class T, class V, class... U> V callhandlers(V zero, hookset<T> *h, U&... args) {
-  if(h) for(auto& p: *h) {
-    auto z = p.second(args...);
-    if(z != zero) return z;
-    }
-  return zero;
+template<class T, class V, class... U> V callhandlers(V zero, const hookset<T>& h, U&&... args) {
+  return h.callhandlers(zero, static_cast<U&&>(args)...);
   }
 
 string XLAT(string);
@@ -668,7 +734,7 @@ struct colortable: vector<color_t> {
 
 namespace scores { void load(); }
 
-#if ISMOBILE==1
+#if ISMOBILE
 namespace leader { void showMenu(); void handleKey(int sym, int uni); }
 #endif
 
@@ -677,7 +743,7 @@ int textwidth(int siz, const string &str);
 int gl_width(int size, const char *s);
 #endif
 
-#ifdef ISMOBILE
+#if ISMOBILE
 extern int andmode;
 extern bool longclick;
 extern bool useRangedOrb;
@@ -763,6 +829,18 @@ template <class T> void texture_order(const T& f) {
        }
     }
   }
+
+/** find the smallest value of x in range [dmin..dmax] such that f(x) returns true */
+
+template<class T> ld binsearch(ld dmin, ld dmax, const T& f) {
+  for(int i=0; i<200; i++) {
+    ld d = (dmin + dmax) / 2;
+    if(dmin == d || dmax == d) break;
+    if(f(d)) dmax = d;
+    else dmin = d;
+    }
+  return dmin;
+  } 
 
 static const color_t NOCOLOR = 0;
 
