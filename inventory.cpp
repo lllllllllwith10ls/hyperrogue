@@ -8,18 +8,28 @@
 #include "hyper.h"
 namespace hr { 
 
+/** \brief Implementation of the Orb Strategy Mode. 
+ *
+ * The most important functions called outside is hr::inv::show(). 
+ */
 EX namespace inv {
 
 #if CAP_INV
+  /** \brief is the Orb Strategy Mode active? */
   EX bool on;
+  /** \brief the number of Orbs used up in each type */
   EX array<int, ittypes> usedup;
+  /** \brief the number of Orbs remaining in each type -- it is recalculated based on your treasure and hr::inv::usedup after every move */
   EX array<int, ittypes> remaining;
+  /** \brief extra orbs can be added to OSM using -IX commandline option */
   EX array<int, ittypes> extra_orbs;
 
+  /** \brief random seed used for hr::inv::invr */
   EX int rseed;
+  /** \brief have we used any 'forbidden' orbs? */
   EX bool usedForbidden;
-
-    
+  
+  /** \brief initialize the OSM data for a new game */
   EX void init() {
     rseed = hrandpos();
     usedForbidden = false;
@@ -58,6 +68,7 @@ EX namespace inv {
     {itGreenGrass, itOrbThorns}
     };
 
+  /** \brief how many orbs can we get from Orb-of-Mirroring orb */
   int mirrorqty0(eItem orb) {
     if(shmup::on && isShmupLifeOrb(orb)) 
       return 3;
@@ -103,13 +114,16 @@ EX namespace inv {
     if(orb == itOrbMirror) return 1;
     return int(mirrorqty0(orb) * sqrt(1.000001+items[itPower]/20.));
     }
-    
+  
+  /** \brief PRNG used for calculating how many Orbs you get for your collected treasure */
   std::mt19937 invr;
   
+  /** \brief initialize hr::inv::invr */
   void sirand(int i) {
     invr.seed(i);
     }
   
+  /** \brief get the next random value from hr::inv::invr */
   int irand(int i) {    
     return invr() % i;
     }
@@ -266,6 +280,7 @@ EX namespace inv {
       extra += extraline(tr, itr >= at ? (its(at)+"!") : "10-50");
     }
   
+  /** \brief Compute how many orbs you get for your current treasure. This is called after every move, and should give consistent results */
   EX void compute() {
     extra = "";
     orbinfoline = "";
@@ -468,6 +483,7 @@ EX namespace inv {
   
   EX bool activating;
 
+  /** \brief show the OSM Orb screen */
   EX void show() {
   
     multi::cpid = 0; /* just in case */
@@ -497,14 +513,7 @@ EX namespace inv {
     int j = 0, oc = 6;
 
     if(1) {
-    dynamicval<eModel> pm(pmodel, flat_model());
-    glClear(GL_DEPTH_BUFFER_BIT);
-    // dynamicval<videopar> v(vid, vid);
-    // vid.alpha = vid.scale = 1;
-    dynamicval<ld> va(vid.alpha, 1);
-    dynamicval<ld> vs(vid.scale, 1);
-    dynamicval<ld> vc(vid.camera_angle, 0);
-    calcparam();
+    flat_model_enabler fme;
 
     for(int i=0; i<ittypes; i++) {
       eItem o = eItem(i);
@@ -579,7 +588,7 @@ EX namespace inv {
           displaystr(vid.xres/2, vid.yres - vid.fsize*6, 2, vid.fsize, osminfo(which), icol, 8);
           }
 
-#if ISMOBILE==0
+#if !ISMOBILE
         string hot = XLAT1("Hotkey: "); hot += getcstat;
         displaystr(vid.xres/2, vid.yres - vid.fsize*5, 2, vid.fsize, hot, icol, 8);
 #endif
@@ -673,7 +682,7 @@ EX namespace inv {
 
 #if CAP_SAVE
   EX void applyBox(eItem it) {
-    applyBoxNum(usedup[it]);
+    scores::applyBoxNum(inv::usedup[it], "@inv-" + dnameof(it));
     }
 #endif
   

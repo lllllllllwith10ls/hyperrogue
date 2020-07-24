@@ -216,10 +216,17 @@ EX color_t darkena(color_t c, int lev, int a) {
 void setcameraangle(bool b) { }
 #endif
 
+#if !CAP_GL
+EX void reset_projection() { }
+EX void glflush() { }
+EX bool model_needs_depth() { return false; }
+void display_data::set_all(int ed) {}
+#endif
+
 #if CAP_GL
 
 #if CAP_VR
-EX hookset<bool()> *hooks_vr_eye_view, *hooks_vr_eye_projection;
+EX hookset<bool()> hooks_vr_eye_view, hooks_vr_eye_projection;
 #endif
 
 EX void eyewidth_translate(int ed) {
@@ -492,8 +499,6 @@ int gl_width(int size, const char *s) {
   return x;
   }
 
-vector<glhr::textured_vertex> tver;
-
 glhr::textured_vertex charvertex(int x1, int y1, ld tx, ld ty) {
   glhr::textured_vertex res;
   res.coords[0] = x1;
@@ -607,11 +612,11 @@ EX void resetGL() {
 
 vector<int> graphdata;
 
-void gdpush(int t) {
+EX void gdpush(int t) {
   graphdata.push_back(t);
   }
 
-bool displaychr(int x, int y, int shift, int size, char chr, color_t col) {
+EX bool displaychr(int x, int y, int shift, int size, char chr, color_t col) {
   gdpush(2); gdpush(x); gdpush(y); gdpush(8);
   gdpush(col); gdpush(size); gdpush(0);
   gdpush(1); gdpush(chr); 
@@ -842,12 +847,12 @@ EX ld realradius() {
   ld vradius = current_display->radius;
   if(sphere) {
     if(sphereflipped()) 
-      vradius /= sqrt(vid.alpha*vid.alpha - 1);
+      vradius /= sqrt(pconf.alpha*pconf.alpha - 1);
     else
       vradius = 1e12; // use the following
     }
   if(euclid)
-    vradius = current_display->radius * get_sightrange() / (1 + vid.alpha) / 2.5;
+    vradius = current_display->radius * get_sightrange() / (1 + pconf.alpha) / 2.5;
   vradius = min<ld>(vradius, min(vid.xres, vid.yres) / 2);
   return vradius;
   }
@@ -857,14 +862,14 @@ EX void drawmessage(const string& s, int& y, color_t col) {
   int space;
   if(dual::state)
     space = vid.xres;
-  else if(y > current_display->ycenter + rrad * vid.stretch)
+  else if(y > current_display->ycenter + rrad * pconf.stretch)
     space = vid.xres;
   else if(y > current_display->ycenter)
-    space = current_display->xcenter - rhypot(rrad, (y-current_display->ycenter) / vid.stretch);
+    space = current_display->xcenter - rhypot(rrad, (y-current_display->ycenter) / pconf.stretch);
   else if(y > current_display->ycenter - vid.fsize)
     space = current_display->xcenter - rrad;
-  else if(y > current_display->ycenter - vid.fsize - rrad * vid.stretch)
-    space = current_display->xcenter - rhypot(rrad, (current_display->ycenter-vid.fsize-y) / vid.stretch);
+  else if(y > current_display->ycenter - vid.fsize - rrad * pconf.stretch)
+    space = current_display->xcenter - rhypot(rrad, (current_display->ycenter-vid.fsize-y) / pconf.stretch);
   else
     space = vid.xres;
 
@@ -904,7 +909,7 @@ EX void drawmessages() {
     }
   msgs.resize(i);
   if(vid.msgleft == 2) {
-    int y = vid.yres - vid.fsize - (ISIOS ? 4 : 0);
+    int y = vid.yres - vid.fsize - hud_margin(1);
     for(int j=isize(msgs)-1; j>=0; j--) {
       int age = msgs[j].flashout * (t - msgs[j].stamp);
       poly_outline = gradient(bordcolor, backcolor, 0, age, 256*vid.flashtime) << 8;
@@ -949,7 +954,7 @@ EX void drawCircle(int x, int y, int size, color_t color, color_t fillcolor IS(0
     if(ISMOBILE && pts > 72) pts = 72;
     for(int r=0; r<pts; r++) {
       float rr = (M_PI * 2 * r) / pts;
-      glcoords.push_back(glhr::makevertex(x + size * sin(rr), y + size * vid.stretch * cos(rr), 0));
+      glcoords.push_back(glhr::makevertex(x + size * sin(rr), y + size * pconf.stretch * cos(rr), 0));
       }
     current_display->set_all(0);
     glhr::vertices(glcoords);
@@ -969,13 +974,13 @@ EX void drawCircle(int x, int y, int size, color_t color, color_t fillcolor IS(0
 #if CAP_XGD
   gdpush(4); gdpush(color); gdpush(x); gdpush(y); gdpush(size);
 #elif CAP_SDLGFX
-  if(vid.stretch == 1) {
+  if(pconf.stretch == 1) {
     if(fillcolor) filledCircleColor(s, x, y, size, fillcolor);
     if(color) ((vid.antialias && AA_NOGL)?aacircleColor:circleColor) (s, x, y, size, color);
     }
   else {
-    if(fillcolor) filledEllipseColor(s, x, y, size, size * vid.stretch, fillcolor);
-    if(color) ((vid.antialias && AA_NOGL)?aaellipseColor:ellipseColor) (s, x, y, size, size * vid.stretch, color);
+    if(fillcolor) filledEllipseColor(s, x, y, size, size * pconf.stretch, fillcolor);
+    if(color) ((vid.antialias && AA_NOGL)?aaellipseColor:ellipseColor) (s, x, y, size, size * pconf.stretch, color);
     }
 #elif CAP_SDL
   int pts = size * 4;
@@ -1022,7 +1027,7 @@ EX void displayColorButton(int x, int y, const string& name, int key, int align,
   }
 
 ld textscale() { 
-  return vid.fsize / (current_display->radius * cgi.crossf) * (1+vid.alpha) * 2;
+  return vid.fsize / (current_display->radius * cgi.crossf) * (1+pconf.alpha) * 2;
   }
   
 EX bool setfsize = true;
@@ -1036,7 +1041,7 @@ EX void do_setfsize() {
   }
 
 EX void disable_vsync() {
-#if !ISMOBWEB
+#if CAP_SDL && CAP_GL && !ISMOBWEB
   SDL_GL_SetAttribute( SDL_GL_SWAP_CONTROL, 0 ); 
 #endif
   }
@@ -1057,7 +1062,8 @@ EX void setvideomode() {
   
 #if CAP_GL
   if(vid.usingGL) {
-    flags = SDL_OPENGL | SDL_HWSURFACE | SDL_GL_DOUBLEBUFFER;
+    flags = SDL_OPENGL | SDL_HWSURFACE;
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 1);
     if(vsync_off) disable_vsync();
     if(vid.antialias & AA_MULTI) {

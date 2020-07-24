@@ -282,10 +282,42 @@ void virtualRebase_cell(cell*& base, T& at, const U& check) {
     base = newbase;
     at = best_at;
     }
+  #if MAXMDIM >= 4
+  if(reg3::ultra_mirror_in()) {
+    again:
+    for(auto& v: cgi.ultra_mirrors) {
+      T cand_at = v * at;
+      horo_distance newz(check(cand_at));
+      if(newz < currz) {
+        currz = newz;
+        at = cand_at;
+        goto again;
+        }
+      }
+    }
+  #endif
   }
 
 template<class T, class U> 
 void virtualRebase(cell*& base, T& at, const U& check) {
+
+  if(nil) {
+    hyperpoint h = check(at);
+    auto step = [&] (int i) {
+      at = currentmap->iadj(base, i) * at; 
+      base = base->cmove(i);
+      h = check(at);
+      };
+    
+    auto& nw = nilv::nilwidth;
+    while(h[1] < -0.5 * nw) step(1);
+    while(h[1] >= 0.5 * nw) step(4);
+    while(h[0] < -0.5 * nw) step(0);
+    while(h[0] >= 0.5 * nw) step(3);
+    while(h[2] < -0.5 * nw * nw) step(2);
+    while(h[2] >= 0.5 * nw * nw) step(5);
+    return;
+    }
 
   if(prod) {
     auto d = product_decompose(check(at)).first;
@@ -378,6 +410,26 @@ ld hrmap_standard::spin_angle(cell *c, int d) {
 EX transmatrix ddspin(cell *c, int d, ld bonus IS(0)) { return currentmap->spin_to(c, d, bonus); }
 EX transmatrix iddspin(cell *c, int d, ld bonus IS(0)) { return currentmap->spin_from(c, d, bonus); }
 EX ld cellgfxdist(cell *c, int d) { return currentmap->spacedist(c, d); }
+
+EX transmatrix ddspin_side(cell *c, int d, ld bonus IS(0)) { 
+  if(kite::in()) {
+    hyperpoint h1 = get_corner_position(c, gmod(d, c->type), 3);
+    hyperpoint h2 = get_corner_position(c, gmod(d+1, c->type) , 3);
+    hyperpoint hm = mid(h1, h2);
+    return rspintox(hm) * spin(bonus);
+    }
+  return currentmap->spin_to(c, d, bonus); 
+  }
+
+EX transmatrix iddspin_side(cell *c, int d, ld bonus IS(0)) {
+  if(kite::in()) {
+    hyperpoint h1 = get_corner_position(c, gmod(d, c->type), 3);
+    hyperpoint h2 = get_corner_position(c, gmod(d+1, c->type) , 3);
+    hyperpoint hm = mid(h1, h2);
+    return spintox(hm) * spin(bonus);
+    }
+  return currentmap->spin_from(c, d, bonus);
+  }
     
 double hrmap_standard::spacedist(cell *c, int i) {
   if(NONSTDVAR || WDIM == 3) return hrmap::spacedist(c, i);
@@ -441,9 +493,45 @@ EX hyperpoint randomPointIn(int t) {
     }
   }
 
+/** /brief get the coordinates of the vertex of cell c indexed with cid
+ *  the two vertices c and c->move(cid) share are indexed cid and gmod(cid+1, c->type)
+ *  cf=3 is the vertex itself; larger values are closer to the center
+ */  
+
 EX hyperpoint get_corner_position(cell *c, int cid, ld cf IS(3)) {
   #if CAP_GP
   if(GOLDBERG) return gp::get_corner_position(c, cid, cf);
+  if(UNTRUNCATED) {
+    cell *c1 = gp::get_mapped(c);
+    cellwalker cw(c1, cid*2);
+    if(!gp::untruncated_shift(c)) cw--;
+    hyperpoint h = UIU(nearcorner(c1, cw.spin));
+    return mid_at_actual(h, 3/cf);
+    }
+  if(UNRECTIFIED) {
+    cell *c1 = gp::get_mapped(c);
+    hyperpoint h = UIU(nearcorner(c1, cid));
+    return mid_at_actual(h, 3/cf);
+    }
+  if(WARPED) {
+    int sh = gp::untruncated_shift(c);
+    cell *c1 = gp::get_mapped(c);
+    if(sh == 2) {
+      cellwalker cw(c, cid);
+      hyperpoint h1 = UIU(tC0(currentmap->adj(c1, cid)));
+      cw--;
+      hyperpoint h2 = UIU(tC0(currentmap->adj(c1, cw.spin)));
+      hyperpoint h = mid(h1, h2);
+      return mid_at_actual(h, 3/cf);
+      }
+    else {
+      cellwalker cw(c1, cid*2);
+      if(!gp::untruncated_shift(c)) cw--;
+      hyperpoint h = UIU(nearcorner(c1, cw.spin));
+      h = mid(h, C0);
+      return mid_at_actual(h, 3/cf);
+      }
+    }
   #endif
   #if CAP_IRR
   if(IRREGULAR) {
@@ -463,7 +551,7 @@ EX hyperpoint get_corner_position(cell *c, int cid, ld cf IS(3)) {
   #endif
   #if CAP_ARCM
   if(arcm::in()) {
-    auto &ac = arcm::current;
+    auto &ac = arcm::current_or_fake();
     if(PURE) {
       if(arcm::id_of(c->master) >= ac.N*2) return C0;
       auto& t = ac.get_triangle(c->master, cid-1);
@@ -483,7 +571,7 @@ EX hyperpoint get_corner_position(cell *c, int cid, ld cf IS(3)) {
     }
   #endif
   if(arb::in()) {
-    auto& sh = arb::current.shapes[arb::id_of(c->master)];
+    auto& sh = arb::current_or_slided().shapes[arb::id_of(c->master)];
     return normalize(C0 + (sh.vertices[gmod(cid, c->type)] - C0) * 3 / cf);
     }
   if(PURE) {
@@ -500,8 +588,10 @@ EX hyperpoint get_corner_position(cell *c, int cid, ld cf IS(3)) {
 
 EX bool approx_nearcorner = false;
 
+/** /brief get the coordinates of the center of c->move(i) */
+
 EX hyperpoint nearcorner(cell *c, int i) {
-  if(GOLDBERG) {
+  if(GOLDBERG_INV) {
     cellwalker cw(c, i);
     cw += wstep;
     transmatrix cwm = currentmap->adj(c, i);
@@ -592,16 +682,25 @@ EX hyperpoint nearcorner(cell *c, int i) {
   return ddspin(c, i) * xpush0(d);
   }
 
+/** /brief get the coordinates of the another vertex of c->move(i)
+ *  this is useful for tessellation remapping TODO COMMENT
+ */
+
 EX hyperpoint farcorner(cell *c, int i, int which) {
   #if CAP_GP
-  if(GOLDBERG) {
+  if(GOLDBERG_INV) {
     cellwalker cw(c, i);
     cw += wstep;
-    if(!cw.mirrored) cw.spin += (which?-1:2);
-    else cw.spin += (which?2:-1);
+    if(!cw.mirrored) cw += (which?-1:2);
+    else cw += (which?2:-1);
     transmatrix cwm = currentmap->adj(c, i);
-    auto li1 = gp::get_local_info(cw.at);
-    return cwm * get_corner_position(li1, cw.spin);
+    if(gp::variation_for(gp::param) == eVariation::goldberg) {
+      auto li1 = gp::get_local_info(cw.at);
+      return cwm * get_corner_position(li1, cw.spin);
+      }
+    else {
+      return cwm * get_corner_position(cw.at, cw.spin, 3);
+      }
     }
   #endif
   #if CAP_IRR

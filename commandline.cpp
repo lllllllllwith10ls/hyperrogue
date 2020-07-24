@@ -8,6 +8,14 @@
 #include "hyper.h"
 namespace hr {
 
+#ifdef RESOURCEDESTDIR
+EX string rsrcdir = RESOURCEDESTDIR;
+#endif
+
+#ifndef RESOURCEDESTDIR
+EX string rsrcdir = "";
+#endif
+
 #if CAP_COMMANDLINE
 EX const char *scorefile = "hyperrogue.log";
 
@@ -92,10 +100,11 @@ EX namespace arg {
   EX bool argis(const string& s) { if(args()[0] == '-' && args()[1] == '-') return args().substr(1) == s; return args() == s; }
   
   EX void shift_arg_formula(ld& x, const reaction_t& r IS(reaction_t())) {
-    shift(); x = argf(); 
+    shift(); ld old = x; x = argf(); 
     #if CAP_ANIMATIONS
     anims::animate_parameter(x, args(), r); 
     #endif
+    if(old != x && r) r();
     }
   
   #if HDR
@@ -142,9 +151,12 @@ int arg::readCommon() {
 // first phase options
 
   if(argis("-s")) { PHASE(1); shift(); scorefile = argcs(); }
+  else if(argis("-rsrc")) { PHASE(1); shift(); rsrcdir = args(); }
   else if(argis("-nogui")) { PHASE(1); noGUI = true; }
 #ifndef EMSCRIPTEN
+#if CAP_SDL
   else if(argis("-font")) { PHASE(1); shift(); fontpath = args(); }
+#endif
 #endif
 
   else if(argis("-test")) 
@@ -203,6 +215,7 @@ int arg::readCommon() {
     }
 #if CAP_TOUR
   else if(argis("-tour")) {
+    showstartmenu = false;
     PHASEFROM(2); start_game(); tour::start();
     }
   else if(argis("-presentation")) {
@@ -211,7 +224,7 @@ int arg::readCommon() {
     }
 #endif
   else if(argis("-draw")) {
-    PHASE(3); drawscreen();
+    PHASE(3); start_game(); drawscreen();
     }
   else if(argis("-rotate")) {
     PHASE(3);  start_game();
@@ -224,6 +237,14 @@ int arg::readCommon() {
     shift(); ld a = argf();
     shift(); ld b = argf();
     View = View * cspin(1, 2, M_PI * 2 * a / b);
+    }
+  else if(argis("-face-vertex")) {
+    PHASE(3);  start_game();
+    View = cspin(0, 2, M_PI/2) * spintox(cgi.vertices_only[0]);
+    }
+  else if(argis("-face-face")) {
+    PHASE(3);  start_game();
+    View = cspin(0, 2, M_PI/2);
     }
   else if(argis("-grotate")) {
     PHASE(3);  start_game();
@@ -346,7 +367,7 @@ int arg::readCommon() {
 
 EX purehookset hooks_config;
 
-EX hookset<int()> *hooks_args;
+EX hookset<int()> hooks_args;
 
 namespace arg {
 
@@ -356,12 +377,13 @@ namespace arg {
     curphase = phase;
     callhooks(hooks_config);
     while(pos < isize(argument)) {
-      for(auto& h: *hooks_args) {
-        int r = h.second(); if(r == 2) return; if(r == 0) { lshift(); goto cont; }
+      int r = callhandlers(1, hooks_args);
+      switch (r) {
+        case 0: lshift(); break;
+        case 1: printf("Unknown option: %s\n", argcs()); exit(3); break;
+        case 2: return;
+        default: assert(false);
         }
-      printf("Unknown option: %s\n", argcs());
-      exit(3);
-      cont: ;
       }
     }
   }

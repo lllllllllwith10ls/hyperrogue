@@ -319,12 +319,13 @@ EX void spill(cell* c, eWall t, int rad) {
 
 EX void degradeDemons() {
   addMessage(XLAT("You feel more experienced in demon fighting!"));
+  playSound(cwt.at, "levelup");  
   int dcs = isize(dcal);
   for(int i=0; i<dcs; i++) {
     cell *c = dcal[i];
     if(c->monst == moGreaterM || c->monst == moGreater) {
       changes.ccell(c);
-      achievement_gain("DEMONSLAYER");
+      achievement_gain_once("DEMONSLAYER");
       if(c->monst == moGreaterM) c->monst = moLesserM;
       if(c->monst == moGreater) c->monst = moLesser;
       }
@@ -428,7 +429,10 @@ EX void killMonster(cell *c, eMonster who, flagtype deathflags IS(0)) {
     c->hitpoints = 0;
     c->stuntime = 1;
     cell *head = kraken::head(c);
-    if(kraken::totalhp(head) == 0) kraken::kill(head, who);
+    if(kraken::totalhp(head) == 0) {
+      kraken::kill(head, who);
+      playSound(head, "die-kraken");
+      }
     return;
     }
   
@@ -566,12 +570,16 @@ EX void killMonster(cell *c, eMonster who, flagtype deathflags IS(0)) {
     playSound(c, "splash" + pick12());
     destroyHalfvine(c);
     minerEffect(c);
+    #if CAP_COMPLEX2
     brownian::dissolve_brownian(c, 1);
+    #endif
     forCellEx(c1, c) if(passable(c1, c, P_MONSTER | P_MIRROR | P_CLIMBUP | P_CLIMBDOWN)) {
       changes.ccell(c1);
       destroyHalfvine(c1);
       minerEffect(c1);
+      #if CAP_COMPLEX2
       brownian::dissolve_brownian(c1, 1);
+      #endif
       if(c1->monst == moSlime || c1->monst == moPaint || c1->monst == moArt || c1->monst == moSlimeNextTurn)
         killMonster(c1, who);
       }
@@ -846,7 +854,7 @@ EX void fightmessage(eMonster victim, eMonster attacker, bool stun, flagtype fla
       playSound(NULL, "hit-axe"+pick123());
       addMessage(XLAT("You slash %the1.", victim)); 
       if(victim == moGoblin) 
-        achievement_gain("GOBLINSWORD");
+        achievement_gain_once("GOBLINSWORD");
       }
     else if(victim == moKrakenT || victim == moDragonTail || victim == moDragonHead) {
       playSound(NULL, "hit-sword"+pick123());
@@ -991,7 +999,7 @@ EX bool attackMonster(cell *c, flagtype flags, eMonster killer) {
     }
   
   if(m == moIvyRoot && ntk>tk)
-    achievement_gain("IVYSLAYER");
+    achievement_gain_once("IVYSLAYER");
     
   return ntk > tk;
   }
@@ -1237,7 +1245,7 @@ EX void stabbingAttack(cell *mf, cell *mt, eMonster who, int bonuskill IS(0)) {
             addMessage(XLAT("You trick %the1.", c->monst));
           }
         if(c->monst == moFlailer && isPrincess(who) && isUnarmed(who))
-          achievement_gain("PRINCESS_PACIFIST");
+          achievement_gain_once("PRINCESS_PACIFIST");
 
         if(attackMonster(c, 0, who)) {
           numflail++;
@@ -1264,9 +1272,9 @@ EX void stabbingAttack(cell *mf, cell *mt, eMonster who, int bonuskill IS(0)) {
   if(who == moPlayer) {
     if(numsh) achievement_count("STAB", numsh, 0);
     
-    if(numlance && numflail && numsh) achievement_gain("MELEE3");
+    if(numlance && numflail && numsh) achievement_gain_once("MELEE3");
   
-    if(numlance + numflail + numsh + numslash + bonuskill >= 5) achievement_gain("MELEE5");
+    if(numlance + numflail + numsh + numslash + bonuskill >= 5) achievement_gain_once("MELEE5");
   
     if(numsh == 2) {
       if(lastdouble == turncount-1) achievement_count("STAB", 4, 0);

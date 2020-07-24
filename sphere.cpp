@@ -167,6 +167,7 @@ struct hrmap_spherical : hrmap_standard {
       #endif
       swap(gmatrix, gmatrix0);
       just_gmatrix = true;
+      dynamicval<cell*> cco(centerover, gamestart());
       draw();
       just_gmatrix = false;
       swap(gmatrix, gmatrix0);
@@ -188,6 +189,7 @@ struct hrmap_spherical : hrmap_standard {
   };
 
 EX heptagon *getDodecahedron(int i) {
+  if(fake::in()) return FPIU(getDodecahedron(i));
   hrmap_spherical *s = dynamic_cast<hrmap_spherical*> (currentmap);
   if(!s) return NULL;
   return s->dodecahedron[i];

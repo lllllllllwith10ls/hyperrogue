@@ -266,6 +266,7 @@ EX void wfc_menu() {
   dialog::display();
   }
 
+#if CAP_COMMANDLINE
 auto wfc_hook = 
   // addHook(hooks_handleKey, 100, wfc_handleKey) +
   addHook(hooks_args, 100, [] {
@@ -285,8 +286,9 @@ auto wfc_hook =
     else return 1;
     return 0;
     });
+#endif
 
-auto cgm = addHook(clearmemory, 40, [] () { centers.clear(); }) +  addHook(hooks_removecells, 0, [] () { eliminate_if(centers, is_cell_removed); });
+auto cgm = addHook(hooks_clearmemory, 40, [] () { centers.clear(); }) +  addHook(hooks_removecells, 0, [] () { eliminate_if(centers, is_cell_removed); });
 
 EX }
 

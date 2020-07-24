@@ -630,7 +630,7 @@ struct info {
 #if CAP_INV
         if(!inv::on || !inv::usedForbidden)
 #endif
-          achievement_gain("PRINCESS1");
+          achievement_gain_once("PRINCESS1");
         princess::saved = true;
         princess::everSaved = true;
         if(inv::on && !princess::reviveAt)
@@ -639,9 +639,9 @@ struct info {
         }
       if(newdist == OUT_OF_PRISON && princess::challenge) {
         addMessage(XLAT("Congratulations! Your score is %1.", its(i->value)));
-        achievement_gain("PRINCESS2");
+        achievement_gain_once("PRINCESS2");
         if(!cheater) achievement_score(36, i->value);
-        showMissionScreen();
+        LATE( showMissionScreen(); )
         }
       }
     if(i->princess->land == laDungeon && !saved && !nodungeon) {
@@ -2145,7 +2145,7 @@ EX namespace heat {
           hdiff /= divby;
 
           #if CAP_FIELD
-          if(ct->land == laBlizzard) {
+          if(ct->land == laBlizzard && c->land == laBlizzard) {
             int v = (windmap::at(ct) - windmap::at(c)) & 255;
             if(v > 128) v -= 256;
             if(v < windmap::NOWINDFROM && v > -windmap::NOWINDFROM)
@@ -2319,7 +2319,6 @@ EX }
 
 bool gardener = false;
 
-bool lifebrought = false; // was Life brought to the Dead Caves?
 EX void doLightningNextTurn() {
   vector<cell*>& allcells = currentmap->allcells();
   int dcs = isize(allcells);
@@ -2540,7 +2539,7 @@ EX void livecaves() {
         c->wall = waCavewall;
         if(c->land != laCaves && c->land != laDeadCaves && c->land != laEmerald && !gardener) {
           gardener = true;
-          achievement_gain("GARDENER");
+          achievement_gain_once("GARDENER");
           }
         }
       }
@@ -2558,10 +2557,8 @@ EX void livecaves() {
   
   for(int i=0; i<isize(bringlife); i++) {
     cell *c = bringlife[i];
-    if(c->land == laDeadCaves && !lifebrought) { 
-      lifebrought = true;
-      achievement_gain("LIFEBRINGER");
-      }
+    if(c->land == laDeadCaves)
+      achievement_gain_once("LIFEBRINGER");
     if(c->wall == waDeadfloor) c->wall = waCavefloor;
     if(c->wall == waDeadfloor2) c->wall = waCavewall;
     if(c->wall == waDeadwall) c->wall = waCavewall;
@@ -2711,10 +2708,16 @@ EX namespace tortoise {
     else val = target;
     }
   
+  EX bool shading_enabled = true;
+  
+  EX bool shading_on() {
+    return shading_enabled && seek();
+    }
+  
   EX void updateVals(int delta) {
     int currbits = getBits(cwt.at);
     for(int i=0; i<numbits; i++)
-      update(seekval[i], seek() && !(peace::on && !peace::hint) ? getBit(seekbits, i) : .5, delta);
+      update(seekval[i], shading_on() ? getBit(seekbits, i) : .5, delta);
     for(int i=0; i<numbits; i++)
       update(currval[i], getBit(currbits, i), delta);
     }
@@ -2779,7 +2782,7 @@ EX namespace dragon {
         }
     if(cmode & sm::MAP) return c;
     if(!history::includeHistory) {
-      printf("dragon bug #3 (%p -> %p)\n", cor, c); 
+      printf("dragon bug #3 (%p -> %p)\n", hr::voidp(cor), hr::voidp(c)); 
       dragbugs = true;
       }
     c->monst = moDragonHead; return c;
@@ -3269,7 +3272,7 @@ EX namespace prairie {
           forCellEx(c2, c) forCellEx(c3, c2)
           if(barrierhept(c3)) barclose++;
     
-          printf("c = %p bc = %d\n", c, barclose);
+          printf("c = %p bc = %d\n", hr::voidp(c), barclose);
         
           raiseBuggyGeneration(c, "could not set river fval");
           }
@@ -3501,6 +3504,14 @@ EX namespace ca {
   
   EX eWall wlive = waFloorA;
   
+  EX unordered_set<cell*> changed;
+
+  EX void list_adj(cell *c) {
+    changed.insert(c);
+    for(cell* c1: adj_minefield_cells(c))
+      changed.insert(c1);
+    }
+
   // you can also do -mineadj
   
   EX string fillup(string s) {
@@ -3526,6 +3537,12 @@ EX namespace ca {
       shift(); wlive = eWall(argi());
       return 0;
       }
+    if(argis("-carun")) {
+      shift(); int iter = argi();
+      start_game();
+      for(int i=0; i<iter; i++) simulate();
+      return 0;
+      }
     if(args()[0] != '-') return 1;
     if(args()[1] != 'c') return 1;
     int livedead = args()[2] - '0';
@@ -3549,13 +3566,16 @@ EX namespace ca {
 
   EX void simulate() {
     if(cwt.at->land != laCA) return;
-    vector<cell*>& allcells = currentmap->allcells();
+    if(items[itOrbAether] < 2) items[itOrbAether] = 2;
+    vector<cell*> allcells;
+    for(cell *c: changed) allcells.push_back(c);
+    changed.clear();
     int dcs = isize(allcells);
     std::vector<bool> willlive(dcs);
     int old = 0, xold = 0;
     for(int i=0; i<dcs; i++) {
       cell *c = allcells[i];
-      if(c->land != laCA) return;
+      if(c->land != laCA) continue;
       int nei = 0, live = 0;
       for(cell *c2: adj_minefield_cells(c)) {
         nei++; if(c2->wall == wlive) live++;
@@ -3566,13 +3586,19 @@ EX namespace ca {
       }
     for(int i=0; i<dcs; i++) {
       cell *c = allcells[i];
+      auto last = c->wall;
       c->wall = willlive[i] ? wlive : waNone;
+      if(c->wall != last) {
+        dynamicval<ld> d(prob, 0);
+        setdist(c, 7, nullptr);
+        list_adj(c);
+        }
       }
-    println(hlog, tie(dcs, old, xold));
+    println(hlog, make_tuple(dcs, old, xold, isize(changed)));
     }
 EX }
 
-auto ccm = addHook(clearmemory, 0, [] () {
+auto ccm = addHook(hooks_clearmemory, 0, [] () {
   heat::offscreen_heat.clear();
   heat::offscreen_fire.clear();
   princess::clear();
@@ -3689,7 +3715,7 @@ EX namespace windmap {
       // cw.spin = 0;
       neighbors.emplace_back();
       auto &v = neighbors.back();
-      if(NONSTDVAR && !sphere && !arcm::in() && !hybri)
+      if(NONSTDVAR && !sphere && !arcm::in() && !hybri && !INVERSE)
         for(int l=0; l<S7; l++) {
           v.push_back(getId(cw + cth + l + wstep + cth));
           }
@@ -3979,12 +4005,12 @@ EX namespace halloween {
       }
     int id = hrand(100);
     if(items[itTreat] == 1) {
-#if ISMOBILE==0
+#if !ISMOBILE
       addMessage(XLAT("Hint: use arrow keys to scroll."));
 #endif
       }
     else if(items[itTreat] == 2) {
-#if ISMOBILE==0
+#if !ISMOBILE
       addMessage(XLAT("Hint: press 1 2 3 4 to change the projection."));
 #endif
       }

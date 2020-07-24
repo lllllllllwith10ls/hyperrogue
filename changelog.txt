@@ -3840,3 +3840,201 @@ Geometries:
 - fixed typo
 - fixed music in Frog Park
 - fixed a problem in irregular tiling (?)
+2020-03-12 10:32 Bugfix update 11.3c:
+
+- Frogs are not generated until you are in Frog Park or have treasure
+- Frog Park longer can be generated adjacent to Land of Motion
+- Orb of Safety is now marked dangerous in Wetland
+- Orb of Chaos no longer despecializes Tortoises
+
+2020-03-16 21:47 Bugfix update 11.3d:
+- fixed the missing messages (and click sound) when interacting with Orb of Yendor
+- you no longer immediately die in LoEM in the Hardcore mode
+- fixed items disappearing with Orb of Winter and Orb of Magnetism
+- fixed Baby Tortoise colors in tour/PTM
+- fixed Tortoises losing their colors
+- fixed Orb of Chaos losing Hive colors
+- added the new lands to PTM
+- fixed game over not being detected correctly when using magical boats
+
+2020-03-22 12:01 Update 11.3e:
+- arbitrary tessellations: new files, utility functions for making Archimedean tilings, fixed a bug in some spherical tilings
+- fixed a precedence bug in expression parser
+- fixed a bug in loading maps from old versions
+- Galapagos: moving over other tortoises no longer clones them, and shading now can be disabled
+- fixed the Slime cheese in the Wetland
+- fixed distance computation in 3D fieldquotient
+- fire-related orbs are now useless in Wetland
+- Orb of the Fish is no longer useless in Wetland and Frog Park
+- some 3D models were created incorrectly in S2xE geometry (they were asymmetrical)
+
+2020-03-25 13:51 Update 11.3f:
+- updated the number of lands given in a slide of the Guided Tour
+- fixed a serious bug (it caused crashes in Solv racing, but it could cause other issues too)
+- fixed two bugs in inverse_exp in Solv (one caused wobbling, other caused possible crashes)
+- fixed the interaction of Orb of Chaos and Orb of Time
+- fixed a crash in paracompact honeycombs
+- fixed a crash bug in {4,3,5}
+- fixed a (broken) help screen displayed when mousing over another land in the Guided Tour
+
+2020-04-02 14:05 Update 11.3g:
+- The powers you get for Orb of Yendor are now consistent with useless/dangerous/forbidden rules
+- Fixed a bug with the three new orbs not being saved correctly in OSM
+- face/edge/vertex centering
+- in line animation, you can now choose to precisely specify the first and last point to animate
+- you can now increase the view distance after death, and use line animation whenever you can increase the range
+- fixed the hotkey in 3d->camera rotation
+- fixed a crash bug in Zebra quotient space and some horospherical tessellations
+- fixed random_spin() in three dimensions
+- fixed the grid display in nonisotropic hyperbolic geometry
+- Archimedean tessellations: added some more samples, and some additional checking
+
+2020-04-06 11:43 Update 11.3h:
+- neon mode works in 3D (textured things are drawn as wireframes), an option to not fill neons
+- 3D geometries no longer crash when OpenGL is off 
+- fixed a bug when switching between various binary tilings
+- fixed flashes disappearing
+- fixed some achievements awarded before making the move
+- fixed cell counter
+- fixed the achievements for Elemental Gems and Ancient Jewelry
+- Wetland rebalanced
+- less awkward map position in portrait mode
+- added vertical margins for mobile screens
+- reverse FPP mode on iOS should be fixed
+- fixed the missing message when PC could not stay in place
+- fixed a potential rare crash
+
+2020-04-17 21:00 Update 11.3j:
+- the Hypersian Rug mode now uses HyperRogue's 3D engine. As a result, its controls are consistent with HyperRogue 3D (which has received shift-strafe for this consistency), you can now view it in all models, and embed in Solv and Nil geometries.
+- a drawing tool (see creative mode). Contrary to Vector Graphics Editor (now called Shape Editor) and texture editor, this simulates on using a huge non-Euclidean blackboard (unless played in Euclidean geometry or in a quotient space, of course).
+- WRL export (export e.g. your Hypersian Rug or a hyperbolic honeycomb in ball model to a 3D modelling tool or a 3D printer)
+- fixed some issues with 'vertical stretch' (acted inconsistently, stretched text)
+- fixed central inversion in 3D models
+- better error information when trying to read an illegal tes file
+- CA mode now automatically awards Orb of Aether (so you can step space) and is simulated on every step in animation mode
+- more accurate Solv rendering (using RK4 method instead of buggy midpoint)
+- when giving values, you can use "..|" (animate with sharp changes); "../" can be also used for spline interpolation
+
+2020-04-22 01:46 Update 11.3k:
+- Orb of the Sword now destroys shrubs
+- more accurate mouse when in 2D projections
+- fixed horocycles in bitruncated {4,x}
+- fixed Great Walls in {5,3,4}
+- Hypersian Rug/camera improvements: 
+- - camera rotation now works better in 3D scenes with gravity (including product geometries, 2D-in-3D and gravity lands)
+- - now displays geometry correctly
+- - removed outdated documentation
+- - panning enabled in the menu
+- - shift+mousewheel for zoom works in rug
+- - zoom hotkeys now change FOV in perspective modes
+- - lshift+arrows now rotate the model in rug
+- - shift+PageUp/Down now zooms
+- - rug can now be mouse-rotated with Ctrl
+- - fixed in standard binary tiling and in *.tes tilings
+
+2020-05-01 18:57 Update 11.3l:
+- Tessellation files: 
+- - added a debug screen if the polygon does not end correctly
+- - added a command debug(tilenumber) to debug connections
+- - if you define constants, they take precedence over predefined constants
+- - expression parser now accepts whitespace in expressions
+- fixed a bug when scrolling with arrows then moving in quotient spaces
+- fixed 'smooth scrolling' option not making scrolling very smooth
+- an option to fatten regular (isotropic non-Euclidean) honeycomb edges
+- better centering in screenshot, 'rotate PC' option
+- in animation, 'monster turns' can be configured (useful for animating CA or butterflies)
+- fixed Butterflies in non-orientable geometries
+
+2020-05-16 11:26 Update 11.3m:
+
+gameplay:
+- Orb of Safety in multiplayer should be fixed
+- fixed a potential crash while clearing the map
+
+configuration:
+- recently added lands should work better for FPP (correct skies, Frog model; also fixed the Sun)
+- allow setting the resource dir
+- rewritten the o-key functionality to let the user choose from several applicable options
+- you can now configure the music to play while out of focus in the menus (see "music volume")
+- 'light' movestar now has size adjusting to geometry
+- help for keyboard users options includes help for VI keys and WASD keys
+- fixed movement while in rug
+
+geometry:
+- tes files can now define "affine tessellations"
+- 'change curvature' option (in regular 3D honeycombs you can change the curvature of the cells)
+- raycaster for the spherical and SL2 geometry [does not draw vertical walls well]
+- raycaster in rotation/product spaces now works also for non-regular base tessellation
+- stretched spherical/SL2 geometry (raycaster only)
+- 3D models were buggy in rotation spaces
+ 
+2020-05-29 10:41 Update 11.3n:
+
+new geometries:
+- icosahedral hyperbolic honeycombs
+- hyperbolic honeycombs with ultra-ideal vertices
+- an option to truncae ultra-ideal vertices (both in 'real' and curvature-changed honeycombs)
+
+new features:
+- random pattern mode for Zebra, Wet and Frog
+- record animations directly to a video file (currently only Linux 60fps using ffmpeg)
+
+bugfixes:
+- fixed freeze while drawing the sky in {n,infty} FPP
+- fixed possible crash when doing 'underlying tree' in some geometries
+- fixed some bugs when curvature-changing Euclidean geometry
+- fixed the monster list in Snake Nest
+- in checkerboard tessellations, the two-color distance shading in some lands is replaced with a three-color one
+- added 'back' in quotient config
+- fixed some patterns in Crystal bitruncated {6,4} (this also fixes incorrect tile graphics)
+- fixed (horo)cycle-based lands in Euclidean
+- fixed raycasting glitches in hyperbolic space
+- fixed incorrect farlands generation in quotient geometries
+- fixed incorrect wall shape in some geometries (e.g. Euclidean)
+- fixed a bug in 16-cell
+
+2020-05-31 16:47 Update 11.3o:
+
+- new commands for tes files: cscale, repeat
+- texture mode now compatible with tes files
+- more detailed explanation if the polygon does not end
+- in texture mode, relabeled "zoom/scale" to correct "scale/rotate"
+- parser: edge_angles function
+- fake curvature: not works in 2D (regular, bitruncated, and Archimedean); improved net showing; new options
+- Nil: fixed the raycaster, and a freeze when changing the 'width' parameter
+- fixed a crash when changing wall quality in some geometries
+- when selecting singlecolor/randomcolor pattern in 3D, you can now specify the wall probability
+
+2020-06-07 19:18 Update 11.3p:
+- simplified the tes format (removed angleofs(pi) which is now the default)
+- tes files now can include 'slider' values, which can be changed live during the game
+- only a few sample tes files are now included (the full collection is maintained at: https://github.com/zenorogue/tes-catalog )
+- a basic raycaster is now available in 2D geometries in FPP mode
+- minor tes improvements: better error messages, removed debug output
+- fixed a glitch in the raycaster
+- option -WT to teleport to a land, but without safety generation
+- fixed crashes when drawing boats in some geometries
+- throw an exception when file does not exist
+- improved shmup in fake/slided geometries
+- fixed texture remapping in fake curvature
+
+2020-07-08 16:36 Update 11.3q:
+- extra sound effects (frogs appearing, Kraken death, elemental gem, apple, demon levelup)
+- fixed 'disable texture' in rug levellines
+- an option to rotate not around the center in 3D
+- view coordinates no longer works outside of cheat mode
+- an option for volumetric raytracing (i.e. glowing fog visualization)
+- fixed the boat protection given by Orb of Winter
+- tes files: undo in connection debugger
+- eyelevel setting now works in the first-person shooter mode
+- expansion in reg3::in_rule() activable [test]
+- added efficient generation rules for 353
+- fixed the graphical sizes of wolves and orbs in some geometries
+- fake curvature in the rhombic honeycomb
+- ordered net creation in fake curvature
+- new 3D Euclidean quotient space: Hantzsche-Wendt (double cube) manifold
+
+2020-07-13 01:32 Update 11.3r:
+- inverse variation
+- redone some Guided Tour slides and possible crash
+- you can now add text in the Drawing Tool

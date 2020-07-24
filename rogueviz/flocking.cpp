@@ -9,7 +9,7 @@
 // example parameters: 
 
 // flocking on a torus:
-//    -tpar 21,4 -geo 6 -flocking 10 -rvshape 3
+//    -t2 3 0 0 3 0 -geo 1 -flocking 10 -rvshape 3
 
 // flocking on the Zebra quotient:
 //    -geo 4 -flocking 10 -rvshape 3 -zoom .9
@@ -40,9 +40,13 @@ template<class T> auto parallelize(long long N, T action) -> decltype(action(0,0
 #endif
   }
 
+#include "rogueviz.h"
+
 namespace rogueviz {
 
 namespace flocking {
+
+  int flock_id;
 
   int N;
   
@@ -85,7 +89,7 @@ namespace flocking {
       return;
       }
     stop_game();
-    rogueviz::init(); kind = kFlocking;
+    rogueviz::init(&flock_id, RV_GRAPH);
     vdata.resize(N);
     
     const auto v = currentmap->allcells();
@@ -99,7 +103,7 @@ namespace flocking {
       for(int i=0; i<isize(cl.lst); i++) {
         cell *c2 = cl.lst[i];
         transmatrix T = calc_relative_matrix(c2, c1, C0);
-        if(hdist0(tC0(T)) <= check_range) {
+        if(hypot_d(WDIM, inverse_exp(tC0(T))) <= check_range) {
           relmatrices[c1][c2] = T;
           forCellEx(c3, c2) cl.add(c3);
           }
@@ -110,7 +114,10 @@ namespace flocking {
     for(int i=0; i<N; i++) {
       vertexdata& vd = vdata[i];
       // set initial base and at to random cell and random position there 
-      createViz(i, v[hrand(isize(v))], spin(hrand(100)) * xpush(hrand(100) / 200.));
+      createViz(i, v[hrand(isize(v))], Id);
+      rotate_object(vd.m->pat, vd.m->ori, random_spin());
+      apply_parallel_transport(vd.m->pat, vd.m->ori, xtangent(hrand(100) / 200.));
+      
       vd.name = its(i+1);
       vd.cp = dftcolor;
       vd.cp.color2 = ((hrand(0x1000000) << 8) + 0xFF) | 0x808080FF;
@@ -133,6 +140,7 @@ namespace flocking {
     ld d = delta / 1000.;
     int N = isize(vdata);
     vector<transmatrix> pats(N);
+    vector<transmatrix> oris(N);
     vector<ld> vels(N);
     using shmup::monster;
     
@@ -146,11 +154,26 @@ namespace flocking {
     
     lines.clear();
 
-    parallelize(N, [&monsat, &d, &vels, &pats] (int a, int b) { for(int i=a; i<b; i++) {
+    parallelize(N, [&monsat, &d, &vels, &pats, &oris] (int a, int b) { for(int i=a; i<b; i++) {
       vertexdata& vd = vdata[i];
       auto m = vd.m;
       
-      transmatrix I = inverse(m->at);
+      transmatrix I, Rot;
+      bool use_rot = true;
+      
+      if(prod) {
+        I = inverse(m->at);
+        Rot = inverse(m->ori);
+        }
+      else if(nonisotropic) {
+        I = gpushxto0(tC0(m->at));
+        Rot = inverse(I * m->at);
+        }
+      else {
+        I = inverse(m->at);
+        Rot = Id;
+        use_rot = false;
+        }
       
       // we do all the computations here in the frame of reference
       // where m is at (0,0,1) and its velocity is (m->vel,0,0)
@@ -175,11 +198,11 @@ namespace flocking {
           // at2 is like m2->at but relative to m->at
           
           // m2's position relative to m (tC0 means *(0,0,1))
-          hyperpoint ac = tC0(at2);
+          hyperpoint ac = inverse_exp(tC0(at2));
+          if(use_rot) ac = Rot * ac;
           
           // distance and azimuth to m2
-          ld di = hdist0(ac);
-          transmatrix alphaspin = rspintox(ac); // spin(-atan2(ac));
+          ld di = hypot_d(WDIM, ac);
 
           color_t col = 0;
             
@@ -187,22 +210,22 @@ namespace flocking {
             // we need to transfer m2's velocity vector to m's position
             // this is done by applying an isometry which sends m2 to m1
             // and maps the straight line on which m1 and m2 are to itself
-            align += gpushxto0(ac) * at2 * hpxyz(vel2, 0, 0);
+            
+            // note: in nonisotropic it is not clear whether we should
+            // use gpushxto0, or parallel transport along the shortest geodesic
+            align += gpushxto0(tC0(at2)) * at2 * hpxyz(vel2, 0, 0);
             align_count++;
             col |= 0xFF0040;
             }
           
           if(di < coh_range) {
-            // azimuthal equidistant projection of ac
-            // (thus the cohesion force pushes us towards the
-            // average of azimuthal equidistant projections)
-            coh += alphaspin * hpxyz(di, 0, 0);
+            coh += tangent_length(ac, di);
             coh_count++;
             col |= 0xFF40;
             }
           
           if(di < sep_range && di > 0) {
-            sep -= alphaspin * hpxyz(1 / di, 0, 0);
+            sep -= tangent_length(ac, 1 / di);
             sep_count++;
             col |= 0xFF000040;
             }
@@ -228,8 +251,20 @@ namespace flocking {
         vels[i] = max_speed;
         }      
       
-      pats[i] = m->at * alphaspin * xpush(vels[i] * d);
+      pats[i] = m->at;
+      oris[i] = m->ori;
+      rotate_object(pats[i], oris[i], alphaspin);
+      
+      apply_parallel_transport(pats[i], oris[i], xtangent(vels[i] * d));
       fixmatrix(pats[i]);
+      
+      /* RogueViz does not correctly rotate them */
+      if(prod) {
+        hyperpoint h = oris[i] * xtangent(1);
+        pats[i] = pats[i] * spin(-atan2(h[1], h[0]));
+        oris[i] = spin(+atan2(h[1], h[0])) * oris[i];
+        }
+      
       } return 0; });
       
     for(int i=0; i<N; i++) {
@@ -237,6 +272,7 @@ namespace flocking {
       auto m = vd.m;
       // these two functions compute new base and at, based on pats[i]
       m->at = pats[i];
+      m->ori = oris[i];
       virtualRebase(m);
       m->vel = vels[i];
       }
@@ -245,18 +281,31 @@ namespace flocking {
     }
 
   bool turn(int delta) {
-    if(!on) return false;
-    if(kind == kFlocking) simulate(delta), timetowait = 0;
+    if(vizid != &flock_id) return false;
+    simulate(delta), timetowait = 0;
     
     if(follow) {
 
       if(follow == 1) {
         gmatrix.clear();
         vdata[0].m->pat = View * calc_relative_matrix(vdata[0].m->base, centerover, C0) * vdata[0].m->at;
-        View = spin(90 * degree) * inverse(vdata[0].m->pat) * View;
-        if(GDIM == 3) {
-          View = hr::cspin(1, 2, 90 * degree) * View;
-          }
+        View = inverse(vdata[0].m->pat) * View;
+        if(prod) {
+          NLP = inverse(vdata[0].m->ori);
+          
+          NLP = hr::cspin(1, 2, 90 * degree) * spin(90 * degree) * NLP;
+
+          if(NLP[0][2]) {
+            auto downspin = -atan2(NLP[0][2], NLP[1][2]);
+            NLP = spin(downspin) * NLP;
+            }
+          }          
+        else {
+          View =spin(90 * degree) * View;
+          if(GDIM == 3) {
+            View = hr::cspin(1, 2, 90 * degree) * View;
+            }
+          }        
         }
 
       if(follow == 2) {
@@ -265,12 +314,25 @@ namespace flocking {
         // are taken), and normalize the result to project it back to the hyperboloid
         // (the same method is commonly used on the sphere AFAIK)
         hyperpoint h = Hypc;
+        int cnt = 0;
+        ld lev = 0;
         for(int i=0; i<N; i++) if(gmatrix.count(vdata[i].m->base)) {
           vdata[i].m->pat = gmatrix[vdata[i].m->base] * vdata[i].m->at;
-          h += tC0(vdata[i].m->pat);
+          auto h1 = tC0(vdata[i].m->pat);
+          cnt++;          
+          if(prod) {
+            auto d1 = product_decompose(h1);
+            lev += d1.first;
+            h += d1.second;
+            }
+          else
+            h += h1;
           }
-        h = normalize(h);
-        View = gpushxto0(h) * View;
+        if(cnt) {
+          h = normalize_flat(h);
+          if(prod) h = zshift(h, lev / cnt);
+          View = inverse(actual_view_transform) * gpushxto0(h) * actual_view_transform * View;
+          }
         }
 
       optimizeview();
@@ -325,6 +387,10 @@ namespace flocking {
       shift(); shape = argcs()[0];
       for(int i=0; i<N; i++) 
         vdata[i].cp.shade = shape;
+      }
+    else if(argis("-flockspd")) {
+      shift(); ini_speed = argf();
+      shift(); max_speed = argf();
       }
     #ifdef USE_THREADS
     else if(argis("-threads")) {
@@ -433,9 +499,8 @@ namespace flocking {
     dialog::display();
     }
     
-  named_functionality o_key() {
-    if(kind == kFlocking) return named_dialog("flocking", show);
-    return named_functionality();
+  void o_key(o_funcs& v) {
+    if(vizid == &flock_id) v.push_back(named_dialog("flocking", show));
     }
 
   auto hooks  = 

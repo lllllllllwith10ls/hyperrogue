@@ -40,6 +40,7 @@
 #include "arbitrile.cpp"
 #include "euclid.cpp"
 #include "sphere.cpp"
+#include "fake.cpp"
 #include "quotient.cpp"
 #include "crystal.cpp"
 #include "reg3.cpp"
@@ -121,7 +122,7 @@
 #include "dpgen.cpp"
 
 #if CAP_ROGUEVIZ
-#include "rogueviz/rogueviz.cpp"
+#include "rogueviz/rogueviz-all.cpp"
 #endif
 
 #if CAP_DAILY
@@ -130,5 +131,6 @@
 namespace hr { namespace daily { bool on; } }
 #endif
 
+#include "mobile.cpp"
 #include "hyper-main.cpp"
 

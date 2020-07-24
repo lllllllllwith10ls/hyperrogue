@@ -1,3 +1,5 @@
+#include "rogueviz.h"
+
 namespace rogueviz {
 
 #if CAP_ARCM
@@ -32,7 +34,7 @@ array<hyperpoint, 3> mts;
 
 rug::rugpoint *pt(hyperpoint h, hyperpoint c, int id) {
   auto r = rug::addRugpoint(C0, -1);
-  r->flat = h;
+  r->native = h;
   r->x1 = (1 + c[0]) / 16 + (id/8) / 8.;
   r->y1 = (1 + c[1]) / 16 + (id%8) / 8.;
   r->valid = true;
@@ -188,7 +190,7 @@ void run_snub(int v, int w) {
   create_model();
   printf("points = %d tris = %d side = %d\n", isize(rug::points), isize(rug::triangles), isize(sideangles));
   rug::model_distance = euclid ? 4 : 2;
-  rug::rug_perspective = hyperbolic;
+  vid.rug_config.model = hyperbolic ? mdPerspective : mdEquidistant;
   showstartmenu = false;
   snubon = true;
   rug::invert_depth = hyperbolic;
@@ -344,7 +346,29 @@ bool handleKey(int sym, int uni) {
 auto xhook = addHook(hooks_args, 100, readArgs)
 + addHook(hooks_handleKey, 0, handleKey)
 + addHook(hooks_prestats, 0, frame)
-+ addHook(clearmemory, 40, [] () { snubon = false; } );
++ addHook(hooks_clearmemory, 40, [] () { snubon = false; } )
++ addHook(rvtour::hooks_build_rvtour, 142, [] (vector<tour::slide>& v) {
+    using namespace tour;
+    v.push_back(
+      tour::slide{"unsorted/Pentagonal Exploration", 62, LEGAL::NONE | QUICKGEO,
+     "Pentagonal Exploration explained at: http://www.roguetemple.com/z/sims/snub/\n\n"
+     "Move the mouse nearer and further away from the X.\n\n"
+     "Press 3 4 5 6 7 8 9 shift+4 shift+5 shift+6 to change the geometry.",
+     
+    [] (presmode mode) {
+      if(mode == 1) {
+        pentagonal::run_snub(5, 3);
+        }
+      if(mode == 3) {
+        printf("stopping\n");
+        set_geometry(gNormal);
+        set_variation(eVariation::bitruncated);
+        rug::close();
+        start_game();
+        }
+      }}
+      );
+    });
  
 }
 #endif

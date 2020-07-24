@@ -278,7 +278,7 @@ EX bool haveOrbPower() {
     cell *c = dcal[i];
     if(itemclass(c->item) == IC_ORB) return true;
     }
-  else if(sphere_narcm && WDIM == 2) for(int i=0; i<spherecells(); i++) {
+  else if(sphere_narcm && WDIM == 2 && !INVERSE) for(int i=0; i<spherecells(); i++) {
     cell *c = getDodecahedron(i)->c7;
     if(itemclass(c->item) == IC_ORB) return true;
     forCellEx(c2, c) if(itemclass(c2->item) == IC_ORB) return true;
@@ -425,8 +425,16 @@ EX void wandering() {
         continue;
         }
       }
+    
+    if(c->land == laWet && !smallbounded && wetslime >= 25 && !c->monst && hrand(100) <= wetslime-25) {
+      static bool angry = false;
+      if(!angry) { angry = true; addMessage("You seem to have really pissed off the water spirits!"); }
+      c->monst = moGhost;
+      playSeenSound(c);
+      continue;
+      }
         
-    if((c->wall == waCavewall || c->wall == waDeadwall) && !c->monst &&
+    else if((c->wall == waCavewall || c->wall == waDeadwall) && !c->monst &&
       wchance(items[treasureType(c->land)], 10) && canReachPlayer(c, moSlime)) {
       c->monst = moSeep;
       playSeenSound(c);

@@ -154,7 +154,7 @@ EX void countHyperstoneQuest(int& i1, int& i2) {
 
 EX bool hyperstonesUnlocked() {
   int i1, i2;
-  if(tactic::on && isCrossroads(specialland) && !tactic::trailer) return true;
+  if(tactic::on && isCrossroads(specialland)) return true;
   countHyperstoneQuest(i1, i2);
   return i1 == i2;
   }
@@ -276,7 +276,7 @@ EX bool createOnSea(eLand old) {
     (old == laOcean && (chaosmode ? hrand(2) : !generatingEquidistant));
   }
 
-EX hookset<eLand(eLand)> *hooks_nextland;
+EX hookset<eLand(eLand)> hooks_nextland;
 
 EX eLand getNewLand(eLand old) {
 
@@ -331,7 +331,7 @@ EX eLand getNewLand(eLand old) {
     }
   #endif
 
-  if(tactic::on && !(tactic::trailer && old == specialland)) return specialland;
+  if(tactic::on) return specialland;
   if((weirdhyperbolic || cheater) && specialland != old && specialland != laCrossroads4 && specialland != laIce && !chaosmode && old != laBarrier && !isCyclic(specialland) && specialland != laBrownian)
     return specialland;
 
@@ -519,7 +519,7 @@ namespace lv {
   static const flagtype appears_in_ptm = 8;
   static const flagtype display_in_help = 16;
   static const flagtype one_and_half = 32;
-  };
+  }
 
 struct land_validity_t {
   int quality_level; // 0 (dont show), 1 (1/2), 2 (ok), 3(1!)
@@ -635,6 +635,9 @@ EX land_validity_t& land_validity(eLand l) {
   using namespace lv;
   
   if(old_daily_id < frog_when && among(l, laFrog, laEclectic, laWet))
+    return not_implemented;
+  
+  if(arb::in() && among(l, laWarpCoast, laDual, laEclectic, laReptile, laKraken))
     return not_implemented;
   
   if(l == laEclectic && !(geometry == gNormal && BITRUNCATED))
@@ -910,6 +913,7 @@ EX land_validity_t& land_validity(eLand l) {
       }
     if(arcm::in() || kite::in()) return not_implemented;
     if(bounded) return unbounded_only;
+    if(INVERSE) return not_implemented;
     }
   
   if(chaosmode && isCrossroads(l))

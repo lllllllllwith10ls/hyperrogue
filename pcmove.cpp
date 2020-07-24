@@ -13,37 +13,37 @@ EX bool keepLightning = false;
 
 EX bool seenSevenMines = false;
 
-/** have we been warned about the Haunted Woods? */
+/** \brief have we been warned about the Haunted Woods? */
 EX bool hauntedWarning;
 
-/** is the Survivalist achievement still valid? have we received it? */
+/** \brief is the Survivalist achievement still valid? have we received it? */
 EX bool survivalist;
 
 EX void fail_survivalist() {
   changes.value_set(survivalist, false);
   }
 
-/** last move was invisible */
+/** \brief last move was invisible */
 EX bool invismove = false;
-/** last move was invisible due to Orb of Fish (thus Fish still see you)*/
+/** \brief last move was invisible due to Orb of Fish (thus Fish still see you)*/
 EX bool invisfish = false;
 
-/** if false, make the PC look in direction cwt.spin (after attack); otherwise, make them look the other direction (after move) */
+/** \brief if false, make the PC look in direction cwt.spin (after attack); otherwise, make them look the other direction (after move) */
 EX bool flipplayer = true;
 
-/** Cellwalker describing the single player. Also used temporarily in shmup and multiplayer modes. */
+/** \brief Cellwalker describing the single player. Also used temporarily in shmup and multiplayer modes. */
 EX cellwalker cwt;
 
 EX cell*& singlepos() { return cwt.at; }
 EX inline bool singleused() { return !(shmup::on || multi::players > 1); }
 
-/** should we center the screen on the PC? */
+/** \brief should we center the screen on the PC? */
 EX bool playermoved = true;
 
-/** did the player cheat? how many times? */
+/** \brief did the player cheat? how many times? */
 EX int  cheater = 0;
 
-/** lands visited -- unblock some modes */
+/** \brief lands visited -- unblock some modes */
 EX bool landvisited[landtypes];
 
 EX int noiseuntil; // noise until the given turn
@@ -112,7 +112,7 @@ EX namespace orbbull {
     }
 EX }
 
-EX bool checkNeedMove(bool checkonly, bool attacking) {
+bool pcmove::checkNeedMove(bool checkonly, bool attacking) {
   if(items[itOrbDomination] > ORBBASE && cwt.at->monst) 
     return false;
   int flags = 0;
@@ -124,45 +124,46 @@ EX bool checkNeedMove(bool checkonly, bool attacking) {
     }
   else if(cwt.at->wall == waRoundTable) {
     if(markOrb2(itOrbAether)) return false;
-    if(checkonly) return true;
-    addMessage(XLAT("It would be impolite to land on the table!"));
+    if(vmsg()) 
+      addMessage(XLAT("It would be impolite to land on the table!"));
     }
   else if(cwt.at->wall == waLake) {
     if(markOrb2(itOrbAether)) return false;
     if(markOrb2(itOrbFish)) return false;
     if(in_gravity_zone(cwt.at) && passable(cwt.at, NULL, P_ISPLAYER)) return false;
     flags |= AF_FALL;
-    addMessage(XLAT("Ice below you is melting! RUN!"));
+    if(vmsg()) addMessage(XLAT("Ice below you is melting! RUN!"));
     }
   else if(!attacking && cellEdgeUnstable(cwt.at)) {
     if(markOrb2(itOrbAether)) return false;
     if(in_gravity_zone(cwt.at) && passable(cwt.at, NULL, P_ISPLAYER)) return false;
-    addMessage(XLAT("Nothing to stand on here!"));
+    if(vmsg()) addMessage(XLAT("Nothing to stand on here!"));
+    return true;
     }
   else if(among(cwt.at->wall, waSea, waCamelotMoat, waLake, waDeepWater)) {
     if(markOrb(itOrbFish)) return false;
     if(markOrb2(itOrbAether)) return false;
     if(in_gravity_zone(cwt.at) && passable(cwt.at, NULL, P_ISPLAYER)) return false;
-    addMessage(XLAT("You have to run away from the water!"));
+    if(vmsg()) addMessage(XLAT("You have to run away from the water!"));
     }
   else if(cwt.at->wall == waClosedGate) {
     if(markOrb2(itOrbAether)) return false;
-    addMessage(XLAT("The gate is closing right on you! RUN!"));
+    if(vmsg()) addMessage(XLAT("The gate is closing right on you! RUN!"));
     }
   else if(isFire(cwt.at) && !markOrb(itOrbWinter) && !markOrb2(itOrbShield)) {
     if(markOrb2(itOrbAether)) return false;
-    addMessage(XLAT("This spot will be burning soon! RUN!"));
+    if(vmsg()) addMessage(XLAT("This spot will be burning soon! RUN!"));
     }
   else if(cwt.at->wall == waMagma && !markOrb(itOrbWinter) && !markOrb2(itOrbShield)) {
     if(markOrb2(itOrbAether)) return false;
     if(in_gravity_zone(cwt.at) && passable(cwt.at, cwt.at, P_ISPLAYER)) return false;
-    addMessage(XLAT("Run away from the magma!"));
+    if(vmsg()) addMessage(XLAT("Run away from the magma!"));
     }
   else if(cwt.at->wall == waChasm) {
     if(markOrb2(itOrbAether)) return false;
     if(in_gravity_zone(cwt.at) && passable(cwt.at, cwt.at, P_ISPLAYER)) return false;
     flags |= AF_FALL;
-    addMessage(XLAT("The floor has collapsed! RUN!"));
+    if(vmsg()) addMessage(XLAT("The floor has collapsed! RUN!"));
     }
   else if(items[itOrbAether] > ORBBASE && !passable(cwt.at, NULL, P_ISPLAYER | P_NOAETHER)) {
     if(markOrb2(itOrbAether)) return false;
@@ -171,10 +172,10 @@ EX bool checkNeedMove(bool checkonly, bool attacking) {
   else if(!passable(cwt.at, NULL, P_ISPLAYER)) {
     if(isFire(cwt.at)) return false; // already checked: have Shield
     if(markOrb2(itOrbAether)) return false;
-    addMessage(XLAT("Your Aether power has expired! RUN!"));
+    if(vmsg()) addMessage(XLAT("Your Aether power has expired! RUN!"));
     }
   else return false;
-  if(hardcore) 
+  if(hardcore && !checkonly) 
     killHardcorePlayer(multi::cpid, flags);
   return true;
   }
@@ -209,6 +210,8 @@ struct pcmove {
   bool after_escape();
   bool move_if_okay();
   bool attack();
+  
+  bool checkNeedMove(bool checkonly, bool attacking);
 
   void tell_why_cannot_attack();
   void tell_why_impassable();
@@ -401,12 +404,25 @@ EX void copy_metadata(cell *x, const gcell *y) {
 
 extern void playSound(cell *c, const string& fname, int vol);
 
+/** \brief A structure to keep track of changes made during the player movement.
+ *
+ *  This is a singleton object, \link hr::changes \endlink.
+ */
+
 struct changes_t {
   vector<reaction_t> rollbacks;
   vector<reaction_t> commits;
   bool on;
   bool checking;
   
+  /**
+   * \brief Start keeping track of changes, perform changes.
+   *
+   * init(false) if you intend to commit the changes (if successful), or 
+   * init(true) if you just want to check whether the move would be successful, 
+   * without performing it if it is.
+   */
+   
   void init(bool ch) {
     on = true; 
     ccell(cwt.at);
@@ -417,12 +433,16 @@ struct changes_t {
     checking = ch;
     }
 
+  /** \brief Commit the changes. Should only be called after init(false). */
+
   void commit() { 
     on = false; 
     for(auto& p: commits) p();
     rollbacks.clear();
     commits.clear();
     }
+
+  /** \brief Rollback the changes. */
 
   void rollback(int pos = 0) { 
     on = false;
@@ -434,12 +454,14 @@ struct changes_t {
     commits.clear();
     }
   
+  /** \brief The changes to cell c will be rolled back when rollback() is called. */
   void ccell(cell *c) {
     if(!on) return;
     gcell a = *c;
     rollbacks.push_back([c, a] { copy_metadata(c, &a); });
     }
   
+  /** \brief Set the value of what to value. This change will be rolled back if necessary. */
   template<class T> void value_set(T& what, T value) {
     if(!on) { what = value; return; }
     if(what == value) return;
@@ -448,17 +470,23 @@ struct changes_t {
     what = value;
     }
 
+  /** \brief Add step to the value of what. This change will be rolled back if necessary. */
+
   template<class T> void value_add(T& what, T step) {
     value_keep(what); what += step;
     }
 
   template<class T> void value_inc(T& what) { value_add(what, 1); }
 
+  /** \brief Any change to the value of what will be rolled back if necessary. */
+
   template<class T> void value_keep(T& what) {
     if(!on) return;
     T old = what;
     rollbacks.push_back([&what, old] { what = old; });
     }
+  
+  /** \brief Like value_keep but for maps. */
 
   template<class T, class U, class V> void map_value(map<T, U>& vmap, V& key) {
     if(vmap.count(key)) {
@@ -470,10 +498,14 @@ struct changes_t {
       }
     }
   
+  /** \brief Perform the given action on commit. @see LATE */
+   
   void at_commit(reaction_t act) {
     if(!on) act();
     else commits.emplace_back(act);
     }
+
+  /** \brief Perform the given action on rollback. */
 
   void at_rollback(reaction_t act) {
     if(on) rollbacks.emplace_back(act);
@@ -481,12 +513,22 @@ struct changes_t {
   };
 #endif
 
+/** \brief The only instance of hr::changes_t */
 EX changes_t changes;
 
+/**
+ * Auxiliary function for hr::apply_chaos(). Returns whether the cell attribute LHU 
+ * should be switched.
+ */
 bool switch_lhu_in(eLand l) {
-  return among(l, laBrownian, laMinefield, laTerracotta);
+  return among(l, laBrownian, laMinefield, laTerracotta, laHive);
   }
 
+/** \brief Apply the Orb of Chaos.
+ *
+ * We assume that the player moves from cwt.peek, in
+ * in the direction given by cwt.spin.
+ */
 void apply_chaos() {
   cell *ca = (cwt+1).cpeek();
   cell *cb = (cwt-1).cpeek();
@@ -497,16 +539,22 @@ void apply_chaos() {
   changes.ccell(cb);
   gcell coa = *ca;
   gcell cob = *cb;
+  if(ca->monst != cb->monst)
+    markOrb(itOrbChaos);
+  if(ca->wall != cb->wall)
+    markOrb(itOrbChaos);
+  if(ca->item != cb->item)
+    markOrb(itOrbChaos);
   copy_metadata(ca, &cob);
   copy_metadata(cb, &coa);
   if(!switch_lhu_in(ca->land)) ca->LHU = coa.LHU;
   if(!switch_lhu_in(cb->land)) cb->LHU = cob.LHU;
   int sa = ca->mondir - ((cwt+1)+wstep).spin;
   int sb = cb->mondir - ((cwt-1)+wstep).spin;
-  if(!(isFriendly(ca) && markOrb(itOrbEmpathy)))
-    ca->stuntime = min(ca->stuntime + 3, 15);
-  if(!(isFriendly(cb) && markOrb(itOrbEmpathy)))
-    cb->stuntime = min(cb->stuntime + 3, 15);
+  if(ca->monst && !(isFriendly(ca) && markOrb(itOrbEmpathy)))
+    ca->stuntime = min(ca->stuntime + 3, 15), markOrb(itOrbChaos);
+  if(cb->monst && !(isFriendly(cb) && markOrb(itOrbEmpathy)))
+    cb->stuntime = min(cb->stuntime + 3, 15), markOrb(itOrbChaos);
   ca->monmirror = !ca->monmirror;
   cb->monmirror = !cb->monmirror;
   if(ca->mondir < ca->type)
@@ -594,7 +642,6 @@ bool pcmove::actual_move() {
 
     if(havePushConflict(cwt.at, checkonly)) return false;
 
-    if(checkonly) { nextmovetype = lmMove; return true; }
     if(c2->item && !cwt.at->item) moveItem(c2, cwt.at, false), boatmove = true;
     placeWater(c2, cwt.at);
     moveBoat(mi);
@@ -762,7 +809,9 @@ bool pcmove::after_escape() {
     return false;
     }
   else if(c2->monst == moKnight) {
+    #if CAP_COMPLEX2
     if(vmsg()) camelot::knightFlavorMessage(c2);
+    #endif
     return false;
     }
   else if(c2->monst && (!isFriendly(c2) || c2->monst == moTameBomberbird || isMountable(c2->monst))
@@ -780,8 +829,10 @@ bool pcmove::after_escape() {
 
 bool pcmove::move_if_okay() {
   cell*& c2 = mi.t;
+  #if CAP_COMPLEX2
   if(mine::marked_mine(c2) && !mine::safe() && !checkonly && warningprotection(XLAT("Are you sure you want to step there?")))
     return false;
+  #endif
   
   if(snakelevel(c2) <= snakelevel(cwt.at)-2) {
     bool can_leave = false;
@@ -906,7 +957,7 @@ bool pcmove::attack() {
       if(m == moRusalka) {
         changes.ccell(cwt.at);
         if(cwt.at->wall == waNone) cwt.at->wall = waShallow;
-        else if(cwt.at->wall == waShallow) cwt.at->wall = waDeepWater;
+        else if(cwt.at->wall == waShallow || isAlch(cwt.at->wall)) cwt.at->wall = waDeepWater;
         }
       changes.ccell(c2);
       // salamanders are stunned for longer time when pushed into a wall
@@ -949,12 +1000,14 @@ bool pcmove::perform_actual_move() {
     else
       c2->wall = cwt.at->wall;
     }
+  #if CAP_COMPLEX2
   if(c2->wall == waRoundTable) {
     addMessage(XLAT("You jump over the table!"));
     }
   
   if(cwt.at->wall == waRoundTable) 
     camelot::roundTableMessage(c2);
+  #endif
   
   invismove = (turncount >= noiseuntil) && items[itOrbInvis] > 0;
   
@@ -985,6 +1038,7 @@ bool pcmove::perform_actual_move() {
   
   if(items[itOrbWinter])
     forCellEx(c3, c2) if(c3->wall == waIcewall && c3->item) {
+      changes.ccell(c3);
       markOrb(itOrbWinter);
       if(collectItem(c3)) return true;
       }
@@ -1189,7 +1243,9 @@ EX void playerMoveEffects(cell *c1, cell *c2) {
   
   destroyWeakBranch(c1, c2, moPlayer);
 
+  #if CAP_COMPLEX2
   mine::uncover_full(c2);
+  #endif
   
   if((c2->wall == waClosePlate || c2->wall == waOpenPlate) && normal_gravity_at(c2) && !markOrb(itOrbAether))
     toggleGates(c2, c2->wall);
@@ -1249,8 +1305,8 @@ EX void produceGhost(cell *c, eMonster victim, eMonster who) {
 EX bool swordAttack(cell *mt, eMonster who, cell *c, int bb) {
   eMonster m = c->monst;
   if(c->wall == waCavewall) markOrb(bb ? itOrbSword2: itOrbSword);
-  if(c->wall == waSmallTree || c->wall == waBigTree || c->wall == waRose || c->wall == waCTree || c->wall == waVinePlant ||
-    thruVine(mt, c) || c->wall == waBigBush || c->wall == waSmallBush || c->wall == waSolidBranch || c->wall == waWeakBranch) {
+  if(among(c->wall, waSmallTree, waBigTree, waRose, waCTree, waVinePlant, waBigBush, waSmallBush, waSolidBranch, waWeakBranch, waShrub)
+    || thruVine(mt, c)) {
     changes.ccell(c);
     playSound(NULL, "hit-axe"+pick123());
     markOrb(bb ? itOrbSword2: itOrbSword);
@@ -1382,7 +1438,7 @@ EX void sideAttack(cell *mf, int dir, eMonster who, int bonuskill) {
 
   if(who == moPlayer) {
     int kills = tkills() - k + bonuskill;
-    if(kills >= 5) achievement_gain("MELEE5");
+    if(kills >= 5) achievement_gain_once("MELEE5");
     }
   }
 
@@ -1447,27 +1503,28 @@ EX void movecost(cell* from, cell *to, int phase) {
     }
   
 #if CAP_TOUR
-  if(from->land != to->land && tour::on && (phase & 2))
-    tour::checkGoodLand(to->land);
+  if(from->land != to->land && tour::on && (phase & 2)) {
+    changes.at_commit([to] { tour::checkGoodLand(to->land); });
+    }
 #endif
   
   if(to->land ==laCrossroads4 && !got_crossroads && !geometry && (phase & 2) && !cheater) {
-    achievement_gain("CR4");
+    achievement_gain_once("CR4");
     got_crossroads = true;
     chaosUnlocked = true;
     }
 
   if(isHaunted(from->land) && !isHaunted(to->land) && (phase & 2)) {
     updateHi(itLotus, truelotus = items[itLotus]);
-    if(items[itLotus] >= 1) achievement_gain("LOTUS1");
-    if(items[itLotus] >= (big_unlock ? 25 : 10)) achievement_gain("LOTUS2");
-    if(items[itLotus] >= (big_unlock ? 50 : 25)) achievement_gain("LOTUS3");
-    if(items[itLotus] >= 50 && !big_unlock) achievement_gain("LOTUS4");
+    if(items[itLotus] >= 1) achievement_gain_once("LOTUS1");
+    if(items[itLotus] >= (big_unlock ? 25 : 10)) achievement_gain_once("LOTUS2");
+    if(items[itLotus] >= (big_unlock ? 50 : 25)) achievement_gain_once("LOTUS3");
+    if(items[itLotus] >= 50 && !big_unlock) achievement_gain_once("LOTUS4");
     achievement_final(false);
     }
   
   if(geometry == gNormal && celldist(to) == 0 && !usedSafety && gold() >= 100 && (phase & 2))
-    achievement_gain("COMEBACK");
+    achievement_gain_once("COMEBACK");
   
   bool tortoiseOK = 
     to->land == from->land || to->land == laTortoise ||

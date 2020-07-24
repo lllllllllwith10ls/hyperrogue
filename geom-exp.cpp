@@ -81,6 +81,8 @@ void showQuotientConfig() {
   dialog::addItem("find the next prime", 'p');
   dialog::addItem("activate", 'x');
   dialog::addItem("default", 'c');
+  
+  dialog::addBack();
 
   keyhandler = [&gxcur] (int sym, int uni) {
     if(uni >= 'a' && uni < 'a' + isize(fgeomextras))
@@ -356,8 +358,10 @@ void ge_select_tiling() {
     if(arcm::in() && !CAP_ARCM) continue;
     if(cryst && !CAP_CRYSTAL) continue;
     if(sol && !CAP_SOLV) continue;
+    if(arb::in() && (ISMOBILE || ISWEB)) continue;
     if(WDIM == 3 && MAXMDIM == 3) continue;
     if(geometry == gFieldQuotient && !CAP_FIELD) continue;
+    if(geometry == gFake) continue;
     if(!current_filter->test()) continue;
     if(orig_el) {
       for(int j=0; j<isize(ginf); j++) 
@@ -380,21 +384,21 @@ void ge_select_tiling() {
 
 EX string current_proj_name() {
   bool h = hyperbolic || sn::in();
-  if(pmodel != mdDisk)
-    return models::get_model_name(pmodel);
-  else if(h && vid.alpha == 1)
+  if(vpconf.model != mdDisk)
+    return models::get_model_name(vpconf.model);
+  else if(h && vpconf.alpha == 1)
     return XLAT("Poincaré model");
-  else if(h && vid.alpha == 0)
+  else if(h && vpconf.alpha == 0)
     return XLAT("Klein-Beltrami model");
-  else if(h && vid.alpha == -1)
+  else if(h && vpconf.alpha == -1)
     return XLAT("inverted Poincaré model");
-  else if(sphere && vid.alpha == 1)
+  else if(sphere && vpconf.alpha == 1)
     return XLAT("stereographic projection");
-  else if(sphere && vid.alpha == 0)
+  else if(sphere && vpconf.alpha == 0)
     return XLAT("gnomonic projection");
-  else if(sphere && vid.alpha >= 999)
+  else if(sphere && vpconf.alpha >= 999)
     return XLAT("orthographic projection");
-  else if(h && vid.alpha >= 999)
+  else if(h && vpconf.alpha >= 999)
     return XLAT("Gans model");
   else 
     return XLAT("general perspective");
@@ -404,7 +408,7 @@ EX string dim_name() {
   return " (" + its(WDIM) + "D)";
   }
 
-#if CAP_THREAD
+#if CAP_THREAD && MAXMDIM >= 4
 EX void showQuotientConfig3() {
 
   using namespace fieldpattern;
@@ -442,7 +446,7 @@ EX void showQuotientConfig3() {
     auto&l = ds.hashes_found;
     for(auto& v: l) {
       char x = 'a';
-      string s = XLAT("#%1, cells: %2", itsh(v.first), its(get<5>(v.second)));
+      string s = XLAT("#%1, cells: %2, p=%3", itsh(v.first), its(get<5>(v.second)), its(get<0>(v.second)) + (get<1>(v.second) ? "²" : ""));
       dialog::addItem(s, x++);
       dialog::add_action([&v] {
         stop_game();
@@ -470,6 +474,8 @@ EX string geometry_name() {
       return XLAT("hyperbolic") + dim_name();
 
     case gcEuclid: 
+      if(cgflags & qAFFINE)
+        return XLAT("affine") + dim_name();
       return XLAT("flat") + dim_name();
     
     case gcSphere:
@@ -511,6 +517,7 @@ EX void select_quotient_screen() {
   char key = 'a';
   for(int i=0; i<isize(ginf); i++) {
     auto g = eGeometry(i);
+    if(ginf[g].flags & qDEPRECATED) continue;
     if(same_tiling(g)) {
       dialog::addBoolItem(
         (ginf[g].flags & qANYQ) ? 
@@ -527,7 +534,7 @@ EX void select_quotient_screen() {
             println(hlog, "set prime = ", currfp.Prime);
             start_game();
             }
-          #if CAP_THREAD
+          #if CAP_THREAD && MAXMDIM >= 4
           pushScreen(showQuotientConfig3);
           #endif
           }
@@ -613,11 +620,11 @@ EX void showEuclideanMenu() {
   int denom = (2*ts + 2*tv - ts * tv);
   
   #if CAP_GP
-  if(GOLDBERG && S3)
-    nom = 2 * (2*tv + ts * (cgi.gpdata->area-1));
-
-  if(GOLDBERG && S3 == 4)
-    nom = 2 * (2*tv + 2 * ts * (cgi.gpdata->area-1));
+  if(GOLDBERG) {
+    ld area = PIU(cgi.gpdata->area);
+  
+    nom = 2 * (2*tv + (S3-2) * ts * (area-1));
+    }
   #endif
 
   int worldsize;
@@ -659,7 +666,9 @@ EX void showEuclideanMenu() {
       break;
     
     default: 
-      println(hlog, "warning: Euler characteristics unknown");
+      worldsize = isize(currentmap->allcells());
+      println(hlog, "warning: Euler characteristics unknown, worldsize = ", worldsize);
+      euler = 2 * worldsize * denom / nom;
       break;
     }
   
@@ -739,12 +748,48 @@ EX void showEuclideanMenu() {
 
   dialog::add_action(select_quotient);
   
+  if(arcm::in()) {
+    dialog::addItem(XLAT("advanced parameters"), '4');
+    dialog::add_action_push(arcm::show);
+    }
+
+  if(cryst) {
+    dialog::addItem(XLAT("advanced parameters"), '4');
+    dialog::add_action_push(crystal::show);
+    }
+  
+  if(fake::available()) {
+    dialog::addItem(XLAT("fake curvature"), '4');
+    
+    dialog::add_action([] {
+      if(fake::in()) fake::configure();
+      else dialog::cheat_if_confirmed(
+        fake::configure
+        );
+      });
+    }
+  
+  if(arb::in() && !arb::current.sliders.empty()) {
+    dialog::addItem(XLAT("tessellation sliders"), '4');
+    dialog::add_action_push(arb::set_sliders);
+    }
+  
   #if CAP_IRR
   if(hyperbolic && IRREGULAR) {
     nom = isize(irr::cells);
     // both Klein Quartic and Bolza2 are double the Zebra quotiennt
     denom = -2;
     if(!quotient) worldsize = nom / denom;
+    }
+  #endif
+  
+  #if MAXMDIM >= 4
+  if(cgflags & qULTRA) {
+    dialog::addBoolItem(XLAT("truncate ultra-vertices with mirrors"), reg3::ultra_mirror_on, 'Z');
+    dialog::add_action([] { 
+      reg3::ultra_mirror_on = !reg3::ultra_mirror_on;
+      ray::reset_raycaster();
+      });
     }
   #endif
   
@@ -810,7 +855,7 @@ EX void showEuclideanMenu() {
     dialog::add_action([] {
       dialog::editNumber(rots::underlying_scale, 0, 1, 0.05, 0.25, XLAT("view the underlying geometry"),
         XLAT(
-          geometry == gRotSpace ? "The space you are currently in the space of rotations of the underlying hyperbolic or spherical geometry. "
+          geometry == gRotSpace ? "The space you are currently in is the space of rotations of the underlying hyperbolic or spherical geometry. "
             : "You are currently in a product space.") +
         XLAT(
           "This option lets you see the underlying space. Lands and some walls (e.g. in the Graveyard) are based on "
@@ -820,6 +865,20 @@ EX void showEuclideanMenu() {
       dialog::bound_low(0);
       dialog::bound_up(1);
       dialog::extra_options = [] () { rots::draw_underlying(true); };
+      });
+    }
+  
+  if(stretch::applicable()) {
+    dialog::addSelItem(XLAT("stretched geometry"), fts(stretch::factor), 'S');
+    dialog::add_action([] {
+      dialog::editNumber(stretch::factor, -1, 9, 0.1, 0, XLAT("stretched geometry"),
+        XLAT(
+          "Stretch the metric along the fibers. This can currently be done in rotation spaces and in 8-cell, 24-cell and 120-cell. "
+          "Value of 0 means not stretched, -1 means S2xE or H2xE (works only in the limit). "
+          "Only the raycaster is implemented for stretched geometry, so you will see only walls. (Must be > -1)"
+          )
+        );
+      dialog::reaction = ray::reset_raycaster;
       });
     }
   
@@ -910,7 +969,7 @@ EX void showEuclideanMenu() {
     its(worldsize),
     '3');
   
-  if(WDIM == 2) dialog::add_action([] {
+  if(WDIM == 2 || reg3::in_rule()) dialog::add_action([] {
     if(!viewdists) { enable_viewdists(); pushScreen(viewdist_configure_dialog); }
     else if(viewdists) viewdists = false;
     });
@@ -937,7 +996,7 @@ EX void runGeometryExperiments() {
 
 #if CAP_COMMANDLINE
 
-eGeometry readGeo(const string& ss) {
+EX eGeometry readGeo(const string& ss) {
   for(int i=0; i<isize(ginf); i++) if(ginf[i].shortname == ss) return eGeometry(i);
   bool numeric = true;
   for(char c: ss) if(c < '0' || c > '9') numeric = false;
@@ -976,11 +1035,18 @@ int read_geom_args() {
     set_geometry(gFieldQuotient);
     }
   else if(argis("-to-fq")) {
-    shift(); unsigned hash = arghex();
+    cgi.require_basics();
+    int p = 2;
+    shift();
+    if(args() == "p") {
+      shift(); p = argi();
+      shift(); 
+      }
+    unsigned hash = arghex();
     stop_game_and_switch_mode(rg::nothing);
     fieldpattern::field_from_current();
     set_geometry(gFieldQuotient);
-    for(int p=2;; p++) { currfp.Prime = p; currfp.force_hash = hash; if(!currfp.solve()) break; }
+    for(;; p++) { currfp.Prime = p; currfp.force_hash = hash; if(!currfp.solve()) break; }
     println(hlog, "set prime = ", currfp.Prime);
     }
   else if(argis("-cs")) {
@@ -1015,6 +1081,18 @@ int read_geom_args() {
     shift(); gp::param.second = argi();
     set_variation(eVariation::goldberg);
     }
+  else if(argis("-unrectified")) {
+    PHASEFROM(2);
+    set_variation(eVariation::unrectified);
+    }
+  else if(argis("-untruncated")) {
+    PHASEFROM(2);
+    set_variation(eVariation::untruncated);
+    }
+  else if(argis("-warped")) {
+    PHASEFROM(2);
+    set_variation(eVariation::warped);
+    }
   #endif
   #if CAP_FIELD
   else if(argis("-fi")) {
@@ -1036,6 +1114,11 @@ int read_geom_args() {
     cheat();
     shift(); currfp.qpaths.push_back(args());
     }
+  #if MAXMDIM >= 4
+  else if(argis("-truncate-ultra")) {
+    shift(); reg3::ultra_mirror_on = argi();
+    }
+  #endif
   else if(argis("-d:quotient")) 
     launch_dialog(showQuotientConfig);
   #endif

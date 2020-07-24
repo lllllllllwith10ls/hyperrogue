@@ -145,11 +145,21 @@ void celldrawer::setcolors() {
     case laCrossroads2: case laCrossroads3: case laCrossroads4: case laCrossroads5:
     case laRose: case laPower: case laWildWest: case laHalloween: case laRedRock:
     case laDragon: case laStorms: case laTerracotta: case laMercuryRiver:
-    case laDesert: case laKraken: case laDocks: case laCA:
+    case laDesert: case laKraken: case laDocks: 
     case laMotion: case laGraveyard: case laWineyard: case laLivefjord: 
     case laRlyeh: case laHell: case laCrossroads: case laJungle:
     case laAlchemist: case laFrog: case laNecro:
       fcol = floorcolors[c->land]; break;
+    
+    case laCA:
+      fcol = floorcolors[c->land]; 
+      if(geosupport_chessboard()) {
+        if(chessvalue(c)) fcol += 0x202020;
+        }
+      else if(geosupport_threecolor()) {
+        fcol += 0x202020 * pattern_threecolor(c);
+        }
+      break;
     
     case laWet:
       fcol = 0x40FF40; break;
@@ -244,7 +254,7 @@ void celldrawer::setcolors() {
       break;    
     case laMountain:
       if(eubinary || sphere || c->master->alt)
-        fcol = celldistAlt(c) & 1 ? 0x604020 : 0x302010;
+        fcol = 0x181008 * flip_dark(celldistAlt(c), 2, 4);
       else fcol = 0;
       if(c->wall == waPlatform) wcol = 0xF0F0A0;
       break;
@@ -286,7 +296,7 @@ void celldrawer::setcolors() {
       else if(c->wall == waBigTree) wcol = 0x0080C0;
       break;
     case laTemple: {
-      int d = showoff ? 0 : (eubinary||c->master->alt) ? celldistAlt(c) : 99;
+      int d = (eubinary||c->master->alt) ? celldistAlt(c) : 99;
       if(chaosmode)
         fcol = 0x405090;
       else if(d % temple_layer_size() == 0)
@@ -313,11 +323,11 @@ void celldrawer::setcolors() {
       break;
   
     case laIvoryTower:
-      fcol = 0x10101 * (32 + (c->landparam&1) * 32) - 0x000010;
+      fcol = 0x10101 * flip_dark(c->landparam, 32, 64) - 0x000010;
       break;
     
     case laWestWall:
-      fcol = 0x10101 * ((c->landparam&1) * 32) + floorcolors[c->land];
+      fcol = 0x10101 * flip_dark(c->landparam, 0, 32) + floorcolors[c->land];
       break;
     
     case laDungeon: {
@@ -337,7 +347,7 @@ void celldrawer::setcolors() {
     case laEndorian: {
       int clev = pd_from->land == laEndorian ? edgeDepth(pd_from) : 0;
         // xcol = (c->landparam&1) ? 0xD00000 : 0x00D000;
-      fcol = 0x10101 * (32 + (c->landparam&1) * 32) - 0x000010;
+      fcol = 0x10101 * flip_dark(c->landparam, 32, 64) - 0x000010;
       int ed = edgeDepth(c);
       int sr = get_sightrange_ambush();
       
@@ -352,7 +362,8 @@ void celldrawer::setcolors() {
   
       if(c->wall == waCanopy || c->wall == waSolidBranch || c->wall == waWeakBranch) {
         fcol = winf[waCanopy].color;
-        if(c->landparam & 1) fcol = gradient(0, fcol, 0, .75, 1);
+        int f = flip_dark(c->landparam, 0, 2);
+        if(f) fcol = gradient(0, fcol, 8, f, 0);
         }
       break;
       }
@@ -360,7 +371,7 @@ void celldrawer::setcolors() {
     #if CAP_FIELD
     case laPrairie:
       if(prairie::isriver(c)) {
-        fcol = ((c->LHU.fi.rval & 1) ? 0x402000: 0x503000);
+        fcol = flip_dark(c->LHU.fi.rval, 0x402000, 0x503000);
         }
       else {
         fcol = 0x004000 + 0x001000 * c->LHU.fi.walldist;
@@ -371,11 +382,11 @@ void celldrawer::setcolors() {
     #endif
   
     case laCamelot: {
-      int d = showoff ? 0 : ((eubinary||c->master->alt) ? celldistAltRelative(c) : 0);
+      int d = ((eubinary||c->master->alt) ? celldistAltRelative(c) : 0);
   #if CAP_TOUR
       if(!tour::on) camelotcheat = false;
       if(camelotcheat) 
-          fcol = (d&1) ? 0xC0C0C0 : 0x606060;
+          fcol = 0x10101 * flip_dark(d, 0x60, 0xC0);
       else 
   #endif
       if(d < 0) {
@@ -605,7 +616,7 @@ void celldrawer::setcolors() {
   
   if(c->wall == waGlass && !wmspatial) fcol = wcol;  
   
-  if(neon_mode == 4) {
+  if(neon_mode == eNeon::illustration) {
     fcol = highwall(c) ? w_monochromatize(fcol, 0) : w_monochromatize(fcol, 1);
     wcol = w_monochromatize(wcol, 0);
     if(c->land == laWarpCoast && !pseudohept(c) && c->wall == waNone) fcol = 0x707070;
@@ -634,7 +645,7 @@ void celldrawer::tune_colors() {
 
   aura_color = fcol;
 
-  if(peace::on && peace::hint && c->land != laTortoise) {
+  if(peace::on && peace::hint && (c->land != laTortoise || !tortoise::shading_on())) {
     int d =
       (c->land == laCamelot || (c->land == laCaribbean && celldistAlt(c) <= 0) || (c->land == laPalace && celldistAlt(c))) ? celldistAlt(c):
       celldist(c);
@@ -668,6 +679,8 @@ int celldrawer::getSnakelevColor(int i, int last) {
 
 void celldrawer::draw_wall() {
 
+  if(no_wall_rendering) return;
+
   if(GDIM == 3 && WDIM == 2) {
     if(!qfi.fshape) qfi.fshape = &cgi.shFullFloor;
     if(conegraph(c)) {
@@ -687,7 +700,7 @@ void celldrawer::draw_wall() {
     color_t wcol2 = gradient(0, wcol0, 0, .8, 1);
     draw_shapevec(c, V, qfi.fshape->levels[SIDE_WALL], darkena(wcol, 0, 0xFF), PPR::WALL);
     forCellIdEx(c2, i, c) 
-      if(!highwall(c2) || conegraph(c2) || c2->wall == waClosedGate)
+      if(!highwall(c2) || conegraph(c2) || c2->wall == waClosedGate || fake::split())
         placeSidewall(c, i, SIDE_WALL, V, darkena(wcol2, fd, 255));
 
     dynamicval<color_t> p(poly_outline, OUTLINE_TRANS);
@@ -762,7 +775,7 @@ void celldrawer::draw_wall() {
         }
       else {
         forCellIdEx(c2, i, c) 
-          if(!highwall(c2) || conegraph(c2) || neon_mode == 4) {
+          if(!highwall(c2) || conegraph(c2) || neon_mode == eNeon::illustration) {
           if(placeSidewall(c, i, SIDE_WALL, V, darkena(wcol2, fd, alpha))) break;
           }
         }
@@ -790,14 +803,14 @@ void celldrawer::draw_boat() {
 
   if(wmspatial && c->wall == waBoat) {
     nospin = c->wall == waBoat && applyAnimation(c, Vboat, footphase, LAYER_BOAT);
-    if(!nospin) Vboat = Vboat * ddspin(c, c->mondir, M_PI);
+    if(!nospin && c->mondir != NODIR) Vboat = Vboat * ddspin(c, c->mondir, M_PI);
     queuepolyat(Vboat, cgi.shBoatOuter, outcol, PPR::BOATLEV);
     Vboat = V;
     }
   if(c->wall == waBoat) {
     nospin = applyAnimation(c, Vboat, footphase, LAYER_BOAT);
     }
-  if(!nospin) 
+  if(!nospin && c->mondir != NODIR) 
     Vboat = Vboat * ddspin(c, c->mondir, M_PI);
   else {
     transmatrix Vx;
@@ -845,10 +858,38 @@ void celldrawer::draw_grid() {
     int ofs = wall_offset(c);
     for(int t=0; t<c->type; t++) {
       if(!c->move(t)) continue;
-      if(bt::in() && !sol && !among(t, 5, 6, 8)) continue;
+      if(bt::in() && !sn::in() && !among(t, 5, 6, 8)) continue;
       if(!bt::in() && c->move(t) < c) continue;
       dynamicval<color_t> g(poly_outline, gridcolor(c, c->move(t)));          
-      queuepoly(V, cgi.shWireframe3D[ofs + t], 0);
+      if(fat_edges && reg3::in()) {
+        for(int i=0; i<S7; i++) if(c < c->move(i) || fake::split()) {
+          for(int j=0; j<cgi.face; j++) {
+            int jj = j == cgi.face-1 ? 0 : j+1;
+            int jjj = jj == cgi.face-1 ? 0 : jj+1;
+            hyperpoint a = cgi.cellshape[i*cgi.face+j];
+            hyperpoint b = cgi.cellshape[i*cgi.face+jj];
+            if(cgflags & qIDEAL) {
+              ld mm = cgi.ultra_mirror_part;
+              if((cgflags & qULTRA) && !reg3::ultra_mirror_in())
+                mm = lerp(1-cgi.ultra_material_part, cgi.ultra_material_part, .99);
+              tie(a, b) = make_pair(normalize(lerp(a, b, mm)), normalize(lerp(b, a, mm)));
+              }
+            gridline(V, a, b, gridcolor(c, c->move(t)), prec);            
+
+            if(reg3::ultra_mirror_in()) {
+              hyperpoint a = cgi.cellshape[i*cgi.face+j];
+              hyperpoint b = cgi.cellshape[i*cgi.face+jj];
+              hyperpoint d = cgi.cellshape[i*cgi.face+jjj];
+              auto& mm = cgi.ultra_mirror_part;
+              tie(a, d) = make_pair(normalize(lerp(a, b, mm)), normalize(lerp(d, b, mm)));
+              gridline(V, a, d, stdgridcolor, prec);
+              }
+            }
+          }
+        }
+      else {
+        queuepoly(V, cgi.shWireframe3D[ofs + t], 0);
+        }
       }
     }
   #endif
@@ -875,7 +916,7 @@ void celldrawer::draw_grid() {
     }
   else {
     for(int t=0; t<c->type; t++)
-      if(c->move(t) && (c->move(t) < c || isWarped(c->move(t))))
+      if(c->move(t) && (c->move(t) < c || isWarped(c->move(t)) || fake::split()))
       gridline(V, get_corner_position(c, t%c->type), get_corner_position(c, (t+1)%c->type), gridcolor(c, c->move(t)), prec);
     }
   }
@@ -1596,8 +1637,12 @@ void celldrawer::draw_features_and_walls_3d() {
     for(int a=0; a<c->type; a++) {
       bool b = true;
       if(c->move(a) && (among(pmodel, mdPerspective, mdGeodesic) || gmatrix0.count(c->move(a))))
-        b = (patterns::innerwalls && (tC0(V)[2] < tC0(V * currentmap->adj(c, a))[2])) || !isWall3(c->move(a), dummy);
+        b = (patterns::innerwalls && (tC0(V)[2] < tC0(V * currentmap->adj(c, a))[2])) || fake::split() || !isWall3(c->move(a), dummy);
       if(b) {
+        #if CAP_WRL
+        /* always render */
+        if(wrl::in && wrl::print) ; else
+        #endif
         if(pmodel == mdPerspective && !sphere && !quotient && !kite::in() && !nonisotropic && !hybri && !experimental && !nih) {
           if(a < 4 && among(geometry, gHoroTris, gBinary3) && celldistAlt(c) >= celldistAlt(centerover)) continue;
           else if(a < 2 && among(geometry, gHoroRec) && celldistAlt(c) >= celldistAlt(centerover)) continue;
@@ -1636,9 +1681,9 @@ void celldrawer::draw_features_and_walls_3d() {
             poly.tinf = &texture::config.tinf3;
             poly.offset_texture = 0;
             }
-          else 
+          else
           #endif
-          {
+          if(!floor_texture_vertices.empty() && neon_mode == eNeon::none) {
             poly.tinf = &floor_texture_vertices[qfi.fshape->id];
             ensure_vertex_number(*poly.tinf, poly.cnt);
             poly.offset_texture = 0;
@@ -1810,7 +1855,7 @@ void celldrawer::bookkeeping() {
     else {
       playerV = V * ddspin(c, cwt.spin, 0);
       if(cwt.mirrored) playerV = playerV * Mirror;
-      if((!confusingGeometry() && !inmirrorcount) || eqmatrix(V, current_display->which_copy, 1e-2))
+      if((!confusingGeometry() && !fake::split() && !inmirrorcount) || eqmatrix(V, current_display->which_copy, 1e-2))
         current_display->which_copy = V;
       if(orig) cwtV = playerV;
       }
@@ -1895,6 +1940,12 @@ void celldrawer::draw_cellstat() {
     queuestr(V, .5, label, 0xFF000000 + col);
     }
   #endif
+
+  if(debug_cellnames && pointer_indices.count(c)) {
+    shstream ss; print(ss, c);
+    queuestr(V, .5, ss.s, 0xFFFFFFFF);    
+    queuepoly(V * ddspin(c, 0), cgi.shAsymmetric, darkena(0x000000, 0, 0xC0));
+    }
   }
 
 void celldrawer::draw_wall_full() {
@@ -2052,7 +2103,9 @@ void celldrawer::draw_wall_full() {
     #if MAXMDIM >= 4
     // draw the ceiling
     if(WDIM == 2 && GDIM == 3) {
+      #if CAP_GL
       draw_ceiling();
+      #endif
 
       int rd = rosedist(c);
       if(rd) {
@@ -2361,7 +2414,7 @@ void celldrawer::add_map_effects() {
         }
       for(int u: {-1, 1}) {
         cellwalker cw = cellwalker(c, t) + wstep + u;
-        if(u == -1 && VALENCE == 4) continue;
+        if(u == -1 && valence() == 4) continue;
         cell *c2 = cw.peek();
         if(c2 && c2->ligon) {
           int lcol = darkena(gradient(iinf[itOrbLightning].color, 0, 0, tim, 1100), 0, 0xFF);
@@ -2586,7 +2639,7 @@ void celldrawer::draw() {
     ct6 = ctof(c);
     #endif
     fd = getfd(c);
-    if(neon_mode == 4) fd = 0;
+    if(neon_mode == eNeon::illustration) fd = 0;
     error = false;
     
     setcolors();

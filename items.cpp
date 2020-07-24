@@ -31,7 +31,9 @@ EX bool canPickupItemWithMagnetism(cell *c, cell *from) {
 EX bool doPickupItemsWithMagnetism(cell *c) {
   cell *csaf = NULL;
   if(items[itOrbMagnetism])
-    forCellEx(c3, c) if(canPickupItemWithMagnetism(c3, c)) {
+    forCellEx(c3, c) if(canPickupItemWithMagnetism(c3, c)) {      
+      changes.ccell(c3);
+      changes.ccell(c);
       if(c3->item == itCompass) {
         if(!c->item)
           moveItem(c3, c, false);
@@ -52,8 +54,11 @@ EX void pickupMovedItems(cell *c) {
   if(isPlayerOn(c)) collectItem(c, true);  
   if(items[itOrbMagnetism])
     forCellEx(c2, c)
-      if(isPlayerOn(c2) && canPickupItemWithMagnetism(c, c2))
+      if(isPlayerOn(c2) && canPickupItemWithMagnetism(c, c2)) {
+        changes.ccell(c2);
+        changes.ccell(c);
         collectItem(c, true);
+        }
   }
 
 EX bool collectItem(cell *c2, bool telekinesis IS(false)) {
@@ -79,9 +84,11 @@ EX bool collectItem(cell *c2, bool telekinesis IS(false)) {
     if(c2->item == itDodeca && peace::on) peace::simon::extend();
     }
 
+  #if CAP_COMPLEX2
   if(c2->land == laHunting && c2->item && !inv::activating) {
     ambush::ambush(c2, ambush::size(c2, c2->item));
     }
+  #endif
   
   if(isRevivalOrb(c2->item) && multi::revive_queue.size()) {
     multiRevival(cwt.at, c2);
@@ -142,8 +149,10 @@ EX bool collectItem(cell *c2, bool telekinesis IS(false)) {
 
     playSound(c2, "pickup-orb"); // TODO safety
     if(!dual::state) items[c2->item] = 7;
-    if(shmup::on)
+    if(shmup::on || multi::players > 1) {
       shmup::delayed_safety = true;
+      shmup::delayed_safety_land = c2->land;
+      }
     else 
       activateSafety(c2->land);
     return true;
@@ -154,7 +163,7 @@ EX bool collectItem(cell *c2, bool telekinesis IS(false)) {
     changes.map_value(babymap, c2);
     babymap.erase(c2);
     int bold = seekbits;
-    seekbits = bnew;
+    changes.value_set(tortoise::seekbits, bnew);
     changes.value_set(tortoise::last, seekbits);
     if(seek()) {
       cell *c = passable(cwt.at, NULL, 0) ? cwt.at : c2;
@@ -242,6 +251,7 @@ EX bool collectItem(cell *c2, bool telekinesis IS(false)) {
       if(ch == '*') playSound(c2, "pickup-gem");
       else if(ch == '$' || ch == 'x') playSound(c2, "pickup-gold");
       else if(ch == '%' || ch == ';') playSound(c2, "pickup-potion");
+      else if(c2->item == itApple) playSound(c2, "apple");
       else playSound(c2, "pickup-scroll");
       }
     }
@@ -452,6 +462,7 @@ EX void gainItem(eItem it) {
     gainItem(itElemental);
     gainItem(itElemental);
     addMessage(XLAT("You construct some Elemental Gems!", it) + itemcounter(items[itElemental]));
+    playSound(cwt.at, "elementalgem");
     }          
 
   if(it == itBounty) 
@@ -460,12 +471,10 @@ EX void gainItem(eItem it) {
   if(it == itHyperstone && items[itHyperstone] == 10)
     achievement_victory(true);
 
-  if(chaosmode && gold() >= 300 && !chaosAchieved) {
-    achievement_gain("CHAOS", rg::chaos);
-    chaosAchieved = true;
-    }
+  if(chaosmode && gold() >= 300)
+    achievement_gain_once("CHAOS", rg::chaos);
 
-#if ISMOBILE==1
+#if ISMOBILE
   if(g < lastsafety + R30*3/2 && g2 >= lastsafety + R30*3/2)
     addMessage(XLAT("The Orb of Safety from the Land of Eternal Motion might save you."));
 #endif

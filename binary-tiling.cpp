@@ -9,11 +9,17 @@
 namespace hr {
 
 EX namespace bt {
-#if CAP_BT
 
   /** note: nihsolv and kd3 tilings return bt::in(). They are defined elsewhere, although some of bt:: functions are used for them */
-  EX bool in() { return cgflags & qBINARY; }
+  EX bool in() {
+#if CAP_BT
+    return cgflags & qBINARY;
+#else
+    return false;
+#endif
+    }
   
+#if CAP_BT
   #if HDR
   enum bindir {
     bd_right = 0,
@@ -530,10 +536,10 @@ EX namespace bt {
           throw "unknown direction";
         }
       else if(use_direct_for(dir))
-        return direct_tmatrix[dir];
+        return cgi.direct_tmatrix[dir];
       else {
         h->cmove(dir);
-        return inverse_tmatrix[h->c.spin(dir)];
+        return cgi.inverse_tmatrix[h->c.spin(dir)];
         }
       }
 
@@ -584,28 +590,114 @@ EX namespace bt {
 
   EX hrmap *new_alt_map(heptagon *o) { return new hrmap_binary(o); }
 
-  EX transmatrix direct_tmatrix[14];
-  EX transmatrix inverse_tmatrix[14];
-
-  int use_direct;
-  // directions in the 'use_direct' mask are taken from direct_tmatrix;
-  // directions at/above are taken by checking spin and inverse_tmatrix based on that
-
+  /** \brief return if ew should use direct_tmatrix[dir] to get the adjacent cell the given direction
+   *  
+   *  Otherwise, this is the 'up' direction and thus we should use inverse_tmatrix for the inverse direction
+   */
   EX bool use_direct_for(int dir) {
-    return (use_direct >> dir) & 1;
+    return (cgi.use_direct >> dir) & 1;
+    }
+
+  /** \brief which coordinate is expanding */
+  EX int expansion_coordinate() {
+    if(WDIM == 2) return 0;
+    return 2;
     }
   
-  EX ld expansion() {
+  /** \brief by what factor does the area expand after moving one level in hr::bt::expansion_coordinate() */
+  EX ld area_expansion_rate() {
     switch(geometry) {
-      case gHoroRec:
-        return sqrt(2);
-      case gHoroHex:
-        return sqrt(3);
-      case gKiteDart3:
-        return (sqrt(5)+1)/2;
-      default:
+      case gBinaryTiling: case gBinary4:
         return 2;
+      case gTernary:
+        return 3;
+      case gBinary3: case gHoroTris:
+        return 4;
+      case gHoroRec:
+        return 2;
+      case gHoroHex:
+        return 3;
+      case gNil:
+        return 1;
+      case gEuclidSquare:
+        return 1;
+      case gKiteDart3:
+        return pow(golden_phi, 2);
+      case gSol:
+        return 1;
+      case gNIH:
+        return 6;
+      case gSolN:
+        return 3/2.;
+      case gArnoldCat:
+        return 1;
+      
+      default:
+        return 0;
       }
+    }
+  
+  /** \brief by what factor do the lengths expand after moving one level in hr::bt::expansion_coordinate() */
+  EX ld expansion() {
+    if(WDIM == 2) return area_expansion_rate();
+    else return sqrt(area_expansion_rate());
+    }
+  
+  /** \brief Get a point in the current cell, normalized to [-1,1]^WDIM
+   *
+   *  This function returns the matrix moving point (0,0,0) to the given point in a parallelogram-like box
+   *  Dimensions of the box are normalized to [-1,1], and directions are the same as usual (i.e., expansion_coordinate() is the correct one)
+   *  
+   *  This should works for all geometries which actually have boxes.
+   *
+   *  For binary-based tessellations which are not based on square sections (e.g. gKiteDart3), 'x' and 'y' coordinates are not given in [-1,1], but take binary_width into account
+   *
+   *  Otherwise: just return h
+   *
+   *  See also: in devmods/tests.cpp, -bt-test tests whether this works correctly
+   *
+   */
+
+  EX transmatrix normalized_at(hyperpoint h) {
+    ld z2 = -log(2) / 2;
+    ld z3 = -log(3) / 2;
+    ld bwhn = vid.binary_width / 2;
+    ld bwh = vid.binary_width * z2;
+    ld r2 = sqrt(2);
+    const ld hs = hororec_scale;
+    auto &x = h[0], &y = h[1], &z = h[2];
+    switch(geometry) {
+      case gBinaryTiling: case gBinary4:
+        return bt::parabolic(y/2) * xpush(x*z2);
+      case gTernary:
+        return bt::parabolic(y/2) * xpush(x*z3);
+      case gSol:
+        return xpush(bwh*x) * ypush(bwh*y) * zpush(z2*z);
+      case gSolN: case gNIH:
+        return xpush(bwhn*x) * ypush(bwhn*y) * zpush(-z*.5);
+      case gArnoldCat:
+        return rgpushxto0(asonov::tx*x/2 + asonov::ty*y/2 + asonov::tz*z/2);
+      case gNil:
+        return rgpushxto0(point31(x/2, y/2, z/2));
+      case gEuclidSquare:
+        return rgpushxto0(hpxy(x, y));
+      case gBinary3:
+        return parabolic3(x,y) * xpush(z*z2);
+      case gHoroRec:
+        return parabolic3(r2*hs*x, 2*hs*y) * xpush(z*z2/2);
+      case gHoroTris: 
+        return parabolic3(x,y) * xpush(z*z2);
+      case gHoroHex: 
+        return parabolic3(x,y) * xpush(z*z3/2);
+      case gKiteDart3:
+        return parabolic3(x,y) * xpush(-z*log_golden_phi/2);
+      default:
+        return rgpushxto0(h);
+      }
+    }
+  
+  EX transmatrix normalized_at(ld x, ld y, ld z IS(0)) {
+    return normalized_at(point3(x, y, z));
     }
   
   EX int updir() {
@@ -634,7 +726,10 @@ EX namespace bt {
   
   EX void build_tmatrix() {
     if(among(geometry, gBinaryTiling, gSol, gArnoldCat)) return; // unused
-    use_direct = (1 << (S7-1)) - 1;
+    auto& direct_tmatrix = cgi.direct_tmatrix;
+    auto& inverse_tmatrix = cgi.inverse_tmatrix;
+    auto& use_direct = cgi.use_direct;
+    use_direct = (1 << (S7-1)) - 1;    
     if(geometry == gBinary4) {
       use_direct = 3;
       direct_tmatrix[0] = xpush(-log(2)) * parabolic(-0.5);
@@ -702,7 +797,9 @@ EX namespace bt {
       t[10] = it * t[6] * t[2];
       t[11] = it * t[1];
 
-      for(int a=0; a<12; a++) println(hlog, t[a]);
+      if(debugflags & DF_GEOM)
+        for(int a=0; a<12; a++) 
+          println(hlog, t[a]);
 
       use_direct >>= 1;
       }

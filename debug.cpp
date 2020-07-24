@@ -11,6 +11,7 @@ namespace hr {
 EX int steplimit = 0;
 EX int cstep;
 EX bool buggyGeneration = false;
+EX bool debug_cellnames = false;
 
 EX vector<cell*> buggycells;
 
@@ -44,7 +45,7 @@ bool errorReported = false;
 
 EX void describeCell(cell *c) {
   if(!c) { printf("NULL\n"); return; }
-  printf("describe %p: ", c);
+  printf("describe %p: ", hr::voidp(c));
   printf("%-15s", linf[c->land].name);
   printf("%-15s", winf[c->wall].name);
   printf("%-15s", iinf[c->item].name);
@@ -285,7 +286,7 @@ EX bool applyCheat(char u, cell *c IS(NULL)) {
   if(u == 'L'-64) {
     cell *c = mouseover;
     describeCell(c);
-    printf("Neighbors:"); for(int i=0; i<c->type; i++) printf("%p ",  c->move(i));
+    printf("Neighbors:"); for(int i=0; i<c->type; i++) printf("%p ",  hr::voidp(c->move(i)));
     printf("Barrier: dir=%d left=%d right=%d\n",
       c->bardir, c->barleft, c->barright);
     return true;
@@ -358,7 +359,7 @@ struct debugScreen {
       queuepoly(gmatrix[what], cgi.shAsymmetric, 0x80808080);
       #endif
       char buf[200];
-      sprintf(buf, "%p", what);
+      sprintf(buf, "%p", hr::voidp(what));
       dialog::addSelItem("mpdist", its(what->mpdist), 'd');
       dialog::add_action([what] () { 
         bitfield_editor(what->mpdist, [what] (int i) { what->mpdist = 0; }, "generation level");        
@@ -557,11 +558,39 @@ EX void viewall() {
     }
   }
 
+#if CAP_COMMANDLINE
+/** perform a move for the -cmove command */
+
+int cheat_move_gen = 7;
+
+void cheat_move(char c) {
+  using arg::cheat;
+  if(c >= '0' && c <= '9' && cheat_move_gen == -1) cheat_move_gen = (c - '0');
+  else if(c >= '0' && c <= '9') cheat(), cwt += (c - '0');
+  else if(c == 's') {
+    cheat();
+    cwt += wstep; 
+    playermoved = false;
+    setdist(cwt.at, cheat_move_gen, cwt.peek());
+    if(geometry_supports_cdata()) getCdata(cwt.at, 0);
+    }
+  else if(c == 'r') cheat(), cwt += rev;
+  else if(c == 'm') cheat(), cwt += wmirror;
+  else if(c == 'z') cheat(), cwt.spin = 0, cwt.mirrored = false;
+  else if(c == 'F') centering = eCentering::face, fullcenter();
+  else if(c == 'E') centering = eCentering::edge, fullcenter();
+  else if(c == 'V') centering = eCentering::vertex, fullcenter();
+  else if(c == 'a') cheat(), history::save_end();
+  else if(c == 'g') cheat_move_gen = -1;
+  else println(hlog, "unknown move command: ", c);
+  }
+#endif
+
 /** launch a debugging screen, and continue normal working only after this screen is closed */
 EX void modalDebug(cell *c) {
   centerover = c; View = Id;
   if(noGUI) {
-    fprintf(stderr, "fatal: modalDebug called on %p without GUI\n", c);
+    fprintf(stderr, "fatal: modalDebug called on %p without GUI\n", hr::voidp(c));
     exit(1);
     }
   push_debug_screen();
@@ -583,7 +612,7 @@ void test_distances(int max) {
 
 EX void raiseBuggyGeneration(cell *c, const char *s) {
 
-  printf("procgen error (%p): %s\n", c, s);
+  printf("procgen error (%p): %s\n", hr::voidp(c), s);
   
   if(!errorReported) {
     addMessage(string("something strange happened in: ") + s);
@@ -621,10 +650,34 @@ int read_cheat_args() {
     PHASEFROM(2); cheat(); reptilecheat = true;
     }
 // cheats
-  else if(argis("-WT")) {
+  else if(argis("-g")) {
+    /* debugging mode */
+    if(curphase == 1) {
+      /* use a separate score file */
+      scorefile = "xx";
+      /* set seed for reproducible results */
+      if(!fixseed) {
+        fixseed = true; autocheat = true;
+        startseed = 1;      
+        }
+      }
+    PHASE(2);
+    /* causes problems in gdb */
+    mouseaim_sensitivity = 0;
+    /* do not any play sounds while debugging */
+    effvolume = 0;
+    musicvolume = 0;
+    }
+  else if(argis("-WS")) {
     PHASE(3);
     shift(); 
     activateSafety(readland(args()));
+    cheat();
+    }
+  else if(argis("-WT")) {
+    PHASE(3);
+    shift(); 
+    teleportToLand(readland(args()), false);
     cheat();
     }
   else if(argis("-W2")) {
@@ -645,6 +698,10 @@ int read_cheat_args() {
   else if(argis("-SM")) {
     PHASEFROM(2);
     shift(); vid.stereo_mode = eStereo(argi());
+    }
+  else if(argis("-cmove")) {
+    PHASE(3); shift();
+    for(char c: args()) cheat_move(c);
     }
   else if(argis("-ipd")) {
     PHASEFROM(2);
@@ -792,6 +849,9 @@ int read_cheat_args() {
     PHASE(1);
     fixseed = true; autocheat = true;
     }
+  else if(argis("-cellnames")) {
+    cheat(); debug_cellnames = true;
+    }
   else if(argis("-fixx")) {
     PHASE(1);
     fixseed = true; autocheat = true;
@@ -802,7 +862,9 @@ int read_cheat_args() {
     shift(); steplimit = argi();
     }
   else if(argis("-dgl")) {
+    #if CAP_GL
     glhr::debug_gl = true;
+    #endif
     }
   else if(argis("-mgen-off")) {
     PHASEFROM(3);

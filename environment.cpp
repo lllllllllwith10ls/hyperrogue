@@ -72,6 +72,9 @@ EX vector<cell*> pathq;
 /** the number of big statues -- they increase monster generation */
 EX int statuecount;
 
+/** the number of slimes in Wetland -- they create ghosts */
+EX int wetslime;
+
 /** list of monsters to move (pathq restriced to monsters) */
 EX vector<cell*> pathqm;
 
@@ -207,6 +210,7 @@ EX void bfs() {
   worms.clear(); ivies.clear(); ghosts.clear(); golems.clear(); 
   tempmonsters.clear(); targets.clear(); 
   statuecount = 0;
+  wetslime = 0;
   hexsnakes.clear(); 
 
   hadwhat = havewhat;
@@ -339,6 +343,9 @@ EX void bfs() {
                 
         if(c2->wall == waBigStatue && c2->land != laTemple) 
           statuecount++;
+        
+        if(isAlch(c2->wall) && c2->land == laWet)
+          wetslime++;
           
         if(cellHalfvine(c2) && isWarped(c2)) {
           addMessage(XLAT("%The1 is destroyed!", c2->wall));
@@ -554,7 +561,7 @@ EX void moverefresh(bool turn IS(true)) {
       
       if(c->monst && !survivesChasm(c->monst) && c->monst != moReptile && normal_gravity_at(c)) {
         if(c->monst != moRunDog && c->land == laMotion) 
-          achievement_gain("FALLDEATH1");
+          achievement_gain_once("FALLDEATH1");
         addMessage(XLAT("%The1 falls!", c->monst));
         fallMonster(c, AF_FALL);
         }
@@ -788,7 +795,9 @@ EX void monstersTurn() {
 
   orbbull::check();
 
+  #if CAP_COMPLEX2
   if(!phase1) terracotta::check();
+  #endif
   
   if(items[itOrbFreedom])
     for(int i=0; i<numplayers(); i++)

@@ -8,6 +8,11 @@
 #include "hyper.h"
 namespace hr {
 
+#if HDR
+void playSound(cell *c, const string& fname, int vol = 100);
+void resetmusic();
+#endif
+
 EX const char *musicfile = "";
 EX bool audio;
 EX string musiclicense;
@@ -34,6 +39,12 @@ EX void playSeenSound(cell *c) {
     playSound(c, "seen-earth");
   else if(c->monst == moAirElemental) 
     playSound(c, "seen-air");
+  else if(c->monst == moPhaser) 
+    playSound(c, "seen-frog1");
+  else if(c->monst == moFrog) 
+    playSound(c, "seen-frog2");
+  else if(c->monst == moVaulter) 
+    playSound(c, "seen-frog3");
   else if(c->monst == moWaterElemental)
     playSound(c, "seen-water");
   else if(c->monst == moDeathElemental)
@@ -84,9 +95,9 @@ int musfadeval = 2000;
 
 eLand cid = laNone;
 
-hookset<bool(eLand&)> *hooks_music;
+hookset<bool(eLand&)> hooks_music;
 
-bool music_out_of_focus = false;
+EX bool music_out_of_focus = false;
 
 EX void handlemusic() {
   DEBBI(DF_GRAPH, ("handle music"));
@@ -130,7 +141,7 @@ EX void handlemusic() {
     }
   }
 
-hookset<bool(eLand&)> *hooks_resetmusic;
+hookset<bool(eLand&)> hooks_resetmusic;
 
 EX void resetmusic() {
   if(audio && musicvolume) {
@@ -219,9 +230,9 @@ string wheresounds = SOUNDDESTDIR;
 string wheresounds = HYPERPATH "sounds/";
 #endif
 
-hookset<bool(const string& s, int vol)> *hooks_sound;
+hookset<bool(const string& s, int vol)> hooks_sound;
 
-EX void playSound(cell *c, const string& fname, int vol IS(100)) {
+EX void playSound(cell *c, const string& fname, int vol) {
   LATE( hr::playSound(c, fname, vol); )
   if(effvolume == 0) return;
   if(callhandlers(false, hooks_sound, fname, vol)) return;
@@ -290,8 +301,8 @@ auto ah_sound = addHook(hooks_args, 0, read_sound_args) + addHook(hooks_clear_ca
 
 #endif
 
-#if !CAP_SDLAUDIO
-EX void playSound(cell *c, const string& fname, int vol IS(100)) { }
+#if !CAP_AUDIO
+EX void playSound(cell *c, const string& fname, int vol) { }
 EX void resetmusic() { }
 #endif
 

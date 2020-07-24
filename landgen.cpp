@@ -178,7 +178,7 @@ EX int hrand_monster(int x) {
   // in 3D monster generation depends on the sight range
   if(WDIM == 3 && !sphere) {
     int t = isize(gmatrix);
-    if(t > 500) x = ((long long)(x)) * t / 500;
+    if(t > 500) x = int(((long long)(x)) * t / 500);
     }
   return hrand(x);
   }
@@ -744,7 +744,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
     
     case laZebra:
       if(d==8) 
-        c->wall = is_zebra_trapdoor(c) ? waTrapdoor : waNone;
+        c->wall = (randomPatternsMode ? RANDPAT : is_zebra_trapdoor(c)) ? waTrapdoor : waNone;
       
       ONEMPTY {
         if(c->wall == waNone && hrand(2500) < PT(100 + 2 * (kills[moOrangeDog]), 300) && notDippingFor(itZebra))
@@ -756,7 +756,9 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
     
     case laWineyard:
       if(d==8) {
-        if(euclid && bounded) ;
+        if(randomPatternsMode)
+          c->wall = RANDPAT ? waVinePlant : waNone;
+        else if(euclid && bounded) ;
         #if CAP_ARCM
         else if(arcm::in() && arcm::current.have_line)
           c->wall = arcm::linespattern(c) ? waVinePlant : waNone;
@@ -786,8 +788,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
           if(v == 0) c->wall = waStone;
           else {
             int w = v / 4;
-            if(randomPatternsMode) c->wall = RANDPAT ? waVinePlant : waNone;
-            else if(w == 9 || w == 10 || w == 7 || w == 8) {
+            if(w == 9 || w == 10 || w == 7 || w == 8) {
               c->wall = waVinePlant;
               }
             else if(v == 24 || v == 58 || v == 26 || v == 56)
@@ -1054,8 +1055,11 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
       break;
     
     case laCA:
-      if(fargen)
+      if(fargen) {
         c->wall = (hrand(1000000) < ca::prob * 1000000) ? ca::wlive : waNone;
+        if(c->wall == ca::wlive)
+          ca::list_adj(c);
+        }
       break;
     
     case laLivefjord:
@@ -1201,6 +1205,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
       break;
     
     case laTerracotta: 
+      #if CAP_COMPLEX2
       if(fargen) {
         if(hrand(500) < 15) 
           createArrowTrapAt(c, laTerracotta);
@@ -1230,6 +1235,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
         if(hrand_monster(20000) < t)
           c->monst = moJiangshi;
         }
+      #endif
       break;
     
     case laOvergrown:
@@ -1360,7 +1366,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
           c->wall = waChasm;
         else if(c->type == 6 && buildPrizeMirror(c, 1000))
           {}
-        else
+        else if(!reptilecheat)
           whirlwind::switchTreasure(c);
         }
       ONEMPTY {
@@ -1808,13 +1814,15 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
         if(hrand_monster(4000) < (peace::on ? 750 : 50 + items[itBabyTortoise]*2 + yendor::hardness() * 6) && !safety) {
           c->monst = moTortoise;
           c->hitpoints = 3;
+          auto val = tortoise::getb(c);
+          tortoise::emap[c] = val;
           }
         
         int chance = 50 + items[itBabyTortoise]*2;
         if(quickfind(laTortoise)) chance += 150;
         if((tactic::on || euclid || peace::on) && hrand(4000) < chance && !safety) {
           c->item = itBabyTortoise;
-          tortoise::babymap[c] = getBits(c) ^ tortoise::getRandomBits();
+          tortoise::babymap[c] = tortoise::getb(c) ^ tortoise::getRandomBits();
           }
         }
       break;
@@ -2711,16 +2719,23 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
         // if(wet::wetdata.empty()) wet::build_data();
         eWall wetwalls[10] = {waNone, waNone, waDeepWater, waDeepWater, waDeepWater, waShallow, waShallow, waShallow, waStone, waStone};
         c->wall = wetwalls[hrand(10)]; // wet::wetdata[windmap::getId(c)]];
-        if(among(c->wall, waDeepWater, waShallow) && hrand_monster(2000) < 2 * (items[itWet] + yendor::hardness() + 5))
+        if(randomPatternsMode) {
+          int a = 0;
+          if(RANDPAT) a++;
+          if(RANDPATV(laAsteroids)) a += 2;
+          eWall wetwalls[4] = { waNone, waShallow, waStone, waDeepWater };
+          c->wall = wetwalls[a];
+          }
+        if(among(c->wall, waDeepWater, waShallow) && hrand_monster(4000) < 2 * (items[itWet] + yendor::hardness() + 5))
           c->monst = hrand(100) >= 90 ? moRusalka : moPike;
-        if(c->wall == waShallow && hrand(2000) < PT(100 + 2 * kills[moPike] + 3 * kills[moRusalka], 200) && notDippingFor(itWet))
+        if(c->wall == waShallow && hrand(2000) < min(PT(100 + kills[moPike] + kills[moRusalka], 150), 150) && notDippingFor(itWet))
           c->item = itWet;
         }
       break;
     
     case laFrog:
       if(d == 9) {
-        if(!is_zebra_trapdoor(c)) {
+        if(randomPatternsMode ? RANDPAT : !is_zebra_trapdoor(c)) {
           if(hrand(2000) < PT(100 + 2 * kills[moFrog] + 2 * kills[moPhaser] + 2 * kills[moVaulter], 100) && notDippingFor(itFrog)) {
             bool ok = true;
             forCellCM(c1, c) if(c1->item) ok = false;
@@ -2813,7 +2828,27 @@ EX void setland_randomwalk(cell *c) {
     }
   }
 
+EX void set_land_for_geometry(cell *c) {
+  if(0);
+  else if(chaosmode > 1) ;
+  #if CAP_CRYSTAL
+  else if(cryst) crystal::set_land(c);
+  #endif
+  #if MAXMDIM == 4
+  else if(euc::in(3)) euc::set_land(c);
+  #endif
+  else if(hybri) setLandHybrid(c);
+  else if(sphere || (euclid && bounded)) setLandSphere(c);
+  else if(euclid) setLandEuclid(c);
+  else if(quotient) { setland(c, specialland); setLandQuotient(c); }
+  else if(sol) setLandSol(c);
+  else if(nil) setLandNil(c);
+  else if(weirdhyperbolic) setLandWeird(c);
+  }
+
 EX void setdist(cell *c, int d, cell *from) {
+
+  if(fake::in()) return FPIU(setdist(c, d, from));
   
   if(c->mpdist <= d) return;
   if(c->mpdist > d+1 && d < BARLEV) setdist(c, d+1, from);
@@ -2896,21 +2931,7 @@ EX void setdist(cell *c, int d, cell *from) {
 #else
     if(true) {
 #endif
-      if(0);
-      else if(chaosmode > 1) ;
-      #if CAP_CRYSTAL
-      else if(cryst) crystal::set_land(c);
-      #endif
-      #if MAXMDIM == 4
-      else if(euc::in(3)) euc::set_land(c);
-      #endif
-      else if(hybri) setLandHybrid(c);
-      else if(sphere || (euclid && bounded)) setLandSphere(c);
-      else if(euclid) setLandEuclid(c);
-      else if(quotient) { setland(c, specialland); setLandQuotient(c); }
-      else if(sol) setLandSol(c);
-      else if(nil) setLandNil(c);
-      else if(weirdhyperbolic) setLandWeird(c);
+      set_land_for_geometry(c);
       }
     
     // if(chaosmode) setland(c, getCLand(c));
@@ -2920,7 +2941,7 @@ EX void setdist(cell *c, int d, cell *from) {
     color_t col = patterns::generateCanvas(c);
     c->landparam = col;
     c->wall = canvas_default_wall;
-    if(WDIM == 3 && (col & 0x1000000)) c->wall = waWaxWall;
+    if(GDIM == 3 && (col & 0x1000000)) c->wall = waWaxWall;
     }
 
   #if CAP_FIELD
@@ -2987,7 +3008,7 @@ EX void setdist(cell *c, int d, cell *from) {
   
   // the number of tiles in the standard geometry has about 7553 digits!
   int gdist = abs(c->master->distance);
-  if(gdist > global_distance_limit) {
+  if(gdist > global_distance_limit && hyperbolic && !quotient) {
     gdist -= global_distance_limit;
     if(d == 8 && hrand(100) < gdist) {
       if(!isMultitile(c)) c->monst = moNone;

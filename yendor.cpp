@@ -494,12 +494,13 @@ EX namespace yendor {
   
       yi.push_back(nyi);
       }
+    dynamicval<bool> b(changes.on, false);
     addMessage(XLAT("You need to find the right Key to unlock this Orb of Yendor!"));
     if(yi[byi].actualKey)
       addMessage(XLAT("You feel that these directions are %1 turns old.", yi[byi].age.get_str(100)));
     if(yii != byi) {
       yii = byi;
-      achievement_gain("YENDOR1");
+      achievement_gain_once("YENDOR1");
       playSound(yendor, "pickup-yendor");
       return true;
       }
@@ -757,20 +758,29 @@ EX namespace yendor {
       if(yendor::yi[i].path[0] == c2) 
         changes.value_set(yendor::yi[i].foundOrb, true);
     // Shielding always, so that we know that it protects!
-    for(int i=0; i<4; i++) switch(hrand(13)) {
-      case 0: items[itOrbSpeed] += 31; break;
-      case 1: items[itOrbLightning] += 78; break;
-      case 2: items[itOrbFlash] += 78; break;
-      case 3: items[itOrbTime] += 78; break;
-      case 4: items[itOrbWinter] += 151; break;
-      case 5: items[itOrbDigging] += 151; break;
-      case 6: items[itOrbTeleport] += 151; break;
-      case 7: items[itOrbThorns] += 151; break;
-      case 8: items[itOrbInvis] += 151; break;
-      case 9: items[itOrbPsi] += 151; break;
-      case 10: items[itOrbAether] += 151; break;
-      case 11: items[itOrbFire] += 151; break;
-      case 12: items[itOrbSpace] += 78; break;
+    int powers = 0;
+    for(int i=0; i<1000 && powers < 4; i++) {
+      vector< pair<eItem, int> > choices = {
+        {itOrbSpeed, 31},
+        {itOrbLightning, 78},
+        {itOrbFlash, 78},
+        {itOrbTime, 78},
+        {itOrbWinter, 151},
+        {itOrbDigging, 151},
+        {itOrbTeleport, 151},
+        {itOrbThorns, 151},
+        {itOrbInvis, 151},
+        {itOrbPsi, 151},
+        {itOrbAether, 151},
+        {itOrbFire, 151},
+        {itOrbSpace, 78}
+        };
+      auto p = hrand_elt(choices);
+      auto orb = p.first;
+      if(items[orb] && i < 500) continue;
+      if(among(getOLR(orb, getPrizeLand()), olrDangerous, olrUseless, olrForbidden)) continue;
+      items[orb] += p.second;
+      powers++;
       }
     items[itOrbYendor]++; 
     items[itKey]--;
@@ -789,7 +799,7 @@ EX namespace yendor {
     achievement_victory(false);
     }
   
-  auto hooks = addHook(clearmemory, 0, [] () {
+  auto hooks = addHook(hooks_clearmemory, 0, [] () {
     yendor::yii = NOYENDOR; yendor::yi.clear();
     }) + addHook(hooks_removecells, 0, [] () {
     eliminate_if(yendor::yi, [] (yendorinfo& i) {
@@ -806,7 +816,6 @@ EX namespace yendor {
 #define MAXTAC 20
 EX namespace tactic {
 
-  EX bool trailer = false;
   EX bool on = false;
   EX int id;
   
@@ -844,7 +853,7 @@ EX namespace tactic {
     return hiitemsMax(treasureType(l)) * landMultiplier(l) >= 20;
     }
 
-  EX void record(eLand land, int score, int xc IS(modecode())) {
+  EX void record(eLand land, int score, flagtype xc IS(modecode())) {
     if(land >=0 && land < landtypes) {
       for(int i=MAXTAC-1; i; i--) lsc[xc][land][i] = lsc[xc][land][i-1];
       tactic::lsc[xc][land][0] = score;
@@ -859,7 +868,7 @@ EX namespace tactic {
     record(lasttactic, items[treasureType(lasttactic)]);
     }
 
-  void unrecord(eLand land, int xc = modecode()) {
+  void unrecord(eLand land, flagtype xc = modecode()) {
     if(land >=0 && land < landtypes) {
       for(int i=0; i<MAXTAC-1; i++) lsc[xc][land][i] = lsc[xc][land][i+1];
       lsc[xc][land][MAXTAC-1] = -1;
@@ -895,7 +904,7 @@ EX namespace tactic {
   
   EX void showMenu() {
 
-    int xc = modecode();
+    flagtype xc = modecode();
     
     if(xc == 0) set_priority_board(LB_PURE_TACTICS);
     if(xc == 2) set_priority_board(LB_PURE_TACTICS_SHMUP);
@@ -1353,7 +1362,7 @@ EX namespace peace {
     }
     
   auto aNext = addHook(hooks_nextland, 100, getNext);
-  };
+  }
 
 #if CAP_COMMANDLINE
 int read_mode_args() {

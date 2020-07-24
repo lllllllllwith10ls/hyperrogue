@@ -39,7 +39,9 @@ struct hrmap {
   virtual struct transmatrix adj(cell *c, int i) { return adj(c->master, i); }
   virtual struct transmatrix adj(heptagon *h, int i);
   struct transmatrix iadj(cell *c, int i) { cell *c1 = c->cmove(i); return adj(c1, c->c.spin(i)); }
-  transmatrix iadj(heptagon *h, int d) { return adj(h->cmove(d), h->c.spin(d)); }
+  transmatrix iadj(heptagon *h, int d) { 
+    heptagon *h1 = h->cmove(d); return adj(h1, h->c.spin(d));
+    }
   virtual void draw() {
     printf("undrawable\n");
     }
@@ -53,22 +55,9 @@ struct hrmap {
   static constexpr ld SPIN_NOT_AVAILABLE = 1e5;
   virtual ld spin_angle(cell *c, int d) { return SPIN_NOT_AVAILABLE; }
   
-  virtual transmatrix spin_to(cell *c, int d, ld bonus=0) {
-    ld sa = spin_angle(c, d);
-    if(sa != SPIN_NOT_AVAILABLE) { return spin(bonus + sa); }
-    transmatrix T = rspintox(tC0(adj(c, d)));
-    if(WDIM == 3) return T * cspin(2, 0, bonus);
-    return T * spin(bonus);
-    }
-
-  virtual transmatrix spin_from(cell *c, int d, ld bonus=0) {
-    ld sa = spin_angle(c, d);
-    if(sa != SPIN_NOT_AVAILABLE) { return spin(bonus - sa); }
-    transmatrix T = spintox(tC0(adj(c, d)));
-    if(WDIM == 3) return T * cspin(2, 0, bonus);
-    return T * spin(bonus);
-    }
-
+  virtual transmatrix spin_to(cell *c, int d, ld bonus=0);
+  virtual transmatrix spin_from(cell *c, int d, ld bonus=0);
+  
   virtual double spacedist(cell *c, int i) { return hdist0(tC0(adj(c, i))); }
   };
 
@@ -98,13 +87,29 @@ struct hrmap_hyperbolic : hrmap_standard {
   heptagon *getOrigin() override { return origin; }
   ~hrmap_hyperbolic() {
     // verifycells(origin);
-    // printf("Deleting hyperbolic map: %p\n", this);
+    // printf("Deleting hyperbolic map: %p\n", hr::voidp(this));
     clearfrom(origin);
     }
   void verify() override { verifycells(origin); }
   void virtualRebase(heptagon*& base, transmatrix& at) override;
   };
 #endif
+
+transmatrix hrmap::spin_to(cell *c, int d, ld bonus) {
+  ld sa = spin_angle(c, d);
+  if(sa != SPIN_NOT_AVAILABLE) { return spin(bonus + sa); }
+  transmatrix T = rspintox(tC0(adj(c, d)));
+  if(WDIM == 3) return T * cspin(2, 0, bonus);
+  return T * spin(bonus);
+  }
+
+transmatrix hrmap::spin_from(cell *c, int d, ld bonus) {
+  ld sa = spin_angle(c, d);
+  if(sa != SPIN_NOT_AVAILABLE) { return spin(bonus - sa); }
+  transmatrix T = spintox(tC0(adj(c, d)));
+  if(WDIM == 3) return T * cspin(2, 0, bonus);
+  return T * spin(bonus);
+  }
 
 transmatrix hrmap::adj(heptagon *h, int i) { return relative_matrix(h->cmove(i), h, C0); }
 
@@ -133,12 +138,18 @@ EX int dirdiff(int dd, int t) {
 
 EX int cellcount = 0;
 
+EX void destroy_cell(cell *c) {
+  tailored_delete(c);
+  cellcount--;
+  }
+
 EX cell *newCell(int type, heptagon *master) {
   cell *c = tailored_alloc<cell> (type);
   c->type = type;
   c->master = master;
   initcell(c);
   hybrid::will_link(c);
+  cellcount++;
   return c;
   }
 
@@ -191,6 +202,9 @@ EX cell *createMov(cell *c, int d) {
   else if(kite::in())
     kite::find_cell_connection(c, d);
   #endif
+  else if(fake::in()) {
+    return FPIU(createMov(c, d));
+    }
   #if CAP_IRR
   else if(IRREGULAR) {
     irr::link_cell(c, d);
@@ -200,10 +214,13 @@ EX cell *createMov(cell *c, int d) {
   else if(GOLDBERG) {
     gp::extend_map(c, d);
     if(!c->move(d)) {
-      printf("extend failed to create for %p/%d\n", c, d);
+      printf("extend failed to create for %p/%d\n", hr::voidp(c), d);
       exit(1);
       }
     hybrid::link();
+    }
+  else if(INVERSE) {
+    return gp::inverse_move(c, d);
     }
   #endif
   #if CAP_ARCM
@@ -268,14 +285,16 @@ EX void eumerge(cell* c1, int s1, cell *c2, int s2, bool mirror) {
 
 //  map<pair<eucoord, eucoord>, cell*> euclidean;
 
-EX hookset<hrmap*()> *hooks_newmap;
+EX hookset<hrmap*()> hooks_newmap;
 
 /** create a map in the current geometry */
 EX void initcells() {
   DEBB(DF_INIT, ("initcells"));
   
   hrmap* res = callhandlers((hrmap*)nullptr, hooks_newmap);
-  if(res) currentmap = res;  
+  if(res) currentmap = res;
+  else if(INVERSE) currentmap = gp::new_inverse();
+  else if(fake::in()) currentmap = fake::new_map();
   else if(asonov::in()) currentmap = asonov::new_map();
   else if(nonisotropic || hybri) currentmap = nisot::new_map();
   #if CAP_CRYSTAL
@@ -311,9 +330,9 @@ EX void initcells() {
 
 EX void clearcell(cell *c) {
   if(!c) return;
-  DEBB(DF_MEMORY, (format("c%d %p\n", c->type, c)));
+  DEBB(DF_MEMORY, (format("c%d %p\n", c->type, hr::voidp(c))));
   for(int t=0; t<c->type; t++) if(c->move(t)) {
-    DEBB(DF_MEMORY, (format("mov %p [%p] S%d\n", c->move(t), c->move(t)->move(c->c.spin(t)), c->c.spin(t))));
+    DEBB(DF_MEMORY, (format("mov %p [%p] S%d\n", hr::voidp(c->move(t)), hr::voidp(c->move(t)->move(c->c.spin(t))), c->c.spin(t))));
     if(c->move(t)->move(c->c.spin(t)) != NULL &&
       c->move(t)->move(c->c.spin(t)) != c) {
         DEBB(DF_MEMORY | DF_ERROR, (format("cell error: type = %d %d -> %d\n", c->type, t, c->c.spin(t))));
@@ -321,8 +340,9 @@ EX void clearcell(cell *c) {
         }
     c->move(t)->move(c->c.spin(t)) = NULL;
     }
-  DEBB(DF_MEMORY, (format("DEL %p\n", c)));
-  tailored_delete(c);
+  DEBB(DF_MEMORY, (format("DEL %p\n", hr::voidp(c))));
+  destroy_cell(c);
+  gp::delete_mapped(c);
   }
 
 EX heptagon deletion_marker;
@@ -413,7 +433,7 @@ EX void verifycell(cell *c) {
     if(c2) {
       if(BITRUNCATED && c == c->master->c7) verifycell(c2);
       if(c2->move(c->c.spin(i)) && c2->move(c->c.spin(i)) != c) {
-        printf("cell error %p:%d [%d] %p:%d [%d]\n", c, i, c->type, c2, c->c.spin(i), c2->type);
+        printf("cell error %p:%d [%d] %p:%d [%d]\n", hr::voidp(c), i, c->type, hr::voidp(c2), c->c.spin(i), c2->type);
         exit(1);
         }
       }
@@ -423,7 +443,7 @@ EX void verifycell(cell *c) {
 EX void verifycells(heptagon *at) {
   if(GOLDBERG || IRREGULAR || arcm::in()) return;
   for(int i=0; i<at->type; i++) if(at->move(i) && at->move(i)->move(at->c.spin(i)) && at->move(i)->move(at->c.spin(i)) != at) {
-    printf("hexmix error %p [%d s=%d] %p %p\n", at, i, at->c.spin(i), at->move(i), at->move(i)->move(at->c.spin(i)));
+    printf("hexmix error %p [%d s=%d] %p %p\n", hr::voidp(at), i, at->c.spin(i), hr::voidp(at->move(i)), hr::voidp(at->move(i)->move(at->c.spin(i))));
     }
   if(!sphere && !quotient) 
     for(int i=0; i<S7; i++) if(at->move(i) && at->c.spin(i) == 0 && at->s != hsOrigin)
@@ -453,13 +473,18 @@ EX int celldist(cell *c) {
   if(hybri) 
     return hybrid::celldistance(c, currentmap->gamestart());
   if(nil && !quotient) return DISTANCE_UNKNOWN;
-  if(euclid) return celldistance(currentmap->gamestart(), c);
+  if(euc::in()) return celldistance(currentmap->gamestart(), c);
   if(sphere || bt::in() || WDIM == 3 || cryst || sn::in() || kite::in()) return celldistance(currentmap->gamestart(), c);
   #if CAP_IRR
   if(IRREGULAR) return irr::celldist(c, false);
   #endif
   if(arcm::in() || ctof(c)) return c->master->distance;
   #if CAP_GP
+  if(INVERSE) {
+    cell *c1 = gp::get_mapped(c);
+    return UIU(gp::compute_dist(c1, celldist)) / 2;
+    /* TODO */
+    }
   if(GOLDBERG) return gp::compute_dist(c, celldist);
   #endif
   int dx[MAX_S3];
@@ -496,7 +521,7 @@ EX int celldistAlt(cell *c) {
     return celldist(c) - 3;
     }
   #if MAXMDIM >= 4
-  if(euc::in(3)) return euc::dist_alt(c);
+  if(euc::in()) return euc::dist_alt(c);
   if(hyperbolic && WDIM == 3 && !reg3::in_rule())
     return reg3::altdist(c->master);
   #endif
@@ -507,6 +532,11 @@ EX int celldistAlt(cell *c) {
   if(ctof(c)) return c->master->alt->distance;
   #if CAP_GP
   if(GOLDBERG) return gp::compute_dist(c, celldistAlt);
+  if(INVERSE) {
+    cell *c1 = gp::get_mapped(c);
+    return UIU(gp::compute_dist(c1, celldistAlt)) / 2;
+    /* TODO */
+    }
   #endif
   int dx[MAX_S3]; dx[0] = 0;
   for(int u=0; u<S3; u++) if(createMov(c, u+u)->master->alt == NULL)
@@ -902,7 +932,8 @@ EX cdata *arcmCdata(cell *c) {
   }
 
 EX int getCdata(cell *c, int j) {
-  if(prod) { c = hybrid::get_where(c).first; return PIU(getBits(c)); }
+  if(fake::in()) return FPIU(getCdata(c, j));
+  if(hybri) { c = hybrid::get_where(c).first; return PIU(getBits(c)); }
   else if(euc::in()) return getEuclidCdata(euc2_coordinates(c))->val[j];
   else if(arcm::in() && euclid)
     return getEuclidCdata(pseudocoords(c))->val[j];
@@ -920,7 +951,8 @@ EX int getCdata(cell *c, int j) {
   }
 
 EX int getBits(cell *c) {
-  if(prod) { c = hybrid::get_where(c).first; return PIU(getBits(c)); }
+  if(fake::in()) return FPIU(getBits(c));
+  if(hybri) { c = hybrid::get_where(c).first; return PIU(getBits(c)); }
   else if(euc::in()) return getEuclidCdata(euc2_coordinates(c))->bits;
   else if(arcm::in() && euclid)
     return getEuclidCdata(pseudocoords(c))->bits;
@@ -1058,11 +1090,15 @@ EX int clueless_celldistance(cell *c1, cell *c2) {
 
 EX int celldistance(cell *c1, cell *c2) {
 
+  if(fake::in()) return FPIU(celldistance(c1, c2));
+
   if(hybri) return hybrid::celldistance(c1, c2);
   
   #if CAP_FIELD
-  if(geometry == gFieldQuotient && !GOLDBERG)
-    return currfp.getdist(fieldpattern::fieldval(c1), fieldpattern::fieldval(c2));
+  if(geometry == gFieldQuotient) {
+    int d = fieldpattern::field_celldistance(c1, c2);
+    if(d != DISTANCE_UNKNOWN) return d;
+    }
   #endif
   
   if(bounded) return bounded_celldistance(c1, c2);
@@ -1086,11 +1122,18 @@ EX int celldistance(cell *c1, cell *c2) {
   #endif
   
   #if MAXMDIM >= 4
-  if(euclid && !kite::in() && !arcm::in()) 
+  if(euc::in()) 
     return euc::celldistance(c1, c2);
   
   if(hyperbolic && WDIM == 3) return reg3::celldistance(c1, c2);
   #endif
+
+  if(INVERSE) {
+    c1 = gp::get_mapped(c1);
+    c2 = gp::get_mapped(c2);
+    return UIU(celldistance(c1, c2)) / 2;
+    /* TODO */
+    }
 
   return hyperbolic_celldistance(c1, c2);
   }
@@ -1162,7 +1205,7 @@ EX void clearCellMemory() {
   gp::gp_adj.clear();
   }
 
-auto cellhooks = addHook(clearmemory, 500, clearCellMemory);
+auto cellhooks = addHook(hooks_clearmemory, 500, clearCellMemory);
 
 EX bool isNeighbor(cell *c1, cell *c2) {
   for(int i=0; i<c1->type; i++) if(c1->move(i) == c2) return true;
@@ -1286,7 +1329,8 @@ EX bool standard_tiling() {
   }
 
 EX int valence() {
-  if(BITRUNCATED) return 3;
+  if(BITRUNCATED || IRREGULAR) return 3;
+  if(INVERSE) return WARPED ? 4 : max(S3, S7);
   #if CAP_ARCM
   if(arcm::in()) return arcm::valence();
   #endif

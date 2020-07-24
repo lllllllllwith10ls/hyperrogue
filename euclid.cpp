@@ -77,7 +77,7 @@ EX namespace euc {
   struct torus_config {
     /** periods entered by the user */
     intmatrix user_axes;
-    /** OR'ed flags: 1 -- flip X in 3D, 2 -- flip Y in 3D, 4 -- flip X/Y in 3D, 8 -- Klein bottle in 2D, 16 -- third turn in 3D */
+    /** OR'ed flags: 1 -- flip X in 3D, 2 -- flip Y in 3D, 4 -- flip X/Y in 3D, 8 -- Klein bottle in 2D, 16 -- third turn in 3D, 32 -- Hantzsche-Wendt in 3D */
     int twisted;
 
     torus_config() {}
@@ -306,10 +306,13 @@ EX namespace euc {
     };
   
   hrmap_euclidean* cubemap() {
+    if(fake::in()) return FPIU(cubemap());
     return ((hrmap_euclidean*) currentmap);
     }
 
-  hrmap_euclidean* eucmap() { return cubemap(); }
+  hrmap_euclidean* eucmap() { 
+    return cubemap(); 
+    }
 
   EX vector<coord>& get_current_shifttable() { return cubemap()->shifttable; }
   EX map<coord, heptagon*>& get_spacemap() { return cubemap()->spacemap; }
@@ -336,6 +339,10 @@ EX namespace euc {
     }
 
   EX int dist_alt(cell *c) {
+    if(WDIM == 2) {
+      auto v = full_coords2(c);
+      return euclidAlt(v.first, v.second);
+      }
     if(specialland == laCamelot) return dist_relative(c) + roundTableRadius(c);
     auto v = cubemap()->ispacemap[c->master];
     if(S7 == 6) return v[2];
@@ -388,8 +395,10 @@ EX namespace euc {
       }
     }
 
-  EX int celldistance(cell *c1, cell *c2) {
+  EX int celldistance(cell *c1, cell *c2) {    
     auto cm = cubemap();
+    if(GDIM == 2)
+      return dist(full_coords2(c1), full_coords2(c2));
     return celldistance(basic_canonicalize(cm->ispacemap[c1->master] - cm->ispacemap[c2->master]));
     }
 
@@ -459,7 +468,7 @@ EX namespace euc {
       cat += val * main_axes[i];
       }
     return cat;
-    };
+    }
     
   EX bool valid_third_turn(const intmatrix& m) {
     if(m[0][2] != -m[0][0]-m[0][1]) return false;
@@ -470,7 +479,24 @@ EX namespace euc {
     if(m[2][0] != m[2][2]) return false;
     return true;
     }
+
+  EX torus_config make_hantzsche_wendt(int v) {
+    intmatrix im;
+    for(int i=0; i<3; i++)
+    for(int j=0; j<3; j++) im[i][j] = 0;
+
+    for(int i=0; i<3; i++) {
+      im[i][i] = v;
+      im[i][(i+1)%3] = v;
+      }
+    
+    return {im, 32};
+    }
   
+  EX bool valid_hantzsche_wendt(const intmatrix& m) {
+    return m[0][0] > 0 && m == make_hantzsche_wendt(m[0][0]).user_axes;
+    }
+
   EX torus_config make_third_turn(int a, int b, int c) {
     intmatrix T0;
     T0[0][0] = a;
@@ -585,6 +611,10 @@ EX namespace euc {
         if(g == gBitrunc3 && (T0[0][0]&1)) eu.twisted = 0;
         if(g == gBitrunc3 && (T0[1][1]&1)) eu.twisted = 0;
         }
+      else if(valid_hantzsche_wendt(eu.user_axes)) {
+        eu.twisted &= 32;
+        if(g == gBitrunc3 && (T0[0][0]&1)) eu.twisted = 0;
+        }
       else {
         eu.twisted &= 7;
         if(g != gCubeTiling && ((T0[0][0]+T0[2][2]) & 1)) eu.twisted &=~ 1;
@@ -630,7 +660,7 @@ EX namespace euc {
   int diagonal_cross(const coord& a, const coord& b) {
     return a[0]*b[1] + a[1]*b[2] + a[2]*b[0]
          - b[0]*a[1] - b[1]*a[2] - b[2]*a[0];
-    };
+    }
   
   void torus_config_full::canonicalize(coord& x, coord& d, transmatrix& M, bool& mirr) {
     if(!twisted) {
@@ -645,6 +675,45 @@ EX namespace euc {
       return;
       }
     auto& T0 = user_axes;
+    if(twisted & 32) {    
+      int period = T0[0][0];
+      auto& coo = x;
+      
+      while(true) {
+        restart:
+        /* These coordinates cause the algorithm below to go in circles. We simply break if they are detected */
+        if(coo[0] >= 0 && coo[1] == period - coo[0] && coo[2] == -coo[1] && coo[0]*2 > period && coo[0] < period) return;
+        if(coo[0]*2 <= -period && coo[0] >= -period && coo[2] == period+coo[0] && coo[2] == -coo[1]) return;
+
+        /* apply periods */
+        for(int i=0; i<3; i++) {
+          int j = (i+1) % 3;
+          int k = (i+2) % 3;
+          int v1 = coo[i] + coo[j];
+          int v2 = coo[i] - coo[j];
+          if(v1 >= period) {
+            coo[i] -= period; coo[j] -= period;
+            }
+          else if(v1 < -period) {
+            coo[i] += period; coo[j] += period;            
+            }
+          else if(v2 >= period) {
+            coo[i] -= period; coo[j] += period;
+            }
+          else if(v2 < -period) {
+            coo[i] += period; coo[j] -= period;
+            }
+          else continue;
+          d[j] = -d[j]; d[k] = -d[k];
+          coo[j] = -coo[j]; coo[k] = -coo[k];
+          transmatrix S = Id;
+          S[j][j] = -1; S[k][k] = -1;
+          M = M * S;
+          goto restart;
+          }
+        return;
+        }
+      }
     if(twisted & 16) {
       int period = T0[2][2];
       transmatrix RotYZX = Zero;
@@ -804,6 +873,8 @@ EX namespace euc {
       });
     }
   
+  EX int quotient_size = 2;
+  
   EX void show_torus3() {
     int dim = WDIM;
     auto& T_edit = eu_edit.user_axes;
@@ -838,6 +909,15 @@ EX namespace euc {
         dialog::add_action([] { eu_edit.twisted ^= 16; });
         }
       
+      if(valid_hantzsche_wendt(T_edit)) {
+        auto g = geometry;
+        if(g == gCubeTiling || g == gRhombic3 || (g == gBitrunc3 && T_edit[0][0] % 2 == 0))
+          dialog::addBoolItem(XLAT("Hantzsche-Wendt space"), twisted_edit & 32, 'x');
+        else
+          dialog::addBoolItem(XLAT("make it even"), twisted_edit & 32, 'x');
+        dialog::add_action([] { eu_edit.twisted ^= 32; });
+        }
+      
       if(nondiag) {
         dialog::addInfo(XLAT("twisting implemented only for diagonal matrices"));
         dialog::addInfo(XLAT("or for columns : (A,B,C), (B,C,A), (D,D,D) where A+B+C=0"));
@@ -869,8 +949,16 @@ EX namespace euc {
         dialog::add_action([] { eu_edit.twisted ^= 4; });
         }
       dialog::addBreak(50);
-      torus_config_option(XLAT("third-turn space"), 'A', make_third_turn(2,0,2));
-      torus_config_option(XLAT("quarter-turn space"), 'B', make_quarter_turn(2, 0, 2));
+      dialog::addItem("special manifolds", 'S');
+      dialog::add_action([] {
+        dialog::editNumber(quotient_size, 1, 12, 1, 2, "special manifold size", "");
+        dialog::extra_options = [] {
+          auto q = quotient_size;
+          torus_config_option(XLAT("third-turn space"), 'A', make_third_turn(q,0,q));
+          torus_config_option(XLAT("quarter-turn space"), 'B', make_quarter_turn(q,0,q));
+          torus_config_option(XLAT("Hantzsche-Wendt space"), 'C', make_hantzsche_wendt(q));
+          };
+        });
       }
     else {
       if(T_edit[1][0] == 0 && T_edit[1][1] == 0)
@@ -1001,6 +1089,13 @@ EX namespace euc {
         shift(); T0[i][i] = argi();
         }
       shift(); eu_input.twisted = argi();
+      build_torus3();
+      }
+    else if(argis("-hw")) {
+      PHASEFROM(2);
+      stop_game();
+      shift();
+      eu_input = make_hantzsche_wendt(argi());
       build_torus3();
       }
     else if(argis("-twisttest")) {
@@ -1169,7 +1264,91 @@ EX int cyldist(gp::loc a, gp::loc b) {
   return best;
   }
 
-EX bool in() { return euclid && standard_tiling(); }
+EX void generate() {
+
+  #if MAXMDIM >= 4
+  if(fake::in()) {
+    fake::generate();
+    return;
+    }
+
+  auto v = euc::get_shifttable();
+  
+  auto& cs = cgi.cellshape;
+
+  cgi.loop = 4;
+  cgi.schmid = 3;
+
+  if(S7 == 6) {
+    cgi.adjcheck = 1;
+    cgi.face = 4;
+    for(int w=0; w<6; w++) {
+      for(int a=0; a<4; a++) {
+        int t[3];
+        t[0] = (w>=3) ? -1 : 1;
+        t[1] = among(a, 0, 3) ? -1 : 1;
+        t[2] = among(a, 2, 3) ? -1 : 1;
+        int x = w%3;
+        int y = (x+2)%3;
+        int z = (y+2)%3;
+        cs.push_back(hpxy3(t[x]/2., t[y]/2., t[z]/2.));
+        }
+      }
+    }
+
+  if(S7 == 12) {
+    cgi.adjcheck = sqrt(2);
+    cgi.face = 4;
+    for(int w=0; w<12; w++) {
+      auto co = v[w];
+      vector<int> valid;
+      for(int c=0; c<3; c++) if(co[c]) valid.push_back(c);
+      int third = 3 - valid[1] - valid[0];
+      hyperpoint v0 = cpush0(valid[0], co[valid[0]] > 0 ? 1 : -1);
+      hyperpoint v1 = cpush0(valid[1], co[valid[1]] > 0 ? 1 : -1);
+      cs.push_back(v0);
+      cs.push_back(v0/2 + v1/2 + cpush0(third, .5) - C0);
+      cs.push_back(v1);
+      cs.push_back(v0/2 + v1/2 + cpush0(third, -.5) - C0);
+      }
+    }
+
+  if(S7 == 14) {
+    cgi.adjcheck = 2;
+    cgi.face = 4; /* the first face */
+    auto v = euc::get_shifttable();
+    for(int w=0; w<14; w++) {
+      if(w%7 < 3) {
+        int z = w>=7?-1:1;
+        cs.push_back(cpush0(w%7, z) + cpush0((w%7+1)%3, 1/2.) - C0);
+        cs.push_back(cpush0(w%7, z) + cpush0((w%7+2)%3, 1/2.) - C0);
+        cs.push_back(cpush0(w%7, z) + cpush0((w%7+1)%3,-1/2.) - C0);
+        cs.push_back(cpush0(w%7, z) + cpush0((w%7+2)%3,-1/2.) - C0);
+        }
+      else {
+        auto t = v[w];
+        ld x = t[0], y = t[1], z = t[2];
+        for(hyperpoint h: {
+          hpxy3(x, y/2, 0), hpxy3(x/2, y, 0), hpxy3(0, y, z/2),
+          hpxy3(0, y/2, z), hpxy3(x/2, 0, z), hpxy3(x, 0, z/2)
+          }) cs.push_back(h);
+        }
+      }
+    }
+  
+  reg3::make_vertices_only();
+  #endif
+
+  }
+
+/** @brief returns true if the current geometry is based on this module 
+ *  (For example, Archimedean, kite, or fake with underlying non-Euclidean geometry returns false)
+ */
+EX bool in() { 
+  if(fake::in()) return FPIU(in()); 
+  return euclid && standard_tiling(); 
+  }
+
 EX bool in(int dim) { return in() && WDIM == dim; }
 EX bool in(int dim, int s7) { return in(dim) && S7 == s7; }
 

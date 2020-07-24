@@ -17,7 +17,7 @@ ld eyepos;
 #define S (cgi.scalefactor / 0.805578)
 #define SH (cgi.scalefactor / 0.805578 * vid.height_width / 1.5)
 
-#define revZ ((WDIM == 2 || hybri) ? -1 : 1)
+#define revZ ((WDIM == 2 || prod) ? -1 : 1)
 
 hyperpoint shcenter;
 
@@ -110,6 +110,7 @@ void geometry_information::shift_shape_orthogonally(hpcshape& sh, ld z) {
 extern renderbuffer *floor_textures;
 
 void geometry_information::add_texture(hpcshape& sh) {
+#if CAP_GL
   if(!floor_textures) return;
   auto& utt = models_texture;
   sh.tinf = &utt;
@@ -121,6 +122,7 @@ void geometry_information::add_texture(hpcshape& sh) {
     ld factor = 0.50 + (0.17 * h[2] + 0.13 * h[1] + 0.15 * h[0]) / rad;
     utt.tvertices.push_back(glhr::makevertex(0, factor, 0));
     }
+#endif
   }
 
 vector<hyperpoint> scaleshape(const vector<hyperpoint>& vh, ld s) {
@@ -585,6 +587,7 @@ void geometry_information::make_revolution_cut(hpcshape &sh, int each, ld push, 
     shDogStripes = shDogTorso;
     add_texture(shDogStripes);
     auto& utt = models_texture;
+    if(utt.tvertices.empty()) return;
     int a = (6 * 360 / step);
     for(int i=0; i<shDogStripes.e - shDogStripes.s; i++)
       if(i % (2 * a) < a)
@@ -622,16 +625,16 @@ void geometry_information::slimetriangle(hyperpoint a, hyperpoint b, hyperpoint 
   texture_order([&] (ld x, ld y) {
     ld z = 1-x-y;
     ld r = scalefactor * hcrossf7 * (0 + pow(max(x,max(y,z)), .3) * 0.8) * (hybri ? .5 : 1);
-    hyperpoint h = direct_exp(tangent_length(a*x+b*y+c*z, r), 10);
+    hyperpoint h = direct_exp(tangent_length(a*x+b*y+c*z, r));
     hpcpush(h);
     });  
   }
 
 void geometry_information::balltriangle(hyperpoint a, hyperpoint b, hyperpoint c, ld rad, int lev) {
   if(lev == 0) {
-    hpcpush(direct_exp(a, 10));
-    hpcpush(direct_exp(b, 10));
-    hpcpush(direct_exp(c, 10));
+    hpcpush(direct_exp(a));
+    hpcpush(direct_exp(b));
+    hpcpush(direct_exp(c));
     }
   else {
     auto midpoint = [&] (hyperpoint h1, hyperpoint h2) {
@@ -683,7 +686,7 @@ void geometry_information::make_star(hpcshape& sh, ld rad) {
   int steps = (BADMODEL ? 8 : 64);
   for(int a=0; a<steps; a++) {
     ld z0 = (a-steps/2)*2.0/steps;
-    ld z1 = (a-steps/2-1)*2.0/steps;
+    ld z1 = (a-steps/2+1)*2.0/steps;
     ld r0 = sqrt(1 - z0*z0) * rad;
     ld r1 = sqrt(1 - z1*z1) * rad;
     z0 *= rad;
@@ -770,7 +773,8 @@ void geometry_information::adjust_eye(hpcshape& eye, hpcshape head, ld shift_eye
     for(int i=eye.s; i<s; i++) {
       hpcpush(MirrorY * hpc[i]);
       auto& utt = models_texture;
-      utt.tvertices.push_back(utt.tvertices[i - eye.s + eye.texture_offset]);
+      if(!utt.tvertices.empty())
+        utt.tvertices.push_back(utt.tvertices[i - eye.s + eye.texture_offset]);
       }
 
   finishshape();
@@ -832,12 +836,14 @@ void geometry_information::make_3d_models() {
   eyepos = WDIM == 2 ? 0.875 : 0.925;
   DEBBI(DF_POLY, ("make_3d_models"));
   shcenter = C0;
-  
+
+#if CAP_GL  
   if(floor_textures) {
     auto& utt = models_texture;
     utt.tvertices.clear();
     utt.texture_id = floor_textures->renderedTexture;
     }
+#endif
   
   if(WDIM == 2) {
     DEBB(DF_POLY, ("shadows"));
@@ -845,7 +851,7 @@ void geometry_information::make_3d_models() {
       &shEagle, &shFemaleBody, &shFlailMissile, &shGadflyWing, &shGargoyleWings, &shHawk, &shJiangShi, &shKnife,
       &shPBody, &shPHead, &shRaiderBody, &shReptileBody, &shSkeletonBody, &shTongue, &shTrapArrow, &shTrylobite,
       &shWaterElemental, &shWolfBody, &shYeti, &shWormHead, &shWormHead, &shDragonHead, &shDragonSegment, &shDragonTail,
-      &shTentacleX, &shTentHead, &shILeaf[0], &shILeaf[1], &shWormSegment, &shSmallWormSegment })
+      &shTentacleX, &shTentHead, &shILeaf[0], &shILeaf[1], &shWormSegment, &shSmallWormSegment, &shFrogBody })
       make_shadow(*sh);
     
     for(int i=0; i<8; i++) make_shadow(shAsteroid[i]);
@@ -1012,7 +1018,7 @@ void geometry_information::make_3d_models() {
   make_revolution(shBugArmor, 180, ABODY);
   make_revolution_cut(shBugAntenna, 90, ABODY);
   
-  make_revolution(shFrogBody, 180, ABODY);
+  make_revolution(shFrogBody, 180, WDIM == 2 ? g : ABODY);
   
   make_revolution_cut(shButterflyBody, 180, 0);
   make_revolution_cut(shButterflyWing, 180, 0, 0.05*S);
@@ -1068,7 +1074,7 @@ void geometry_information::make_3d_models() {
   DEBB(DF_POLY, ("balls"));
   make_ball(shDisk, orbsize*.2, 2);
   make_ball(shHeptaMarker, zhexf*.2, 1);
-  make_ball(shSnowball, zhexf*.1, 0);
+  make_ball(shSnowball, zhexf*.1, 1);
   if(euclid) {
     make_ball(shSun, 0.5, 2);
     make_euclidean_sky();
@@ -1171,7 +1177,7 @@ void geometry_information::make_3d_models() {
   adjust_eye(shWolfEyes, shWolfHead, AHEAD, AHEAD, 1);
   
   adjust_eye(shPikeEye, shPikeBody, 0, 0, 1);
-  adjust_eye(shFrogEye, shFrogBody, ABODY, AHEAD, 1);
+  adjust_eye(shFrogEye, shFrogBody, 0, 0, 1);
 
   adjust_eye(shReptileEye, shReptileHead, AHEAD, AHEAD, 1);
   adjust_eye(shGadflyEye, shGadflyBody, 0, 0, 1);
@@ -1252,7 +1258,16 @@ hpcshape& geometry_information::generate_pipe(ld length, ld width) {
       }
     }
 
-  last->flags |= POLY_TRIANGLES;
+  for(int a=0; a<MAX_R; a++) {
+    hpcpush(at(MAX_X, a));
+    hpcpush(at(MAX_X, a+1));
+    hpcpush(xpush0(length));
+    hpcpush(at(MAX_X, a+1));
+    hpcpush(at(MAX_X, a));
+    hpcpush(C0);
+    }
+
+  last->flags |= POLY_TRIANGLES | POLY_PRINTABLE;
   add_texture(*last);
   finishshape();
   extra_vertices();

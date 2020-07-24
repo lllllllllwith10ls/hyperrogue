@@ -703,12 +703,14 @@ EX vector<landtacinfo> land_tac = {
   {laBrownian, 10, 1},
   {laVariant, 10, 1},
   {laWestWall, 10, 1},
+  {laWet, 10, 1}, {laFrog, 10, 1}, {laEclectic, 10, 1},
   };
 
 EX vector<eLand> randlands = {
   laIce, laDesert, laCaves, laAlchemist, laGraveyard, laPower, laLivefjord, laZebra,
   laRlyeh, laDryForest, laEmerald, laWineyard, laDeadCaves, laRedRock,
-  laOvergrown, laWildWest, laWarpCoast, laRuins, laBull, laDragon, laReptile, laDocks
+  laOvergrown, laWildWest, laWarpCoast, laRuins, laBull, laDragon, laReptile, laDocks,
+  laFrog, laWet, laZebra
   };
 
 #if HDR
@@ -719,8 +721,8 @@ enum eGeometry {
   gBinary3, gCubeTiling, gCell120, gECell120, gRhombic3, gBitrunc3, 
   gSpace534, gSpace435, 
   gCell5, 
-  gCell8, gECell8,
   gCell16, gECell16,
+  gCell8, gECell8,
   gCell24, gECell24,
   gCell600, gECell600,
   gHoroTris, gHoroRec, gHoroHex,
@@ -730,12 +732,13 @@ enum eGeometry {
   gTernary, gNIH, gSolN, gInfOrder, gSpace336, gSpace344, gCrystal344,
   gArnoldCat, gArbitrary, gInfOrder4, gCrystal534,
   gSpace535, gSpace536, gSeifertCover, gSeifertWeber, gHomologySphere,
-  gInfOrderMixed, gSpace436,
+  gInfOrderMixed, gSpace436, gFake,
+  gSpace345, gSpace353, gSpace354, gSpace355,
   gGUARD};
 
 enum eGeometryClass { gcHyperbolic, gcEuclid, gcSphere, gcSolNIH, gcNil, gcProduct, gcSL2 };
 
-enum class eVariation { bitruncated, pure, goldberg, irregular, dual };  
+enum class eVariation { bitruncated, pure, goldberg, irregular, dual, untruncated, warped, unrectified };
 
 typedef flagtype modecode_t;
 
@@ -797,6 +800,11 @@ static const flagtype qSINGLE          = Flag(20);
 static const flagtype qDEPRECATED      = Flag(21);
 static const flagtype qINFMIXED        = Flag(22);
 
+static const flagtype qRAYONLY         = Flag(23);
+static const flagtype qAFFINE          = Flag(24);
+
+static const flagtype qULTRA           = Flag(25);
+
 // note: dnext assumes that x&7 equals 7
 static const int SEE_ALL = 50;
 static const int OINF = 100;
@@ -833,6 +841,7 @@ EX geometryinfo1 giNil     = { gcNil,        3, 3, 4, {1,1, 1,0 } };
 EX geometryinfo1 giProduct = { gcSL2,        3, 3, 4, {1,1, 1,0 } /* will be filled in product::configure() */ };
 EX geometryinfo1 giSL2     = { gcSL2,        3, 3, 4, {1,1,-1,-1} };
 
+EX modecode_t no_code = 0x1;
 
 /** list of available geometries */
 EX vector<geometryinfo> ginf = {
@@ -873,13 +882,13 @@ EX vector<geometryinfo> ginf = {
   {"{4,3,5}","none",    "{4,3,5} hyperbolic honeycomb",               "435",      6, 5, 0,         giHyperb3, 0x31600, {{7, 2}}, eVariation::pure},
   {"{3,3,3}","none",    "{3,3,3} 5-cell",                             "333",      4, 3, qsSMALLB,  giSphere3, 0x38000, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
   {"{3,3,4}","none",    "{3,3,4} 16-cell",                            "334",      4, 4, qsSMALLB,  giSphere3, 0x38200, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
-  {"{3,3,4}","elliptic","{3,3,4} 16-cell (elliptic)",                 "e334",     4, 4, qsSMALLBE, giSphere3, 0x39200, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
+  {"{3,3,4}","elliptic","{3,3,4} 16-cell (elliptic space)",           "e334",     4, 4, qsSMALLBE, giSphere3, 0x39200, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
   {"{4,3,3}","none",    "{4,3,3} 8-cell",                             "433",      6, 4, qsSMALLB,  giSphere3, 0x38400, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
-  {"{4,3,3}","elliptic","{4,3,3} 8-cell (elliptic)",                  "e433",     6, 4, qsSMALLBE, giSphere3, 0x39400, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
+  {"{4,3,3}","elliptic","{4,3,3} 8-cell (elliptic space)",            "e433",     6, 4, qsSMALLBE, giSphere3, 0x39400, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
   {"{3,4,3}","none",    "{3,4,3} 24-cell",                            "343",      8, 3, qsSMALLB,  giSphere3, 0x38600, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
-  {"{3,4,3}","elliptic","{3,4,3} 24-cell (elliptic)",                 "e343",     8, 3, qsSMALLBE, giSphere3, 0x39600, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
+  {"{3,4,3}","elliptic","{3,4,3} 24-cell (elliptic space)",           "e343",     8, 3, qsSMALLBE, giSphere3, 0x39600, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
   {"{3,3,5}","none",    "{3,3,5} 600-cell",                           "335",      4, 3, qsSMALLB,  giSphere3, 0x41000, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
-  {"{3,3,5}","elliptic","{3,3,5} 600-cell (elliptic)",                "e335",     4, 3, qsSMALLBE, giSphere3, 0x41200, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
+  {"{3,3,5}","elliptic","{3,3,5} 600-cell (elliptic space)",          "e335",     4, 3, qsSMALLBE, giSphere3, 0x41200, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
   {"bin{3,6}", "none",  "{3,6} on horospheres",                       "bin36",    8, 3, qBINARY,   giHyperb3, 0x40000, {{7, 3}}, eVariation::pure},
   {"bin-rect", "none",  "rectangles on horospheres",                  "bin44/2",  7, 3, qBINARY,   giHyperb3, 0x40200, {{7, 3}}, eVariation::pure},
   {"bin{6,3}", "none",  "{6,3} on horospheres",                       "bin63",   14, 3, qBINARY,   giHyperb3, 0x40400, {{7, 3}}, eVariation::pure},
@@ -903,13 +912,18 @@ EX vector<geometryinfo> ginf = {
   {"file",   "none",    "load from file",                             "file",     7, 3, qEXPERIMENTAL,  giEuclid2, 0, {{7, 5}}, eVariation::pure},
   {"{4,oo}", "none",    "{4,∞} (infinite squares)",                   "oox4",     4, OINF, qIDEAL,  giHyperb2, 0x49400, {{5, 5}}, eVariation::pure},
   {"{5,3,4}","Crystal", "6D crystal in H3",                           "Cryst6" , 12, 4, qANYQ | qCRYSTAL, giHyperb3, 0x52000, {{7, 3}}, eVariation::pure},
-  {"{5,3,5}","none",    "{5,3,5} hyperbolic honeycomb",               "535",     12, 5, 0,         giHyperb3, 0x31400, {{7, 2}}, eVariation::pure},
-  {"{5,3,6}","none",    "{5,3,6} hyperbolic honeycomb",               "536",     12, 6, qIDEAL,    giHyperb3, 0x31400, {{7, 2}}, eVariation::pure},
-  {"{5,3,5}","SWh",     "{5,3,5} quotient",                           "535c",    12, 5, qsSMALLB | qANYQ, giHyperb3, 0x31400, {{7, 2}}, eVariation::pure},
-  {"{5,3,5}","SW",      "Seifert-Weber space",                        "535s",    12, 5, qsSINGLE,  giHyperb3, 0x31400, {{7, 2}}, eVariation::pure},
-  {"{5,3,3}","SW",      "Poincaré homology sphere",                   "533s",    12, 3, qsSINGLE,  giSphere3, 0x31400, {{7, 2}}, eVariation::pure},
-  {"{?,oo}", "none",    "{3/4,∞} (infinite triangles and squares)",   "ooxm",     3, OINF, qIDEAL | qINFMIXED,  giHyperb2, 0x49400, {{6, 6}}, eVariation::pure},
-  {"{4,3,6}","none",    "{4,3,6} hyperbolic honeycomb",               "436",      6, 6, qIDEAL,    giHyperb3, 0x31400, {{7, 2}}, eVariation::pure},
+  {"{5,3,5}","none",    "{5,3,5} hyperbolic honeycomb",               "535",     12, 5, 0,         giHyperb3, no_code, {{7, 2}}, eVariation::pure},
+  {"{5,3,6}","none",    "{5,3,6} hyperbolic honeycomb",               "536",     12, 6, qIDEAL,    giHyperb3, no_code, {{7, 2}}, eVariation::pure},
+  {"{5,3,5}","SWh",     "{5,3,5} quotient",                           "535c",    12, 5, qsSMALLB | qANYQ, giHyperb3, no_code, {{7, 2}}, eVariation::pure},
+  {"{5,3,5}","SW",      "Seifert-Weber space",                        "535s",    12, 5, qsSINGLE,  giHyperb3, no_code, {{7, 2}}, eVariation::pure},
+  {"{5,3,3}","SW",      "Poincaré homology sphere",                   "533s",    12, 3, qsSINGLE,  giSphere3, no_code, {{7, 2}}, eVariation::pure},
+  {"{?,oo}", "none",    "{3/4,∞} (infinite triangles and squares)",   "ooxm",     3, OINF, qIDEAL | qINFMIXED,  giHyperb2, no_code, {{6, 6}}, eVariation::pure},
+  {"{4,3,6}","none",    "{4,3,6} hyperbolic honeycomb",               "436",      6, 6, qIDEAL,    giHyperb3, no_code, {{7, 2}}, eVariation::pure},
+  {"?",      "none",    "fake",                                       "",         0, 0, qRAYONLY,  giHyperb3, no_code, {{7, 2}}, eVariation::pure},
+  {"{3,4,5}","none",    "{3,4,5} hyperbolic honeycomb",               "345",      8, 5, qIDEAL | qULTRA,    giHyperb3, no_code, {{7, 2}}, eVariation::pure},
+  {"{3,5,3}","none",    "{3,5,3} hyperbolic honeycomb",               "353",     20, 5, 0,         giHyperb3, no_code, {{7, 2}}, eVariation::pure},
+  {"{3,5,4}","none",    "{3,5,4} hyperbolic honeycomb",               "354",     20, 5, qIDEAL | qULTRA,    giHyperb3, no_code, {{7, 2}}, eVariation::pure},
+  {"{3,5,5}","none",    "{3,5,5} hyperbolic honeycomb",               "355",     20, 5, qIDEAL | qULTRA,    giHyperb3, no_code, {{7, 2}}, eVariation::pure},
   };
   // bits: 9, 10, 15, 16, (reserved for later) 17, 18
 
@@ -931,7 +945,7 @@ namespace mf {
   
   static const flagtype band = (cylindrical | pseudocylindrical | uses_bandshift);
   static const flagtype pseudoband = (pseudocylindrical | uses_bandshift);
-  };
+  }
   
 struct modelinfo {
   const char *name_hyperbolic;
@@ -971,43 +985,45 @@ enum eModel : int {
 // (other bits are used for other information)
 
 #define X3(x) x, x, x
+#define DEFAULTS 0, 0, 0, 0, 0, nullptr
 
 /** list of available models (i.e., projections) */
 EX vector<modelinfo> mdinf = {
-  {"disk/Gans", "general perspective", "general perspective", mf::azimuthal | mf::conformal},
-  {"half-plane", "inversion", "half-plane", mf::conformal},
-  {"band", "band", "Mercator", mf::band | mf::conformal},
-  {X3("polygonal"), mf::conformal},
-  {X3("formula"), 0},
-  {X3("azimuthal equidistant"), mf::azimuthal | mf::equidistant | mf::euc_boring},  
-  {X3("azimuthal equi-area"), mf::azimuthal | mf::equiarea | mf::euc_boring},
-  {X3("ball model"), mf::conformal | mf::azimuthal | mf::space},
-  {"Minkowski hyperboloid", "plane", "sphere", mf::conformal | mf::space | mf::euc_boring},
-  {"hemisphere", "sphere", "sphere", mf::conformal | mf::space},
-  {X3("band equidistant"), mf::band | mf::equidistant | mf::euc_boring},
-  {X3("band equi-area"), mf::band | mf::equiarea | mf::euc_boring},
-  {X3("sinusoidal"), mf::pseudoband | mf::equiarea | mf::euc_boring},
-  {X3("two-point equidistant"), mf::equidistant | mf::euc_boring | mf::twopoint},
-  {X3("fisheye"), 0},
-  {X3("Joukowsky transform"), mf::hyper_only | mf::conformal},
-  {X3("Joukowsky+inversion"), mf::hyper_only | mf::conformal},
-  {X3("rotated hyperboles"), mf::hyper_only},  
-  {X3("spiral/ring"), mf::hyper_or_torus | mf::uses_bandshift},
-  {X3("native perspective"), 0},
-  {X3("azimuthal equi-volume"), mf::azimuthal | mf::equivolume | mf::euc_boring},
-  {X3("central inversion"), mf::azimuthal | mf::conformal},
-  {X3("two-point azimuthal"), mf::euc_boring | mf::twopoint},
-  {X3("two-point hybrid"), mf::euc_boring | mf::twopoint},
-  {X3("geodesic"), 0},
-  {X3("Mollweide"), mf::euc_boring | mf::pseudoband | mf::equiarea },
-  {X3("central cylindrical"), mf::euc_boring | mf::band },
-  {X3("Collignon"), mf::pseudoband | mf::equiarea },
-  {X3("horocyclic coordinates"), mf::euc_boring },
-  {X3("guard"), 0},
-  {X3("polynomial"), mf::conformal}
+  {"disk/Gans", "general perspective", "general perspective", mf::azimuthal | mf::conformal, DEFAULTS},
+  {"half-plane", "inversion", "half-plane", mf::conformal, DEFAULTS},
+  {"band", "band", "Mercator", mf::band | mf::conformal, DEFAULTS},
+  {X3("polygonal"), mf::conformal, DEFAULTS},
+  {X3("formula"), 0, DEFAULTS},
+  {X3("azimuthal equidistant"), mf::azimuthal | mf::equidistant | mf::euc_boring, DEFAULTS},
+  {X3("azimuthal equi-area"), mf::azimuthal | mf::equiarea | mf::euc_boring, DEFAULTS},
+  {X3("ball model"), mf::conformal | mf::azimuthal | mf::space, DEFAULTS},
+  {"Minkowski hyperboloid", "plane", "sphere", mf::conformal | mf::space | mf::euc_boring, DEFAULTS},
+  {"hemisphere", "sphere", "sphere", mf::conformal | mf::space, DEFAULTS},
+  {X3("band equidistant"), mf::band | mf::equidistant | mf::euc_boring, DEFAULTS},
+  {X3("band equi-area"), mf::band | mf::equiarea | mf::euc_boring, DEFAULTS},
+  {X3("sinusoidal"), mf::pseudoband | mf::equiarea | mf::euc_boring, DEFAULTS},
+  {X3("two-point equidistant"), mf::equidistant | mf::euc_boring | mf::twopoint, DEFAULTS},
+  {X3("fisheye"), 0, DEFAULTS},
+  {X3("Joukowsky transform"), mf::hyper_only | mf::conformal, DEFAULTS},
+  {X3("Joukowsky+inversion"), mf::hyper_only | mf::conformal, DEFAULTS},
+  {X3("rotated hyperboles"), mf::hyper_only, DEFAULTS},
+  {X3("spiral/ring"), mf::hyper_or_torus | mf::uses_bandshift, DEFAULTS},
+  {X3("native perspective"), 0, DEFAULTS},
+  {X3("azimuthal equi-volume"), mf::azimuthal | mf::equivolume | mf::euc_boring, DEFAULTS},
+  {X3("central inversion"), mf::azimuthal | mf::conformal, DEFAULTS},
+  {X3("two-point azimuthal"), mf::euc_boring | mf::twopoint, DEFAULTS},
+  {X3("two-point hybrid"), mf::euc_boring | mf::twopoint, DEFAULTS},
+  {X3("geodesic"), 0, DEFAULTS},
+  {X3("Mollweide"), mf::euc_boring | mf::pseudoband | mf::equiarea, DEFAULTS},
+  {X3("central cylindrical"), mf::euc_boring | mf::band, DEFAULTS},
+  {X3("Collignon"), mf::pseudoband | mf::equiarea, DEFAULTS},
+  {X3("horocyclic coordinates"), mf::euc_boring, DEFAULTS},
+  {X3("guard"), 0, DEFAULTS},
+  {X3("polynomial"), mf::conformal, DEFAULTS},
   };
 
 #undef X3
+#undef DEFAULTS
 
 #if HDR
 static inline bool orbProtection(eItem it) { return false; } // not implemented

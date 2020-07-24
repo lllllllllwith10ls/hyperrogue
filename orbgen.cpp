@@ -162,7 +162,9 @@ EX vector<orbinfo> orbinfos = {
   {orbgenflags::S_GUEST, laEclectic, 4000, 0, itOrbWinter},
   {orbgenflags::S_GUEST, laEclectic, 2000, 0, itOrbLightning},
   {orbgenflags::S_NATIVE, laWet, 1000, 2500, itOrbPlague},
-  {orbgenflags::S_GUEST, laWet, 4000, 0, itOrbFish},
+  {orbgenflags::S_GUEST, laWet, 1200, 0, itOrbFish},
+  {orbgenflags::S_GUEST, laWet, 1200, 0, itOrbAether},
+  {orbgenflags::S_GUEST, laWet, 1200, 0, itOrbFrog},
   {orbgenflags::S_NATIVE, laPaint, 1000, 1500, itOrbColor},
   {orbgenflags::S_NATIVE, laNecro, 900, 2000, itOrbBarr},
   {orbgenflags::S_NATIVE, laHurricane, 200, 4000, itOrbCharge},
@@ -357,13 +359,13 @@ EX eOrbLandRelation getOLR(eItem it, eLand l) {
   if(it == itOrbSword && l == laBurial)
     return olrAlways;
     
-  if(it == itOrbFish && !among(l, laOcean, laLivefjord, laWhirlpool, laCamelot, laTortoise, laWarpCoast, laWarpSea, laCocytus, laBrownian, laVariant))
+  if(it == itOrbFish && !among(l, laOcean, laLivefjord, laWhirlpool, laCamelot, laTortoise, laWarpCoast, laWarpSea, laCocytus, laBrownian, laVariant, laWet, laFrog))
     return olrUseless;
 
   if(it == itOrbDomination && l != laOcean && l != laRedRock && l != laDesert &&
     l != laRlyeh && l != laDragon)
     return olrUseless;
-  
+
   if(it == itOrbIllusion) return olrPrize3;
   
   if(l == laTortoise)
@@ -384,6 +386,9 @@ EX eOrbLandRelation getOLR(eItem it, eLand l) {
   if(l == laDryForest)
     if(it == itOrbFire || it == itOrbLightning || it == itOrbLava)
       return olrDangerous;
+
+  if(l == laWet && among(it, itOrbDragon, itOrbLava, itOrbFire))  
+    return olrUseless;
     
   if(l == laDungeon) {
     if(it == itOrbSafety || it == itOrbFrog || 
@@ -520,7 +525,6 @@ EX void placeLocalOrbs(cell *c) {
     int ch = hrand(oi.lchance);
     if(ch == 1 && chaosmode && hrand(2) == 0 && items[treasureType(oi.l)] * landMultiplier(oi.l) >= (11+hrand(15)))
       ch = 0;
-    if(tactic::trailer && ch < 5) ch = 0;
     int tc = items[treasureType(oi.l)] * landMultiplier(oi.l);
     int tcmin = treasureForLocal();
     if(inv::on) {

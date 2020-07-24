@@ -40,8 +40,8 @@ EX bool hide_player() {
 
 #define ADC(V,c) for(const transmatrix& V: current_display->all_drawn_copies[c])
 
-EX hookset<bool(int sym, int uni)> *hooks_handleKey;
-EX hookset<bool(cell *c, const transmatrix& V)> *hooks_drawcell;
+EX hookset<bool(int sym, int uni)> hooks_handleKey;
+EX hookset<bool(cell *c, const transmatrix& V)> hooks_drawcell;
 EX purehookset hooks_frame, hooks_markers;
 
 EX ld animation_factor = 1;
@@ -188,6 +188,17 @@ EX int fghostcolor(cell *c) {
 
 EX int weakfirecolor(int phase) {
   return gradient(0xFF8000, 0xFF0000, -1, sintick(500, phase/1000./M_PI), 1);
+  }
+
+/** @brief used to alternate colors depending on distance to something. In chessboard-patterned geometries, also use a third step */
+
+EX int flip_dark(int f, int a0, int a1) {
+  if(geosupport_chessboard()) {
+    f = gmod(f, 3);
+    return a0 + (a1-a0) * f / 2;
+    }
+  else
+    return (f&1) ? a1 : a0;
   }
 
 color_t fc(int ph, color_t col, int z) {
@@ -515,7 +526,7 @@ EX namespace tortoise {
       
     return gradient(0x487830, mcol, 0, dd, 0xFF);
     }
-  EX };
+  EX }
 
 double footfun(double d) {
   d -= floor(d);
@@ -609,7 +620,7 @@ EX void ShadowV(const transmatrix& V, const hpcshape& bp, PPR prio IS(PPR::MONST
 #if CAP_SHAPES
 transmatrix otherbodyparts(const transmatrix& V, color_t col, eMonster who, double footphase) {
 
-#define VFOOT ((GDIM == 2 || prod) ? V : mmscale(V, cgi.LEG0))
+#define VFOOT ((GDIM == 2 || hybri) ? V : mmscale(V, cgi.LEG0))
 #define VLEG mmscale(V, cgi.LEG)
 #define VGROIN mmscale(V, cgi.GROIN)
 #define VBODY mmscale(V, cgi.BODY)
@@ -627,7 +638,7 @@ transmatrix otherbodyparts(const transmatrix& V, color_t col, eMonster who, doub
 #define VAHEAD mmscale(V, cgi.AHEAD)
 
 #define VFISH V
-#define VBIRD  ((GDIM == 3 || (where && bird_disruption(where))) ? (WDIM == 2 ? mmscale(V, cgi.BIRD) : V) : mmscale(V, cgi.BIRD + .05 * sintick(1000, (int) (size_t(where))/1000.)))
+#define VBIRD  ((GDIM == 3 || (where && bird_disruption(where))) ? (WDIM == 2 ? mmscale(V, cgi.BIRD) : V) : mmscale(V, cgi.BIRD + .05 * sintick(1000, static_cast<int>(reinterpret_cast<size_t>(where))/1000.)))
 #define VGHOST  mmscale(V, cgi.GHOST)
 
 #define VSLIMEEYE  mscale(V, cgi.FLATEYE)
@@ -782,7 +793,7 @@ EX bool drawItemType(eItem it, cell *c, const transmatrix& V, color_t icol, int 
 #else
   char xch = iinf[it].glyph;
   auto sinptick = [c, pticks] (int period) { return c ? sintick(period) : sin(animation_factor * pticks / period);};
-  auto spinptick = [c, pticks] (int period, ld phase=0) { return c ? spintick(period, phase) : spin((animation_factor * pticks + phase) / period); };
+  auto spinptick = [c, pticks] (int period, ld phase) { return c ? spintick(period, phase) : spin((animation_factor * pticks + phase) / period); };
   int ct6 = c ? ctof(c) : 1;
   hpcshape *xsh = 
     (it == itPirate || it == itKraken) ? &cgi.shPirateX :
@@ -837,17 +848,17 @@ EX bool drawItemType(eItem it, cell *c, const transmatrix& V, color_t icol, int 
     }
   
   else if(it == itStrongWind) {
-    queuepoly(Vit * spinptick(750), cgi.shFan, darkena(icol, 0, 255));
+    queuepoly(Vit * spinptick(750, 0), cgi.shFan, darkena(icol, 0, 255));
     }
 
   else if(it == itWarning) {
-    queuepoly(Vit * spinptick(750), cgi.shTriangle, darkena(icol, 0, 255));
+    queuepoly(Vit * spinptick(750, 0), cgi.shTriangle, darkena(icol, 0, 255));
     }
     
   else if(it == itBabyTortoise) {
     int bits = c ? tortoise::babymap[c] : tortoise::last;
     int over = c && c->monst == moTortoise;
-    tortoise::draw(Vit * spinptick(5000) * ypush(cgi.crossf*.15), bits, over ? 4 : 2, 0);
+    tortoise::draw(Vit * spinptick(5000, 0) * ypush(cgi.crossf*.15), bits, over ? 4 : 2, 0);
     // queuepoly(Vit, cgi.shHeptaMarker, darkena(tortoise::getMatchColor(bits), 0, 0xC0));
     }
   
@@ -935,12 +946,12 @@ EX bool drawItemType(eItem it, cell *c, const transmatrix& V, color_t icol, int 
   
   else if(it == itRose) {
     for(int u=0; u<4; u++)
-      queuepoly(Vit * spinptick(1500) * spin(2*M_PI / 3 / 4 * u), cgi.shRoseItem, darkena(icol, 0, hidden ? 0x30 : 0xA0));
+      queuepoly(Vit * spinptick(1500, 0) * spin(2*M_PI / 3 / 4 * u), cgi.shRoseItem, darkena(icol, 0, hidden ? 0x30 : 0xA0));
     }
 
   else if(it == itBarrow && c) {
     for(int i = 0; i<c->landparam; i++)
-      queuepolyat(Vit * spin(2 * M_PI * i / c->landparam) * xpush(.15) * spinptick(1500), *xsh, darkena(icol, 0, hidden ? 0x40 : 
+      queuepolyat(Vit * spin(2 * M_PI * i / c->landparam) * xpush(.15) * spinptick(1500, 0), *xsh, darkena(icol, 0, hidden ? 0x40 : 
         (highwall(c) && wmspatial) ? 0x60 : 0xFF),
         PPR::HIDDEN);
 
@@ -956,7 +967,7 @@ EX bool drawItemType(eItem it, cell *c, const transmatrix& V, color_t icol, int 
     if(it == itStygian) icol = 0x101010;
     if(it == itSwitch) icol = minf[active_switch()].color;
     
-    transmatrix V2 = Vit * spinptick(1500);
+    transmatrix V2 = Vit * spinptick(1500, 0);
   
     if(xsh == &cgi.shBookCover && mmitem) {
       if(GDIM == 3)
@@ -991,11 +1002,11 @@ EX bool drawItemType(eItem it, cell *c, const transmatrix& V, color_t icol, int 
     color_t col = darkena(icol, 0, int(0x80 + 0x70 * sinptick(300)));
     
     if(it == itOrbFish)
-      queuepolyat(Vit * spinptick(1500), cgi.shFishTail, col, PPR::ITEM_BELOW);
+      queuepolyat(Vit * spinptick(1500, 0), cgi.shFishTail, col, PPR::ITEM_BELOW);
 
     queuepolyat(Vit, cgi.shDisk, darkena(icol1, 0, inice ? 0x80 : hidden ? 0x20 : 0xC0), prio);
 
-    queuepolyat(Vit * spinptick(1500), orbshape(iinf[it].orbshape), col, prio);
+    queuepolyat(Vit * spinptick(1500, 0), orbshape(iinf[it].orbshape), col, prio);
     }
 
   else if(it) return true;
@@ -1424,7 +1435,7 @@ EX bool drawMonsterType(eMonster m, cell *where, const transmatrix& V1, color_t 
           }
         else {
           queuepoly(VHEAD1, cgi.shPHead,  0xF0A0D0FF);
-          queuepoly(VBS, cgi.shFlowerHand,  0xC00000FF);
+          queuepoly(VBODY * VBS, cgi.shFlowerHand,  0xC00000FF);
           queuepoly(VBODY2 * VBS, cgi.shSuspenders,  0xC00000FF);
           }
         }
@@ -2416,6 +2427,14 @@ EX bool applyAnimation(cell *c, transmatrix& V, double& footphase, int layer) {
       }
     a.wherenow = a.wherenow * rspintox(wnow);
     a.wherenow = a.wherenow * xpush(aspd);
+    if(cgflags & qAFFINE) {
+      transmatrix T = a.wherenow;
+      fixmatrix_euclid(T);
+      a.wherenow = inverse(T) * a.wherenow;
+      for(int i=0; i<MDIM; i++)
+        a.wherenow[i] = lerp(a.wherenow[i], Id[i], aspd / R);
+      a.wherenow = T * a.wherenow;
+      }
     fixmatrix(a.wherenow);
     a.footphase += a.attacking == 2 ? -aspd : aspd;
     footphase = a.footphase;
@@ -2914,7 +2933,7 @@ EX bool drawMonster(const transmatrix& Vparam, int ct, cell *c, color_t col, col
     else if(isWorm(m)) {
       ld depth = geom3::factor_to_lev(wormhead(c) == c ? cgi.AHEAD : cgi.ABODY);
       footphase = 0;
-      int q = ptds.size();
+      int q = isize(ptds);
       drawMonsterType(moPlayer, c, Vs, col, footphase, asciicol);
       pushdown(c, q, Vs, -depth, true, false);
       }
@@ -2937,10 +2956,10 @@ int haveaura_cached;
 EX int haveaura() {
   if(!(vid.aurastr>0 && !svg::in && (auraNOGL || vid.usingGL))) return 0;
   if(sphere && mdAzimuthalEqui()) return 0;
-  if(among(pmodel, mdJoukowsky, mdJoukowskyInverted) && hyperbolic && models::model_transition < 1) 
+  if(among(pmodel, mdJoukowsky, mdJoukowskyInverted) && hyperbolic && pconf.model_transition < 1) 
     return 2;
   if(pmodel == mdFisheye) return 1;
-  return pmodel == mdDisk && (!sphere || vid.alpha > 10) && !euclid;
+  return pmodel == mdDisk && (!sphere || pconf.alpha > 10) && !euclid;
   }
   
 vector<pair<int, int> > auraspecials; 
@@ -2963,7 +2982,7 @@ void apply_joukowsky_aura(hyperpoint& h) {
     h = ret;
     }
   if(nonisotropic) {
-    h = lp_apply(inverse_exp(h, iTable, true));
+    h = lp_apply(inverse_exp(h, pfNO_DISTANCE));
     }
   }
 
@@ -3003,16 +3022,19 @@ void sumaura(int v) {
   aurac[AURA][v] = aurac[0][v];
   }
 
+#if CAP_GL
 vector<glhr::colored_vertex> auravertices;
+#endif
 
-void drawaura() {
+EX void drawaura() {
+  DEBBI(DF_GRAPH, ("draw aura"));
   if(!haveaura()) return;
   if(vid.stereo_mode) return;
   double rad = current_display->radius;
-  if(sphere && !mdAzimuthalEqui()) rad /= sqrt(vid.alpha*vid.alpha - 1);
+  if(sphere && !mdAzimuthalEqui()) rad /= sqrt(pconf.alpha*pconf.alpha - 1);
   if(hyperbolic && pmodel == mdFisheye) {
     ld h = 1;
-    h /= vid.fisheye_param;
+    h /= pconf.fisheye_param;
     ld nrad = h / sqrt(2 + h*h);
     rad *= nrad;
     }
@@ -3038,9 +3060,9 @@ void drawaura() {
     for(int x=0; x<vid.xres; x++) {
 
       ld hx = (x * 1. - current_display->xcenter) / rad;
-      ld hy = (y * 1. - current_display->ycenter) / rad / vid.stretch;
+      ld hy = (y * 1. - current_display->ycenter) / rad / pconf.stretch;
   
-      if(vid.camera_angle) camrotate(hx, hy);
+      if(pconf.camera_angle) camrotate(hx, hy);
       
       ld fac = sqrt(hx*hx+hy*hy);
       if(fac < 1) continue;
@@ -3086,8 +3108,8 @@ void drawaura() {
   facs[10] = 10;
   cmul[1] = cmul[0];
   
-  bool inversion = vid.alpha <= -1 || pmodel == mdJoukowsky;
-  bool joukowsky = among(pmodel, mdJoukowskyInverted, mdJoukowsky) && hyperbolic && models::model_transition < 1;
+  bool inversion = pconf.alpha <= -1 || pmodel == mdJoukowsky;
+  bool joukowsky = among(pmodel, mdJoukowskyInverted, mdJoukowsky) && hyperbolic && pconf.model_transition < 1;
 
   for(int r=0; r<=AURA; r++) for(int z=0; z<11; z++) {
     float rr = (M_PI * 2 * r) / AURA;
@@ -3103,7 +3125,7 @@ void drawaura() {
       else        
         models::apply_orientation(c1, s1);
 
-      ld& mt = models::model_transition;
+      ld& mt = pconf.model_transition;
       ld mt2 = 1 - mt;
 
       ld m = sqrt(c1*c1 + s1*s1 / mt2 / mt2);
@@ -3113,7 +3135,7 @@ void drawaura() {
       }
 
     cx[r][z][0] = rad0 * c;
-    cx[r][z][1] = rad0 * s * vid.stretch;
+    cx[r][z][1] = rad0 * s * pconf.stretch;
     
     for(int u=0; u<3; u++)
       cx[r][z][u+2] = bak[u] + (aurac[rm][u] / (aurac[rm][3]+.1) - bak[u]) * cmul[z];
@@ -3193,6 +3215,11 @@ EX transmatrix applyDowndir(cell *c, const cellfunction& cf) {
 void draw_movement_arrows(cell *c, const transmatrix& V, int df) {
 
   if(viewdists) return;
+  
+  string keylist = "";
+  const ld keysize = .6;      
+
+  color_t col = getcs().uicolor;
 
   for(int d=0; d<8; d++) {
   
@@ -3203,19 +3230,33 @@ void draw_movement_arrows(cell *c, const transmatrix& V, int df) {
     if(xc.at == c) {
       transmatrix fixrot = sphereflip * rgpushxto0(sphereflip * tC0(V));
       // make it more transparent
-      color_t col = getcs().uicolor;
       col -= (col & 0xFF) >> 1;
       poly_outline = OUTLINE_DEFAULT;
-      queuepoly(fixrot * spin(-d * M_PI/4), cgi.shArrow, col);
+      
+      char key = 0;
+      if(vid.axes >= 5)
+        key = (vid.axes == 5 ? keys_wasd : keys_vi)[d];
+      
+      if(vid.axes >= 5) keylist += key;
+      else
+        queuepoly(fixrot * spin(-d * M_PI/4), cgi.shArrow, col);
 
       if((c->type & 1) && (isStunnable(c->monst) || isPushable(c->wall))) {
         transmatrix Centered = rgpushxto0(tC0(cwtV));
         int sd = md.subdir;
-        queuepoly(inverse(Centered) * rgpushxto0(Centered * tC0(V)) * rspintox(Centered*tC0(V)) * spin(-sd * M_PI/S7) * xpush(0.2), cgi.shArrow, col);
+        
+        transmatrix T = inverse(Centered) * rgpushxto0(Centered * tC0(V)) * rspintox(Centered*tC0(V)) * spin(-sd * M_PI/S7) * xpush(0.2);
+        
+        if(vid.axes >= 5)
+          queuestr(T, keysize, s0 + key, col >> 8, 1);
+        
+        else
+          queuepoly(T, cgi.shArrow, col);
         }
       else if(!confusingGeometry()) break;
       }
     }
+  if(keylist != "") queuestr(V, keysize, keylist, col >> 8, 1);
   }
 
 EX int celldistAltPlus(cell *c) { return 1000000 + celldistAlt(c); }
@@ -3417,8 +3458,8 @@ EX bool placeSidewall(cell *c, int i, int sidepar, const transmatrix& V, color_t
   else prio = PPR::REDWALL-2+4*(sidepar-SIDE_SLEV);
   
   dynamicval<bool> ncor(approx_nearcorner, true);
-  transmatrix V2 = V * ddspin(c, i);
- 
+  transmatrix V2 = V * ddspin_side(c, i);
+  
   if(NONSTDVAR || !standard_tiling()) {
     #if CAP_ARCM
     if(arcm::in() && !PURE)
@@ -3442,7 +3483,7 @@ bool openorsafe(cell *c) {
 EX color_t stdgridcolor = 0x202020FF;
 
 EX int gridcolor(cell *c1, cell *c2) {
-  if(cmode & sm::DRAW) return Dark(forecolor);
+  if(cmode & sm::DRAW && !mapeditor::drawing_tool) return Dark(forecolor);
   if(!c2)
     return 0x202020 >> darken;
   int rd1 = rosedist(c1), rd2 = rosedist(c2);
@@ -3714,10 +3755,12 @@ EX ld mousedist(transmatrix T) {
 vector<hyperpoint> clipping_planes;
 EX int noclipped;
 
+EX bool frustum_culling = true;
+
 void make_clipping_planes() {
 #if MAXMDIM >= 4
   clipping_planes.clear();
-  if(PIU(sphere) || experimental || vid.stereo_mode == sODS) return;
+  if(!frustum_culling || PIU(sphere) || experimental || vid.stereo_mode == sODS) return;
   auto add_clipping_plane = [] (ld x1, ld y1, ld x2, ld y2) {
     ld z1 = 1, z2 = 1;
     hyperpoint sx = point3(y1 * z2 - y2 * z1, z1 * x2 - z2 * x1, x1 * y2 - x2 * y1);
@@ -3749,8 +3792,8 @@ bool celldrawer::cell_clipped() {
     hyperpoint H = tC0(V);
     if(abs(H[0]) <= 3 && abs(H[1]) <= 3 && abs(H[2]) <= 3 ) ;
     else {
-      hyperpoint H2 = inverse_exp(H, iLazy);
-      for(hyperpoint& cpoint: clipping_planes) if((H2|cpoint) < -.4) return true;
+      hyperpoint H2 = inverse_exp(H, pQUICK);
+      for(hyperpoint& cpoint: clipping_planes) if((H2|cpoint) < -.6) return true;
       }
     noclipped++;
     }
@@ -3758,7 +3801,7 @@ bool celldrawer::cell_clipped() {
     hyperpoint H = tC0(V);
     if(abs(H[0]) <= 3 && abs(H[1]) <= 3 && abs(H[2]) <= 3 ) ;
     else {
-      hyperpoint H2 = inverse_exp(H, iLazy);
+      hyperpoint H2 = inverse_exp(H, pQUICK);
       for(hyperpoint& cpoint: clipping_planes) if((H2|cpoint) < -2) return true;
       }
     noclipped++;
@@ -3779,7 +3822,8 @@ EX void gridline(const transmatrix& V1, const hyperpoint h1, const transmatrix& 
   if(WDIM == 3 && fat_edges) {
     transmatrix T = V1 * rgpushxto0(h1);
     transmatrix S = rspintox(inverse(T) * V2 * h2);
-    queuepoly(T * S, cgi.generate_pipe(d, vid.linewidth), col);
+    auto& p = queuepoly(T * S, cgi.generate_pipe(d, vid.linewidth), col);
+    p.intester = xpush0(d/2);
     return;
     }
   #endif
@@ -3809,7 +3853,7 @@ EX void gridline(const transmatrix& V, const hyperpoint h1, const hyperpoint h2,
   }
 
 EX int wall_offset(cell *c) {
-  if(hybri) return hybrid::wall_offset(c);
+  if(hybri || WDIM == 2) return hybrid::wall_offset(c);
   if(kite::in() && kite::getshape(c->master) == kite::pKite) return 10;
   return 0;
   }
@@ -3865,7 +3909,6 @@ EX int ceiling_category(cell *c) {
     case laDual:
     case laWestWall:
     case laAsteroids:
-    case laEclectic:
       return 1;
     
     case laPower:
@@ -3896,6 +3939,8 @@ EX int ceiling_category(cell *c) {
     case laBrownian: 
     case laHell:
     case laVariant:    
+    case laFrog:
+    case laWet:
       return 2;
     
     case laBarrier: 
@@ -3921,6 +3966,7 @@ EX int ceiling_category(cell *c) {
     case laMercuryRiver:
     case laMagnetic:
     case laSwitch:
+    case laEclectic:
       return 3;
     
     case laPalace:
@@ -4132,7 +4178,7 @@ EX void queuecircleat(cell *c, double rad, color_t col) {
   }
 #endif
 
-#if ISMOBILE==1
+#if ISMOBILE
 #define MOBON (clicked)
 #else
 #define MOBON true
@@ -4248,12 +4294,12 @@ EX void drawMarkers() {
 
     // process mouse
     #if CAP_SHAPES
-    if((vid.axes == 4 || (vid.axes == 1 && !mousing)) && !shmup::on && GDIM == 2) {
+    if((vid.axes >= 4 || (vid.axes == 1 && !mousing)) && !shmup::on && GDIM == 2) {
       if(multi::players == 1) {
         forCellIdAll(c2, d, cwt.at) if(gmatrix.count(cwt.at)) draw_movement_arrows(c2, gmatrix[cwt.at] * currentmap->adj(cwt.at, d), d);
         }
       else if(multi::players > 1) for(int p=0; p<multi::players; p++) {
-        if(multi::playerActive(p) && (vid.axes == 4 || !drawstaratvec(multi::mdx[p], multi::mdy[p]))) 
+        if(multi::playerActive(p) && (vid.axes >= 4 || !drawstaratvec(multi::mdx[p], multi::mdy[p]))) 
         forCellIdAll(c2, d, multi::player[p].at) if(gmatrix.count(cwt.at)) {
           multi::cpid = p;
           dynamicval<transmatrix> ttm(cwtV, multi::whereis[p]);
@@ -4349,6 +4395,9 @@ void drawFlashes() {
     forCellIdEx(c2, id, f.where) if(!copies) ADC(V, c2) {
       draw_flash(f, V * currentmap->iadj(f.where, id), kill);
       copies = true;
+      }
+    if(f.t > ticks - 800 && !copies) {
+      kill = false;
       }
     if(kill) {
       f = flashes[isize(flashes)-1];
@@ -4458,8 +4507,9 @@ EX bool allowIncreasedSight() {
 #endif
   if(randomPatternsMode) return true;
   if(racing::on) return true;
-  if(quotient || !hyperbolic || arcm::in()) return true;
+  if(quotient || !hyperbolic || arcm::in() || arb::in()) return true;
   if(WDIM == 3) return true;
+  if(!canmove) return true;
   return false;
   }
 
@@ -4470,7 +4520,7 @@ EX bool allowChangeRange() {
 #endif
   if(racing::on) return true;
   if(sightrange_bonus >= 0) return true;
-  if(arcm::in()) return true;
+  if(arcm::in() || arb::in()) return true;
   if(WDIM == 3) return true;
   return false;
   }
@@ -4548,12 +4598,12 @@ EX void precise_mouseover() {
   if(WDIM == 3) { 
     mouseover2 = mouseover = centerover;
     ld best = HUGE_VAL;
-    hyperpoint h = direct_exp(lp_iapply(ztangent(0.01)), 100);
+    hyperpoint h = direct_exp(lp_iapply(ztangent(0.01)));
 
     transmatrix cov = ggmatrix(mouseover2);
     forCellIdEx(c1, i, mouseover2) {
       hyperpoint h1 = tC0(cov * currentmap->adj(mouseover2, i));
-      ld dist = geo_dist(h, h1, iTable) - geo_dist(C0, h1, iTable);
+      ld dist = geo_dist(h, h1) - geo_dist(C0, h1);
       if(dist < best) mouseover = c1, best = dist;
       }
     return; 
@@ -4637,7 +4687,7 @@ EX void drawthemap() {
   #endif
   if(non_spatial_model())
     spatial_graphics = false;
-  if(pmodel == mdDisk && abs(vid.alpha) < 1e-6) spatial_graphics = false;
+  if(pmodel == mdDisk && abs(pconf.alpha) < 1e-6) spatial_graphics = false;
   
   if(!spatial_graphics) wmspatial = mmspatial = false;
   if(GDIM == 3) wmspatial = mmspatial = true;
@@ -4645,7 +4695,7 @@ EX void drawthemap() {
   for(int m=0; m<motypes; m++) if(isPrincess(eMonster(m))) 
     minf[m].name = princessgender() ? "Princess" : "Prince";
   
-  #if MAXMDIM >= 4
+  #if CAP_RAY
   ray::in_use = ray::requested();
   #endif
   no_wall_rendering = ray::in_use;
@@ -4705,6 +4755,8 @@ EX void drawthemap() {
   drawMarkers();
   profile_stop(4);
   drawFlashes();
+  
+  mapeditor::draw_dtshapes();
   
   if(multi::players > 1 && !shmup::on) {
     if(multi::centerplayer != -1) 
@@ -4789,7 +4841,7 @@ EX void drawmovestar(double dx, double dy) {
   int rax = vid.axes;
   if(rax == 1) rax = drawstaratvec(dx, dy) ? 2 : 0;
   
-  if(rax == 0 || vid.axes == 4) return;
+  if(rax == 0 || vid.axes >= 4) return;
 
   int starcol = getcs().uicolor;
   ignore(starcol);
@@ -4809,9 +4861,7 @@ EX void drawmovestar(double dx, double dy) {
     if(rightclick && (d == 2 || d == 6 || d == 3 || d == 5)) col &= 0xFFFFFF3F;
     if(!leftclick && !rightclick && (d&1)) col &= 0xFFFFFF3F;
 #endif
-//  EUCLIDEAN
-
-    queueline(tC0(Centered), Centered * xspinpush0(d * M_PI / 4, euclid ? 0.5 : d==0?.7:d==2?.5:.2), col, 3 + vid.linequality);
+    queueline(tC0(Centered), Centered * xspinpush0(d * M_PI / 4, cgi.scalefactor/2), col, 3 + vid.linequality);
 #endif
     }
   }
@@ -4840,7 +4890,7 @@ EX void calcparam() {
   cd->xcenter = cd->xtop + cd->xsize / 2;
   cd->ycenter = cd->ytop + cd->ysize / 2;
 
-  if(vid.scale > -1e-2 && vid.scale < 1e-2) vid.scale = 1;
+  if(pconf.scale > -1e-2 && pconf.scale < 1e-2) pconf.scale = 1;
   
   ld realradius = min(cd->xsize / 2, cd->ysize / 2);
   
@@ -4849,7 +4899,7 @@ EX void calcparam() {
   current_display->sidescreen = permaside;
   
   if(vid.xres < vid.yres - 2 * vid.fsize && !inHighQual && !in_perspective()) {
-    cd->ycenter = vid.yres - cd->scrsize - vid.fsize;
+    cd->ycenter = lerp(vid.fsize + cd->scrsize, vid.yres - cd->scrsize - vid.fsize, .8);
     }
   else {
     if(vid.xres > vid.yres * 4/3+16 && (cmode & sm::SIDE))
@@ -4862,11 +4912,11 @@ EX void calcparam() {
     if(current_display->sidescreen) cd->xcenter = vid.yres/2;
     }
 
-  cd->radius = vid.scale * cd->scrsize;
+  cd->radius = pconf.scale * cd->scrsize;
   if(GDIM == 3 && in_perspective()) cd->radius = cd->scrsize;
   realradius = min(realradius, cd->radius);
   
-  ld aradius = sphere ? cd->radius / (vid.alpha - 1) : cd->radius;
+  ld aradius = sphere ? cd->radius / (pconf.alpha - 1) : cd->radius;
   
   if(dronemode) { cd->ycenter -= cd->radius; cd->ycenter += vid.fsize/2; cd->ycenter += vid.fsize/2; cd->radius *= 2; }
   
@@ -4878,8 +4928,8 @@ EX void calcparam() {
       cd->xcenter = cd->xtop + cd->xsize - vid.fsize - aradius;
     }
 
-  cd->xcenter += cd->scrsize * vid.xposition;
-  cd->ycenter += cd->scrsize * vid.yposition;
+  cd->xcenter += cd->scrsize * pconf.xposition;
+  cd->ycenter += cd->scrsize * pconf.yposition;
   
   cd->tanfov = tan(vid.fov * degree / 2);
   
@@ -4887,7 +4937,7 @@ EX void calcparam() {
   reset_projection();
   }
 
-function<void()> wrap_drawfullmap = drawfullmap;
+EX function<void()> wrap_drawfullmap = drawfullmap;
 
 bool force_sphere_outline = false;
 
@@ -4916,7 +4966,7 @@ EX void drawfullmap() {
   draw_boundary(1);
   
   draw_model_elements();
-  #if MAXMDIM >= 4
+  #if MAXMDIM >= 4 && CAP_GL
   prepare_sky();
   #endif
   #endif
@@ -5101,7 +5151,7 @@ namespace sm {
   static const int DIALOG_STRICT_X = 32768; // do not interpret dialog clicks outside of the X region
   static const int EXPANSION = (1<<16);
   static const int HEXEDIT = (1<<17);
-  };
+  }
 #endif
 
 EX int cmode;
@@ -5228,7 +5278,7 @@ EX void clearAnimations() {
   fallanims.clear();
   }
   
-auto graphcm = addHook(clearmemory, 0, [] () {
+auto graphcm = addHook(hooks_clearmemory, 0, [] () {
   DEBBI(DF_MEMORY, ("clear graph memory"));
   mouseover = centerover = lmouseover = NULL;  
   gmatrix.clear(); gmatrix0.clear(); current_display->all_drawn_copies.clear();

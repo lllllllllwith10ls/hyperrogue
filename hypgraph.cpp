@@ -8,21 +8,20 @@
 #include "hyper.h"
 namespace hr {
 
-ld ghx, ghy, ghgx, ghgy;
-hyperpoint ghpm = C0;
+hyperpoint ghxy, ghgxy, ghpm = C0;
 
 #if HDR
-inline bool sphereflipped() { return sphere && vid.alpha > 1.1 && GDIM == 3; }
+inline bool sphereflipped() { return sphere && pconf.alpha > 1.1 && GDIM == 3; }
 #endif
 
 void ghcheck(hyperpoint &ret, const hyperpoint &H) {
-  if(hypot(ret[0]-ghx, ret[1]-ghy) < hypot(ghgx-ghx, ghgy-ghy)) {
-    ghpm = H; ghgx = ret[0]; ghgy = ret[1];
+  if(hypot_d(2, ret-ghxy) < hypot_d(2, ghgxy-ghxy)) {
+    ghpm = H; ghgxy = ret;
     }
   }
 
 EX void camrotate(ld& hx, ld& hy) {
-  ld cam = vid.camera_angle * degree;
+  ld cam = pconf.camera_angle * degree;
   GLfloat cc = cos(cam);
   GLfloat ss = sin(cam);
   ld ux = hx, uy = hy * cc + ss, uz = cc - ss * hy;
@@ -34,16 +33,21 @@ EX bool non_spatial_model() {
     return true;
   if(pmodel == mdSpiral && euclid)
     return true;
+  #if CAP_GL
   return pmodel && vid.consider_shader_projection && (get_shader_flags() & SF_DIRECT);
+  #else
+  return false;
+  #endif
   }
 
-EX hyperpoint perspective_to_space(hyperpoint h, ld alpha IS(vid.alpha), eGeometryClass gc IS(ginf[geometry].cclass)) {
+EX hyperpoint perspective_to_space(hyperpoint h, ld alpha IS(pconf.alpha), eGeometryClass gc IS(ginf[geometry].cclass)) {
   ld hx = h[0], hy = h[1];
   
   if(gc == gcEuclid)
     return hpxy(hx * (1 + alpha), hy * (1 + alpha));
     
   ld hr = hx*hx+hy*hy;
+  if(LDIM == 3) hr += h[2]*h[2];
   
   if(hr > .9999 && gc == gcHyperbolic) return Hypc;
   
@@ -58,19 +62,20 @@ EX hyperpoint perspective_to_space(hyperpoint h, ld alpha IS(vid.alpha), eGeomet
   B /= A; C /= A;
   
   ld rootsign = 1;
-  // if(gc == gcSphere && vid.alpha > 1) rootsign = -1;
+  // if(gc == gcSphere && pconf.alpha > 1) rootsign = -1;
   
   ld hz = B / 2 + rootsign * sqrt(C + B*B/4);
   
   hyperpoint H;
   H[0] = hx * (hz+alpha);
   H[1] = hy * (hz+alpha);
+  if(LDIM == 3) H[2] = h[2] * (hz + alpha);
   H[LDIM] = hz;
   
   return H;  
   }
 
-EX hyperpoint space_to_perspective(hyperpoint z, ld alpha IS(vid.alpha)) {
+EX hyperpoint space_to_perspective(hyperpoint z, ld alpha IS(pconf.alpha)) {
   ld s = 1 / (alpha + z[LDIM]);
   z[0] *= s;
   z[1] *= s;
@@ -86,21 +91,49 @@ EX hyperpoint space_to_perspective(hyperpoint z, ld alpha IS(vid.alpha)) {
 EX hyperpoint gethyper(ld x, ld y) {
 
   ld hx = (x - current_display->xcenter) / current_display->radius;
-  ld hy = (y - current_display->ycenter) / current_display->radius / vid.stretch;
+  ld hy = (y - current_display->ycenter) / current_display->radius / pconf.stretch;
+  hyperpoint hxy = point3(hx, hy, 0);
   
   if(pmodel) {
-    ghx = hx, ghy = hy;
-    return ghpm;
+    ghxy = hxy;
+    
+    transmatrix T = rgpushxto0(ghpm);
+    
+    auto distance_at = [&] (const transmatrix& T1) {
+      hyperpoint h1;
+      applymodel(tC0(T1), h1);
+      return sqhypot_d(2, hxy - h1);
+      };
+
+    ld best = distance_at(T);    
+
+    for(int it=0; it<50; it++) 
+      for(int s=0; s<4; s++) {
+        transmatrix T1 = T * spin(s * quarter_circle) * xpush(pow(1.2, -it));
+        ld dist = distance_at(T1);
+        if(dist < best) best = dist, T = T1;
+        if(mdBandAny()) {
+          band_shift += 2 * M_PI;
+          dist = distance_at(T1);
+          if(dist < best) best = dist, T = T1;
+          band_shift -= 4 * M_PI;
+          dist = distance_at(T1);
+          if(dist < best) best = dist, T = T1;
+          band_shift += 2 * M_PI;
+          }
+        }
+    
+    return tC0(T);
     }
   
-  if(vid.camera_angle) camrotate(hx, hy);
+  if(pconf.camera_angle) camrotate(hx, hy);
   
   return perspective_to_space(hpxyz(hx, hy, 0));
   }
 
 void ballmodel(hyperpoint& ret, double alpha, double d, double zl) {
   hyperpoint H = ypush(vid.camera) * xpush(d) * ypush(zl) * C0;
-  ld tzh = vid.ballproj + H[LDIM];
+  ld tzh = pconf.ballproj + H[LDIM];
   ld ax = H[0] / tzh;
   ld ay = H[1] / tzh;
   
@@ -163,7 +196,7 @@ ld find_zlev(hyperpoint& H) {
   }
 
 ld get_tz(hyperpoint H) {
-  ld tz = euclid ? (1+vid.alpha) : vid.alpha+H[LDIM];
+  ld tz = pconf.alpha+H[LDIM];
   if(tz < BEHIND_LIMIT && tz > -BEHIND_LIMIT) tz = BEHIND_LIMIT;
   return tz;
   }
@@ -235,7 +268,7 @@ void band_conformal(ld& x, ld& y) {
   }
 
 void make_twopoint(ld& x, ld& y) {
-  auto p = vid.twopoint_param;
+  auto p = pconf.twopoint_param;
   ld dleft = hypot_auto(x-p, y);
   ld dright = hypot_auto(x+p, y);
   if(sphere) {
@@ -262,7 +295,7 @@ hyperpoint mobius(hyperpoint h, ld angle, ld scale = 1) {
   }
 
 hyperpoint compute_hybrid(hyperpoint H, int rootid) {
-  auto& t = vid.twopoint_param;
+  auto& t = pconf.twopoint_param;
   hyperpoint Hl = xpush(+t) * H;
   hyperpoint Hr = xpush(-t) * H;
   ld g = (Hl[0] + 1e-7) / (Hl[1] + 1e-8);
@@ -307,17 +340,17 @@ hyperpoint compute_hybrid(hyperpoint H, int rootid) {
   return ret;
   }
 
-EX ld signed_sqrt(ld x) { return x > 0 ? sqrt(x) : -sqrt(-x); };
+EX ld signed_sqrt(ld x) { return x > 0 ? sqrt(x) : -sqrt(-x); }
 
 EX void applymodel(hyperpoint H, hyperpoint& ret) {
 
   hyperpoint H_orig = H;
   
-  if(models::product_model()) {
+  if(models::product_model(pmodel)) {
     ld zlev = zlevel(H);
     H /= exp(zlev);
     hybrid::in_underlying_geometry([&] { applymodel(H, ret); });
-    ret[2] = zlev * models::product_z_scale;
+    ret[2] = zlev * pconf.product_z_scale;
     ret = NLP * ret;
     return;    
     }
@@ -335,7 +368,7 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
       }
 
     case mdGeodesic: {
-      auto S = lp_apply(inverse_exp(H, iTable));
+      auto S = lp_apply(inverse_exp(H, pNORMAL | pfNO_DISTANCE));
       ld ratio = vid.xres / current_display->tanfov / current_display->radius / 2;
       ret[0] = S[0]/S[2] * ratio;
       ret[1] = S[1]/S[2] * ratio;
@@ -358,23 +391,23 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
     
     case mdDisk: {
       if(nonisotropic) {
-        ret = lp_apply(inverse_exp(H, iTable, true));
+        ret = lp_apply(inverse_exp(H, pNORMAL | pfNO_DISTANCE));
         ld w;
         if(sn::in()) {
           // w = 1 / sqrt(1 - sqhypot_d(3, ret));
-          // w = w / (vid.alpha + w);
-          w = 1 / (sqrt(1 - sqhypot_d(3, ret)) * vid.alpha + 1);
+          // w = w / (pconf.alpha + w);
+          w = 1 / (sqrt(1 - sqhypot_d(3, ret)) * pconf.alpha + 1);
           }
         else {
           w = hypot_d(3, ret);
-          w = sinh(w) / ((vid.alpha + cosh(w)) * w);
+          w = sinh(w) / ((pconf.alpha + cosh(w)) * w);
           }
         for(int i=0; i<3; i++) ret[i] *= w;
         ret[3] = 1; 
         break;
         }
       ld tz = get_tz(H);
-      if(!vid.camera_angle) {
+      if(!pconf.camera_angle) {
         ret[0] = H[0] / tz;
         ret[1] = H[1] / tz;
         if(GDIM == 3) ret[2] = H[2] / tz;
@@ -384,7 +417,7 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
       else {
         ld tx = H[0];
         ld ty = H[1];
-        ld cam = vid.camera_angle * degree;
+        ld cam = pconf.camera_angle * degree;
         GLfloat cc = cos(cam);
         GLfloat ss = sin(cam);
         ld ux = tx, uy = ty * cc - ss * tz, uz = tz * cc + ss * ty;
@@ -398,6 +431,7 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
     case mdCentralInversion: {
       ld tz = get_tz(H);
       for(int d=0; d<GDIM; d++) ret[d] = H[d] / tz;
+      for(int d=GDIM; d<MAXMDIM; d++) ret[d] = 1;
       ld r = 0;
       for(int d=0; d<GDIM; d++) r += ret[d]*ret[d];
       for(int d=0; d<GDIM; d++) ret[d] /= r;
@@ -420,7 +454,7 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
       
       if(GDIM == 3) {
         // a bit simpler when we do not care about 3D
-        H *= models::halfplane_scale;
+        H *= pconf.halfplane_scale;
         ret[0] = -H[0];
         ret[1] = 1 + H[1];
         ret[2] = H[2];
@@ -432,7 +466,7 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
       
       models::apply_orientation(H[0], H[1]);
       
-      H *= models::halfplane_scale;
+      H *= pconf.halfplane_scale;
       
       ret[0] = -models::osin - H[0];
       if(zlev != 1) {
@@ -483,14 +517,14 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
           
         case gcEuclid: default: {
           // stereographic projection to a sphere
-          auto hd = hdist0(H) / vid.euclid_to_sphere;
+          auto hd = hdist0(H) / pconf.euclid_to_sphere;
           if(hd == 0) ret = hpxyz(0, 0, -1);
           else {
             ld x = 2 * hd / (1 + hd * hd);
             ld y = x / hd;
-            ret = H * x / hd / vid.euclid_to_sphere;
+            ret = H * x / hd / pconf.euclid_to_sphere;
             ret[2] = (1 - y);
-            ret = ret * (1 + (H[2]-1) * y / vid.euclid_to_sphere);
+            ret = ret * (1 + (H[2]-1) * y / pconf.euclid_to_sphere);
             }
           break;
           }
@@ -521,7 +555,7 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
         break;
         }
       if(pmodel == mdHyperboloid) {
-        ld& topz = models::top_z;
+        ld& topz = pconf.top_z;
         if(H[2] > topz) {
           ld scale = sqrt(topz*topz-1) / hypot_d(2, H);
           H *= scale;
@@ -529,8 +563,8 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
           }
         }
       else {
-        H = space_to_perspective(H, vid.alpha);
-        H[2] = 1 - vid.alpha;
+        H = space_to_perspective(H, pconf.alpha);
+        H[2] = 1 - pconf.alpha;
         }
   
       ret[0] = H[0] / 3;
@@ -544,14 +578,14 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
     case mdFisheye: {
       ld zlev;
       if(nonisotropic) {
-        H = lp_apply(inverse_exp(H, iTable, false));
+        H = lp_apply(inverse_exp(H));
         zlev = 1;
         }
       else {
         zlev = find_zlev(H);
         H = space_to_perspective(H);
         }
-      H /= vid.fisheye_param;
+      H /= pconf.fisheye_param;
       H[LDIM] = zlev;
       ret = H / sqrt(1 + sqhypot_d(GDIM+1, H));
       if(GDIM == 3) ret[LDIM] = zlev;
@@ -562,8 +596,8 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
       models::apply_orientation_yz(H[1], H[2]);
       models::apply_orientation(H[0], H[1]);
       auto yz = move_z_to_y(H);
-      hyperpoint Hl = xpush(-vid.twopoint_param) * H;
-      hyperpoint Hr = xpush(+vid.twopoint_param) * H;
+      hyperpoint Hl = xpush(-pconf.twopoint_param) * H;
+      hyperpoint Hr = xpush(+pconf.twopoint_param) * H;
       ld lyx = (Hl[1] + 1e-7) / (Hl[0] + 1e-8);
       ld ryx = (Hr[1] + 1e-7) / (Hr[0] + 1e-8);
       // (r.x + t) * lyx = (r.x - t) * ryx = r.y
@@ -572,8 +606,8 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
       // r.x = -t * (ryx+lyx) / (lyx-ryx)
       // r.x = - 2 * t * lyx * ryx / lyx / ryx
       
-      ret[0] = -vid.twopoint_param * (ryx + lyx) / (lyx - ryx);
-      ret[1] = (ret[0] + vid.twopoint_param) * lyx;
+      ret[0] = -pconf.twopoint_param * (ryx + lyx) / (lyx - ryx);
+      ret[1] = (ret[0] + pconf.twopoint_param) * lyx;
       ret[2] = 0;
 
       move_y_to_z(ret, yz);      
@@ -601,11 +635,11 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
       models::apply_orientation(H[0], H[1]);
       // with equal speed skiprope: models::apply_orientation(H[1], H[0]);
   
-      if(vid.skiprope) {
+      if(pconf.skiprope) {
         static ld last_skiprope = 0;
         static transmatrix lastmatrix;
-        if(vid.skiprope != last_skiprope) {
-          ret = mobius(C0, -vid.skiprope, 2);
+        if(pconf.skiprope != last_skiprope) {
+          ret = mobius(C0, -pconf.skiprope, 2);
           const cld c1(1, 0);
           const cld c2(2, 0);
           const cld c4(4, 0);
@@ -615,7 +649,7 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
           hyperpoint zr = hpxyz(real(z), imag(z), 0);
           
           hyperpoint inhyp = perspective_to_space(zr, 1, gcHyperbolic);
-          last_skiprope = vid.skiprope;
+          last_skiprope = pconf.skiprope;
           lastmatrix = rgpushxto0(inhyp);
           }
         H = lastmatrix * H;
@@ -626,7 +660,7 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
       ld r = hypot_d(2, H);
       ld c = H[0] / r;
       ld s = H[1] / r;
-      ld& mt = models::model_transition;
+      ld& mt = pconf.model_transition;
       ld a = 1 - .5 * mt, b = .5 * mt;
       swap(a, b);
       
@@ -634,8 +668,8 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
       ret[1] = (a * r - b/r) * s / 2;
       ret[2] = 0;
 
-      if(vid.skiprope) 
-        ret = mobius(ret, vid.skiprope, 2);
+      if(pconf.skiprope) 
+        ret = mobius(ret, pconf.skiprope, 2);
         
       if(pmodel == mdJoukowskyInverted) {
         ld r2 = sqhypot_d(2, ret);
@@ -679,8 +713,8 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
       }  
       
     case mdBand: 
-      if(models::model_transition != 1) {
-        ld& mt = models::model_transition;
+      if(pconf.model_transition != 1) {
+        ld& mt = pconf.model_transition;
         
         H = space_to_perspective(H);
         
@@ -743,10 +777,10 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
       find_zlev(H);
       makeband(H, ret, [] (ld& x, ld& y) { 
         ld sgn = 1;
-        if(vid.collignon_reflected && y > 0) y = -y, sgn = -1;
-        y = signed_sqrt(sin_auto(y) + vid.collignon_parameter);
+        if(pconf.collignon_reflected && y > 0) y = -y, sgn = -1;
+        y = signed_sqrt(sin_auto(y) + pconf.collignon_parameter);
         x *= y / 1.2;
-        y -= signed_sqrt(vid.collignon_parameter);
+        y -= signed_sqrt(pconf.collignon_parameter);
         y *= sgn;
         y *= M_PI;
         });
@@ -766,7 +800,7 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
     
     case mdEquidistant: case mdEquiarea: case mdEquivolume: {
       if(nonisotropic || prod) {
-        ret = lp_apply(inverse_exp(H, iTable, false));
+        ret = lp_apply(inverse_exp(H));
         ret[3] = 1;
         break;
         }
@@ -811,7 +845,7 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
       ret[1] = cosh(x) * factor;
       ret[2] = 0;
       
-      if(models::use_atan) {
+      if(pconf.use_atan) {
         ret[0] = atan(ret[0]);
         ret[1] = atan(ret[1]);
         }
@@ -820,7 +854,7 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
       }
     
     case mdFormula: {
-      dynamicval<eModel> m(pmodel, models::basic_model);
+      dynamicval<eModel> m(pmodel, pconf.basic_model);
       applymodel(H, ret);
       exp_parser ep;
       ep.extra_params["z"] = cld(ret[0], ret[1]);
@@ -830,7 +864,7 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
       ep.extra_params["ux"] = H[0];
       ep.extra_params["uy"] = H[1];
       ep.extra_params["uz"] = H[2];
-      ep.s = models::formula;
+      ep.s = pconf.formula;
       cld res;
       try {
         res = ep.parse();
@@ -850,15 +884,15 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
       else ret = H;
       z = cld(ret[0], ret[1]) * models::spiral_multiplier;
       
-      if(models::spiral_cone < 360) {
-        ld alpha = imag(z) * 360 / models::spiral_cone;
+      if(pconf.spiral_cone < 360) {
+        ld alpha = imag(z) * 360 / pconf.spiral_cone;
         ld r = real(z);
         r = exp(r);
         
         ret[0] = -sin(alpha) * r;
         ret[1] = cos(alpha) * r;
         if(euclid) ret = models::euclidean_spin * ret;
-        ret[2] = (r-1) * sqrt( pow(360/models::spiral_cone, 2) - 1);
+        ret[2] = (r-1) * sqrt( pow(360/pconf.spiral_cone, 2) - 1);
         
         models::apply_ball(ret[2], ret[1]);
         }
@@ -868,8 +902,8 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
         ret[1] = imag(z);
         if(euclid) ret = models::euclidean_spin * ret;
 
-        if(vid.skiprope) 
-          ret = mobius(ret, vid.skiprope, 1);
+        if(pconf.skiprope) 
+          ret = mobius(ret, pconf.skiprope, 1);
         }
       }
     
@@ -927,12 +961,12 @@ EX bool behindsphere(const hyperpoint& h) {
 
   if(mdBandAny()) return false;
 
-  if(vid.alpha > 1) {
-     if(h[LDIM] > -1/vid.alpha) return true;
+  if(pconf.alpha > 1) {
+     if(h[LDIM] > -1/pconf.alpha) return true;
      }  
   
-  if(vid.alpha <= 1) {
-    if(h[LDIM] < .2-vid.alpha) return true;
+  if(pconf.alpha <= 1) {
+    if(h[LDIM] < .2-pconf.alpha) return true;
     }
   
   return false;
@@ -947,11 +981,11 @@ ld to01(ld a0, ld a1, ld x) {
 EX ld spherity(const hyperpoint& h) {
   if(!sphere) return 1;
   
-  if(vid.alpha > 1) {
-    return to01(1/vid.alpha, 1, abs(h[2]));
+  if(pconf.alpha > 1) {
+    return to01(1/pconf.alpha, 1, abs(h[2]));
     }  
   
-  if(vid.alpha <= 1) {
+  if(pconf.alpha <= 1) {
     return to01(-1.5, 1, h[2]);
     }
       
@@ -967,7 +1001,10 @@ EX ld spherity(const transmatrix& V) {
   }
 
 EX bool confusingGeometry() {
-  return quotient;
+  #if MAXMDIM >= 4
+  if(reg3::ultra_mirror_in()) return true;
+  #endif
+  return quotient || elliptic || (fake::in() && fake::multiple);
   }
 
 EX ld master_to_c7_angle() {
@@ -1000,7 +1037,7 @@ EX transmatrix actualV(const heptspin& hs, const transmatrix& V) {
 EX bool point_behind(hyperpoint h) {
   if(sphere) return false;
   if(!in_perspective()) return false;
-  if(pmodel == mdGeodesic) h = inverse_exp(h, iLazy);
+  if(pmodel == mdGeodesic) h = inverse_exp(h, pQUICK);
   if(pmodel == mdPerspective && prod) h = product::inverse_exp(h);
   h = lp_apply(h);
   return h[2] < 1e-8;
@@ -1014,7 +1051,7 @@ EX bool invalid_matrix(const transmatrix T) {
   for(int i=0; i<GDIM; i++) for(int j=0; j<GDIM; j++)
     if(std::isnan(T[i][j]) || T[i][j] > 1e8 || T[i][j] < -1e8 || std::isinf(T[i][j]))
       return true;
-  if(prod) {
+  if(prod || (cgflags & qAFFINE)) {
     for(int i=0; i<GDIM; i++) for(int j=0; j<GDIM; j++) if(abs(T[i][j]) > 1e-60) return false;
     }
   else 
@@ -1037,15 +1074,15 @@ EX bool in_smart_range(const transmatrix& T) {
   applymodel(h, h1);
   if(invalid_point(h1)) return false;
   ld x = current_display->xcenter + current_display->radius * h1[0];
-  ld y = current_display->ycenter + current_display->radius * h1[1] * vid.stretch;
+  ld y = current_display->ycenter + current_display->radius * h1[1] * pconf.stretch;
 
   if(x > current_display->xtop + current_display->xsize * 2) return false;
   if(x < current_display->xtop - current_display->xsize * 1) return false;
   if(y > current_display->ytop + current_display->ysize * 2) return false;
   if(y < current_display->ytop - current_display->ysize * 1) return false;
   if(GDIM == 3) {
-    if(-h1[2] < models::clip_min * 2 - models::clip_max) return false;
-    if(-h1[2] > models::clip_max * 2 - models::clip_min) return false;
+    if(-h1[2] < pconf.clip_min * 2 - pconf.clip_max) return false;
+    if(-h1[2] > pconf.clip_max * 2 - pconf.clip_min) return false;
     }
 
   ld epsilon = 0.01;
@@ -1055,14 +1092,14 @@ EX bool in_smart_range(const transmatrix& T) {
     hyperpoint h2;
     applymodel(T * cpush0(i, epsilon), h2);
     ld x1 = current_display->radius * abs(h2[0] - h1[0]) / epsilon;
-    ld y1 = current_display->radius * abs(h2[1] - h1[1]) * vid.stretch / epsilon;
+    ld y1 = current_display->radius * abs(h2[1] - h1[1]) * pconf.stretch / epsilon;
     dx = max(dx, x1); dy = max(dy, y1);
     if(GDIM == 3) dz = max(dz, abs(h2[2] - h1[2]));
     dh[i] = hypot(x1, y1);
     }
   
   if(GDIM == 3) { 
-    if(-h1[2] + 2 * dz < models::clip_min || -h1[2] - 2 * dz > models::clip_max) return false;
+    if(-h1[2] + 2 * dz < pconf.clip_min || -h1[2] - 2 * dz > pconf.clip_max) return false;
     sort(dh, dh+GDIM); 
     ld scale = sqrt(dh[1] * dh[2]) * cgi.scalefactor * hcrossf7;
     if(scale <= (WDIM == 2 ? vid.smart_range_detail : vid.smart_range_detail_3)) return false;
@@ -1189,7 +1226,7 @@ void hrmap_standard::draw() {
   if(sphere && pmodel == mdSpiral && !in_multi) {
     in_multi = true;
     if(models::ring_not_spiral) {
-      int qty = ceil(1. / models::sphere_spiral_multiplier);
+      int qty = ceil(1. / pconf.sphere_spiral_multiplier);
       if(qty > 100) qty = 100;
       for(int i=-qty; i < qty; i++) {
         band_shift = 2 * M_PI * i;
@@ -1249,6 +1286,24 @@ void hrmap_standard::draw() {
     }
   }
 
+EX bool keep_vertical() {
+  if(CAP_ORIENTATION) return false;
+  if((WDIM == 2 || prod) && GDIM == 3 && vid.fixed_yz) return true;
+  if(downseek.qty) return true;
+  return false;
+  }
+
+EX hyperpoint vertical_vector() {
+  auto& ds = downseek;
+  if((WDIM == 2 || prod) && GDIM == 3 && vid.fixed_yz) 
+    return get_view_orientation() * ztangent(1);  
+  else if(ds.qty && prod)
+    return get_view_orientation() * product::inverse_exp(ds.point);
+  else if(ds.qty)
+    return ds.point;
+  return C0;
+  }
+
 EX void spinEdge(ld aspd) { 
   ld downspin = 0;
   auto& ds = downseek;
@@ -1269,33 +1324,20 @@ EX void spinEdge(ld aspd) {
     downspin = atan2(H[1], H[0]);
     downspin += vid.fixed_facing_dir * degree;
     if(flipplayer) downspin += M_PI;
-    while(downspin < -M_PI) downspin += 2*M_PI;
-    while(downspin > +M_PI) downspin -= 2*M_PI;
+    cyclefix(downspin, 0);
     aspd = (1 + 2 * abs(downspin)) * aspd;
     }
-  else if((WDIM == 2 || prod) && GDIM == 3 && vid.fixed_yz && !CAP_ORIENTATION) {
-    aspd = 999999;
-    auto& vo = get_view_orientation();
-    // does not work well (also need change auto& to auto)
-    // if(hybri && !prod) vo = vo * inverse(nisot::translate(tC0(vo)));
+  else if(keep_vertical()) {
+    hyperpoint h = vertical_vector();
+    downspin = -atan2(h[0], h[1]);
+    if(ds.qty && GDIM == 2) {
+      downspin += models::rotation * degree;
+      }
     if(ds.qty) {
-      auto sdp = ds.point;
-      if(prod) sdp = vo * product::inverse_exp(sdp);
-      if(sdp[0])
-        downspin = models::rotation * degree - atan2(sdp[0], sdp[1]);
+      cyclefix(downspin, 0);      
+      downspin = downspin * min(ds.speed, (double)1);
       }
-    else {
-      if(vo[0][2]) 
-        downspin = -atan2(vo[0][2], vo[1][2]);
-      }
-    }
-  else if(ds.qty) {
-    downspin = atan2(ds.point[1], ds.point[0]);
-    downspin -= M_PI/2;
-    downspin += models::rotation * degree;
-    while(downspin < -M_PI) downspin += 2*M_PI;
-    while(downspin > +M_PI) downspin -= 2*M_PI;
-    downspin = downspin * min(ds.speed, (double)1);
+    else aspd = 999999;
     }
   if(downspin >  aspd) downspin =  aspd;
   if(downspin < -aspd) downspin = -aspd;
@@ -1307,7 +1349,7 @@ EX void centerpc(ld aspd) {
   if(subscreens::split([=] () {centerpc(aspd);})) return;
   if(dual::split([=] () { centerpc(aspd); })) return;
 
-  #if CAP_CRYSTAL
+  #if CAP_CRYSTAL && CAP_RUG
   if(cryst)
     crystal::centerrug(aspd);
   #endif
@@ -1323,7 +1365,7 @@ EX void centerpc(ld aspd) {
     centerover = pc->base;
     transmatrix T = pc->at;
     int sl = snakelevel(cwt.at);
-    if(sl && WDIM == 2) T = T * zpush(cgi.SLEV[sl] - cgi.FLOOR);
+    if((sl || vid.eye) && WDIM == 2) T = T * zpush(cgi.SLEV[sl] - cgi.FLOOR + vid.eye);
     View = inverse(T);
     if(prod) NLP = inverse(pc->ori);
     if(WDIM == 2) rotate_view( cspin(0, 1, M_PI) * cspin(2, 1, M_PI/2 + shmup::playerturny[id]) * spin(-M_PI/2) );
@@ -1442,10 +1484,22 @@ EX void resetview() {
     View = iddspin(cwt.at, cwt.spin);
     if(!flipplayer) View = pispin * View;
     if(cwt.mirrored) View = Mirror * View;
+
+    if(centering) {
+      hyperpoint vl = View * get_corner_position(cwt.at, cwt.spin);
+      hyperpoint vr = View * get_corner_position(cwt.at, (cwt.spin+1) % cwt.at->type);
+
+      hyperpoint vm = (centering == eCentering::edge) ? mid(vl, vr) : vl;
+      
+      transmatrix rm = gpushxto0(vm);
+
+      View = spintox(rm*vr) * rm * View;
+      }
+
     if(GDIM == 2) View = spin(M_PI + vid.fixed_facing_dir * degree) * View;
     if(GDIM == 3 && !prod) View = cspin(0, 2, M_PI/2) * View;
     if(prod) NLP = cspin(0, 2, M_PI/2);
-    if(cheater && eqmatrix(View, lView)) {
+    if(cheater && eqmatrix(View, lView) && !centering) {
       View = Id;
       static ld cyc = 0;
       cyc += 90 * degree;
@@ -1476,22 +1530,23 @@ EX void panning(hyperpoint hf, hyperpoint ht) {
 EX int cells_drawn, cells_generated;
 
 EX void fullcenter() {
-  history::path_for_lineanimation.clear();
+  if(history::saved_ends == 0)
+    history::path_for_lineanimation.clear();
   if(playerfound && false) centerpc(INF);
   else {
     bfs();
     resetview();
     drawthemap();
-    centerpc(INF);
+    if(!centering) centerpc(INF);
     centerover = cwt.at;
     }
-  playermoved = true;
+  playermoved = !centering;
   }
 
 transmatrix screenpos(ld x, ld y) {
   transmatrix V = Id;
-  V[0][2] += (x - current_display->xcenter) / current_display->radius * (1+vid.alpha);
-  V[1][2] += (y - current_display->ycenter) / current_display->radius * (1+vid.alpha);
+  V[0][2] += (x - current_display->xcenter) / current_display->radius * (1+pconf.alpha);
+  V[1][2] += (y - current_display->ycenter) / current_display->radius * (1+pconf.alpha);
   return V;
   }
 
@@ -1501,6 +1556,29 @@ transmatrix screenpos(ld x, ld y) {
 */
 
 EX eModel flat_model() { return MDIM == 4 ? mdPixel : mdDisk; }
+
+/** \brief enable the 'flat' model for drawing HUD. See hr::flat_model_enabler */
+EX void enable_flat_model() {
+  #if CAP_GL
+  glClear(GL_DEPTH_BUFFER_BIT);
+  #endif
+  pmodel = flat_model();
+  pconf.alpha = 1;
+  pconf.scale = 1;
+  pconf.camera_angle = 0;
+  pconf.stretch = 1;
+  if(prod) pconf.alpha = 30, pconf.scale = 30;
+  calcparam();
+  }
+
+#if HDR
+/** \brief enable the 'flat' model for drawing HUD. Use RAII so it will be switched back later */
+struct flat_model_enabler {
+  projection_configuration bak;
+  flat_model_enabler() { bak = pconf; enable_flat_model(); }
+  ~flat_model_enabler() { pconf = bak; calcparam(); }
+  };
+#endif
 
 EX transmatrix atscreenpos(ld x, ld y, ld size) {
   transmatrix V = Id;
@@ -1526,7 +1604,7 @@ EX transmatrix atscreenpos(ld x, ld y, ld size) {
 
 void circle_around_center(ld radius, color_t linecol, color_t fillcol, PPR prio) {
   #if CAP_QUEUE
-  if(among(pmodel, mdDisk, mdEquiarea, mdEquidistant, mdFisheye) && !(pmodel == mdDisk && hyperbolic && vid.alpha <= -1) && vid.camera_angle == 0) {
+  if(among(pmodel, mdDisk, mdEquiarea, mdEquidistant, mdFisheye) && !(pmodel == mdDisk && hyperbolic && pconf.alpha <= -1) && pconf.camera_angle == 0) {
     hyperpoint ret;
     applymodel(xpush0(radius), ret);
     ld r = hypot_d(2, ret);
@@ -1537,7 +1615,7 @@ void circle_around_center(ld radius, color_t linecol, color_t fillcol, PPR prio)
   #if CAP_QUEUE
   for(int i=0; i<=360; i++) curvepoint(xspinpush0(i * degree, 10));
   auto& c = queuecurve(linecol, fillcol, prio);
-  if(pmodel == mdDisk && hyperbolic && vid.alpha <= -1)
+  if(pmodel == mdDisk && hyperbolic && pconf.alpha <= -1)
     c.flags |= POLY_FORCE_INVERTED;
   if(pmodel == mdJoukowsky)
     c.flags |= POLY_FORCE_INVERTED;
@@ -1556,7 +1634,7 @@ EX void draw_model_elements() {
   switch(pmodel) {
   
     case mdRotatedHyperboles: {
-      queuestr(current_display->xcenter, current_display->ycenter + current_display->radius * vid.alpha, 0, vid.fsize, "X", ringcolor, 1, 8);
+      queuestr(current_display->xcenter, current_display->ycenter + current_display->radius * pconf.alpha, 0, vid.fsize, "X", ringcolor, 1, 8);
       return;
       }
     
@@ -1566,11 +1644,11 @@ EX void draw_model_elements() {
       for(int mode=0; mode<4; mode++) {
         for(int s=-200; s<=200; s ++) {
           ld p = tanh(s / 40.);
-          ld a = vid.twopoint_param * (1+p);
-          ld b = vid.twopoint_param * (1-p);
+          ld a = pconf.twopoint_param * (1+p);
+          ld b = pconf.twopoint_param * (1-p);
           ld h = ((mode & 2) ? -1 : 1) * sqrt(asin_auto(tan_auto(a) * tan_auto(b)));
           
-          hyperpoint H = xpush(p * vid.twopoint_param) * ypush0(h);
+          hyperpoint H = xpush(p * pconf.twopoint_param) * ypush0(h);
           
           hyperpoint res = compute_hybrid(H, 2 | mode);
           models::apply_orientation(res[0], res[1]);
@@ -1585,9 +1663,9 @@ EX void draw_model_elements() {
       }
 
     case mdTwoPoint: case mdSimulatedPerspective: {
-      ld a = -models::model_orientation * degree;
-      queuestr(xspinpush0(a, +vid.twopoint_param), vid.xres / 100, "X", ringcolor >> 8);
-      queuestr(xspinpush0(a, -vid.twopoint_param), vid.xres / 100, "X", ringcolor >> 8);
+      ld a = -pconf.model_orientation * degree;
+      queuestr(xspinpush0(a, +pconf.twopoint_param), vid.xres / 100, "X", ringcolor >> 8);
+      queuestr(xspinpush0(a, -pconf.twopoint_param), vid.xres / 100, "X", ringcolor >> 8);
       return;
       }
     
@@ -1601,10 +1679,10 @@ EX void draw_model_elements() {
       if(hyperbolic) {
 #if CAP_QUEUE
         curvepoint(point3(0,0,1));
-        curvepoint(point3(0,0,-vid.alpha));
+        curvepoint(point3(0,0,-pconf.alpha));
         queuecurve(ringcolor, 0, PPR::CIRCLE);
         
-        ld& tz = models::top_z;
+        ld& tz = pconf.top_z;
         ld z = acosh(tz);
     
         hyperpoint a = xpush0(z);
@@ -1614,12 +1692,12 @@ EX void draw_model_elements() {
         a[1] = sb * a[2] / -cb;
         a[0] = sqrt(-1 + a[2] * a[2] - a[1] * a[1]);
     
-        curvepoint(point3(0,0,-vid.alpha));
+        curvepoint(point3(0,0,-pconf.alpha));
         curvepoint(a);
         curvepoint(point3(0,0,0));
         a[0] = -a[0];
         curvepoint(a);
-        curvepoint(point3(0,0,-vid.alpha));
+        curvepoint(point3(0,0,-pconf.alpha));
         queuecurve(ringcolor, 0, PPR::CIRCLE);
     
         curvepoint(point3(-1,0,0));
@@ -1628,10 +1706,10 @@ EX void draw_model_elements() {
     
         a[1] = sb * tz / -cb;
         a[0] = sqrt(tz * tz - a[1] * a[1]);
-        a[2] = tz - vid.alpha;
+        a[2] = tz - pconf.alpha;
     
         curvepoint(a);
-        curvepoint(point3(0,0,-vid.alpha));
+        curvepoint(point3(0,0,-pconf.alpha));
         a[0] = -a[0];
         curvepoint(a);
         queuecurve(ringcolor, 0, PPR::CIRCLE);
@@ -1712,7 +1790,7 @@ EX void draw_boundary(int w) {
   
       for(int b=-1; b<=1; b+=2)
       for(ld a=-90; a<=90+1e-6; a+=pow(.5, vid.linequality)) {
-        ld x = sin(a * vid.twopoint_param * b / 90);
+        ld x = sin(a * pconf.twopoint_param * b / 90);
         ld y = 0;
         ld z = -sqrt(1 - x*x);
         models::apply_orientation(y, x);
@@ -1732,9 +1810,9 @@ EX void draw_boundary(int w) {
     
     case mdBand: case mdBandEquidistant: case mdBandEquiarea: case mdSinusoidal: case mdMollweide: case mdCentralCyl: case mdCollignon: {
       if(GDIM == 3) return;
-      if(pmodel == mdBand && models::model_transition != 1) return;
+      if(pmodel == mdBand && pconf.model_transition != 1) return;
       bool bndband = (among(pmodel, mdBand, mdCentralCyl) ? hyperbolic : sphere);
-      transmatrix T = spin(-models::model_orientation * degree);
+      transmatrix T = spin(-pconf.model_orientation * degree);
       ld right = M_PI/2 - 1e-5;
       if(bndband) 
         queuestraight(T * ypush0(hyperbolic ? 10 : right), 2, lc, fc, p);
@@ -1758,7 +1836,7 @@ EX void draw_boundary(int w) {
     
     case mdHalfplane: 
       if(hyperbolic && GDIM == 2) {
-        queuestraight(xspinpush0(-models::model_orientation * degree - M_PI/2, fakeinf), 1, lc, fc, p);
+        queuestraight(xspinpush0(-pconf.model_orientation * degree - M_PI/2, fakeinf), 1, lc, fc, p);
         return;
         }
       break;
@@ -1795,7 +1873,7 @@ EX void draw_boundary(int w) {
     
     case mdHyperboloid: {
       if(hyperbolic) {
-        ld& tz = models::top_z;
+        ld& tz = pconf.top_z;
         ld mz = acosh(tz);
         ld cb = models::cos_ball;
         ld sb = models::sin_ball;
@@ -1856,7 +1934,7 @@ EX void draw_boundary(int w) {
         for(ld a=-10; a<=10; a+=0.01 / (1 << vid.linequality) / u) {
           cld z = exp(cld(a, a * imag(sm) / real(sm) + M_PI));
           hyperpoint ret = point2(real(z), imag(z));
-          ret = mobius(ret, vid.skiprope, 1);
+          ret = mobius(ret, pconf.skiprope, 1);
           ret *= current_display->radius;
           curvepoint(ret);
           }
@@ -1869,8 +1947,8 @@ EX void draw_boundary(int w) {
     default: break;
     }
 
-  if(sphere && pmodel == mdDisk && vid.alpha > 1) {
-    double rad = current_display->radius / sqrt(vid.alpha*vid.alpha - 1);
+  if(sphere && pmodel == mdDisk && pconf.alpha > 1) {
+    double rad = current_display->radius / sqrt(pconf.alpha*pconf.alpha - 1);
     queuecircle(current_display->xcenter, current_display->ycenter, rad, lc, p, fc);
     return;
     }
@@ -1883,7 +1961,7 @@ EX void draw_boundary(int w) {
 EX ld band_shift = 0;
 EX void fix_the_band(transmatrix& T) {
   if(((mdinf[pmodel].flags & mf::uses_bandshift) && T[LDIM][LDIM] > 1e6) || (sphere && pmodel == mdSpiral)) {
-    T = spin(models::model_orientation * degree) * T;
+    T = spin(pconf.model_orientation * degree) * T;
     hyperpoint H = tC0(T);
     find_zlev(H);
     
@@ -1896,7 +1974,7 @@ EX void fix_the_band(transmatrix& T) {
     band_shift += x;
     T = xpush(-x) * T;
     fixmatrix(T);
-    T = spin(-models::model_orientation * degree) * T;
+    T = spin(-pconf.model_orientation * degree) * T;
     }
   }
 
@@ -1928,6 +2006,13 @@ EX namespace dq {
     }
 
   EX queue<tuple<cell*, transmatrix, ld>> drawqueue_c;
+  EX set<cell*> visited_c;
+
+  EX void enqueue_c(cell *c, const transmatrix& T) {
+    if(!c || visited_c.count(c)) { return; }
+    visited_c.insert(c);
+    drawqueue_c.emplace(c, T, band_shift);
+    }
 
   EX void enqueue_by_matrix_c(cell *c, const transmatrix& T) {
     if(!c) return;
@@ -1936,6 +2021,14 @@ EX namespace dq {
     if(visited_by_matrix.count(b)) { return; }
     visited_by_matrix.insert(b);
     drawqueue_c.emplace(c, T, band_shift);
+    }
+  
+  EX void clear_all() {
+    visited.clear();
+    visited_by_matrix.clear();
+    visited_c.clear();
+    while(!drawqueue_c.empty()) drawqueue_c.pop();
+    while(!drawqueue.empty()) drawqueue.pop();
     }
 
 
@@ -1973,7 +2066,7 @@ EX bool do_draw(cell *c, const transmatrix& T) {
     if(cells_drawn > vid.cells_drawn_limit) return false;
     if(cells_drawn < 50) { limited_generation(c); return true; }
     if(nil && pmodel == mdGeodesic) {
-      ld dist = hypot_d(3, inverse_exp(tC0(T), iLazy));
+      ld dist = hypot_d(3, inverse_exp(tC0(T), pQUICK));
       if(dist > sightranges[geometry] + (vid.sloppy_3d ? 0 : 0.9)) return false;
       if(dist <= extra_generation_distance && !limited_generation(c)) return false;
       }
@@ -1982,7 +2075,7 @@ EX bool do_draw(cell *c, const transmatrix& T) {
       if(!limited_generation(c)) return false;
       }
     else if(pmodel == mdGeodesic && nih) {
-      hyperpoint h = inverse_exp(tC0(T), iLazy, false);
+      hyperpoint h = inverse_exp(tC0(T), pQUICK);
       ld dist = hypot_d(3, h);
       if(dist > sightranges[geometry] + (vid.sloppy_3d ? 0 : cgi.corner_bonus)) return false;
       if(dist <= extra_generation_distance && !limited_generation(c)) return false;
@@ -2034,7 +2127,7 @@ EX int cone_side(const hyperpoint H) {
   cld z = cld(ret[0], ret[1]) * models::spiral_multiplier;
   
   auto zth = [&] (cld z) {
-    ld alpha = imag(z) * 360 / models::spiral_cone;
+    ld alpha = imag(z) * 360 / pconf.spiral_cone;
     ld r = real(z);
     r = exp(r);
     
@@ -2042,7 +2135,7 @@ EX int cone_side(const hyperpoint H) {
       
     ret[0] = -sin(alpha) * r;
     ret[1] = cos(alpha) * r;
-    ret[2] = (r-1) * sqrt( pow(360/models::spiral_cone, 2) - 1);
+    ret[2] = (r-1) * sqrt( pow(360/pconf.spiral_cone, 2) - 1);
     
     models::apply_ball(ret[2], ret[1]);
     return ret;
@@ -2060,17 +2153,21 @@ EX transmatrix& get_view_orientation() {
   return prod ? NLP : View;
   }
 
+EX hookset<bool(const transmatrix&)> hooks_rotate_view;
+EX hookset<bool(const hyperpoint&)> hooks_shift_view;
+
 /** rotate the view using the given rotation matrix */
 EX void rotate_view(transmatrix T) {
+  if(callhandlers(false, hooks_rotate_view, T)) return;
   transmatrix& which = get_view_orientation();
   which = T * which;
-  if(!prod && !nonisotropic) current_display->which_copy = T * current_display->which_copy;
+  if(!prod && !nonisotropic && !rug::rugged) current_display->which_copy = T * current_display->which_copy;
   }
 
 /** shift the view according to the given tangent vector */
 EX transmatrix get_shift_view_of(const hyperpoint H, const transmatrix V) {
-  if(!nonisotropic) {
-    return rgpushxto0(direct_exp(lp_iapply(H), 100)) * V;
+  if(!nonisotropic && !stretch::in()) {
+    return rgpushxto0(direct_exp(lp_iapply(H))) * V;
     }
   else if(!nisot::geodesic_movement) {
     transmatrix IV = inverse(V);
@@ -2085,10 +2182,11 @@ EX transmatrix get_shift_view_of(const hyperpoint H, const transmatrix V) {
 
 /** shift the view according to the given tangent vector */
 EX void shift_view(hyperpoint H) {
+  if(callhandlers(false, hooks_shift_view, H)) return;
   auto oView = View;
   View = get_shift_view_of(H, View);
   auto& wc = current_display->which_copy;
-  if(nonisotropic) {
+  if(nonisotropic || stretch::in()) {
     transmatrix ioldv = eupush(tC0(inverse(oView)));
     transmatrix newv = inverse(eupush(tC0(inverse(View))));
     wc = newv * ioldv * wc;
@@ -2105,7 +2203,7 @@ void multiply_view(transmatrix T) {
 
 EX void shift_view_to(hyperpoint H) {
   if(!nonisotropic) multiply_view(gpushxto0(H));
-  else shift_view(-inverse_exp(H, iTable, false));
+  else shift_view(-inverse_exp(H));
   }
 
 EX void shift_view_towards(hyperpoint H, ld l) {
@@ -2114,7 +2212,7 @@ EX void shift_view_towards(hyperpoint H, ld l) {
   else if(nonisotropic && !nisot::geodesic_movement)
     shift_view(tangent_length(H-C0, -l));
   else {
-    hyperpoint ie = inverse_exp(H, iTable, true);
+    hyperpoint ie = inverse_exp(H, pNORMAL | pfNO_DISTANCE);
     if(prod) ie = lp_apply(ie);
     shift_view(tangent_length(ie, -l));
     }

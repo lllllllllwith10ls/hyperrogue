@@ -35,7 +35,7 @@ void geometry_information::init_floorshapes() {
   
   for(auto s: all_plain_floorshapes) s->is_plain = true;
   
-  auto init_escher = [this] (escher_floorshape& sh, int s0, int s1, int noft=0, int s2=0) {
+  auto init_escher = [this] (escher_floorshape& sh, int s0, int s1, int noft, int s2) {
     sh.shapeid0 = s0;
     sh.shapeid1 = s1;
     sh.noftype = noft;
@@ -45,22 +45,22 @@ void geometry_information::init_floorshapes() {
     all_escher_floorshapes.push_back(&sh);
     };
   
-  init_escher(shStarFloor, 1,2);
-  init_escher(shCloudFloor, 3, 4);
+  init_escher(shStarFloor, 1, 2, 0, 0);
+  init_escher(shCloudFloor, 3, 4, 0, 0);
   init_escher(shCrossFloor, 5, 6, 2, 54);
   init_escher(shChargedFloor, 7, 385, 1, 10);
-  init_escher(shSStarFloor, 11, 12);
+  init_escher(shSStarFloor, 11, 12, 0, 0);
   init_escher(shOverFloor, 13, 15, 1, 14);
   init_escher(shTriFloor, 17, 18, 0, 385);
   init_escher(shFeatherFloor, 19, 21, 1, 20);
   init_escher(shBarrowFloor, 23, 24, 1, 25);
   init_escher(shNewFloor, 26, 27, 2, 54);
-  init_escher(shTrollFloor, 28, 29); 
+  init_escher(shTrollFloor, 28, 29, 0, 0);
   init_escher(shButterflyFloor, 325, 326, 1, 178);
   init_escher(shLavaFloor, 359, 360, 1, 178);
   init_escher(shLavaSeabed, 386, 387, 1, 178);
-  init_escher(shSeabed, 334, 335);
-  init_escher(shCloudSeabed, 336, 337);
+  init_escher(shSeabed, 334, 335, 0, 0);
+  init_escher(shCloudSeabed, 336, 337, 0, 0);
   init_escher(shCaveSeabed, 338, 339, 2, 54);
   init_escher(shPalaceFloor, 45, 46, 0, 385);
   init_escher(shDemonFloor, 51, 50, 1, 178);
@@ -71,7 +71,7 @@ void geometry_information::init_floorshapes() {
   init_escher(shSwitchFloor, 377, 378, 1, 379);
   init_escher(shTurtleFloor, 176, 177, 1, 178);
   for(int i: {0,1,2})
-    init_escher(shRedRockFloor[i], 55, 56);
+    init_escher(shRedRockFloor[i], 55, 56, 0, 0);
   init_escher(shDragonFloor, 181, 182, 2, 183); /* dragon */
   
   int ids = 0;
@@ -395,6 +395,12 @@ void geometry_information::generate_floorshapes_for(int id, cell *c, int siid, i
       if(!siid) {
         for(int i=0; i<cor; i++) cornerlist.push_back(hpxy(0,0));
         }
+      else if(geosupport_chessboard()) {
+        for(int i=0; i<cor; i++) {
+          hyperpoint nc = nearcorner(c, i);
+          cornerlist.push_back(mid_at(hpxy(0,0), nc, .94));
+          }
+        }
       else {
         for(int i=0; i<cor; i++) {
           int ri = i;
@@ -448,8 +454,8 @@ void geometry_information::generate_floorshapes_for(int id, cell *c, int siid, i
       for(int cid=0; cid<cor; cid++) {
         sizeto(fsh.gpside[k][cid], id);
         bshape(fsh.gpside[k][cid][id], fsh.prio);
-        hpcpush(iddspin(c, cid) * cornerlist[cid]);
-        hpcpush(iddspin(c, cid) * cornerlist[(cid+1)%cor]);
+        hpcpush(iddspin_side(c, cid) * cornerlist[cid]);
+        hpcpush(iddspin_side(c, cid) * cornerlist[(cid+1)%cor]);
         chasmifyPoly(dlow_table[k], dhi_table[k], k);
         }
       }
@@ -675,7 +681,7 @@ void geometry_information::generate_floorshapes() {
     }
   #endif
     
-  else if(GOLDBERG) { /* will be generated on the fly */ }
+  else if(GOLDBERG_INV) { /* will be generated on the fly */ }
 
   else if(inforder::mixed()) { /* will be generated on the fly */ }
   
@@ -696,6 +702,7 @@ void geometry_information::generate_floorshapes() {
     arcm::parent_index_of(&modelh) = 0;
     auto &ac = arcm::current;
     for(int i=0; i<2*ac.N + 2; i++) {
+      if(ac.regular && i>=2 && i < 2*ac.N) continue;
       arcm::id_of(&modelh) = i;
       model.type = isize(ac.triangles[i]);
       if(DUAL) model.type /= 2, arcm::parent_index_of(&modelh) = !(i&1);
@@ -772,8 +779,6 @@ void geometry_information::generate_floorshapes() {
 
 #if CAP_GP
 EX namespace gp {
-  int pshid[3][8][32][32][8];
-  int nextid;
   
   EX void clear_plainshapes() {
     for(int m=0; m<3; m++)
@@ -781,12 +786,12 @@ EX namespace gp {
     for(int i=0; i<32; i++)
     for(int j=0; j<32; j++)
     for(int k=0; k<8; k++)
-      pshid[m][sd][i][j][k] = -1;
-    nextid = 0;
+      cgi.gpdata->pshid[m][sd][i][j][k] = -1;
+    cgi.gpdata->nextid = 0;
     }
 
   void build_plainshape(int& id, gp::local_info& li, cell *c0, int siid, int sidir) {
-    id = nextid++;
+    id = cgi.gpdata->nextid++;
   
     bool master = !(li.relative.first||li.relative.second);
     int cor = master ? S7 : SG6;
@@ -801,23 +806,39 @@ EX namespace gp {
   
   int get_plainshape_id(cell *c) {
     int siid, sidir;
-    if(geosupport_threecolor() == 2) {
-      auto si = patterns::getpatterninfo(c, patterns::PAT_COLORING, patterns::SPF_NO_SUBCODES);
-      siid = si.id>>2;
-      // if(siid == 2) si.dir++;
-      // if(siid != pattern_threecolor(c)) printf("threecolor mismatch\n");
-      // if(pattern_threecolor(createMov(c, c->fixd(si.dir))) != (siid+1)%3) printf("threecolor mismatch direction\n");
-      sidir = c->c.fix(si.dir);
+    cell *c1 = c;
+    auto f = [&] {
+      if(geosupport_threecolor() == 2) {
+        auto si = patterns::getpatterninfo(c1, patterns::PAT_COLORING, patterns::SPF_NO_SUBCODES);
+        siid = si.id>>2;
+        // if(siid == 2) si.dir++;
+        // if(siid != pattern_threecolor(c)) printf("threecolor mismatch\n");
+        // if(pattern_threecolor(createMov(c, c->fixd(si.dir))) != (siid+1)%3) printf("threecolor mismatch direction\n");
+        sidir = c1->c.fix(si.dir);
+        }
+      else if(geosupport_football() == 2) {
+        siid = !pseudohept(c1);
+        sidir = !ishex1(c1);
+        }
+      else if(geosupport_chessboard()) {
+        siid = !chessvalue(c1);
+        sidir = 0;
+        }
+      else {
+        siid = 0;
+        sidir = 0;
+        }
+      };
+    if(INVERSE && gp::variation_for(gp::param) == eVariation::goldberg) {
+      c1 = gp::get_mapped(c);
+      UIU(f());
       }
-    else if(geosupport_football() == 2) {
-      siid = !pseudohept(c);
-      sidir = !ishex1(c);
-      }
-    else {
+    else if(INVERSE) {
       siid = 0;
       sidir = 0;
       }
-    auto& id = pshid[siid][sidir][draw_li.relative.first&31][draw_li.relative.second&31][gmod(draw_li.total_dir, S6)];
+    else f();
+    auto& id = cgi.gpdata->pshid[siid][sidir][draw_li.relative.first&31][draw_li.relative.second&31][gmod(draw_li.total_dir, S6)];
     if(id == -1 && sphere && isize(cgi.shFloor.b) > 0) {
       forCellEx(c1, c) if(!gmatrix0.count(c1)) return 0;
       }
@@ -863,12 +884,16 @@ EX int shvid(cell *c) {
     cell *c1 = hybrid::get_where(c).first; 
     return PIU( shvid(c1) );
     }
-  else if(GOLDBERG)
+  else if(GOLDBERG_INV)
     return gp::get_plainshape_id(c);
   else if(IRREGULAR)
     return irr::cellindex[c];
-  else if(arcm::in())
-    return arcm::id_of(c->master);
+  else if(arcm::in()) {
+    auto& ac = arcm::current;
+    int id = arcm::id_of(c->master);
+    if(ac.regular && id>=2 && id < 2*ac.N) id &= 1;    
+    return id;
+    }
   else if(arb::in())
     return arb::id_of(c->master);
   else if(geosupport_football() == 2)
@@ -914,6 +939,7 @@ EX int shvid(cell *c) {
   }
 
 EX struct dqi_poly *draw_shapevec(cell *c, const transmatrix& V, const vector<hpcshape> &shv, color_t col, PPR prio IS(PPR::DEFAULT)) {
+  if(no_wall_rendering) return NULL;
   if(!c) return &queuepolyat(V, shv[0], col, prio);
   else if(WDIM == 3) return NULL;
   #if CAP_GP
@@ -934,7 +960,7 @@ EX struct dqi_poly *draw_shapevec(cell *c, const transmatrix& V, const vector<hp
   #endif
   #if CAP_ARCM
   else if(arcm::in()) {
-    return &queuepolyat(V, shv[arcm::id_of(c->master)], col, prio);
+    return &queuepolyat(V, shv[shvid(c)], col, prio);
     }
   #endif
   else if(GOLDBERG && ishex1(c)) 
@@ -950,10 +976,12 @@ EX struct dqi_poly *draw_shapevec(cell *c, const transmatrix& V, const vector<hp
   }
 
 EX void draw_floorshape(cell *c, const transmatrix& V, const floorshape &fsh, color_t col, PPR prio IS(PPR::DEFAULT)) {
+  if(no_wall_rendering) return;
   draw_shapevec(c, V, fsh.b, col, prio);
   }
 
 EX void draw_qfi(cell *c, const transmatrix& V, color_t col, PPR prio IS(PPR::DEFAULT), vector<hpcshape> floorshape::* tab IS(&floorshape::b)) {
+  if(no_wall_rendering) return;
   if(qfi.shape)
     queuepolyat(V * qfi.spin, *qfi.shape, col, prio);
   else if(qfi.usershape >= 0) {
@@ -1009,7 +1037,15 @@ auto floor_hook =
 #endif
 #endif
 
-#if MAXMDIM >= 4
+#if MAXMDIM < 4 || !CAP_GL
+EX void ensure_vertex_number(basic_textureinfo& bti, int qty) {}
+EX void ensure_vertex_number(hpcshape& sh) {}
+EX void bind_floor_texture(hpcshape& li, int id) {}
+#endif
+
+#if MAXMDIM >= 4 && CAP_GL
+
+EX ld floor_texture_square_size;
 
 void draw_shape_for_texture(floorshape* sh) {
 
@@ -1064,28 +1100,36 @@ void draw_shape_for_texture(floorshape* sh) {
     hyperpoint inmodel;
     applymodel(center, inmodel);
     glvertex tmap;
-    tmap[0] = (1 + inmodel[0] * vid.scale) / 2;
-    tmap[1] = (1 - inmodel[1] * vid.scale) / 2;
+    tmap[0] = (1 + inmodel[0] * pconf.scale) / 2;
+    tmap[1] = (1 - inmodel[1] * pconf.scale) / 2;
     applymodel(center + v1, inmodel);
-    tmap[2] = (1 + inmodel[0] * vid.scale) / 2 - tmap[0];
+    tmap[2] = (1 + inmodel[0] * pconf.scale) / 2 - tmap[0];
     floor_texture_map[sh->id] = tmap;
     }
 
-  // SL2 needs 6 times more
-  texture_order([&] (ld x, ld y) {
+  auto tvec_at = [&] (ld x, ld y) {
     hyperpoint h = center + v1 * x + v2 * y;
     hyperpoint inmodel;
     applymodel(h, inmodel);
     glvec2 v;
-    v[0] = (1 + inmodel[0] * vid.scale) / 2;
-    v[1] = (1 - inmodel[1] * vid.scale) / 2;
+    v[0] = (1 + inmodel[0] * pconf.scale) / 2;
+    v[1] = (1 - inmodel[1] * pconf.scale) / 2;
+    return v;
+    };
+  
+  // SL2 needs 6 times more
+  texture_order([&] (ld x, ld y) {
+    auto v = tvec_at(x, y);
     ftv.tvertices.push_back(glhr::makevertex(v[0], v[1], 0));
     });
+  
+  floor_texture_square_size = 2 * (tvec_at(1, 0)[0] - tvec_at(0, 0)[0]);
   }
 
 /** copy the texture vertices so that there are at least qty of them */
 EX void ensure_vertex_number(basic_textureinfo& bti, int qty) {
   int s = isize(bti.tvertices);
+  if(!s) return;
   while(isize(bti.tvertices) <= qty) {
     for(int i=0; i<s; i++) bti.tvertices.push_back(bti.tvertices[i]);
     }
@@ -1101,7 +1145,9 @@ EX void bind_floor_texture(hpcshape& li, int id) {
   ensure_vertex_number(li);
   }
 
+#if HDR
 const int FLOORTEXTURESIZE = 4096;
+#endif
 
 void geometry_information::make_floor_textures_here() {
   require_shapes();
@@ -1109,9 +1155,9 @@ void geometry_information::make_floor_textures_here() {
   dynamicval<videopar> vi(vid, vid);
   vid.xres = FLOORTEXTURESIZE;
   vid.yres = FLOORTEXTURESIZE;
-  vid.scale = 0.125;
-  vid.camera_angle = 0;
-  vid.alpha = 1;
+  pconf.scale = 0.125;
+  pconf.camera_angle = 0;
+  pconf.alpha = 1;
   dynamicval<ld> lw(vid.linewidth, 2);
 
   floor_textures = new renderbuffer(vid.xres, vid.yres, vid.usingGL);
@@ -1126,7 +1172,7 @@ void geometry_information::make_floor_textures_here() {
   cd->xsize = cd->ysize = FLOORTEXTURESIZE;
   cd->xcenter = cd->ycenter = cd->scrsize = FLOORTEXTURESIZE/2;
   
-  cd->radius = cd->scrsize * vid.scale;
+  cd->radius = cd->scrsize * pconf.scale;
 
   floor_textures->enable();
   floor_textures->clear(0); // 0xE8E8E8 = 1
@@ -1140,7 +1186,9 @@ void geometry_information::make_floor_textures_here() {
   gv.emplace_back(+1, +1, 1, 1, 1);
   gv.emplace_back(-1, +1, 1, 1, 1);
   
+  #if CAP_RAY
   dynamicval<bool> riu(ray::in_use, false);
+  #endif
   
   if(1) {
     current_display->next_shader_flags = GF_VARCOLOR;
