@@ -874,15 +874,11 @@ EX void applyBoxes() {
   applyBoxM(moVaulter);
   applyBoxM(moPike);
   applyBoxM(moRusalka);
-<<<<<<< HEAD
-  
   applyBoxOrb(itOrbColor);
   applyBoxI(itPaint);
   applyBoxM(moPaint);
   applyBoxM(moArt);
-=======
   list_invorb();
->>>>>>> 8fde64378f91b61ad47d7226c59369c5b684fe9e
 
   applyBoxOrb(itOrbBarr);
   applyBoxI(itStygian);
