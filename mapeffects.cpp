@@ -23,6 +23,7 @@ EX void initcell(cell *c) {
   c->land = laNone;
   c->ligon = 0;
   c->weakligon = 0;
+  c->laser = 0;
   c->stuntime = 0;
   c->monmirror = 0;
   }
@@ -1011,10 +1012,9 @@ EX bool earthMove(const movei& mi) {
   }
   
 EX bool colorMove(const movei& mi) {
-  auto& from = mi.s;
   bool b = false;
   cell *c2 = mi.t;
-  b |= applyColor(from);
+  b |= applyColor(c2);
   if(!mi.proper()) return b;
   if(c2) for(int u=0; u<c2->type; u++) {
     cell *c3 = c2->move(u);

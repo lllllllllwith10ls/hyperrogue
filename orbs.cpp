@@ -172,7 +172,7 @@ EX void reduceOrbPowers() {
   reduceOrbPower(itOrbImpact, 120);
   reduceOrbPower(itOrbChaos, 120);
   reduceOrbPower(itOrbPlague, 120);
-  reduceOrbPower(itOrbColor, 120);
+  reduceOrbPower(itOrbColor, 67);
   reduceOrbPower(itOrbBarr, 333);
   reduceOrbPower(itOrbCharge, 777);
 
@@ -1598,7 +1598,7 @@ EX int orbcharges(eItem it) {
       return 30;
      
     case itOrbColor:
-      return 60;
+      return 30;
       
     case itOrbBarr:
       return 66; 

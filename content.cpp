@@ -1008,7 +1008,7 @@ WALL( '?', 0xFF00FF, "<temporary>", waTemporary, WF_WALL, RESERVED, 0, sgNone,  
 WALL( '?', 0xFF00FF, "<earth d", waEarthD, WF_WALL, RESERVED, 0, sgNone,  NODESC)
 WALL( '?', 0xFF00FF, "<elemental tmp>", waElementalTmp, WF_WALL, RESERVED, 0, sgNone,  NODESC)
 WALL( '?', 0xFF00FF, "<elemental d>", waElementalD, WF_WALL, RESERVED, 0, sgNone,  NODESC)
-WALL( '+', 0x007000, "green slime", waSlime1, ZERO | WF_ALCHEMY, RESERVED, 0, sgSlime1,  NODESC)
+WALL( '+', 0x00F000, "green slime", waSlime1, ZERO | WF_ALCHEMY, RESERVED, 0, sgSlime1,  NODESC)
 WALL( '+', 0xF0F000, "yellow slime", waSlime2, ZERO | WF_ALCHEMY, RESERVED, 0, sgSlime2,  NODESC)
 WALL( '#', 0x764e7c, "rosebush", waRose, WF_WALL | WF_HIGHWALL | WF_THORNY, RESERVED, 0, sgNone, roselanddesc)
 WALL( '#', 0xC0C000, "warp gate", waWarpGate, WF_WALL | WF_HIGHWALL, RESERVED, 0, sgNone,
@@ -1696,6 +1696,11 @@ ITEM( 'o', 0xBFBF00, "Orb of Charging", itOrbCharge, IC_ORB, ZERO, RESERVED, osN
     )
   NATIVE(among(m, moStormElemental) ? 2 : (among(m, moPirate, moAlbatross) ? 1 : 0))
   REQ(ITEMS(itWhirlpool, U5) ITEMS(itWindstone, U5))
+  
+  
+ITEM( 'o', 0xFFFFFF, "Orb of Light", itOrbLight, IC_ORB, ZERO, RESERVED, osOffensive, 
+    "This orb makes you shoot a laser in the direction of your attack every time you attack."
+    )
 //shmupspecials
 MONSTER( '@', 0xC0C0C0, "Rogue", moPlayer, CF_FACE_UP | CF_PLAYER, RESERVED, moNone, "In the Shoot'em Up mode, you are armed with thrown Knives.")
 MONSTER( '*', 0xC0C0C0, "Knife", moBullet, ZERO | CF_BULLET, RESERVED, moNone, "A simple, but effective, missile, used by rogues.")

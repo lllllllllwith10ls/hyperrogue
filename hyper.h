@@ -196,7 +196,7 @@ void addMessage(string s, char spamtype = 0);
 #define STDVAR (PURE || BITRUNCATED)
 #define NONSTDVAR (!STDVAR)
 
-#define VALENCE current_valence()
+//#define VALENCE current_valence()
 
 #define NUMWITCH 7
 

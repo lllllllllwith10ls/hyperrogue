@@ -153,16 +153,16 @@ EX int sealcolor(int phase IS(0)) {
 EX int barriercolor(int phase IS(0)) {
   return gradient(0x0000FF, 0x000000, -1, sintick(1000, phase/200./M_PI), 1);
   }
-  
+ 
 EX int hurricanecolor(int phase IS(0), int type IS(0)) {
   if(type == 0) {
-    return gradient(0x4040FF, 0x752080, 0, sintick(1000, phase/200./M_PI)+2, 2);
+    return gradient(0x4010c0, 0x8010c0, 0, sintick(1000, phase/200./M_PI)+2, 2);
     }
   if(type == 1) {
-    return gradient(0x4040FF, 0x2020D4, 0, sintick(1000, phase/200./M_PI)+2, 2);
+    return gradient(0x1010c0, 0x1010d0, 0, sintick(1000, phase/200./M_PI)+2, 2);
     }
   if(type == 2) {
-    return gradient(0x4040FF, 0x207580, 0, sintick(1000, phase/200./M_PI)+2, 2);
+    return gradient(0x1040c0, 0x1080c0, 0, sintick(1000, phase/200./M_PI)+2, 2);
     }
   return 0x000000;
   }

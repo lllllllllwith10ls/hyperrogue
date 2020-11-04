@@ -467,15 +467,15 @@ typedef unsigned GLuint;
 #endif
 
 #if CAP_THREAD
-#if OLD_MINGW
+//#if OLD_MINGW
 #include "mingw.thread.h"
 #include "mingw.mutex.h"
 #include "mingw.condition_variable.h"
-#else
+/*#else
 #include <thread>
 #include <mutex>
 #include <condition_variable>
-#endif
+#endif*/
 #endif
 
 #ifdef USE_UNORDERED_MAP

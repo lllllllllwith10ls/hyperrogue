@@ -405,7 +405,6 @@ EX namespace scores {
 #if HDR
 /** \brief the amount of boxes reserved for each hr::score item */
 #define MAXBOX 500
-<<<<<<< HEAD
 /** \brief currently used boxes in hr::score */
 #define POSSCORE 396 // update this when new boxes are added!
 /** \brief a struct to keep local score from an earlier game */

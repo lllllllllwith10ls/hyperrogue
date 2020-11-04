@@ -2472,29 +2472,24 @@ void celldrawer::add_map_effects() {
       poly_outline = OUTLINE_DEFAULT;
       }
     }
-    
+  
   if(c->land == laHurricane) {
     
     for(int i=0; i<c->type; i++) {
-      if(c->landparam == (c->move(i)->landparam+1)%3) {
-        ld hdir0 = currentmap->spin_angle(c, i) + M_PI;
+      if(c->landparam == (c->move(i)->landparam+1)%3 && c->move(i)->land == laHurricane) {
         /* todo what if no spin_angle */
+        transmatrix V0 = ddspin(c, i, M_PI);
     
-        double ph1 = fractick(PURE ? 250 : 125);
+        double ph = ptick(PURE ? 150 : 75);
         
-        int aircol = 0xC0C0FF20;
+        int aircol = 0x8080FF00 | int(64 + 64 * -cos(ph));
         
-        
-        ld hdir = hdir0;
-    
-        transmatrix V0 = spin(hdir);
-        
-        double ldist =  
-          cellgfxdist(c, hdir0)/2; 
-        // PURE ? cgi.crossf : c->type == 6 ? .2840 : 0.3399;
-    
+          
+        double ph0 = ph/2;
+        ph0 -= floor(ph0/M_PI)*M_PI;
+
         poly_outline = OUTLINE_TRANS;
-        queuepoly(Vd*V0*xpush(ldist*(2*ph1-1)), cgi.shDisk, aircol);
+        queuepoly(Vd*V0*xpush(cgi.hexf*-cos(ph0)), cgi.shDisk, aircol);
         poly_outline = OUTLINE_DEFAULT;
         }
       }
