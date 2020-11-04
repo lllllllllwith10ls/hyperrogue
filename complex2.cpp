@@ -509,24 +509,6 @@ EX }
 
 EX namespace mine {
 
-EX int victory_time;
-
-EX void count_status() {
-  bool last = kills[moBomberbird];
-  kills[moBomberbird] = 0;
-  kills[moTameBomberbird] = 0;
-  for(cell *c: currentmap->allcells()) if(c->wall == waMineUnknown) kills[moBomberbird]++;
-  for(cell *c: currentmap->allcells()) if(among(c->wall, waMineMine, waMineUnknown) && mine::marked_mine(c)) kills[moTameBomberbird]++;
-  if(last && !kills[moBomberbird]) {
-    mine::victory_time = getgametime();
-    pushScreen(showMission);
-    }
-  }
-
-EX bool in_minesweeper() {
-  return bounded && specialland == laMinefield;
-  }
-
 EX bool uncoverMines(cell *c, int lev, int dist, bool just_checking) {
   bool b = false;
   if(c->wall == waMineMine && just_checking) return true;
@@ -630,10 +612,8 @@ EX void uncover_full(cell *c2) {
   }
 
 EX void auto_teleport_charges() {
-  if(in_minesweeper()) {
-    mine::count_status();
+  if(specialland == laMinefield && firstland == laMinefield && bounded)
     items[itOrbTeleport] = isFire(cwt.at->wall) ? 0 : 1;
-    }
   }
 
 EX }

@@ -18,10 +18,6 @@ EX namespace bt {
     return false;
 #endif
     }
-
-#if !CAP_BT
-  EX int updir() { return 0; }
-#endif
   
 #if CAP_BT
   #if HDR
@@ -421,6 +417,28 @@ EX namespace bt {
       return NULL;
       }
 
+    void draw() override {
+      dq::visited.clear();
+      dq::enqueue(centerover->master, cview());
+      
+      while(!dq::drawqueue.empty()) {
+        auto& p = dq::drawqueue.front();
+        heptagon *h = get<0>(p);
+        transmatrix V = get<1>(p);
+        dynamicval<ld> b(band_shift, get<2>(p));
+        bandfixer bf(V);
+        dq::drawqueue.pop();
+        
+        
+        cell *c = h->c7;
+        if(!do_draw(c, V)) continue;
+        drawcell(c, V);
+  
+        for(int i=0; i<h->type; i++)
+          dq::enqueue(h->cmove(i), V * adj(h, i));
+        }
+      }
+
     int updir_at(heptagon *h) {
       if(geometry != gBinaryTiling) return updir();
       else if(type_of(h) == 6) return bd_down;
@@ -431,7 +449,7 @@ EX namespace bt {
 
     transmatrix relative_matrix(heptagon *h2, heptagon *h1, const hyperpoint& hint) override {
       if(gmatrix0.count(h2->c7) && gmatrix0.count(h1->c7))
-        return inverse_shift(gmatrix0[h1->c7], gmatrix0[h2->c7]);
+        return inverse(gmatrix0[h1->c7]) * gmatrix0[h2->c7];
       transmatrix gm = Id, where = Id;
       while(h1 != h2) {
         if(h1->distance <= h2->distance) {
@@ -766,7 +784,7 @@ EX namespace bt {
       t[0] = parabolic3(horohex_scale, 0) * xpush(-l) * cspin(1, 2, M_PI/2);
       t[1] = cspin(1, 2, 2*M_PI/3) * t[0];
       t[2] = cspin(1, 2, 4*M_PI/3) * t[0];
-      auto it = iso_inverse(t[0]);
+      auto it = inverse(t[0]);
 
       t[5] = it * t[1] * t[1];
       t[6] = it * t[5];
@@ -786,37 +804,37 @@ EX namespace bt {
       use_direct >>= 1;
       }
     for(int i=0; i<S7; i++) if(use_direct_for(i))
-      inverse_tmatrix[i] = iso_inverse(direct_tmatrix[i]);
+      inverse_tmatrix[i] = inverse(direct_tmatrix[i]);
     }
   
   #if MAXMDIM == 4
 
-  EX void queuecube(const shiftmatrix& V, ld size, color_t linecolor, color_t facecolor) {
+  EX void queuecube(const transmatrix& V, ld size, color_t linecolor, color_t facecolor) {
     ld yy = log(2) / 2;
     const int STEP=3;
     const ld MUL = 1. / STEP;
-    auto at = [&] (ld x, ld y, ld z) { curvepoint(parabolic3(size*x, size*y) * xpush0(size*yy*z)); };
+    auto at = [&] (ld x, ld y, ld z) { curvepoint(V * parabolic3(size*x, size*y) * xpush0(size*yy*z)); };
     for(int a:{-1,1}) {
       for(ld t=-STEP; t<STEP; t++) at(a, 1,t*MUL);
       for(ld t=-STEP; t<STEP; t++) at(a, -t*MUL,1);
       for(ld t=-STEP; t<STEP; t++) at(a, -1,-t*MUL);
       for(ld t=-STEP; t<STEP; t++) at(a, t*MUL,-1);
       at(a, 1,-1);
-      queuecurve(V, linecolor, facecolor, PPR::LINE);
+      queuecurve(linecolor, facecolor, PPR::LINE);
 
       for(ld t=-STEP; t<STEP; t++) at(1,t*MUL,a);
       for(ld t=-STEP; t<STEP; t++) at(-t*MUL,1,a);
       for(ld t=-STEP; t<STEP; t++) at(-1,-t*MUL,a);
       for(ld t=-STEP; t<STEP; t++) at(t*MUL,-1,a);
       at(1,-1,a);
-      queuecurve(V, linecolor, facecolor, PPR::LINE);
+      queuecurve(linecolor, facecolor, PPR::LINE);
 
       for(ld t=-STEP; t<STEP; t++) at(1,a,t*MUL);
       for(ld t=-STEP; t<STEP; t++) at(-t*MUL,a,1);
       for(ld t=-STEP; t<STEP; t++) at(-1,a,-t*MUL);
       for(ld t=-STEP; t<STEP; t++) at(t*MUL,a,-1);
       at(1,a,-1);
-      queuecurve(V, linecolor, facecolor, PPR::LINE);
+      queuecurve(linecolor, facecolor, PPR::LINE);
       }
     /*for(int a:{-1,1}) for(int b:{-1,1}) for(int c:{-1,1}) {
       at(0,0,0); at(a,b,c);  queuecurve(linecolor, facecolor, PPR::LINE);
@@ -1035,6 +1053,7 @@ EX int celldistance3(heptagon *c1, heptagon *c2) {
   }
 
 EX int celldistance3(cell *c1, cell *c2) { return celldistance3(c1->master, c2->master); }
+#endif
 
 EX hyperpoint get_horopoint(ld y, ld x) {
   return xpush(-y) * bt::parabolic(x) * C0;
@@ -1094,7 +1113,6 @@ EX hyperpoint get_corner_horo_coordinates(cell *c, int i) {
 auto hooksw = addHook(hooks_swapdim, 100, [] {
   if(bt::in()) build_tmatrix();
   });
-#endif
 
   }
 

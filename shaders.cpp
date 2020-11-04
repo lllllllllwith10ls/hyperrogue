@@ -44,7 +44,6 @@ constexpr int aTexture = 8;
 
 /* texture bindings */
 constexpr int INVERSE_EXP_BINDING = 2;
-constexpr int AIR_BINDING = 4;
 #endif
 
 EX map<string, shared_ptr<glhr::GLprogram>> compiled_programs;
@@ -60,23 +59,6 @@ glhr::glmatrix model_orientation_gl() {
   return s;
   }
 
-EX void reset_all_shaders() {
-  ray::reset_raycaster();
-  compiled_programs.clear();
-  matched_programs.clear();
-  }
-
-EX string panini_shader() {
-  return
-    "t.w += 1.; t *= 2. / t.w; t.w -= 1.;\n"
-    "float s = t.z;\n"
-    "float l = length(t.xyz);\n"
-    "t /= max(length(t.xz), 1e-2);\n"
-    "t.z += " + glhr::to_glsl(panini_alpha) + ";\n"
-    "t *= l;\n"
-    "t.w = 1.;\n";
-  }
-
 shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
   string varying, vsh, fsh, vmain = "void main() {\n", fmain = "void main() {\n";
 
@@ -84,9 +66,6 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
   varying += "varying mediump vec4 vColor;\n";
 
   fmain += "gl_FragColor = vColor;\n";
-  
-  bool have_texture = false;
-  
   if(shader_flags & GF_TEXTURE_SHADED) {
     vsh += "attribute mediump vec3 aTexture;\n";
     varying += "varying mediump vec3 vTexCoord;\n";
@@ -100,7 +79,7 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
     varying += "varying mediump vec2 vTexCoord;\n";
     fsh += "uniform mediump sampler2D tTexture;\n";
     vmain += "vTexCoord = aTexture;\n",
-    have_texture = true;
+    fmain += "gl_FragColor *= texture2D(tTexture, vTexCoord);\n";
     }
   if(shader_flags & GF_LEVELS) {
     fsh += "uniform mediump float uLevelLines;\n";
@@ -269,7 +248,7 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
     shader_flags |= SF_PERS3 | SF_DIRECT;
     if(hyperbolic)
       distfun = "acosh(t[3])", treset = true;
-    else if(euclid || nonisotropic || stretch::in() || (sphere && ray::in_use))
+    else if(euclid || nonisotropic)
       distfun = "length(t.xyz)", treset = true;
     else {
       if(spherephase & 4) coordinator += "t = -t;\n";
@@ -286,60 +265,10 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
     if(dim3) shader_flags |= SF_ZFOG;
     }
 
-  if(nil && pmodel == mdPerspective)  {
-    vsh += "uniform mediump float uRotCos, uRotSin, uRotNil;\n";
-    coordinator +=
-      "t.z += (uRotCos * t.x + uRotSin * t.y) * (uRotCos * t.y - uRotSin * t.x) * uRotNil / 2. - t.x * t.y / 2.;\n";
-    }
-
   if(!skip_t) {
     vmain += "mediump vec4 t = uMV * aPosition;\n";
     vmain += coordinator;
-    if(GDIM == 3 && WDIM == 2 && hyperbolic && context_fog) {
-      vsh += 
-        "uniform mediump mat4 uRadarTransform;\n"
-        "uniform mediump sampler2D tAirMap;\n"
-        "uniform mediump float uFog;\n"
-        "uniform mediump float uFogBase;\n"
-        "vec4 color_at(vec4 ending, float dist) {"
-        "    vec3 pt = ending.xyz * sinh(dist);\n"
-        "    pt.xy /= sqrt(pt.z*pt.z+1.);\n"
-        "    pt.xy /= 2. * (1. + sqrt(1.+pt.x*pt.x+pt.y*pt.y));\n"
-        "    pt.xy += vec2(.5, .5);\n"
-        "    return texture2D(tAirMap, pt.xy);\n"
-        "    }\n";
-      
-      vmain += 
-        "vec4 ending = uRadarTransform * t;\n"
-        "float len = acosh(ending.w);\n"
-        "float eulen = length(ending.xyz);\n"
-        "ending.xyz /= eulen;\n"
-        "ending.y *= -1.;\n"
-        "vec4 fog = vec4(1e-3,0,1e-3,1e-3);\n"
-        "vec4 last = vec4(0,0,0,0);\n"
-        "for(int i=0; i<50; i++) {\n"
-        "  vec4 px = color_at(ending, ((float(i) + .5) / 50.) * min(len, uFog));\n"
-        "  if(px.r < .9 || px.b < .9 || px.g > .1) last = px;\n"
-        "  fog += last;\n"
-        "  }\n"
-        "mediump float fogs = (uFogBase - len / uFog);\n"
-        "if(fogs < 0.) fogs = 0.;\n"
-        "fog.xyz /= fog.w;\n"
-        "vColor.xyz = vColor.xyz * fogs + fog.xyz * (1.0-fogs);\n";
-      
-      if(have_texture) {
-        varying += "varying mediump vec4 fog_color;\n";
-        vmain += "fog_color = fog;\n";
-        fmain += 
-          "if(vTexCoord.x == 0.) {\n"
-            "vec4 t = texture2D(tTexture, vTexCoord);\n"
-            "gl_FragColor = t * gl_FragColor + (1.-t) * fog_color;\n"
-            "}\n"
-          "else gl_FragColor *= texture2D(tTexture, vTexCoord);\n";
-        have_texture = false;
-        }
-      }
-    else if(distfun != "") {
+    if(distfun != "") {
       vmain += "mediump float fogs = (uFogBase - " + distfun + " / uFog);\n";
       vmain += "vColor.xyz = vColor.xyz * fogs + uFogColor.xyz * (1.0-fogs);\n";
       vsh += 
@@ -349,19 +278,8 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
       }
     if(shader_flags & GF_LEVELS) vmain += "vPos = t;\n";  
     if(treset) vmain += "t[3] = 1.0;\n";
-    
-    if(WDIM == 3 && panini_alpha) {
-      vmain += "t = uPP * t;", vsh += "uniform mediump mat4 uPP;";
-      /* panini */
-      vmain += panini_shader();
-      shader_flags |= SF_ORIENT;
-      }
-      
     vmain += "gl_Position = uP * t;\n";
     }
-
-  if(have_texture)
-    fmain += "gl_FragColor *= texture2D(tTexture, vTexCoord);\n";
 
   vsh += 
     "uniform mediump mat4 uMV;\n"
@@ -395,7 +313,7 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
     }    
   }
 
-void display_data::set_projection(int ed, ld shift) {
+void display_data::set_projection(int ed) {  
   flagtype shader_flags = current_display->next_shader_flags;
   unsigned id;
   id = geometry;
@@ -411,7 +329,6 @@ void display_data::set_projection(int ed, ld shift) {
   if(sol && solv_all) id |= 1;
   if(in_h2xe()) id |= 1;
   if(in_s2xe()) id |= 2;
-  if(WDIM == 2 && GDIM == 3 && hyperbolic && context_fog) id |= 1;
   shared_ptr<glhr::GLprogram> selected;
 
   if(matched_programs.count(id)) selected = matched_programs[id];
@@ -440,21 +357,8 @@ void display_data::set_projection(int ed, ld shift) {
     }
   #endif
   
-  #if MAXMDIM >= 4
-  if(selected->tAirMap != -1 && airbuf) {
-    glActiveTexture(GL_TEXTURE0 + AIR_BINDING);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glBindTexture(GL_TEXTURE_2D, airbuf->renderedTexture);
-    glUniform1i(selected->tAirMap, AIR_BINDING);
-    glActiveTexture(GL_TEXTURE0 + 0);
-    glUniformMatrix4fv(selected->uRadarTransform, 1, 0, glhr::tmtogl_transpose3(radar_transform).as_array());
-    }
-  #endif
-  
   if(selected->uIterations != -1) {
     glhr::set_index_sl(0);
-    glhr::set_sv(stretch::not_squared());
     glhr::set_sl_iterations(slr::steps);
     }
 
@@ -510,8 +414,7 @@ void display_data::set_projection(int ed, ld shift) {
         for(int i=0; i<3; i++) NLP[3][i] = NLP[i][3] = 0;
         NLP[3][3] = 1;
         }
-      if(!(shader_flags & SF_ORIENT))
-        glhr::projection_multiply(glhr::tmtogl_transpose(NLP));
+      glhr::projection_multiply(glhr::tmtogl_transpose(NLP));
       }
     if(ed) {
       glhr::using_eyeshift = true;
@@ -535,19 +438,10 @@ void display_data::set_projection(int ed, ld shift) {
     if(ed) glhr::projection_multiply(glhr::translate(vid.ipd * ed/2, 0, 0));
     }
 
-  if(selected->uRotNil != -1) {
-    glUniform1f(selected->uRotCos, models::ocos);
-    glUniform1f(selected->uRotSin, models::osin);
-    glUniform1f(selected->uRotNil, pconf.rotational_nil);
-    }
-
   if(selected->uPP != -1) {
     glhr::glmatrix pp = glhr::id;
     if(get_shader_flags() & SF_USE_ALPHA)
       pp[3][2] = GLfloat(pconf.alpha);
-
-    if(nisot::local_perspective_used()) 
-      pp = glhr::tmtogl_transpose(NLP) * pp;
 
     if(get_shader_flags() & SF_ORIENT) {
       if(GDIM == 3) for(int a=0; a<4; a++) 
@@ -572,13 +466,8 @@ void display_data::set_projection(int ed, ld shift) {
   if(selected->shader_flags & SF_BAND)
     glhr::projection_multiply(glhr::scale(2 / M_PI, 2 / M_PI, GDIM == 3 ? 2/M_PI : 1));
 
-  if(selected->shader_flags & SF_BAND) {
-    glhr::projection_multiply(glhr::translate(shift, 0, 0));
-    }
-
-  if(in_h2xe() || in_s2xe()) {
-    glhr::projection_multiply(glhr::translate(0, 0, shift));
-    }
+  if(selected->shader_flags & SF_BAND)
+    glhr::projection_multiply(glhr::translate(band_shift, 0, 0));
 
   if(selected->shader_flags & SF_HALFPLANE) {
     glhr::projection_multiply(glhr::translate(0, 1, 0));      
@@ -641,7 +530,7 @@ EX void glapplymatrix(const transmatrix& V) {
   GLfloat mat[16];
   int id = 0;
   
-  if(MXDIM == 3) {
+  if(MDIM == 3) {
     for(int y=0; y<3; y++) {
       for(int x=0; x<3; x++) mat[id++] = V[x][y];
       mat[id++] = 0;

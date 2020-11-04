@@ -13,6 +13,13 @@
 namespace hr {
 #if MAXMDIM >= 4
 
+namespace binary {   
+  void build_tmatrix(); 
+  void virtualRebaseSimple(heptagon*& base, transmatrix& at);
+  int celldistance3(heptagon *c1, heptagon *c2);
+  hyperpoint deparabolic3(hyperpoint h);
+  }
+
 /** \brief regular three-dimensional tessellations */
 EX namespace reg3 {
 
@@ -285,6 +292,7 @@ EX namespace reg3 {
 
     heptagon *getOrigin() override { return allh[0]; }
 
+    void draw() override;
     transmatrix relative_matrix(heptagon *h2, heptagon *h1, const hyperpoint& hint) override;
     
     void initialize(int cell_count);
@@ -305,6 +313,36 @@ EX namespace reg3 {
       allh[a]->zebraval = 0;
       allh[a]->alt = NULL;
       acells.push_back(allh[a]->c7);
+      }
+    }
+
+  void hrmap_quotient3::draw() {
+    sphereflip = Id;
+    
+    // for(int i=0; i<S6; i++) queuepoly(ggmatrix(cwt.at), shWall3D[i], 0xFF0000FF);
+    
+    dq::visited_by_matrix.clear();
+    dq::enqueue_by_matrix(centerover->master, cview());
+    
+    while(!dq::drawqueue.empty()) {
+      auto& p = dq::drawqueue.front();
+      heptagon *h = get<0>(p);
+      transmatrix V = get<1>(p);
+      dynamicval<ld> b(band_shift, get<2>(p));
+      bandfixer bf(V);
+      dq::drawqueue.pop();
+            
+      cell *c = h->c7;
+      if(!do_draw(c, V)) continue;
+      drawcell(c, V);
+      if(in_wallopt() && isWall3(c) && isize(dq::drawqueue) > 1000) continue;
+      
+      if(ultra_mirror_in())
+        for(auto& T: cgi.ultra_mirrors) 
+          dq::enqueue_by_matrix(h, V * T);
+  
+      for(int d=0; d<S7; d++)
+        dq::enqueue_by_matrix(h->move(d), V * tmatrices[h->fieldval][d]);
       }
     }
 
@@ -634,13 +672,10 @@ EX namespace reg3 {
       quotient_map = nullptr;
       
       #if CAP_FIELD
-      #if CAP_CRYSTAL
       if(geometry == gSpace344) {
         quotient_map = new hrmap_from_crystal;
         }
-      else 
-      #endif
-      if(geometry == gSpace535) {
+      else if(geometry == gSpace535) {
         quotient_map = new seifert_weber::hrmap_seifert_cover;
         }
       else if(hyperbolic) {
@@ -649,7 +684,6 @@ EX namespace reg3 {
       #endif
       h.zebraval = quotient_map ? quotient_map->allh[0]->zebraval : 0;
       
-      #if CAP_BT
       if(hyperbolic) {
         dynamicval<eGeometry> g(geometry, gBinary3); 
         bt::build_tmatrix();
@@ -664,7 +698,6 @@ EX namespace reg3 {
         binary_map = bt::new_alt_map(alt);
         T = xpush(.01241) * spin(1.4117) * xpush(0.1241) * cspin(0, 2, 1.1249) * xpush(0.07) * Id;
         }
-      #endif
       
       reg_gmatrix[origin] = make_pair(alt, T);
       altmap[alt].emplace_back(origin, T);
@@ -728,14 +761,12 @@ EX namespace reg3 {
         println(hlog, "FAIL");
         exit(3);
         }
-      #if CAP_BT
       if(steps) { 
         dynamicval<eGeometry> g(geometry, gBinary3);
         dynamicval<hrmap*> cm(currentmap, binary_map);
         for(int i=0; i<alt->type; i++)
           verify_neighbors(alt->cmove(i), steps-1, currentmap->iadj(alt, i) * hT);
         }
-      #endif
       }
 
     heptagon *create_step(heptagon *parent, int d) override {
@@ -748,13 +779,11 @@ EX namespace reg3 {
       transmatrix T = p1.second * cgi.adjmoves[d];
       #endif
       transmatrix T1 = T;
-      #if CAP_BT
       if(hyperbolic) {
         dynamicval<eGeometry> g(geometry, gBinary3);
         dynamicval<hrmap*> cm(currentmap, binary_map);
         binary_map->virtualRebase(alt, T);
         }
-      #endif
 
       fixmatrix(T);
       auto hT = tC0(T);
@@ -854,12 +883,10 @@ EX namespace reg3 {
       }
 
     ~hrmap_reg3() {
-      #if CAP_BT
       if(binary_map) {        
         dynamicval<eGeometry> g(geometry, gBinary3);
         delete binary_map;
         }
-      #endif
       if(quotient_map) delete quotient_map;
       clearfrom(origin);
       }
@@ -893,6 +920,39 @@ EX namespace reg3 {
         }
       }
 
+    void draw() override {
+      sphereflip = Id;
+      
+      dq::clear_all();
+      auto& enq = (ultra_mirror_in() ? dq::enqueue_by_matrix : dq::enqueue);
+      enq(centerover->master, cview());
+      
+      while(!dq::drawqueue.empty()) {
+        auto& p = dq::drawqueue.front();
+        heptagon *h = get<0>(p);
+        transmatrix V = get<1>(p);
+        dynamicval<ld> b(band_shift, get<2>(p));
+        bandfixer bf(V);
+        dq::drawqueue.pop();
+        
+        
+        cell *c = h->c7;
+        if(!do_draw(c, V)) continue;
+        drawcell(c, V);
+        if(in_wallopt() && isWall3(c) && isize(dq::drawqueue) > 1000) continue;
+        
+        if(sightranges[geometry] == 0) return;
+
+        if(ultra_mirror_in())
+          for(auto& T: cgi.ultra_mirrors) 
+            dq::enqueue_by_matrix(h, V * T);
+    
+        for(int i=0; i<S7; i++) if(h->move(i)) {
+          enq(h->move(i), V * adj(h, i));
+          }
+        }
+      }
+    
     transmatrix adj(heptagon *h, int d) override {
       #if CAP_FIELD
       if(quotient_map) return quotient_map->adj(h, d);
@@ -905,14 +965,12 @@ EX namespace reg3 {
       auto p1 = reg_gmatrix[h1];
       auto p2 = reg_gmatrix[h2];
       transmatrix T = Id;
-      #if CAP_BT
       if(hyperbolic) { 
         dynamicval<eGeometry> g(geometry, gBinary3);
         dynamicval<hrmap*> cm(currentmap, binary_map);
         T = binary_map->relative_matrix(p2.first, p1.first, hint);
         }
-      #endif
-      T = inverse(p1.second) * T * p2.second;      
+      T = inverse(p1.second) * T * p2.second;
       if(elliptic && T[LDIM][LDIM] < 0) T = centralsym * T;
       return T;
       }
@@ -1210,6 +1268,34 @@ EX namespace reg3 {
       clearfrom(origin);
       }
     
+    void draw() override {
+      sphereflip = Id;
+      
+      // for(int i=0; i<S6; i++) queuepoly(ggmatrix(cwt.at), shWall3D[i], 0xFF0000FF);
+      
+      dq::visited.clear();
+      dq::enqueue(centerover->master, cview());
+      
+      while(!dq::drawqueue.empty()) {
+        auto& p = dq::drawqueue.front();
+        heptagon *h = get<0>(p);
+        transmatrix V = get<1>(p);
+        dynamicval<ld> b(band_shift, get<2>(p));
+        bandfixer bf(V);
+        dq::drawqueue.pop();
+        
+        
+        cell *c = h->c7;
+        if(!do_draw(c, V)) continue;
+        drawcell(c, V);
+        if(in_wallopt() && isWall3(c) && isize(dq::drawqueue) > 1000) continue;
+    
+        for(int i=0; i<S7; i++) if(h->move(i)) {
+          dq::enqueue(h->move(i), V * adj(h, i));
+          }
+        }
+      }
+    
     transmatrix adj(heptagon *h, int d) override {
       return quotient_map->adj(h, d);
       }
@@ -1349,11 +1435,7 @@ EX int celldistance(cell *c1, cell *c2) {
     return clueless_celldistance(c1, c2);
 
   dynamicval<eGeometry> g(geometry, gBinary3);  
-  #if CAP_BT
   return 20 + bt::celldistance3(r->reg_gmatrix[c1->master].first, r->reg_gmatrix[c2->master].first);
-  #else
-  return 20;
-  #endif
   }
 
 EX bool pseudohept(cell *c) {

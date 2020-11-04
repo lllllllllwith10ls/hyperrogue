@@ -721,14 +721,12 @@ int read_cheat_args() {
     inv::compute();
     }
 #endif
-#if CAP_COMPLEX2
   else if(argis("-ambush")) {
     // make all ambushes use the given number of dogs
     // example: hyper -W Hunt -IP Shield 1 -ambush 60
     PHASE(3) cheat();
     shift(); ambush::fixed_size = argi();
     }
-#endif
   else if(argis("-testdistances")) {
     PHASE(3); shift(); test_distances(argi());
     }
@@ -799,10 +797,6 @@ int read_cheat_args() {
     PHASEFROM(2); cheat();
     vid.use_smart_range = 2;
     shift_arg_formula(WDIM == 3 ? vid.smart_range_detail_3 : vid.smart_range_detail);
-    }
-  else if(argis("-smartarea")) {
-    PHASEFROM(2); cheat();
-    shift(); vid.smart_area_based = argi();
     }
   else if(argis("-smartn")) {
     PHASEFROM(2);
@@ -876,11 +870,6 @@ int read_cheat_args() {
     PHASEFROM(3);
     cheat();
     gen_wandering = false;
-    }
-  else if(argis("-hroll")) {
-    shift();
-    int i = argi();
-    while(i>0) i--, hrand(10);
     }
   else if(argis("-W")) {
     PHASEFROM(2);

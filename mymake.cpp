@@ -11,13 +11,9 @@
 #include <string>
 #include <fstream>
 #include <iostream>
-#include <thread>
 #include <vector>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <chrono>
-#include <future>
-#include <functional>
 
 using namespace std;
 
@@ -30,9 +26,6 @@ string preprocessor;
 string compiler;
 string linker;
 string libs;
-
-int batch_size = thread::hardware_concurrency() + 1;
-bool mingw64 = false;
 
 void set_linux() {
   preprocessor = "g++ -E";
@@ -50,27 +43,14 @@ void set_mac() {
   libs = " savepng.o -L/usr/local/lib -framework AppKit -framework OpenGL -lSDL -lSDLMain -lSDL_gfx -lSDL_mixer -lSDL_ttf -lpng -lpthread -lz";
   }
 
-void set_mingw64() {
-  mingw64 = true;
+void set_win() {
   preprocessor = "g++ -E";
-  compiler = "g++ -mwindows -march=native -W -Wall -Wextra -Werror -Wno-unused-parameter -Wno-implicit-fallthrough -Wno-maybe-uninitialized -c";
-  linker = "g++ -o hyper";
-  opts = "-DWINDOWS -DCAP_GLEW=1 -DCAP_PNG=1";
-  libs = " savepng.o hyper.res -lopengl32 -lSDL -lSDL_gfx -lSDL_mixer -lSDL_ttf -lpthread -lz -lglew32 -lpng";
-  setvbuf(stdout, NULL, _IONBF, 0); // MinGW is quirky with output buffering
-  }
-
-void set_web() {
-  preprocessor = "/usr/lib/emscripten/em++ -E";
-  compiler = "/usr/lib/emscripten/em++ -c";
-  default_standard = standard = " -std=c++17";
-  opts = "-DISWEB=1";
-  linker = 
-    "/usr/lib/emscripten/em++ -s USE_ZLIB=1 -s DISABLE_DEPRECATED_FIND_EVENT_TARGET_BEHAVIOR=0 -s TOTAL_MEMORY=512MB "
-    "-s EXTRA_EXPORTED_RUNTIME_METHODS='[\"FS\",\"ccall\"]' "
-    "-s EXPORTED_FUNCTIONS=\"['_main', '_use_file']\" "
-    "-s DISABLE_EXCEPTION_CATCHING=0 -o mhyper.html";
+  compiler = "runbat bwin-g.bat -c";
+  linker = "runbat bwin-linker.bat";
+  opts = "-DFHS -DLINUX -I/usr/include/SDL";
   libs = "";
+
+  standard = "";
   }
 
 vector<string> modules;
@@ -87,8 +67,6 @@ string obj_dir = "mymake_files";
 string setdir = "../";
 
 int system(string cmdline) {
-  if (mingw64)
-    cmdline = "sh -c '" + cmdline + "'"; // because system(arg) passes arg to cmd.exe on MinGW
   return system(cmdline.c_str());
   }
 
@@ -100,15 +78,13 @@ int main(int argc, char **argv) {
 #if defined(MAC)
   set_mac();
 #elif defined(WINDOWS)
-  set_mingw64();
+  set_win();
 #else
   set_linux();
 #endif
-  int retval = 0; // for storing return values of some function calls
   for(string fname: {"Makefile.loc", "Makefile.simple", "Makefile"})
     if(file_exists(fname)) {
-      retval = system("make -f " + fname + " language-data.cpp autohdr.h savepng.o");
-      if (retval) { printf("error during preparation!\n"); exit(retval); }
+      system("make -f " + fname + " language-data.cpp autohdr.h savepng.o");
       break;
       }
   for(int i=1; i<argc; i++) {
@@ -121,9 +97,9 @@ int main(int argc, char **argv) {
         if(!isalnum(c)) obj_dir += "_"; 
         else obj_dir += c;      
       }
-    else if(s == "-mingw64") {
-      set_mingw64();
-      obj_dir += "/mingw64";
+    else if(s == "-win") {
+      set_win();
+      obj_dir += "/win";
       setdir += "../";
       }
     else if(s == "-mac") {
@@ -134,12 +110,6 @@ int main(int argc, char **argv) {
     else if(s == "-linux") {
       set_linux();
       obj_dir += "/linux";
-      setdir += "../";
-      }
-    else if(s == "-web") {
-      set_web();
-      modules.push_back("hyperweb");
-      obj_dir += "/web";
       setdir += "../";
       }
     else if(s.substr(0, 2) == "-f") {
@@ -159,8 +129,6 @@ int main(int argc, char **argv) {
       standard = s;
     else if(s.substr(0, 2) == "-l")
       linker += " " + s;
-    else if(s.substr(0, 2) == "-j")
-      batch_size = stoi(s.substr(2));
     else if(s == "-I") {
       opts += " " + s + " " + argv[i+1];
       i++;
@@ -194,8 +162,7 @@ int main(int argc, char **argv) {
   compiler += " " + standard;
   ifstream fs("hyper.cpp");
 
-  retval = system("mkdir -p " + obj_dir);
-  if (retval) { printf("unable to create output directory!\n"); exit(retval); }
+  system("mkdir -p " + obj_dir);
 
   ofstream fsm(obj_dir + "/hyper.cpp");
   fsm << "#if REM\n#define INCLUDE(x)\n#endif\n";
@@ -236,12 +203,10 @@ int main(int argc, char **argv) {
     }
   
   string allobj = " " + obj_dir + "/hyper.o";
-
-  printf("compiling modules using batch size of %d:\n", batch_size);
-
+  
   int id = 0;
-  vector<pair<int, function<int(void)>>> tasks;
   for(string m: modules) {
+    id++;
     string src = m + ".cpp";
     string m2 = m;
     for(char& c: m2) if(c == '/') c = '_';
@@ -253,53 +218,17 @@ int main(int argc, char **argv) {
       }
     time_t obj_time = get_file_time(obj);
     if(src_time > obj_time) {
-      string cmdline = compiler + " " + opts + " " + src + " -o " + obj;
-      pair<int, function<int(void)>> task(id, [cmdline]() { return system(cmdline); });
-      tasks.push_back(task);
+      printf("compiling %s... [%d/%d]\n", m.c_str(), id, int(modules.size()));
+      if(system(compiler + " " + opts + " " + src + " -o " + obj)) { printf("error\n"); exit(1); }
       }
     else {
       printf("ok: %s\n", m.c_str());
       }
     allobj += " ";
     allobj += obj;
-    id++;
     }
-
-  chrono::milliseconds quantum(40);
-  vector<future<int>> workers(batch_size);
-
-  int tasks_amt = tasks.size();
-  int tasks_taken = 0, tasks_done = 0;
-  bool finished = tasks.empty();
-
-  while (!finished) {
-  for (auto & worker : workers) {
-    if (worker.valid()) {
-      if (worker.wait_for(chrono::seconds(0)) != future_status::ready) continue;
-      else {
-        int res = worker.get();
-        if (res) { printf("compilation error!\n"); exit(1); }
-        ++tasks_done;
-        }
-      }
-    if (tasks_taken < tasks_amt) {
-      auto task = tasks[tasks_taken];
-      int mid = task.first;
-      function<int(void)> do_work = task.second;
-      printf("compiling %s... [%d/%d]\n", modules[mid].c_str(), tasks_taken+1, tasks_amt);
-      worker = async(launch::async, do_work);
-      ++tasks_taken;
-      }
-    else if (tasks_done == tasks_amt) { finished = true; break; }
-    } this_thread::sleep_for(quantum); }
-
-  if (mingw64) {
-    retval = system("windres hyper.rc -O coff -o hyper.res");
-    if (retval) { printf("windres error!\n"); exit(retval); }
-    }
-
+  
   printf("linking...\n");
-  retval = system(linker + allobj + libs);
-  if (retval) { printf("linking error!\n"); exit(retval); }
+  system(linker + allobj + libs);
   return 0;
   }

@@ -2,9 +2,9 @@
 
 #include "rogueviz.cpp"
 #include "kohonen.cpp"
-// #include "staircase.cpp" (currently does not work)
+#include "staircase.cpp"
 #include "banachtarski.cpp"
-// #include "pentagonal.cpp" (currently does not work)
+#include "pentagonal.cpp"
 #include "functions.cpp"
 #include "fundamental.cpp"
 #include "sunflower.cpp"
@@ -23,7 +23,3 @@
 #include "snow.cpp"
 #include "impossible-ring.cpp"
 #include "triangle.cpp"
-#include "sumotron.cpp"
-#include "noniso-honeycombs.cpp"
-#include "random-walk.cpp"
-#include "presentation.cpp"

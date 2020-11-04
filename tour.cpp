@@ -7,13 +7,6 @@
 
 #include "hyper.h"
 namespace hr { 
-
-#if !CAP_TOUR
-EX namespace tour {
-  EX always_false on;
-EX }
-#endif
-
 #if CAP_TOUR
 
 /** \brief Variables and function related to Guided Tour and other presentations. */
@@ -69,14 +62,12 @@ static const flagtype QUICKGEO=32;
 static const flagtype SIDESCREEN = 64;
 /** \brief When changing geometries, show the name of the slide, instead of the current land */
 static const flagtype USE_SLIDE_NAME = 128;
-/** \brief do not display any help line */
-static const flagtype NOTITLE = 256;
 #endif
 
 EX vector<reaction_t> restorers;
 
 #if HDR
-template<class T, class U> void slide_backup(T& what, U value) {
+template<class T> void slide_backup(T& what, T value) {
   T backup = what;
   restorers.push_back([&what, backup] { what = backup; });
   what = value;
@@ -143,7 +134,6 @@ EX void presentation(presmode mode) {
   
   slides[currentslide].action(mode);
   callhooks(hooks_slide, mode);
-  if(mode == pmStop) slide_restore_all();
   }
 
 string parent_folder(const string& s) {
@@ -204,7 +194,6 @@ bool handleKeyTour(int sym, int uni) {
       }
     if(flags & FINALSLIDE) return true;
     presentation(pmStop);
-    slide_restore_all();
     currentslide++;
     presentation(pmStart);
     slidehelp();
@@ -393,24 +382,14 @@ EX namespace ss {
   EX string current_folder;
 
   string slidechars = "abcdefghijklmnopqrsvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ23456789!@#$%^&*(";
-    
-  #if HDR
-  using slideshow_callback = function<void(string, slide*, char)>;
-  #endif
   
-  EX hookset<void(slideshow_callback)> hooks_extra_slideshows;
-  
-  EX void for_all_slideshows(const slideshow_callback& cb) {
-    cb(XLAT("Guided Tour"), default_slides, 't');
-    callhooks(hooks_extra_slideshows, cb);
-    }
-  
+  EX hookset<int(bool)> hooks_extra_slideshows;
+
   EX void slideshow_menu() {
     dialog::init(XLAT("slideshows"), forecolor, 150, 100);
-    for_all_slideshows([] (string title, slide *sl, char ch) {
-      dialog::addBoolItem(title, wts == sl, ch);
-      dialog::add_action([sl] { wts = sl; popScreen(); });
-      });
+    dialog::addBoolItem(XLAT("Guided Tour"), wts == default_slides, 't');
+    dialog::add_action([] { wts = default_slides; popScreen(); });
+    callhooks(hooks_extra_slideshows, true);
     dialog::addBack();
     dialog::display();
     }
@@ -464,11 +443,8 @@ EX namespace ss {
         });
       }
     dialog::addBreak(50);
-    int cnt = 0;
-
-    for_all_slideshows([&] (string title, slide *sl, char ch) { cnt++; });
-
-    if(cnt > 1) {
+    bool b = false;
+    if(callhandlers(0, hooks_extra_slideshows, b)) {
       dialog::addItem(XLAT("change slideshow"), '1');
       dialog::add_action_push(slideshow_menu);
       }
@@ -477,38 +453,13 @@ EX namespace ss {
     }
 
   EX }
-
-EX void initialize_slides() {
-  dynamicval<int> cs(currentslide, 0);
-  for(currentslide=0;; currentslide++) {
-    presentation(pmStartAll);
-    if(slides[currentslide].flags & FINALSLIDE) break;
-    }
-  }
-
-EX void print() {
-  dynamicval<int> cs(currentslide, 0);
-  for(currentslide=0;; currentslide++) {
-    auto& sl = slides[currentslide];
-    println(hlog, sl.name);
-    string str = sl.name;
-    for(char& c: str) c = '=';
-    println(hlog, str);
-    println(hlog);
-    println(hlog, sl.help);
-    println(hlog);
-    if(slides[currentslide].flags & FINALSLIDE) break;
-    }
-  }
   
 EX void start() {
   currentslide = 0;
   pconf.scale = 1;
   pconf.alpha = 1;
   pmodel = mdDisk;
-  if(!tour::on) {
-    initialize_slides();
-    }
+  if(!tour::on) presentation(pmStartAll);
   else {
     presentation(pmStop);
     stop_game();

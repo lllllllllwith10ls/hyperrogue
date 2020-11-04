@@ -247,7 +247,7 @@ EX bool passable(cell *w, cell *from, flagtype flags) {
     if(from && isWatery(from) && isWatery(w) && F(P_CHAIN) && !againstCurrent(w, from))
       return true;
 
-    if(w->wall == waBigStatue && from && canPushStatueOn(from, flags)) return true;
+    if(w->wall == waBigStatue && from && canPushStatueOn(from)) return true;
     }
   
   if(F(P_EARTHELEM)) {
@@ -370,12 +370,12 @@ EX bool againstWind(cell *cto, cell *cfrom) {
   return false;
   }
 
-EX bool ghostmove(eMonster m, cell* to, cell* from, flagtype extra) {
+EX bool ghostmove(eMonster m, cell* to, cell* from) {
   if(!isGhost(m) && nonAdjacent(to, from)) return false;
   if(sword::at(to, 0)) return false;
   if(!shmup::on && isPlayerOn(to)) return false;
   if(to->monst && !(to->monst == moTentacletail && isGhost(m) && m != moFriendlyGhost)
-    && !(to->monst == moTortoise && isGhost(m) && m != moFriendlyGhost) && !(extra & P_MONSTER))
+    && !(to->monst == moTortoise && isGhost(m) && m != moFriendlyGhost))
     return false;
   if((m == moWitchGhost || m == moWitchWinter) && to->land != laPower)
     return false;
@@ -454,8 +454,8 @@ bool sharkpassable(cell *w, cell *c) {
   return true;
   }
 
-EX bool canPushStatueOn(cell *c, flagtype flags) {
-  return passable(c, NULL, P_MONSTER | flags) && !snakelevel(c) &&
+EX bool canPushStatueOn(cell *c) {
+  return passable(c, NULL, P_MONSTER) && !snakelevel(c) &&
     !isWorm(c->monst) && !isReptile(c->wall) && !peace::on && 
     !among(c->wall, waBoat, waFireTrap, waArrowTrap);
   }
@@ -553,7 +553,7 @@ EX bool passable_for(eMonster m, cell *w, cell *from, flagtype extra) {
   if(m == moGreaterShark)
     return isWatery(w) || w->wall == waBoat || w->wall == waFrozenLake;
   if(isGhostMover(m) || m == moFriendlyGhost)
-    return ghostmove(m, w, from, extra);
+    return ghostmove(m, w, from);
     // for the purpose of Shmup this is correct
   if(m == moTameBomberbird)
     return passable(w, from, extra | P_FLYING | P_ISFRIEND);

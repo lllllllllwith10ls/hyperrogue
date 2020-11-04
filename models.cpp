@@ -173,7 +173,7 @@ EX namespace models {
       spiral_multiplier = cld(cos_spiral, sin_spiral) * cld(spiral_cone_rad * mul / 2., 0);
       }
     if(euclid) {
-      euclidean_spin = pispin * iso_inverse(cview().T * master_relative(centerover, true));
+      euclidean_spin = pispin * inverse(cview() * master_relative(centerover, true));
       euclidean_spin = gpushxto0(euclidean_spin * C0) * euclidean_spin;
       hyperpoint h = inverse(euclidean_spin) * (C0 + (euc::eumove(gp::loc{1,0})*C0 - C0) * vpconf.spiral_x + (euc::eumove(gp::loc{0,1})*C0 - C0) * vpconf.spiral_y);
       spiral_multiplier = cld(0, 2 * M_PI) / cld(h[0], h[1]);
@@ -183,6 +183,8 @@ EX namespace models {
     if(isize(history::path_for_lineanimation) == 0 || ((quotient || arb::in()) && history::path_for_lineanimation.back() != centerover)) {
       history::path_for_lineanimation.push_back(centerover);
       }
+
+    band_shift = 0;
     }
   
   EX bool model_available(eModel pm) {
@@ -200,25 +202,12 @@ EX namespace models {
     if(GDIM == 2 && pm == mdEquivolume) return false;
     if(GDIM == 3 && among(pm, mdBall, mdHyperboloid, mdFormula, mdPolygonal, mdRotatedHyperboles, mdSpiral, mdHemisphere)) return false;
     if(pm == mdCentralInversion && !euclid) return false;
-    if(pm == mdPoorMan) return hyperbolic;
-    if(pm == mdRetroHammer) return hyperbolic;
     return true;
     }    
   
   EX bool has_orientation(eModel m) {
-    if(m == mdHorocyclic)
-      return hyperbolic;
-    if((m == mdPerspective || m == mdGeodesic) && panini_alpha) return true;
     return
-      among(m, mdHalfplane, mdPolynomial, mdPolygonal, mdTwoPoint, mdJoukowsky, mdJoukowskyInverted, mdSpiral, mdSimulatedPerspective, mdTwoHybrid, mdHorocyclic, mdAxial, mdAntiAxial, mdQuadrant,
-        mdWerner, mdAitoff, mdHammer, mdLoximuthal, mdWinkelTripel) || mdBandAny();
-    }
-
-  /** @brief returns the broken coordinate, or zero */
-  EX int get_broken_coord(eModel m) {
-    if(m == mdWerner) return 1;
-    if(sphere) return (mdinf[m].flags & mf::broken) ? 2 : 0;
-    return 0;
+      among(m, mdHalfplane, mdPolynomial, mdPolygonal, mdTwoPoint, mdJoukowsky, mdJoukowskyInverted, mdSpiral, mdSimulatedPerspective, mdTwoHybrid, mdHorocyclic) || mdBandAny();
     }
   
   EX bool is_perspective(eModel m) {
@@ -231,7 +220,7 @@ EX namespace models {
     }
   
   EX bool has_transition(eModel m) {
-    return among(m, mdJoukowsky, mdJoukowskyInverted, mdBand, mdAxial) && GDIM == 2;
+    return among(m, mdJoukowsky, mdJoukowskyInverted, mdBand) && GDIM == 2;
     }
   
   EX bool product_model(eModel m) {
@@ -312,10 +301,10 @@ EX namespace models {
       for(int a=-1; a<=1; a++) {
         curvepoint(point2(-M_PI/2 * current_display->radius, a*current_display->radius));
         curvepoint(point2(+M_PI/2 * current_display->radius, a*current_display->radius));
-        queuecurve(shiftless(Id), forecolor, 0, PPR::LINE);
+        queuecurve(forecolor, 0, PPR::LINE);
         curvepoint(point2(a*current_display->radius, -M_PI/2*current_display->radius));
         curvepoint(point2(a*current_display->radius, +M_PI/2*current_display->radius));
-        queuecurve(shiftless(Id), forecolor, 0, PPR::LINE);
+        queuecurve(forecolor, 0, PPR::LINE);
         }
       queuereset(vpconf.model, PPR::LINE);
       quickqueue();
@@ -445,9 +434,7 @@ EX namespace models {
       dialog::addBreak(50);
       }
     
-    if(among(vpmodel, mdDisk, mdBall, mdHyperboloid, mdRotatedHyperboles, mdPanini)) {
-      dynamicval<eModel> v(vpconf.model, vpconf.model);
-      if(vpmodel == mdHyperboloid) vpconf.model = mdDisk;
+    if(among(vpmodel, mdDisk, mdBall, mdHyperboloid, mdRotatedHyperboles)) {
       dialog::addSelItem(XLAT("projection distance"), fts(vpconf.alpha) + " (" + current_proj_name() + ")", 'p');
       dialog::add_action(projectionDialog);
       }
@@ -464,18 +451,7 @@ EX namespace models {
           });
         }
       }
-     
-    if(among(vpmodel, mdPerspective, mdHorocyclic) && nil) {
-      dialog::addSelItem(XLAT("model orientation"), fts(vpconf.model_orientation) + "°", 'l');
-      dialog::add_action([] () {
-        dialog::editNumber(vpconf.model_orientation, 0, 360, 90, 0, XLAT("model orientation"), "");
-        });
-      dialog::addSelItem(XLAT("rotational or Heisenberg"), fts(vpconf.rotational_nil), 'L');
-      dialog::add_action([] () {
-        dialog::editNumber(vpconf.rotational_nil, 0, 1, 1, 1, XLAT("1 = Heisenberg, 0 = rotational"), "");
-        });
-      }
-
+        
   if(GDIM == 3 && vpmodel != mdPerspective) {
     const string cliphelp = XLAT(
       "Your view of the 3D model is naturally bounded from four directions by your window. "
@@ -618,10 +594,6 @@ EX namespace models {
         dialog::scaleLog();
         });
       }
-
-    if(vpmodel == mdHyperboloid) {
-      dialog::addBoolItem_action(XLAT("show flat"), pconf.show_hyperboloid_flat, 'b');
-      }
     
     if(vpmodel == mdCollignon) {
       dialog::addSelItem(XLAT("parameter"), fts(vpconf.collignon_parameter) + (vpconf.collignon_reflected ? " (r)" : ""), 'b');
@@ -632,51 +604,6 @@ EX namespace models {
         dialog::extra_options = [] {
           dialog::addBoolItem_action(XLAT("reflect"), vpconf.collignon_reflected, 'R');
           };
-        });
-      }
-    
-    if(vpmodel == mdMiller) {
-      dialog::addSelItem(XLAT("parameter"), fts(vpconf.miller_parameter), 'b');
-      dialog::add_action([](){
-        dialog::editNumber(vpconf.miller_parameter, -1, 1, .1, 4/5., XLAT("parameter"), 
-          "The Miller projection is obtained by multiplying the latitude by 4/5, using Mercator projection, and then multiplying Y by 5/4. "
-          "Here you can change this parameter."
-          );
-        });
-      }
-    
-    if(among(vpmodel, mdLoximuthal, mdRetroHammer, mdRetroCraig)) {
-      dialog::addSelItem(XLAT("parameter"), fts(vpconf.loximuthal_parameter), 'b');
-      dialog::add_action([vpmodel](){
-        dialog::editNumber(vpconf.loximuthal_parameter, -M_PI/2, M_PI/2, .1, 0, XLAT("parameter"), 
-          (vpmodel == mdLoximuthal ?
-          "This model is similar to azimuthal equidistant, but based on loxodromes (lines of constant geographic direction) rather than geodesics. "
-          "The loximuthal projection maps (the shortest) loxodromes to straight lines of the same length, going through the starting point. "
-          "This setting changes the latitude of the starting point." :
-          "In retroazimuthal projections, a point is drawn at such a point that the azimuth *from* that point to the chosen central point is correct. "
-          "For example, if you should move east, the point is drawn to the right. This parameter is the latitude of the central point.")
-          + string(hyperbolic ? "\n\n(In hyperbolic geometry directions are assigned according to the Lobachevsky coordinates.)" : "")
-          );
-        });
-      }
-
-    if(among(vpmodel, mdAitoff, mdHammer, mdWinkelTripel)) {
-      dialog::addSelItem(XLAT("parameter"), fts(vpconf.aitoff_parameter), 'b');
-      dialog::add_action([](){
-        dialog::editNumber(vpconf.aitoff_parameter, -1, 1, .1, 1/2., XLAT("parameter"), 
-          "The Aitoff projection is obtained by multiplying the longitude by 1/2, using azimuthal equidistant projection, and then multiplying X by 1/2. "
-          "Hammer projection is similar but equi-area projection is used instead. "
-          "Here you can change this parameter."
-          );
-        });
-      }
-    
-    if(vpmodel == mdWinkelTripel) {
-      dialog::addSelItem(XLAT("mixing proportion"), fts(vpconf.winkel_parameter), 'B');
-      dialog::add_action([](){
-        dialog::editNumber(vpconf.winkel_parameter, -1, 1, .1, 1, XLAT("parameter"), 
-          "The Winkel Tripel projection is the average of Aitoff projection and equirectangular projection. Here you can change the proportion."
-          );
         });
       }
     
@@ -812,10 +739,6 @@ EX namespace models {
       PHASEFROM(2); 
       shift_arg_formula(vpconf.model_orientation);
       }
-    else if(argis("-mnil")) { 
-      PHASEFROM(2); 
-      shift_arg_formula(vpconf.rotational_nil);
-      }
     else if(argis("-mori2")) { 
       PHASEFROM(2); 
       shift_arg_formula(vpconf.model_orientation);
@@ -835,14 +758,6 @@ EX namespace models {
     else if(argis("-mtrans")) { 
       PHASEFROM(2); 
       shift_arg_formula(vpconf.model_transition);
-      }
-    else if(argis("-mparam")) { 
-      PHASEFROM(2); 
-      if(pmodel == mdCollignon) shift_arg_formula(vpconf.collignon_parameter);
-      else if(pmodel == mdMiller) shift_arg_formula(vpconf.miller_parameter);
-      else if(among(pmodel, mdLoximuthal, mdRetroCraig, mdRetroHammer)) shift_arg_formula(vpconf.loximuthal_parameter);
-      else if(among(pmodel, mdAitoff, mdHammer, mdWinkelTripel)) shift_arg_formula(vpconf.aitoff_parameter);
-      if(pmodel == mdWinkelTripel) shift_arg_formula(vpconf.winkel_parameter);
       }
     else if(argis("-sang")) { 
       PHASEFROM(2); 
@@ -868,10 +783,6 @@ EX namespace models {
     else if(argis("-mob")) { 
       PHASEFROM(2); 
       shift_arg_formula(vpconf.skiprope);
-      }
-    else if(argis("-palpha")) { 
-      PHASEFROM(2); 
-      shift_arg_formula(panini_alpha, reset_all_shaders);
       }
     else if(argis("-zoom")) { 
       PHASEFROM(2); shift_arg_formula(vpconf.scale);

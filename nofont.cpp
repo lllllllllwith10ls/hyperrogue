@@ -127,11 +127,11 @@ unsigned char fonttable[] = {
 
 unsigned char *ftv = fonttable;
 
-EX void resetTabFont() {
+void resetTabFont() {
   ftv = fonttable;
   }
   
-EX void loadCompressedChar(int &otwidth, int &otheight, unsigned char *tpix) {
+void loadCompressedChar(int &otwidth, int &otheight, unsigned char *tpix) {
   if(*ftv == 255) {
     fprintf(stderr, "There is something wrong with the font table\n");
     exit(1);

@@ -90,27 +90,6 @@ EX int chessvalue(cell *c) {
   #if CAP_GP
   if(WARPED)
     return gp::untruncated_shift(c) == 2;
-  else if(UNRECTIFIED && a4) {
-    auto li = gp::get_local_info(c);
-    bool odd_a = gp::param.first & 1;
-    bool odd_b = gp::param.second & 1;
-    // odd-odd
-    if(odd_a && odd_b) 
-      return (li.relative.second & 1) ^ (li.last_dir & 1) ^ (c->master->dm4 & 1) ^ ((c->master->emeraldval & 1) ? 1 : 0);
-    else if(odd_a || odd_b) {
-      /* int swapped = 0;
-      cellwalker cw(c, 0);
-      while((li.relative.first ^ li.relative.second) & 1) {
-        cw += wstep; cw += 2; swapped ^= 1;
-        } */
-      if((li.relative.first ^ li.relative.second) & 1)
-        return (li.relative.first & 1) ^ ((c->master->cmove(0)->emeraldval & 4) ? 1 : 0);
-      else
-        return (li.relative.first & 1) ^ ((c->master->emeraldval & 4) ? 1 : 0);
-      }
-    else 
-      return (li.relative.second & 1) ^ (li.last_dir & 1) ^ ((c->master->emeraldval & 1) ? 1 : 0);
-    }
   else
   #endif
     return celldist(c) & 1;
@@ -404,7 +383,6 @@ EX pair<int, bool> fieldval(cell *c) {
 EX int fieldval_uniq(cell *c) {
   if(fake::in()) return FPIU(fieldval_uniq(c));
   if(experimental) return 0;
-  else if(arb::in()) return arb::id_of(c->master);
   else if(hybri) { 
     auto c1 = hybrid::get_where(c).first; 
     return PIU ( fieldval_uniq(c1) );
@@ -422,11 +400,12 @@ EX int fieldval_uniq(cell *c) {
     }
   else if(euc::in(2)) {
     auto p = euc2_coordinates(c);
-    if(bounded) return p.first + p.second * (1 << 16);
+    if(bounded) return p.first + (p.second << 16);
     return gmod(p.first - 22 * p.second, 3*127);
     }
   else if(euc::in(3)) {
     auto co = euc::get_ispacemap()[c->master];
+    println(hlog, "co = ", co);
     if(bounded) return co[0] + (co[1] << 10) + (co[2] << 20);
     return gmod(co[0] + 3 * co[1] + 9 * co[2], 3*127);
     }
@@ -875,7 +854,7 @@ EX namespace patterns {
     if(IRREGULAR || arcm::in() || bt::in() || arb::in() || WDIM == 3) si.symmetries = c->type;
     else if(a46) val46(c, si, sub, pat);
     else if(a38) val38(c, si, sub, pat);
-    else if(S7 < 6 && S3 == 3 && !INVERSE && !kite::in()) valSibling(c, si, sub, pat);
+    else if(S7 < 6 && S3 == 3) valSibling(c, si, sub, pat);
     else if(euc::in(2,4)) valEuclid4(c, si, sub);
     else if(euc::in(2,6)) valEuclid6(c, si, sub);
     else if(a4) val457(c, si, sub);
@@ -1201,7 +1180,7 @@ EX namespace patterns {
       if(euclid)
         // use the torus ID
         si.id = fieldpattern::fieldval_uniq(c);
-      else if(PURE && standard_tiling())
+      else if(PURE && !arcm::in())
         // use the actual field codes
         si.id = fieldpattern::fieldval(c).first;
       else          
@@ -1682,13 +1661,11 @@ EX namespace patterns {
       ep.extra_params["ey"] = y;
       if(S7 == 6) ep.extra_params["ez"] = -x-y;
       }
-    #if CAP_CRYSTAL
     if(cryst) {
       crystal::ldcoord co = crystal::get_ldcoord(c);
       for(int i=0; i<crystal::MAXDIM; i++)
         ep.extra_params["x"+its(i)] = co[i];
       }
-    #endif
     if(asonov::in()) {
       auto co = asonov::get_coord(c->master);
       ep.extra_params["ax"] = szgmod(co[0], asonov::period_xy);
@@ -2564,12 +2541,12 @@ EX namespace linepatterns {
     return col;
     }
   
-  void gridlinef(const shiftmatrix& V1, const hyperpoint& h1, const shiftmatrix& V2, const hyperpoint& h2, color_t col, int par) {
+  void gridlinef(const transmatrix& V1, const hyperpoint& h1, const transmatrix& V2, const hyperpoint& h2, color_t col, int par) {
     if(!elliptic)
       gridline(V1, h1, V2, h2, col, par);
     else {
-      hyperpoint vh1 = V1.T * h1;
-      hyperpoint vh2 = unshift(V2, V1.shift) * h2;
+      hyperpoint vh1 = V1 * h1;
+      hyperpoint vh2 = V2 * h2;
       ld cros = vh1[0]*vh2[0] + vh1[1]*vh2[1] + vh1[2]*vh2[2];
       if(cros > 0)
         gridline(V1, h1, V2, h2, col, par),
@@ -2580,13 +2557,13 @@ EX namespace linepatterns {
       }
     }
 
-  void gridlinef(const shiftmatrix& V, const hyperpoint& h1, const hyperpoint& h2, color_t col, int par) { gridlinef(V, h1, V, h2, col, par); }
+  void gridlinef(const transmatrix& V, const hyperpoint& h1, const hyperpoint& h2, color_t col, int par) { gridlinef(V, h1, V, h2, col, par); }
 
   #define ALLCELLS(R) \
     [] (linepattern *lp) { auto& col = lp->color; for(auto& p: current_display->all_drawn_copies) for(auto& V: p.second) { cell *c = p.first; R } }
   
   #define ATCENTER(T) \
-    [] (linepattern *lp) { auto& col = lp->color; shiftmatrix V = gmatrix[cwt.at]; T}
+    [] (linepattern *lp) { auto& col = lp->color; transmatrix V = gmatrix[cwt.at]; T}
       
   linepattern patDual("dual grid", 0xFFFFFF00, always_available,
     ALLCELLS(
@@ -2654,7 +2631,7 @@ EX namespace linepatterns {
         cell *c2 = c->master->cmove(dir)->c7;
         if(gmatrix.count(c2)) {
           if(S3 >= OINF)
-            gridlinef(V, C0, V, mid(C0, tC0(currentmap->adj(c, dir))), col, 2 + vid.linequality);
+            gridlinef(V, C0, Id, mid(tC0(V), tC0(V * currentmap->adj(c, dir))), col, 2 + vid.linequality);
           else 
              gridlinef(V, C0, V * master_relative(c, true) * currentmap->adj(c->master, dir), C0, col, 2 + vid.linequality);
            }
@@ -2671,7 +2648,7 @@ EX namespace linepatterns {
             cell *c2 = c->master->move(i)->c7;
             if(gmatrix.count(c2)) {
               if(S3 >= OINF) {
-                gridlinef(V, C0, V, mid(C0, tC0(inverse_shift(V, gmatrix[c2]))), col, 2 + vid.linequality);
+                gridlinef(V, C0, Id, mid(tC0(V), tC0(gmatrix[c2])), col, 2 + vid.linequality);
                 }
               else 
                 gridlinef(V, C0, V*master_relative(c, true) * currentmap->adj(c->master,i), C0, col, 2 + vid.linequality);
@@ -2697,7 +2674,7 @@ EX namespace linepatterns {
     ALLCELLS(
       if(zebra40(c) / 4 == 10) {
         bool all = true;
-        shiftmatrix tri[3];
+        transmatrix tri[3];
         for(int i=0; i<3; i++)
           tri[i] = V * currentmap->adj(c, i*2);
         
@@ -2724,7 +2701,7 @@ EX namespace linepatterns {
         }
       )
     );
-  linepattern patGoldbergTree("Goldberg tree", 0x8438A400, [] { return GOLDBERG || INVERSE; }, 
+  linepattern patGoldbergTree("Goldberg tree", 0x8438A400, [] { return GOLDBERG; }, 
     ALLCELLS(
       if(c->master->c7 != c) 
         gridlinef(V, C0, V*currentmap->adj(c,0), C0, 
@@ -2772,7 +2749,7 @@ EX namespace linepatterns {
           }
       )
     );
-  linepattern patGoldbergSep("Goldberg", 0xFFFF0000, [] { return GOLDBERG || INVERSE; },
+  linepattern patGoldbergSep("Goldberg", 0xFFFF0000, [] { return GOLDBERG; },
     ALLCELLS(
       forCellIdEx(c2, i, c) if(c2->master != c->master)
         gridlinef(V, C0, V*currentmap->adj(c, i), C0, 
@@ -2844,7 +2821,7 @@ EX namespace linepatterns {
         for(int j=0; j<360; j+=15) {
           for(int k=0; k<=15; k++) 
             curvepoint(xspinpush0((j+k) * degree, i * degree));
-          queuecurve(shiftless(Id), col, 0, PPR::LINE).V=V;
+          queuecurve(col, 0, PPR::LINE).V=V;
           }
         }
       )
@@ -2856,7 +2833,7 @@ EX namespace linepatterns {
         for(int j=0; j<180; j+=15) {
           for(int k=0; k<=15; k++)
             curvepoint(xspinpush0(i * degree, (j+k) * degree));
-          queuecurve(shiftless(Id), col, 0, PPR::LINE).V=V;
+          queuecurve(col, 0, PPR::LINE).V=V;
           }
         }
       )
@@ -2866,8 +2843,8 @@ EX namespace linepatterns {
       for(int j=-180; j<=180; j+=15) {
         for(int i=-90; i<90; i+=15) {
           for(int k=0; k<=15; k++)
-            curvepoint(xpush(j * degree) * ypush0((i+k) * degree));
-          queuecurve(V, col, 0, PPR::LINE).V=V;
+            curvepoint(V * xpush(j * degree) * ypush0((i+k) * degree));
+          queuecurve(col, 0, PPR::LINE).V=V;
           }
         }
       )
@@ -2877,8 +2854,8 @@ EX namespace linepatterns {
       for(int i=-90; i<=90; i += 15) {
         for(int j=-180; j<180; j+=15) {
           for(int k=0; k<=15; k++) 
-            curvepoint(xpush((j+k) * degree) * ypush0(i * degree));
-          queuecurve(V, col, 0, PPR::LINE).V=V;
+            curvepoint(V * xpush((j+k) * degree) * ypush0(i * degree));
+          queuecurve(col, 0, PPR::LINE).V=V;
           }
         }
       )

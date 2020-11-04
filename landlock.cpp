@@ -124,7 +124,6 @@ EX bool landUnlocked(eLand l) {
     #define ITEMS_TOTAL(list, z) { int total = 0; for(eItem x: list) total += items[x]; if(total < z) return false; }
     #define ACCONLY(x)
     #define ACCONLY2(x,y)
-    #define ACCONLY3(x,y,z)
     #define ACCONLYF(x)
     #include "content.cpp"
 

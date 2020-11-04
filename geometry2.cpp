@@ -8,24 +8,24 @@
 #include "hyper.h"
 namespace hr {
 
-shiftmatrix &ggmatrix(cell *c);
+transmatrix &ggmatrix(cell *c);
 
 EX void fixelliptic(transmatrix& at) {
   if(elliptic && at[LDIM][LDIM] < 0) {
-    for(int i=0; i<MXDIM; i++) for(int j=0; j<MXDIM; j++)
+    for(int i=0; i<MDIM; i++) for(int j=0; j<MDIM; j++)
       at[i][j] = -at[i][j];
     }
   }
 
 EX void fixelliptic(hyperpoint& h) {
   if(elliptic && h[LDIM] < 0)
-    for(int i=0; i<MXDIM; i++) h[i] = -h[i];
+    for(int i=0; i<MDIM; i++) h[i] = -h[i];
   }
 
 /** find relative_matrix via recursing the tree structure */
 EX transmatrix relative_matrix_recursive(heptagon *h2, heptagon *h1) {
   if(gmatrix0.count(h2->c7) && gmatrix0.count(h1->c7))
-    return inverse_shift(gmatrix0[h1->c7], gmatrix0[h2->c7]);
+    return inverse(gmatrix0[h1->c7]) * gmatrix0[h2->c7];
   transmatrix gm = Id, where = Id;
   while(h1 != h2) {
     for(int i=0; i<h1->type; i++) {
@@ -69,7 +69,7 @@ EX transmatrix master_relative(cell *c, bool get_inverse IS(false)) {
     else {
       auto li = gp::get_local_info(c);
       transmatrix T = spin(master_to_c7_angle()) * cgi.gpdata->Tf[li.last_dir][li.relative.first&31][li.relative.second&31][gp::fixg6(li.total_dir)];
-      if(get_inverse) T = iso_inverse(T);
+      if(get_inverse) T = inverse(T);
       return T;
       }
     }
@@ -195,12 +195,10 @@ transmatrix hrmap_standard::relative_matrix(heptagon *h2, heptagon *h1, const hy
   return gm * where;
   }
 
-EX shiftmatrix &ggmatrix(cell *c) {
-  shiftmatrix& t = gmatrix[c];
-  if(t[LDIM][LDIM] == 0) {
-    t.T = actual_view_transform * View * calc_relative_matrix(c, centerover, C0);
-    t.shift = 0;
-    }
+EX transmatrix &ggmatrix(cell *c) {
+  transmatrix& t = gmatrix[c];
+  if(t[LDIM][LDIM] == 0)
+    t = actual_view_transform * View * calc_relative_matrix(c, centerover, C0);
   return t;
   }
 
@@ -210,7 +208,7 @@ struct horo_distance {
   
   void become(hyperpoint h1);
   horo_distance(hyperpoint h) { become(h); }
-  horo_distance(shiftpoint h1, const shiftmatrix& T);
+  horo_distance(hyperpoint h1, const transmatrix& T);
   bool operator < (const horo_distance z) const;
   friend void print(hstream& hs, horo_distance x) { print(hs, "[", x.a, ":", x.b, "]"); }
   };
@@ -234,14 +232,14 @@ void horo_distance::become(hyperpoint h1) {
     a = 0, b = intval(h1, C0);
   }
 
-horo_distance::horo_distance(shiftpoint h1, const shiftmatrix& T) {
+horo_distance::horo_distance(hyperpoint h1, const transmatrix& T) {
   #if CAP_BT
-  if(bt::in()) become(inverse_shift(T, h1));
+  if(bt::in()) become(inverse(T) * h1);
   else
 #endif
-  if(sn::in() || hybri || nil) become(inverse_shift(T, h1));
+  if(sn::in() || hybri || nil) become(inverse(T) * h1);
   else
-    a = 0, b = intval(h1.h, unshift(tC0(T), h1.shift));
+    a = 0, b = intval(h1, tC0(T));
   }
 
 bool horo_distance::operator < (const horo_distance z) const {
@@ -343,7 +341,7 @@ void virtualRebase(cell*& base, T& at, const U& check) {
   }
 
 EX void virtualRebase(cell*& base, transmatrix& at) {
-  virtualRebase(base, at, tC0_t);
+  virtualRebase(base, at, tC0);
   }
 
 EX void virtualRebase(cell*& base, hyperpoint& h) {
@@ -398,7 +396,6 @@ ld hrmap_standard::spin_angle(cell *c, int d) {
   ld hexshift = 0;
   if(c == c->master->c7 && (S7 % 2 == 0) && BITRUNCATED) hexshift = cgi.hexshift + 2*M_PI/c->type;
   else if(cgi.hexshift && c == c->master->c7) hexshift = cgi.hexshift;
-  #if CAP_IRR
   if(IRREGULAR) {
     auto id = irr::cellindex[c];
     auto& vs = irr::cells[id];
@@ -406,8 +403,8 @@ ld hrmap_standard::spin_angle(cell *c, int d) {
     auto& p = vs.jpoints[vs.neid[d]];
     return -atan2(p[1], p[0]) - hexshift;
     }
-  #endif
-  return M_PI - d * 2 * M_PI / c->type - hexshift;
+  else
+    return M_PI - d * 2 * M_PI / c->type - hexshift;
   }
 
 EX transmatrix ddspin(cell *c, int d, ld bonus IS(0)) { return currentmap->spin_to(c, d, bonus); }
@@ -595,7 +592,6 @@ EX bool approx_nearcorner = false;
 
 EX hyperpoint nearcorner(cell *c, int i) {
   if(GOLDBERG_INV) {
-    i = gmod(i, c->type);
     cellwalker cw(c, i);
     cw += wstep;
     transmatrix cwm = currentmap->adj(c, i);

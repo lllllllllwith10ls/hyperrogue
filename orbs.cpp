@@ -1,5 +1,5 @@
 // Hyperbolic Rogue -- orbs
-// Copyright (C) 2011-2020 Zeno Rogue, see 'hyper.cpp' for details
+// Copyright (C) 2011-2019 Zeno Rogue, see 'hyper.cpp' for details
 
 /** \file orbs.cpp
  *  \brief Implementation of various Orb effects, and their properties such as default and maximum charges
@@ -1636,3 +1636,4 @@ EX void orboflava(int i) {
       }
   }
 }
+

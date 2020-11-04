@@ -12,16 +12,16 @@ namespace hr {
 #if HDR
 struct texture_triangle {
   array<hyperpoint, 3> v;
-  array<shiftpoint, 3> tv;
-  texture_triangle(array<hyperpoint, 3> _v, array<shiftpoint, 3> _tv) : v(_v), tv(_tv) {}
+  array<hyperpoint, 3> tv;
+  texture_triangle(array<hyperpoint, 3> _v, array<hyperpoint, 3> _tv) : v(_v), tv(_tv) {}
   };
 
 struct textureinfo : basic_textureinfo {
-  shiftmatrix M;
+  transmatrix M;
   vector<texture_triangle> triangles;
   vector<glvertex> vertices;
   cell *c;
-  vector<shiftmatrix> matrices;
+  vector<transmatrix> matrices;
   
   // these are required to adjust to geometry changes
   int current_type, symmetries;
@@ -38,22 +38,19 @@ enum eTextureState {
 struct texture_data {
   GLuint textureid;
 
-  int twidth, theight;
-  bool stretched;
+  int twidth;
   int tx, ty, origdim;
   
-  int strx, stry, base_x, base_y;
-  
-  texture_data() { textureid = 0; twidth = 2048; theight = 0; stretched = false; }
+  texture_data() { textureid = 0; twidth = 2048; }
 
   vector<color_t> texture_pixels;
 
   color_t& get_texture_pixel(int x, int y) {
-    return texture_pixels[(y&(theight-1))*twidth+(x&(twidth-1))];
+    return texture_pixels[(y&(twidth-1))*twidth+(x&(twidth-1))];
     }
   
   vector<pair<color_t*, color_t>> undos;
-  vector<tuple<cell*, shiftpoint, int> > pixels_to_draw;
+  vector<tuple<cell*, hyperpoint, int> > pixels_to_draw;
 
   bool loadTextureGL();
   bool whitetexture();
@@ -94,21 +91,21 @@ struct texture_config {
 
   bool texture_tuned;
   string texture_tuner;
-  vector<shiftpoint*> tuned_vertices;
+  vector<hyperpoint*> tuned_vertices;
 
-  bool apply(cell *c, const shiftmatrix &V, color_t col);
+  bool apply(cell *c, const transmatrix &V, color_t col);
   void mark_triangles();
 
   void clear_texture_map();
   void perform_mapping();
-  void mapTextureTriangle(textureinfo &mi, const array<hyperpoint, 3>& v, const array<shiftpoint, 3>& tv, int splits);
-  void mapTextureTriangle(textureinfo &mi, const array<hyperpoint, 3>& v, const array<shiftpoint, 3>& tv) { mapTextureTriangle(mi, v, tv, gsplits); }
+  void mapTextureTriangle(textureinfo &mi, const array<hyperpoint, 3>& v, const array<hyperpoint, 3>& tv, int splits);
+  void mapTextureTriangle(textureinfo &mi, const array<hyperpoint, 3>& v, const array<hyperpoint, 3>& tv) { mapTextureTriangle(mi, v, tv, gsplits); }
   void mapTexture2(textureinfo& mi);
   void finish_mapping();
   void true_remap();
   void remap();
   bool correctly_mapped;
-  hyperpoint texture_coordinates(shiftpoint);
+  hyperpoint texture_coordinates(hyperpoint);
 
   void drawRawTexture();
   void saveFullTexture(string tn);
@@ -210,7 +207,7 @@ bool texture_data::loadTextureGL() {
   // BGRA may be not supported in the web version
   if(ISWEB) for(auto& p: texture_pixels) swap(part(p, 0), part(p, 2));
   
-  glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, twidth, theight, 0,
+  glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, twidth, twidth, 0,
     ISWEB ? GL_RGBA : GL_BGRA, GL_UNSIGNED_BYTE, 
     &texture_pixels[0] );
 
@@ -222,8 +219,7 @@ bool texture_data::loadTextureGL() {
 bool texture_data::whitetexture() {
   undos.clear();
   texture_pixels.resize(0);
-  if(theight == 0) theight = twidth;
-  texture_pixels.resize(twidth * theight, 0xFFFFFFFF);
+  texture_pixels.resize(twidth * twidth, 0xFFFFFFFF);
   pixels_to_draw.clear();
   return true;
   }
@@ -232,6 +228,7 @@ bool texture_data::readtexture(string tn) {
 
 #if CAP_SDL_IMG || CAP_PNG
   undos.clear();
+  texture_pixels.resize(twidth * twidth);
   
 #if CAP_SDL_IMG  
   SDL_Surface *txt = IMG_Load(tn.c_str());
@@ -301,56 +298,35 @@ bool texture_data::readtexture(string tn) {
   printf("texture read OK\n");
 
 #endif
-
-  if(twidth == 0) 
-    twidth = next_p2(tx);
-  if(theight == 0) theight = stretched ? next_p2(ty) : twidth;
-
-  texture_pixels.resize(twidth * theight);
-
-  if(stretched) {
-    int i = 0;
-    println(hlog, tx, " -> " , twidth, " / " , ty, " -> ", theight);
-    for(int y=0; y<theight; y++)
-    for(int x=0; x<twidth; x++)
-      texture_pixels[i++] = pix(x * tx / twidth, y * ty / theight);
-    strx = twidth; stry = theight; base_x = base_y = 0;
-    }
   
-  else if(tx == twidth && ty == theight) {
+  if(tx == twidth && ty == twidth) {
     int i = 0;
     for(int y=0; y<ty; y++)
     for(int x=0; x<tx; x++)
       texture_pixels[i++] = pix(x, y);
-    strx = twidth; stry = theight; base_x = base_y = 0;
     }
    
   else {
   
     origdim = max(tx, ty);
-    base_x = origdim/2 - tx/2;
-    base_y = origdim/2 - ty/2;
-    
-    strx = twidth * tx / origdim;
-    stry = theight * ty / origdim;
-
+    int base_x = tx/2 - origdim/2;
+    int base_y = ty/2 - origdim/2;
+  
     qpixel_pixel_outside = 0; // outside is black
   
     vector<int> half_expanded(twidth * ty);  
     for(int y=0; y<ty; y++)
       scale_colorarray(origdim, twidth,
-        [&] (int x) { return pix(x - base_x,y); },
+        [&] (int x) { return pix(base_x + x,y); },
         [&] (int x, int v) { half_expanded[twidth * y + x] = v; }
         );
 
     for(int x=0; x<twidth; x++)
       scale_colorarray(origdim, twidth,
-        [&] (int y) { return y-base_y < 0 || y-base_y >= ty ? 0 : half_expanded[x + (y-base_y) * twidth]; }, 
+        [&] (int y) { return base_y+y < 0 || base_y+y >= ty ? 0 : half_expanded[x + (base_y + y) * twidth]; }, 
         [&] (int y, int v) { get_texture_pixel(x, y) = v; }
         );
     
-    base_x = base_x * twidth / origdim;
-    base_y = base_y * theight / origdim;
     }
 
 #if CAP_SDL_IMG
@@ -373,7 +349,7 @@ void texture_data::saveRawTexture(string tn) {
   addMessage(XLAT("Saved the raw texture to %1", tn));
   }
 
-hyperpoint texture_config::texture_coordinates(shiftpoint h) {
+hyperpoint texture_config::texture_coordinates(hyperpoint h) {
   hyperpoint inmodel;
   applymodel(h, inmodel);
   inmodel[0] *= current_display->radius * 1. / current_display->scrsize;
@@ -385,11 +361,11 @@ hyperpoint texture_config::texture_coordinates(shiftpoint h) {
   return inmodel;
   }
 
-void texture_config::mapTextureTriangle(textureinfo &mi, const array<hyperpoint, 3>& v, const array<shiftpoint, 3>& tv, int splits) {
+void texture_config::mapTextureTriangle(textureinfo &mi, const array<hyperpoint, 3>& v, const array<hyperpoint, 3>& tv, int splits) {
 
   if(splits) {
     array<hyperpoint, 3> v2 = make_array( mid(v[1], v[2]), mid(v[2], v[0]), mid(v[0], v[1]) );
-    array<shiftpoint, 3> tv2 = make_array( mid(tv[1], tv[2]), mid(tv[2], tv[0]), mid(tv[0], tv[1]) );
+    array<hyperpoint, 3> tv2 = make_array( mid(tv[1], tv[2]), mid(tv[2], tv[0]), mid(tv[0], tv[1]) );
     mapTextureTriangle(mi, make_array(v[0], v2[2], v2[1]),  make_array(tv[0], tv2[2], tv2[1]),  splits-1);
     mapTextureTriangle(mi, make_array(v[1], v2[0], v2[2]),  make_array(tv[1], tv2[0], tv2[2]),  splits-1);
     mapTextureTriangle(mi, make_array(v[2], v2[1], v2[0]),  make_array(tv[2], tv2[1], tv2[0]),  splits-1);
@@ -423,25 +399,25 @@ int celltriangles(cell *c) {
   return c->type;
   }
 
-array<shiftpoint, 3> findTextureTriangle(cell *c, patterns::patterninfo& si, int i) {
-  shiftmatrix M = ggmatrix(c) * applyPatterndir(c, si);
+array<hyperpoint, 3> findTextureTriangle(cell *c, patterns::patterninfo& si, int i) {
+  transmatrix M = ggmatrix(c) * applyPatterndir(c, si);
   return make_array(M * C0, M * get_corner_position(c, i), M * get_corner_position(c, i+1));
   }
 
 // using: mouseh, mouseouver
-int getTriangleID(cell *c, patterns::patterninfo& si, shiftpoint h) {
+int getTriangleID(cell *c, patterns::patterninfo& si, hyperpoint h) {
   // auto si = getpatterninfo0(c);
   ld quality = 1e10;
   int best = 0;
   for(int i=0; i<celltriangles(c); i++) {
     auto t = findTextureTriangle(c, si, i);
-    ld q = hdist(t[1], h) + hdist(t[2], h);
+    ld q = intval(t[1], h) + intval(t[2], h);
     if(q < quality) quality = q, best = i;
     }
   return best;
   }
 
-void mapTexture(cell *c, textureinfo& mi, patterns::patterninfo &si, const shiftmatrix& T, int shift = 0) {
+void mapTexture(cell *c, textureinfo& mi, patterns::patterninfo &si, const transmatrix& T, int shift = 0) {
   mi.c = c;
   mi.symmetries = si.symmetries;
   mi.current_type = celltriangles(c);
@@ -481,7 +457,7 @@ EX bool using_aura() {
   return texture_aura && config.tstate == texture::tsActive;
   }
 
-bool texture_config::apply(cell *c, const shiftmatrix &V, color_t col) {
+bool texture_config::apply(cell *c, const transmatrix &V, color_t col) {
   if(config.tstate == tsOff || !correctly_mapped) return false;
 
   using namespace patterns;
@@ -491,10 +467,10 @@ bool texture_config::apply(cell *c, const shiftmatrix &V, color_t col) {
     dynamicval<color_t> d(poly_outline, slave_color);
     draw_floorshape(c, V, cgi.shFullFloor, 0, PPR::LINE);
     
-    curvepoint(C0);
+    curvepoint(V * C0);
     for(int i=0; i<c->type; i++) 
-      curvepoint(get_corner_position(c, i)), curvepoint(C0);
-    queuecurve(V, slave_color, 0, PPR::LINE);
+      curvepoint(V * get_corner_position(c, i)), curvepoint(V * C0);
+    queuecurve(slave_color, 0, PPR::LINE);
 
     return false;
     }
@@ -547,7 +523,7 @@ void texture_config::mark_triangles() {
       for(auto& t: mi.second.triangles) {
         vector<hyperpoint> t2;
         for(int i=0; i<3; i++)
-          t2.push_back(unshift(t.tv[i]));
+          t2.push_back(t.tv[i]);
         prettypoly(t2, master_color, master_color, gsplits);
         }
       }
@@ -617,11 +593,11 @@ void texture_config::finish_mapping() {
 
     for(int a=0; a<8; a++) {
       auto& tri = tris[a % isize(tris)];
-      shiftpoint center = tri.tv[0];
-      hyperpoint v1 = unshift(tri.tv[1], center.shift) - center.h;
-      hyperpoint v2 = unshift(tri.tv[2], center.shift) - center.h;
+      hyperpoint center = tri.tv[0];
+      hyperpoint v1 = tri.tv[1] - center;
+      hyperpoint v2 = tri.tv[2] - center;
       texture_order([&] (ld x, ld y) {
-        shiftpoint h = shiftless(normalize(center.h + v1 * x + v2 * y), center.shift);
+        hyperpoint h = normalize(center + v1 * x + v2 * y);
         tinf3.tvertices.push_back(glhr::pointtogl(texture_coordinates(h)));
         });
       }
@@ -677,7 +653,7 @@ void texture_config::drawRawTexture() {
   glflush();
   current_display->next_shader_flags = GF_TEXTURE;
   dynamicval<eModel> m(pmodel, mdPixel);
-  current_display->set_all(0, 0);
+  current_display->set_all(0);
   glhr::color2(0xFFFFFF20);
   glBindTexture(GL_TEXTURE_2D, config.data.textureid);
   for(int i=0; i<4; i++) {
@@ -843,10 +819,10 @@ void mousemovement() {
   switch(panstate) {
     case tpsModel:
       if(!newmove && mouseh[2] < 50 && lastmouse[2] < 50) {
-        panning(shiftless(lastmouse), mouseh);
+        panning(lastmouse, mouseh);
         config.perform_mapping();
         }
-      lastmouse = unshift(mouseh); newmove = false;
+      lastmouse = mouseh; newmove = false;
       break;
     
     case tpsMove: {
@@ -937,12 +913,12 @@ void mousemovement() {
         for(auto& a: config.texture_map)
           for(auto& t: a.second.triangles)
             for(auto& v: t.tv)
-              if(hdist(v, mouseh) < tdist)
-                tdist = hdist(v, mouseh);
+              if(intval(v, mouseh) < tdist)
+                tdist = intval(v, mouseh);
         for(auto& a: config.texture_map)
           for(auto& t: a.second.triangles)
             for(auto& v: t.tv)
-              if(hdist(v, mouseh) < tdist * (1.000001))
+              if(intval(v, mouseh) < tdist * (1.000001))
                 config.tuned_vertices.push_back(&v);
         newmove = false;
         }
@@ -1177,7 +1153,7 @@ void showMagicMenu() {
     if(newmove) {
       magicmapper_point newpoint;
       newpoint.c = mouseover;
-      newpoint.cell_relative = inverse_shift(gmatrix[mouseover], mouseh);
+      newpoint.cell_relative = inverse(gmatrix[mouseover]) * mouseh;
       amp.push_back(newpoint);
       newmove = false;
       }
@@ -1188,7 +1164,7 @@ void showMagicMenu() {
     initquickqueue();
     char letter = 'A';
     for(auto& am: amp) {
-      shiftpoint h = ggmatrix(am.c) * am.cell_relative;
+      hyperpoint h = ggmatrix(am.c) * am.cell_relative;
       queuestr(h, vid.fsize, s0+letter, 0xC00000, 1);
 
       /*
@@ -1451,12 +1427,12 @@ EX void showMenu() {
 
 typedef pair<int,int> point;
 
-point ptc(shiftpoint h) {
+point ptc(hyperpoint h) {
   hyperpoint inmodel = config.texture_coordinates(h);
   return make_pair(int(inmodel[0] * config.data.twidth), int(inmodel[1] * config.data.twidth));
   }
 
-array<point, 3> ptc(const array<shiftpoint, 3>& h) {
+array<point, 3> ptc(const array<hyperpoint, 3>& h) {
   return make_array(ptc(h[0]), ptc(h[1]), ptc(h[2]));
   }
 
@@ -1504,7 +1480,7 @@ void texture_data::undoLock() {
   undos.emplace_back(nullptr, 1);
   }
 
-void filltriangle(const array<shiftpoint, 3>& v, const array<point, 3>& p, color_t col, int lev) {
+void filltriangle(const array<hyperpoint, 3>& v, const array<point, 3>& p, color_t col, int lev) {
   
   int d2 = texture_distance(p[0], p[1]), d1 = texture_distance(p[0], p[2]), d0 = texture_distance(p[1], p[2]);
   
@@ -1522,15 +1498,15 @@ void filltriangle(const array<shiftpoint, 3>& v, const array<point, 3>& p, color
   else
     a = 1, b = 2, c = 0;
   
-  shiftpoint v3 = mid(v[a], v[b]);
+  hyperpoint v3 = mid(v[a], v[b]);
   point p3 = ptc(v3);
   filltriangle(make_array(v[c], v[a], v3), make_array(p[c], p[a], p3), col, lev+1);
   filltriangle(make_array(v[c], v[b], v3), make_array(p[c], p[b], p3), col, lev+1);
   }
 
-void splitseg(const shiftmatrix& A, const array<ld, 2>& angles, const array<shiftpoint, 2>& h, const array<point, 2>& p, color_t col, int lev) {
+void splitseg(const transmatrix& A, const array<ld, 2>& angles, const array<hyperpoint, 2>& h, const array<point, 2>& p, color_t col, int lev) {
   ld newangle = (angles[0] + angles[1]) / 2;
-  shiftpoint nh = A * xspinpush0(newangle, mapeditor::dtwidth);
+  hyperpoint nh = A * xspinpush0(newangle, mapeditor::dtwidth);
   auto np = ptc(nh);
   
   filltriangle(make_array(h[0],h[1],nh), make_array(p[0],p[1],np), col, lev);
@@ -1542,12 +1518,12 @@ void splitseg(const shiftmatrix& A, const array<ld, 2>& angles, const array<shif
     }
   }
 
-void fillcircle(shiftpoint h, color_t col) {
-  shiftmatrix A = rgpushxto0(h);
+void fillcircle(hyperpoint h, color_t col) {
+  transmatrix A = rgpushxto0(h);
   
   ld step = M_PI * 2/3;
   
-  array<shiftpoint, 3> mh = make_array(A * xpush0(mapeditor::dtwidth), A * xspinpush0(step, mapeditor::dtwidth), A * xspinpush0(-step, mapeditor::dtwidth));
+  array<hyperpoint, 3> mh = make_array(A * xpush0(mapeditor::dtwidth), A * xspinpush0(step, mapeditor::dtwidth), A * xspinpush0(-step, mapeditor::dtwidth));
   auto mp = ptc(mh);
 
   filltriangle(mh, mp, col, 0);
@@ -1561,36 +1537,36 @@ void fillcircle(shiftpoint h, color_t col) {
 
 EX bool texturesym = false;
 
-void actDrawPixel(cell *c, shiftpoint h, color_t col) {
+void actDrawPixel(cell *c, hyperpoint h, color_t col) {
   try {
-    shiftmatrix M = gmatrix.at(c);
+    transmatrix M = gmatrix.at(c);
     auto si = patterns::getpatterninfo0(c);
-    hyperpoint h1 = inverse_shift(M * applyPatterndir(c, si), h);
+    h = inverse(M * applyPatterndir(c, si)) * h;
     auto& tinf = config.texture_map[si.id];
     for(auto& M2: tinf.matrices) for(int i = 0; i<c->type; i += si.symmetries) {
-      fillcircle(M2 * spin(2 * M_PI * i / c->type) * h1, col);
+      fillcircle(M2 * spin(2 * M_PI * i / c->type) * h, col);
       if(texturesym)
-        fillcircle(M2 * spin(2 * M_PI * i / c->type) * Mirror * h1, col);
+        fillcircle(M2 * spin(2 * M_PI * i / c->type) * Mirror * h, col);
       }
     }
   catch(out_of_range&) {}
   }
   
-EX void drawPixel(cell *c, shiftpoint h, color_t col) {
+EX void drawPixel(cell *c, hyperpoint h, color_t col) {
   config.data.pixels_to_draw.emplace_back(c, h, col);
   }
 
 EX cell *where;
 
-EX void drawPixel(shiftpoint h, color_t col) {
+EX void drawPixel(hyperpoint h, color_t col) {
   try {
     again:
-    shiftmatrix g0 = gmatrix[where];
+    transmatrix g0 = gmatrix[where];
     ld cdist0 = hdist(tC0(g0), h);
 
     forCellEx(c, where) 
       try {
-        shiftmatrix g = gmatrix[c];
+        transmatrix g = gmatrix[c];
         ld cdist = hdist(tC0(g), h);
         if(cdist < cdist0) {
           cdist0 = cdist;
@@ -1604,9 +1580,9 @@ EX void drawPixel(shiftpoint h, color_t col) {
   catch(out_of_range&) {}
   }
 
-EX void drawLine(shiftpoint h1, shiftpoint h2, color_t col, int steps IS(10)) {
+EX void drawLine(hyperpoint h1, hyperpoint h2, color_t col, int steps IS(10)) {
   if(steps > 0 && hdist(h1, h2) > mapeditor::dtwidth / 3) {
-    shiftpoint h3 = mid(h1, h2);
+    hyperpoint h3 = mid(h1, h2);
     drawLine(h1, h3, col, steps-1);
     drawLine(h3, h2, col, steps-1);
     }

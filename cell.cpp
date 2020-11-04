@@ -42,8 +42,9 @@ struct hrmap {
   transmatrix iadj(heptagon *h, int d) { 
     heptagon *h1 = h->cmove(d); return adj(h1, h->c.spin(d));
     }
-  virtual void draw_all();
-  virtual void draw_at(cell *at, const shiftmatrix& where);
+  virtual void draw() {
+    printf("undrawable\n");
+    }
   virtual vector<hyperpoint> get_vertices(cell*);
 
   virtual void virtualRebase(heptagon*& base, transmatrix& at) {
@@ -66,7 +67,7 @@ struct hrmap {
  *  (e.g. Euclidean and Crystal) also inherit from hrmap_standard
  **/
 struct hrmap_standard : hrmap {
-  void draw_at(cell *at, const shiftmatrix& where) override;
+  void draw() override;
   transmatrix relative_matrix(heptagon *h2, heptagon *h1, const hyperpoint& hint) override;
   transmatrix relative_matrix(cell *c2, cell *c1, const hyperpoint& hint) override;
   heptagon *create_step(heptagon *h, int direction) override;
@@ -114,7 +115,7 @@ transmatrix hrmap::adj(heptagon *h, int i) { return relative_matrix(h->cmove(i),
 
 vector<cell*>& hrmap::allcells() { 
   static vector<cell*> default_allcells;
-  if(bounded && !(cgflags & qHUGE_BOUNDED) && !(hybri && hybrid::csteps == 0)) {
+  if(bounded && !(cgflags & qHUGE_BOUNDED) && !(prod && product::csteps == 0)) {
     celllister cl(gamestart(), 1000000, 1000000, NULL);
     default_allcells = cl.lst;
     return default_allcells;
@@ -179,11 +180,8 @@ EX heptagon* hyperbolic_origin() {
   h.cdata = NULL;
   h.alt = NULL;
   h.distance = 0;
-  #if CAP_IRR
   if(IRREGULAR) irr::link_start(origin);
-  else 
-  #endif
-  h.c7 = newCell(odegree, origin);
+  else h.c7 = newCell(odegree, origin);
   return origin;
   }
 
@@ -295,10 +293,10 @@ EX void initcells() {
   
   hrmap* res = callhandlers((hrmap*)nullptr, hooks_newmap);
   if(res) currentmap = res;
-  else if(asonov::in()) currentmap = asonov::new_map();
-  else if(nonisotropic || hybri) currentmap = nisot::new_map();
   else if(INVERSE) currentmap = gp::new_inverse();
   else if(fake::in()) currentmap = fake::new_map();
+  else if(asonov::in()) currentmap = asonov::new_map();
+  else if(nonisotropic || hybri) currentmap = nisot::new_map();
   #if CAP_CRYSTAL
   else if(cryst) currentmap = crystal::new_map();
   #endif
@@ -408,7 +406,7 @@ EX void clearfrom(heptagon *at) {
       }
     int edges = at->degree();
     if(bt::in() && WDIM == 2) edges = at->c7->type;
-    for(int i=0; i<edges; i++) if(at->move(i) && at->move(i) != at) {
+    for(int i=0; i<edges; i++) if(at->move(i)) {
       if(at->move(i)->alt != &deletion_marker)
         q.push(at->move(i));    
       unlink_cdata(at->move(i));
@@ -476,11 +474,11 @@ EX int celldist(cell *c) {
     return hybrid::celldistance(c, currentmap->gamestart());
   if(nil && !quotient) return DISTANCE_UNKNOWN;
   if(euc::in()) return celldistance(currentmap->gamestart(), c);
-  if(sphere || bt::in() || WDIM == 3 || cryst || sn::in() || kite::in() || bounded) return celldistance(currentmap->gamestart(), c);
+  if(sphere || bt::in() || WDIM == 3 || cryst || sn::in() || kite::in()) return celldistance(currentmap->gamestart(), c);
   #if CAP_IRR
   if(IRREGULAR) return irr::celldist(c, false);
   #endif
-  if(arcm::in() || ctof(c) || arb::in()) return c->master->distance;
+  if(arcm::in() || ctof(c)) return c->master->distance;
   #if CAP_GP
   if(INVERSE) {
     cell *c1 = gp::get_mapped(c);
@@ -557,9 +555,7 @@ EX int celldistAlt(cell *c) {
 
 /** direction upwards in the tree */
 EX int updir(heptagon *h) {
-  #if CAP_BT
   if(bt::in()) return bt::updir();
-  #endif
   #if MAXMDIM >= 4
   if(WDIM == 3 && reg3::in_rule()) {
     for(int i=0; i<S7; i++) if(h->move(i) && h->move(i)->distance < h->distance) 
@@ -820,12 +816,10 @@ cdata *getHeptagonCdata(heptagon *h) {
   if(sphere || quotient) h = currentmap->gamestart()->master;
   
   bool starting = h->s == hsOrigin;
-  #if CAP_BT
   if(bt::in()) {
     if(bt::mapside(h) == 0) starting = true;
     for(int i=0; i<h->type; i++) if(bt::mapside(h->cmove(i)) == 0) starting = true;
     }
-  #endif
 
   if(starting) {
     h->cdata = new cdata(orig_cdata);
@@ -873,12 +867,7 @@ cdata *getHeptagonCdata(heptagon *h) {
 cdata *getEuclidCdata(gp::loc h) {
 
   int x = h.first, y = h.second;
-  
-  #if CAP_ARCM
   auto& data = arcm::in() ? arcm::get_cdata() : euc::get_cdata();
-  #else
-  auto& data = euc::get_cdata();
-  #endif
     
   // hrmap_euclidean* euc = dynamic_cast<hrmap_euclidean*> (currentmap);
   if(data.count(h)) return &(data[h]);
@@ -930,40 +919,26 @@ int ld_to_int(ld x) {
   return int(x + 1000000.5) - 1000000;
   }
 
-#if CAP_ARCM
 EX gp::loc pseudocoords(cell *c) {
   transmatrix T = arcm::archimedean_gmatrix[c->master].second;
   return {ld_to_int(T[0][LDIM]), ld_to_int((spin(60*degree) * T)[0][LDIM])};
   }
 
 EX cdata *arcmCdata(cell *c) {
-  auto &agm = arcm::archimedean_gmatrix;
-  if(!agm.count(c->master) || !agm[c->master].first) {
-    forCellEx(c1, c) if(agm.count(c->master) && agm[c->master].first) return arcmCdata(c1);
-    static cdata dummy;
-    return &dummy;
-    }
-  heptagon *h2 = agm[c->master].first;
+  heptagon *h2 = arcm::archimedean_gmatrix[c->master].first;
   dynamicval<eGeometry> g(geometry, gNormal); 
   dynamicval<hrmap*> cm(currentmap, arcm::current_altmap);  
   return getHeptagonCdata(h2);
   }
-#endif
 
 EX int getCdata(cell *c, int j) {
   if(fake::in()) return FPIU(getCdata(c, j));
   if(hybri) { c = hybrid::get_where(c).first; return PIU(getBits(c)); }
-  else if(INVERSE) {
-    cell *c1 = gp::get_mapped(c);
-    return UIU(getCdata(c1, j));
-    }
   else if(euc::in()) return getEuclidCdata(euc2_coordinates(c))->val[j];
-#if CAP_ARCM
   else if(arcm::in() && euclid)
     return getEuclidCdata(pseudocoords(c))->val[j];
   else if(arcm::in() && hyperbolic) 
     return arcmCdata(c)->val[j]*3;
-#endif
   else if(!geometry_supports_cdata()) return 0;
   else if(ctof(c)) return getHeptagonCdata(c->master)->val[j]*3;
   else {
@@ -978,17 +953,11 @@ EX int getCdata(cell *c, int j) {
 EX int getBits(cell *c) {
   if(fake::in()) return FPIU(getBits(c));
   if(hybri) { c = hybrid::get_where(c).first; return PIU(getBits(c)); }
-  else if(INVERSE) {
-    cell *c1 = gp::get_mapped(c);
-    return UIU(getBits(c1));
-    }
   else if(euc::in()) return getEuclidCdata(euc2_coordinates(c))->bits;
-  #if CAP_ARCM
-  else if(arcm::in() && euclid)  
+  else if(arcm::in() && euclid)
     return getEuclidCdata(pseudocoords(c))->bits;
   else if(arcm::in() && (hyperbolic || sl2)) 
     return arcmCdata(c)->bits;
-  #endif
   else if(!geometry_supports_cdata()) return 0;
   else if(c == c->master->c7) return getHeptagonCdata(c->master)->bits;
   else {
@@ -1126,7 +1095,7 @@ EX int celldistance(cell *c1, cell *c2) {
   if(hybri) return hybrid::celldistance(c1, c2);
   
   #if CAP_FIELD
-  if(geometry == gFieldQuotient && (PURE || BITRUNCATED)) {
+  if(geometry == gFieldQuotient) {
     int d = fieldpattern::field_celldistance(c1, c2);
     if(d != DISTANCE_UNKNOWN) return d;
     }
@@ -1142,7 +1111,7 @@ EX int celldistance(cell *c1, cell *c2) {
     return euc::cyldist(euc2_coordinates(c1), euc2_coordinates(c2));
     }
 
-  if(arcm::in() || quotient || sn::in() || (kite::in() && euclid) || experimental || sl2 || nil || arb::in()) 
+  if(arcm::in() || quotient || sn::in() || (kite::in() && euclid) || experimental || sl2 || nil) 
     return clueless_celldistance(c1, c2);
    
    if(S3 >= OINF) return inforder::celldistance(c1, c2);
@@ -1356,7 +1325,7 @@ EX vector<int> reverse_directions(heptagon *c, int dir) {
   }
 
 EX bool standard_tiling() {
-  return !arcm::in() && !kite::in() && !bt::in() && !arb::in() && !nonisotropic && !hybri;
+  return !arcm::in() && !kite::in() && !bt::in() && !arb::in();
   }
 
 EX int valence() {
