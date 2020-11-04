@@ -119,9 +119,9 @@ struct trianglemaker {
     
     // println(hlog, "uds = ", uds);
   
-    for(int a=0; a<3; a++) println(hlog, sqhypot_d(3, inverse_exp(shiftless(start + ds[a] * ca))));
+    for(int a=0; a<3; a++) println(hlog, sqhypot_d(3, inverse_exp(start + ds[a] * ca)));
   
-    for(int a=0; a<3; a++) println(hlog, sqhypot_d(3, inverse_exp(shiftless(uds[a]))));
+    for(int a=0; a<3; a++) println(hlog, sqhypot_d(3, inverse_exp(uds[a])));
     
     // compute cube vertices
   
@@ -473,7 +473,7 @@ void growthrate() {
 color_t tcolors[3] = { 0xFF0000FF, 0x00FF00FF, 0x0000FFFF };
 
 
-bool draw_ptriangle(cell *c, const shiftmatrix& V) {
+bool draw_ptriangle(cell *c, const transmatrix& V) {
 
   if(!on) return false;
   
@@ -508,7 +508,6 @@ void slide_itri(tour::presmode mode, int id) {
     tour::slide_backup(on, true);
     tour::slide_backup(net, id == 2 ? true : false);
     tour::slide_backup(smooth_scrolling, true);
-    tour::on_restore(nilv::set_flags);
     if(id == 0)
       tour::slide_backup(nilv::nilperiod, make_array(3, 3, 3));
     if(id == 1) {
@@ -518,15 +517,13 @@ void slide_itri(tour::presmode mode, int id) {
       tour::slide_backup(how1, 31);
       tour::slide_backup(isteps, 992);
       }
-    nilv::set_flags();
-   /* do nothing for id == 2 */
+    /* do nothing for id == 2 */
     start_game();
     playermoved = false;
     tour::on_restore(reset);
     }
   }
 
-string cap = "non-isotropic geometries/Impossible architecture in Nil/";
 
 auto hchook = addHook(hooks_drawcell, 100, draw_ptriangle)
 
@@ -549,11 +546,12 @@ auto hchook = addHook(hooks_drawcell, 100, draw_ptriangle)
   return 0;
   })
 
-+ addHook(pres::hooks_build_rvtour, 166, [] (vector<tour::slide>& v) {
+
++ addHook(rvtour::hooks_build_rvtour, 151, [] (vector<tour::slide>& v) {
   using namespace tour;
 
   v.push_back(
-    tour::slide{cap+"impossible triangle", 18, LEGAL::NONE | QUICKGEO, 
+    tour::slide{"Impossible architecture in Nil/impossible triangle", 18, LEGAL::NONE | QUICKGEO, 
       "This form of impossible triangle was first created by Oscar Reutersvärd. "
       "It was later independently discovered by Lionel Penrose and Roger Penrose, and popularized by M. C. Escher.\n\n"
       "Move with mouse/arrows/PgUpDn. Press '5' to enable animation, 'o' to change ring size.",
@@ -564,7 +562,7 @@ auto hchook = addHook(hooks_drawcell, 100, draw_ptriangle)
     }});
 
   v.push_back(
-    tour::slide{cap+"impossible triangle chainmail", 18, LEGAL::NONE | QUICKGEO, 
+    tour::slide{"Impossible architecture in Nil/impossible triangle chainmail", 18, LEGAL::NONE | QUICKGEO, 
       "Here we try to link the impossible triangles into a construction reminiscent of a chainmail.",
    
   [] (presmode mode) {
@@ -573,7 +571,7 @@ auto hchook = addHook(hooks_drawcell, 100, draw_ptriangle)
     }});
 
   v.push_back(
-    tour::slide{cap+"impossible triangle network", 18, LEGAL::NONE | QUICKGEO, 
+    tour::slide{"Impossible architecture in Nil/impossible triangle network", 18, LEGAL::NONE | QUICKGEO, 
       "It is not possible to reconstruct Escher's Waterfall in Nil geometry, because one of the three triangles there "
       "has opposite orientation. For this reason, that one triangle would not connect correctly. Penrose triangles "
       "in Nil would not create a planar structure, but rather a three-dimensional one. This slide shows the picture. "

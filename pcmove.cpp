@@ -728,7 +728,7 @@ bool pcmove::after_escape() {
   cell*& c2 = mi.t;
 
   if(c2->wall == waBigStatue && !c2->monst && !nonAdjacentPlayer(c2, cwt.at) && fmsMove) {
-    if(!canPushStatueOn(cwt.at, P_ISPLAYER)) {
+    if(!canPushStatueOn(cwt.at)) {
       if(vmsg()) { 
         if(isFire(cwt.at))
           addMessage(XLAT("You have to escape first!"));
@@ -864,7 +864,7 @@ void pcmove::tell_why_impassable() {
     addMessage(XLAT("Wrong color!"));
   else if(c2->wall == waRoundTable)
     addMessage(XLAT("It would be impolite to land on the table!"));
-  else if(snakelevel(cwt.at) >= 3 && snakelevel(c2) == 0 && !isWall(c2))
+  else if(snakelevel(cwt.at) >= 3 && snakelevel(c2) == 0)
     addMessage(XLAT("You would get hurt!", c2->wall));
   else if(cellEdgeUnstable(cwt.at) && cellEdgeUnstable(c2)) {
     addMessage(XLAT("Gravity does not allow this!"));
@@ -933,8 +933,6 @@ bool pcmove::attack() {
   plague_kills = 0;
 
   if(good_tortoise) {
-    changes.ccell(c2);
-    c2->stuntime = 2;
     changes.at_commit([c2] {
       items[itBabyTortoise] += 4;
       updateHi(itBabyTortoise, items[itBabyTortoise]);
@@ -942,6 +940,7 @@ bool pcmove::attack() {
       tortoise::babymap[c2] = tortoise::seekbits;
       playSound(c2, playergender() ? "heal-princess" : "heal-prince");
       addMessage(XLAT(playergender() == GEN_F ? "You are now a tortoise heroine!" : "You are now a tortoise hero!"));
+      c2->stuntime = 2;
       achievement_collection(itBabyTortoise);
       });
     }
@@ -1026,14 +1025,6 @@ bool pcmove::perform_actual_move() {
   movecost(cwt.at, c2, 1);
 
   if(!boatmove && collectItem(c2)) return true;
-  if(boatmove && c2->item && cwt.at->item) {
-     eItem it = c2->item;
-     c2->item = cwt.at->item;
-     if(collectItem(c2)) return true;
-     eItem it2 = c2->item;
-     c2->item = it;
-     cwt.at->item = it2;
-     }
   if(doPickupItemsWithMagnetism(c2)) return true;
 
   if(items[itOrbColor]) {
@@ -1267,9 +1258,6 @@ EX void playerMoveEffects(cell *c1, cell *c2) {
     changes.ccell(c2);
     c2->wparam = 1;
     }
-  
-  if(c2->wall == waReptile)
-    c2->wparam = -1;
     
   princess::playernear(c2);
 
@@ -1502,6 +1490,8 @@ EX bool havePushConflict(cell *pushto, bool checkonly) {
   return false;
   }
 
+bool got_crossroads;
+
 EX void movecost(cell* from, cell *to, int phase) {
   if(from->land == laPower && to->land != laPower && (phase & 1)) {
     int n=0;
@@ -1518,9 +1508,10 @@ EX void movecost(cell* from, cell *to, int phase) {
     }
 #endif
   
-  if(to->land == laCrossroads4 && !geometry && (phase & 2) && !cheater) {
+  if(to->land ==laCrossroads4 && !got_crossroads && !geometry && (phase & 2) && !cheater) {
     achievement_gain_once("CR4");
-    changes.value_set(chaosUnlocked, true);
+    got_crossroads = true;
+    chaosUnlocked = true;
     }
 
   if(isHaunted(from->land) && !isHaunted(to->land) && (phase & 2)) {

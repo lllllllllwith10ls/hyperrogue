@@ -30,7 +30,7 @@ EX namespace mapeditor {
     virtual void rotate(const transmatrix& T) = 0;
     virtual void save(hstream& hs) = 0;
     virtual dtshape* load(hstream& hs) = 0;
-    virtual void draw(const shiftmatrix& V) = 0;
+    virtual void draw(const transmatrix& V) = 0;
     virtual ld distance(hyperpoint h) = 0;
     virtual ~dtshape() {}
     };
@@ -53,7 +53,7 @@ EX namespace mapeditor {
       hs.read(e);
       return this;
       }
-    void draw(const shiftmatrix& V) override {
+    void draw(const transmatrix& V) override {
       queueline(V*s, V*e, col, 2 + vid.linequality);
       }
     ld distance(hyperpoint h) override {
@@ -78,13 +78,13 @@ EX namespace mapeditor {
       hs.read(radius);
       return this;
       }
-    void draw(const shiftmatrix& V) override {
+    void draw(const transmatrix& V) override {
       ld len = sin_auto(radius);
       int ll = ceil(360 * len);
-      shiftmatrix W = V * rgpushxto0(s);
+      transmatrix W = V * rgpushxto0(s);
       for(int i=0; i<=ll; i++)
-        curvepoint(xspinpush0(360*degree*i/ll, radius));
-      queuecurve(W, col, fill, PPR::LINE);
+        curvepoint(W * xspinpush0(360*degree*i/ll, radius));
+      queuecurve(col, fill, PPR::LINE);
       }
 
     ld distance(hyperpoint h) override {
@@ -115,7 +115,7 @@ EX namespace mapeditor {
       return this;
       }
 
-    void draw(const shiftmatrix& V) override {
+    void draw(const transmatrix& V) override {
       queuestr(V * rgpushxto0(where), size, caption, col);
       }
     
@@ -139,9 +139,9 @@ EX namespace mapeditor {
       hs.read(lh);
       return this;
       }
-    void draw(const shiftmatrix& V) override {
-      for(auto& p: lh) curvepoint(p);
-      queuecurve(V, col, fill, PPR::LINE);
+    void draw(const transmatrix& V) override {
+      for(auto& p: lh) curvepoint(V*p);
+      queuecurve(col, fill, PPR::LINE);
       }    
 
     ld distance(hyperpoint h) override {
@@ -156,31 +156,28 @@ EX namespace mapeditor {
   EX void clear_dtshapes() { dtshapes.clear(); }
   
   EX void draw_dtshapes() {
-#if CAP_EDIT
     for(auto& shp: dtshapes) {
       if(shp == nullptr) continue;
       auto& sh = *shp;
       cell*& c = sh.where;
-      for(const shiftmatrix& V: current_display->all_drawn_copies[c]) {
+      for(const transmatrix& V: current_display->all_drawn_copies[c]) {
         dynamicval<ld> lw(vid.linewidth, vid.linewidth * sh.lw);
         sh.draw(V);
         }
       }
 
     if(drawing_tool && (cmode & sm::DRAW)) {
-      shiftpoint moh = GDIM == 2 ? mouseh : find_mouseh3();      
       dynamicval<ld> lw(vid.linewidth, vid.linewidth * dtwidth * 100);
       if(holdmouse && mousekey == 'c')
-        queue_hcircle(rgpushxto0(lstart), hdist(lstart, moh));
+        queue_hcircle(rgpushxto0(lstart), hdist(lstart, mouseh));
       else if(holdmouse && mousekey == 'l')
-        queueline(lstart, moh, dtcolor, 4 + vid.linequality, PPR::LINE);
+        queueline(lstart, mouseh, dtcolor, 4 + vid.linequality, PPR::LINE);
       else if(!holdmouse) {
-        shiftmatrix T = rgpushxto0(moh);
+        transmatrix T = rgpushxto0(mouseh);
         queueline(T * xpush0(-.1), T * xpush0(.1), dtcolor);
         queueline(T * ypush0(-.1), T * ypush0(.1), dtcolor);
         }
       }
-#endif
     }
   
   /** dtshapes takes ownership of sh */
@@ -193,46 +190,47 @@ EX namespace mapeditor {
     dtshapes.push_back(unique_ptr<dtshape>(sh));
     }
   
-  EX void dt_add_line(shiftpoint h1, shiftpoint h2, int maxl) {
+  EX void dt_add_line(hyperpoint h1, hyperpoint h2, int maxl) {
     if(hdist(h1, h2) > 1 && maxl > 0) {
-      shiftpoint h3 = mid(h1, h2);
+      hyperpoint h3 = mid(h1, h2);
       dt_add_line(h1, h3, maxl-1);
       dt_add_line(h3, h2, maxl-1);
       return;
       }
     cell *b = centerover;
+    transmatrix T = rgpushxto0(h1);
     
-    auto xh1 = inverse_shift(ggmatrix(b), h1);
-    virtualRebase(b, xh1);
+    auto T1 = inverse(ggmatrix(b)) * T;
+    virtualRebase(b, T1);
     
     auto l = new dtline;
-    l->s = xh1;
-    l->e = inverse_shift(ggmatrix(b), h2);
+    l->s = tC0(T1);
+    l->e = T1 * gpushxto0(h1) * h2;
     dt_add(b, l);
     }
 
-  EX void dt_add_circle(shiftpoint h1, shiftpoint h2) {
+  EX void dt_add_circle(hyperpoint h1, hyperpoint h2) {
     cell *b = centerover;
     
     auto d = hdist(h1, h2);
     
-    auto xh1 = inverse_shift(ggmatrix(b), h1);
-    virtualRebase(b, xh1);
+    h1 = inverse(ggmatrix(b)) * h1;
+    virtualRebase(b, h1);
     
     auto l = new dtcircle;
-    l->s = xh1;
+    l->s = h1;
     l->radius = d;
     dt_add(b, l);
     }
   
-  EX void dt_add_text(shiftpoint h, ld size, string cap) {
+  EX void dt_add_text(hyperpoint h, ld size, string cap) {
     cell *b = centerover;
     
-    auto xh = inverse_shift(ggmatrix(b), h);
-    virtualRebase(b, xh);
+    h = inverse(ggmatrix(b)) * h;
+    virtualRebase(b, h);
     
     auto l = new dttext;
-    l->where = xh;
+    l->where = h;
     l->size = size;
     l->caption = cap;
     dt_add(b, l);
@@ -257,31 +255,28 @@ EX namespace mapeditor {
   
   dtfree *cfree;
   cell *cfree_at;
+  transmatrix cfree_T;
   
-  EX void dt_finish() {
-    cfree = nullptr;
-    cfree_at = nullptr;
-    }
-  
-  EX void dt_add_free(shiftpoint h) {
+  EX void dt_add_free(hyperpoint h) {
 
     cell *b = centerover;
-    shiftmatrix T = rgpushxto0(h);
-    auto T1 = inverse_shift(ggmatrix(b), T);
+    transmatrix T = rgpushxto0(h);
+    auto T1 = inverse(ggmatrix(b)) * T;
     virtualRebase(b, T1);
     
     if(cfree)
-      cfree->lh.push_back(inverse_shift(ggmatrix(cfree_at), tC0(T)));
+      cfree->lh.push_back(cfree_T * h);    
     
     if(b != cfree_at && !(dtfill && cfree_at)) {
       cfree = new dtfree;
       dt_add(b, cfree);
-      cfree->lh.push_back(tC0(T1));
+      cfree_T = T1 * gpushxto0(h);
+      cfree->lh.push_back(cfree_T * h);
       cfree_at = b;
       }
     }
   
-  EX void dt_erase(shiftpoint h) {  
+  EX void dt_erase(hyperpoint h) {  
     ld nearest = 1;
     int nearest_id = -1;
     int id = -1;
@@ -290,8 +285,8 @@ EX namespace mapeditor {
       if(shp == nullptr) continue;
       auto& sh = *shp;
       cell*& c = sh.where;
-      for(const shiftmatrix& V: current_display->all_drawn_copies[c]) {
-        ld dist = sh.distance(inverse_shift(V, h));
+      for(const transmatrix& V: current_display->all_drawn_copies[c]) {
+        ld dist = sh.distance(inverse(V) * h);
         if(dist < nearest) nearest = dist, nearest_id = id;
         }
       }
@@ -299,8 +294,7 @@ EX namespace mapeditor {
       dtshapes.erase(dtshapes.begin() + nearest_id);
     }
   
-  EX shiftpoint lstart;
-  EX hyperpoint lstart_rel;
+  EX hyperpoint lstart;
   cell *lstartcell;
   ld front_edit = 0.5;
   enum class eFront { sphere_camera, sphere_center, equidistants, const_x, const_y };
@@ -371,19 +365,14 @@ EX namespace mapeditor {
       }
     }
 #endif
-EX }
+  }
 
-#if HDR
-struct hstream;
-struct fhstream;
-#endif
-
-EX namespace mapstream {
+namespace mapstream {
 #if CAP_EDIT
 
-  EX std::map<cell*, int> cellids;
-  EX vector<cell*> cellbyid;
-  EX vector<char> relspin;
+  std::map<cell*, int> cellids;
+  vector<cell*> cellbyid;
+  vector<char> relspin;
   
   void load_drawing_tool(fhstream& hs) {
     using namespace mapeditor;
@@ -436,14 +425,13 @@ EX namespace mapstream {
     else
       return dir;
     }
-#endif
   
-  EX void save_geometry(hstream& f) {
+  void save_geometry(fhstream& f) {
     f.write(geometry);
     char nbtype = char(variation);
     f.write(nbtype);
     #if CAP_GP
-    if(GOLDBERG || INVERSE) {
+    if(GOLDBERG) {
       f.write(gp::param.first);
       f.write(gp::param.second);
       }
@@ -468,7 +456,6 @@ EX namespace mapstream {
     #if CAP_ARCM
     if(geometry == gArchimedean) f.write(arcm::current.symbol);
     #endif
-    if(geometry == gArbitrary) f.write(arb::current.filename);
     if(geometry == gNil) {
       f.write(S7);
       f.write(nilv::nilperiod);
@@ -477,20 +464,12 @@ EX namespace mapstream {
       f.write(asonov::period_xy);
       f.write(asonov::period_z);
       }
-    if(prod) {
-      f.write(hybrid::csteps);
+    if(geometry == gProduct) {
+      f.write(product::csteps);
       f.write(product::cspin);
-      f.write(product::cmirror);
-      }
-    if(rotspace) {
-      f.write(hybrid::csteps);
       }
     if(hybri) {
       hybrid::in_underlying_geometry([&] { save_geometry(f); });
-      }
-    if(fake::in()) {
-      f.write(fake::around);
-      fake::in_underlying_geometry([&] { save_geometry(f); });
       }
     if(bt::in()) 
       f.write(vid.binary_width);
@@ -501,20 +480,19 @@ EX namespace mapstream {
     f.write(mine_adjacency_rule);
     }
   
-  EX void load_geometry(hstream& f) {
-    auto vernum = f.get_vernum();
+  void load_geometry(fhstream& f) {
     f.read(geometry);
     char nbtype;
     f.read(nbtype);
     variation = eVariation(nbtype);
     #if CAP_GP
-    if(GOLDBERG || INVERSE) {
+    if(GOLDBERG) {
       f.read(gp::param.first);
       f.read(gp::param.second);
       }
     #endif
     #if CAP_CRYSTAL
-    if(cryst && vernum >= 10504) {
+    if(cryst && f.vernum >= 10504) {
       int sides;
       f.read(sides);
       #if CAP_CRYSTAL
@@ -540,7 +518,7 @@ EX namespace mapstream {
         auto& ge = fgeomextras[current_extra];
         auto& id = ge.current_prime_id;
         f.read(id);
-        if(vernum < 0xA80C) switch(ge.base) {
+        if(f.vernum < 0xA80C) switch(ge.base) {
           case gNormal: id++; break;
           case g45: id++; break;
           case g46: id+=2; break;
@@ -551,12 +529,6 @@ EX namespace mapstream {
         }
       }
     #endif
-    if(geometry == gArbitrary) {
-      string s;
-      f.read(s);
-      arb::run(s);
-      stop_game();
-      }
     #if CAP_ARCM
     if(geometry == gArchimedean) {
       string& symbol = arcm::current.symbol;
@@ -567,49 +539,35 @@ EX namespace mapstream {
         }
       }
     #endif
-    if(geometry == gNil && vernum >= 0xA80C) {
+    if(geometry == gNil && f.vernum >= 0xA80C) {
       f.read(S7);
       f.read(nilv::nilperiod);
       nilv::set_flags();
       }
-    if(geometry == gArnoldCat && vernum >= 0xA80C) {
+    if(geometry == gArnoldCat && f.vernum >= 0xA80C) {
       f.read(asonov::period_xy);
       f.read(asonov::period_z);
       asonov::set_flags();
       }
-    if(geometry == gProduct && vernum >= 0xA80C) {
-      f.read(hybrid::csteps);
-      if(vernum >= 0xA80D) f.read(product::cspin);
-      if(vernum >= 0xA833) f.read(product::cmirror);
+    if(geometry == gProduct && f.vernum >= 0xA80C) {
+      f.read(product::csteps);
+      if(f.vernum >= 0xA80D) f.read(product::cspin);
       }
-    if(geometry == gRotSpace && vernum >= 0xA833) {
-      f.read(hybrid::csteps);
-      }
-    if(hybri && vernum >= 0xA80C) {
+    if(hybri && f.vernum >= 0xA80C) {
       auto g = geometry;
       load_geometry(f);
       set_geometry(g);
       }
-    if(fake::in()) {
-      ld ar;
-      f.read(ar);
-      fake::around = ar;
-      load_geometry(f);
-      fake::change_around();
-      }
-    if(bt::in() && vernum >= 0xA80C) 
+    if(bt::in() && f.vernum >= 0xA80C) 
       f.read(vid.binary_width);
-    if(euc::in() && vernum >= 0xA80D) {
+    if(euc::in() && f.vernum >= 0xA80D) {
       f.read(euc::eu_input.user_axes);
       f.read(euc::eu_input.twisted);
       }
-    if(vernum >= 0xA810)
+    if(f.vernum >= 0xA810)
       f.read(mine_adjacency_rule);
     }
   
-  EX hookset<void(fhstream&)> hooks_savemap, hooks_loadmap;
-
-#if CAP_EDIT  
   void save_only_map(fhstream& f) {
     f.write(patterns::whichPattern);
     save_geometry(f);
@@ -687,8 +645,6 @@ EX namespace mapstream {
     if(multi::players > 1)
       for(int i=0; i<multi::players; i++)
         f.write(cellids[multi::player[i].at]);
-      
-    callhooks(hooks_savemap, f);
 
     cellids.clear();
     cellbyid.clear();
@@ -891,8 +847,6 @@ EX namespace mapstream {
           }
       }
 
-    callhooks(hooks_loadmap, f);
-
     cellbyid.clear();
     restartGraph();
     bfs();
@@ -921,7 +875,7 @@ EX namespace mapstream {
     n = -1; f.write(n);
     }
   
-  EX bool saveMap(const char *fname) {
+  bool saveMap(const char *fname) {
     fhstream f(fname, "wb");
     if(!f.f) return false;
     f.write(f.vernum);
@@ -933,7 +887,7 @@ EX namespace mapstream {
     return true;
     }
   
-  EX bool loadMap(const string& fname) {
+  bool loadMap(const string& fname) {
     fhstream f(fname, "rb");
     if(!f.f) return false;
     f.read(f.vernum);
@@ -954,9 +908,9 @@ EX namespace mapstream {
     }
   
 #endif
-EX }
+  }
 
-EX namespace mapeditor {
+namespace mapeditor {
 
   EX bool drawplayer = true;
 
@@ -1122,7 +1076,7 @@ EX namespace mapeditor {
     displayButton(8, 8+fs*7, XLAT("w = walls"), 'w', 0);
     displayButton(8, 8+fs*8, XLAT("i = items"), 'i', 0);
     displayButton(8, 8+fs*9, XLAT("l = lands"), 'l', 0);
-    displayButton(8, 8+fs*10, XLAT("c = copy"), 'c', 0);
+    displayfr(8, 8+fs*10, 2, vid.fsize, XLAT("c = copy"), 0xC0C0C0, 0);
     displayButton(8, 8+fs*11, XLAT("u = undo"), 'u', 0);
     if(painttype == 4)
       displayButton(8, 8+fs*12, XLAT("f = flip %1", ONOFF(copysource.mirrored)), 'u', 0);
@@ -1246,7 +1200,7 @@ EX namespace mapeditor {
         c->wall = GDIM == 3 ? waWaxWall : waNone;
         c->landparam = paintwhat >> 8;
         break;
-      case 4: {
+      case 4:
         cell *copywhat = where.second.at;
         c->wall = copywhat->wall;
         c->item = copywhat->item;
@@ -1258,14 +1212,6 @@ EX namespace mapeditor {
         c->stuntime = copywhat->stuntime; 
         if(copywhat->mondir == NODIR) c->mondir = NODIR;
         else c->mondir = gmod((where.first.mirrored == where.second.mirrored ? 1 : -1) * (copywhat->mondir - where.second.spin) + cdir, c->type);
-        break;
-        }
-      case 7:
-        if(c) {
-          copysource = c;
-          painttype = 4;
-          paintwhat_str = XLAT("copying");
-          }
         break;
       }
     checkUndo();
@@ -1349,10 +1295,6 @@ EX namespace mapeditor {
     }
 
   void save_level() {
-    #if ISWEB
-    mapstream::saveMap("web.lev");
-    offer_download("web.lev", "mime/type");
-    #else
     dialog::openFileDialog(levelfile, XLAT("level to save:"), ".lev", [] () {
       if(mapstream::saveMap(levelfile.c_str())) {
         addMessage(XLAT("Map saved to %1", levelfile));
@@ -1363,16 +1305,10 @@ EX namespace mapeditor {
         return false;
         }
       });
-    #endif
     }
 
   void load_level() {
-    #if ISWEB
-    offer_choose_file([] {
-      mapstream::loadMap("data.txt");
-      });
-    #else
-    dialog::openFileDialog(levelfile, XLAT("level to load:"), ".lev", [] () {    
+    dialog::openFileDialog(levelfile, XLAT("level to load:"), ".lev", [] () {
       if(mapstream::loadMap(levelfile.c_str())) {
         addMessage(XLAT("Map loaded from %1", levelfile));
         return true;
@@ -1382,7 +1318,6 @@ EX namespace mapeditor {
         return false;
         }
       });
-    #endif
     }
   
   void showList() {
@@ -1504,10 +1439,6 @@ EX namespace mapeditor {
       painttype = 4;
       paintwhat_str = XLAT("copying");
       }
-    else if(uni == 'c') {
-      painttype = 7;
-      paintwhat_str = XLAT("select area to copy");
-      }
     else if(uni == 'f') {
       copysource.mirrored = !copysource.mirrored;
       }
@@ -1541,7 +1472,7 @@ EX namespace mapeditor {
   // fake key sent to change the color
   static const int COLORKEY = (-10000); 
 
-  EX shiftmatrix drawtrans, drawtransnew;
+  EX transmatrix drawtrans, drawtransnew;
 
   #if CAP_POLY
   void loadShape(int sg, int id, hpcshape& sh, int d, int layer) {
@@ -1553,7 +1484,7 @@ EX namespace mapeditor {
     }
   #endif
 
-  EX void drawGhosts(cell *c, const shiftmatrix& V, int ct) {
+  EX void drawGhosts(cell *c, const transmatrix& V, int ct) {
     if(!(cmode & sm::MAP)) return;
     if(darken != 0) return;
     if(GDIM == 2 && mouseout()) return;
@@ -1571,40 +1502,33 @@ EX namespace mapeditor {
   
   unsigned gridcolor = 0xC0C0C040;
   
-  shiftpoint in_front_dist(ld d) {
-
-    ld ys = current_display->xsize/2;
-    double mx = current_display->tanfov * (mousex - current_display->xcenter)/ys;
-    double my = current_display->tanfov * (mousey - current_display->ycenter)/ys/pconf.stretch;
-    hyperpoint tgt = point3(mx, my, 1);
-    tgt *= d / hypot_d(3, tgt);
-
-    return shiftless(direct_exp(lp_iapply(tgt))); /* todo direct_shift */
+  hyperpoint in_front_dist(ld d) {
+    return direct_exp(lp_iapply(ztangent(d)));
     }
   
-  EX shiftpoint find_mouseh3() {
+  hyperpoint find_mouseh3() {
     if(front_config == eFront::sphere_camera)
       return in_front_dist(front_edit);
     ld step = 0.01;
     ld cdist = 0;
     
-    auto idt = z_inverse(unshift(drawtrans));
+    auto idt = inverse(drawtrans);
 
-    auto qu = [&] (ld d) {
+    auto qu = [&] (ld d) { 
       ld d1 = front_edit;
-      shiftpoint h1 = in_front_dist(d);
+      hyperpoint h1 = in_front_dist(d);
       if(front_config == eFront::sphere_center) 
         d1 = geo_dist(drawtrans * C0, h1);
       if(front_config == eFront::equidistants) {
-        hyperpoint h = idt * unshift(in_front_dist(d));
+        hyperpoint h = idt * in_front_dist(d);
         d1 = asin_auto(h[2]);
         }
       if(front_config == eFront::const_x) {
-        hyperpoint h = idt * unshift(in_front_dist(d));
+        hyperpoint h = idt * in_front_dist(d);
         d1 = asin_auto(h[0]);
         }
       if(front_config == eFront::const_y) {
-        hyperpoint h = idt * unshift(in_front_dist(d));
+        hyperpoint h = idt * in_front_dist(d);
         d1 = asin_auto(h[1]);
         }
       return pow(d1 - front_edit, 2);
@@ -1626,29 +1550,29 @@ EX namespace mapeditor {
     if(!drawcell) drawcell = cwt.at;
     color_t lightgrid = gridcolor;
     lightgrid -= (lightgrid & 0xFF) / 2;
-    shiftmatrix d2 = drawtrans * rgpushxto0(ccenter) * rspintox(gpushxto0(ccenter) * coldcenter);
+    transmatrix d2 = drawtrans * rgpushxto0(ccenter) * rspintox(gpushxto0(ccenter) * coldcenter);
 
     if(GDIM == 3) {
       queuecircleat(mapeditor::drawcell, 1, 0x80D080FF);
       color_t cols[4] = { 0x80D080FF, 0x80D080FF, 0xFFFFFF40, 0x00000040 };
       if(true) {
-        shiftmatrix t = rgpushxto0(find_mouseh3());
+        transmatrix t = rgpushxto0(find_mouseh3());
         for(int i=0; i<4; i++)
           queueline(t * cpush0(i&1, 0.1), t * cpush0(i&1, -0.1), cols[i], -1, i < 2 ? PPR::LINE : PPR::SUPERLINE);
         }
       if(front_config == eFront::sphere_center) for(int i=0; i<4; i+=2) {
         auto pt = [&] (ld a, ld b) {
-          return direct_exp(spin(a*degree) * cspin(0, 2, b*degree) * xtangent(front_edit));
+          return d2 * direct_exp(spin(a*degree) * cspin(0, 2, b*degree) * xtangent(front_edit));
           };
         for(int ai=0; ai<parallels; ai++) {
           ld a = ai * 360 / parallels;
           for(int b=-90; b<90; b+=5) curvepoint(pt(a,b));
-          queuecurve(d2, cols[i + ((ai*4) % parallels != 0)], 0, i < 2 ? PPR::LINE : PPR::SUPERLINE);
+          queuecurve(cols[i + ((ai*4) % parallels != 0)], 0, i < 2 ? PPR::LINE : PPR::SUPERLINE);
           }
         for(int bi=1-meridians; bi<meridians; bi++) {
           ld b = 90 * bi / meridians;
           for(int a=0; a<=360; a+=5) curvepoint(pt(a, b));
-          queuecurve(d2, cols[i + (bi != 0)], 0, i < 2 ? PPR::LINE : PPR::SUPERLINE);
+          queuecurve(cols[i + (bi != 0)], 0, i < 2 ? PPR::LINE : PPR::SUPERLINE);
           }
         }
       transmatrix T;
@@ -1659,13 +1583,13 @@ EX namespace mapeditor {
       for(int i=0; i<4; i+=2) {
         for(int u=2; u<=20; u++) {
           PRING(d) {
-            curvepoint(T * xspinpush(M_PI*d/cgi.S42, u/20.) * zpush0(front_edit));
+            curvepoint(d2 * T * xspinpush(M_PI*d/cgi.S42, u/20.) * zpush0(front_edit));
             }
-          queuecurve(d2, cols[i + (u%5 != 0)], 0, i < 2 ? PPR::LINE : PPR::SUPERLINE);
+          queuecurve(cols[i + (u%5 != 0)], 0, i < 2 ? PPR::LINE : PPR::SUPERLINE);
           }
         for(int d=0; d<cgi.S84; d++) {
-          for(int u=0; u<=20; u++) curvepoint(T * xspinpush(M_PI*d/cgi.S42, u/20.) * zpush(front_edit) * C0);
-          queuecurve(d2, cols[i + (d % (cgi.S84/drawcell->type) != 0)], 0, i < 2 ? PPR::LINE : PPR::SUPERLINE);
+          for(int u=0; u<=20; u++) curvepoint(d2 * T * xspinpush(M_PI*d/cgi.S42, u/20.) * zpush(front_edit) * C0);
+          queuecurve(cols[i + (d % (cgi.S84/drawcell->type) != 0)], 0, i < 2 ? PPR::LINE : PPR::SUPERLINE);
           }
         }
       return;
@@ -1677,9 +1601,9 @@ EX namespace mapeditor {
       }
     for(int u=2; u<=20; u++) {
       PRING(d) {
-        curvepoint(xspinpush0(M_PI*d/cgi.S42, u/20.));
+        curvepoint(d2 * xspinpush0(M_PI*d/cgi.S42, u/20.));
         }
-      queuecurve(d2, (u%5==0) ? gridcolor : lightgrid, 0, PPR::LINE);
+      queuecurve((u%5==0) ? gridcolor : lightgrid, 0, PPR::LINE);
       }
     queueline(drawtrans*ccenter, drawtrans*coldcenter, gridcolor, 4 + vid.linequality);
     }
@@ -1873,7 +1797,7 @@ EX namespace mapeditor {
       displaymm('l', 8, 8+fs*8, 2, vid.fsize, XLAT("l = line"), 0);
       displaymm('c', 8, 8+fs*9, 2, vid.fsize, XLAT("c = circle"), 0);
       if(drawing_tool)
-        displaymm('T', 8, 8+fs*10, 2, vid.fsize, XLAT("T = text"), 0);
+        displaymm('T', 8, 8+fs*10, 10, vid.fsize, XLAT("T = text"), 0);
       if(drawing_tool)
         displaymm('e', 8, 8+fs*11, 2, vid.fsize, XLAT("e = erase"), 0);
       int s = isize(texture::config.data.pixels_to_draw);
@@ -1912,18 +1836,18 @@ EX namespace mapeditor {
     if(!mouseout()) {
       hyperpoint mh;
       if(GDIM == 2) {
-        transmatrix T = z_inverse(unshift(drawtrans)) * rgpushxto0(ccenter); /* todo? */
-        mh = spintox(gpushxto0(ccenter) * coldcenter) * T * unshift(mouseh);
+        transmatrix T = inverse(drawtrans * rgpushxto0(ccenter));
+        mh = spintox(gpushxto0(ccenter) * coldcenter) * T * mouseh;
         }
       else
-        mh = inverse_shift(drawtrans, find_mouseh3());
+        mh = inverse(drawtrans) * find_mouseh3();
         
       displayfr(vid.xres-8, vid.yres-8-fs*7, 2, vid.fsize, XLAT("x: %1", fts(mh[0],4)), 0xC0C0C0, 16);
       displayfr(vid.xres-8, vid.yres-8-fs*6, 2, vid.fsize, XLAT("y: %1", fts(mh[1],4)), 0xC0C0C0, 16);
       displayfr(vid.xres-8, vid.yres-8-fs*5, 2, vid.fsize, XLAT("z: %1", fts(mh[2],4)), 0xC0C0C0, 16);
       if(MDIM == 4)
         displayfr(vid.xres-8, vid.yres-8-fs*4, 2, vid.fsize, XLAT("w: %1", fts(mh[3],4)), 0xC0C0C0, 16);
-      mh = inverse_exp(shiftless(mh));
+      mh = inverse_exp(mh);
       displayfr(vid.xres-8, vid.yres-8-fs*3, 2, vid.fsize, XLAT("r: %1", fts(hypot_d(3, mh),4)), 0xC0C0C0, 16);
       if(GDIM == 3) {
         displayfr(vid.xres-8, vid.yres-8-fs, 2, vid.fsize, XLAT("ϕ: %1°", fts(-atan2(mh[2], hypot_d(2, mh)) / degree,4)), 0xC0C0C0, 16);
@@ -1959,18 +1883,17 @@ EX namespace mapeditor {
     
     dynamicval<bool> ws(mmspatial, false);
     
-    auto sId = shiftless(Id);
     if(sg == 0) {
-      multi::cpid = id, drawMonsterType(moPlayer, drawcell, sId, 0xC0C0C0, 0, 0xC0C0C0);
+      multi::cpid = id, drawMonsterType(moPlayer, drawcell, Id, 0xC0C0C0, 0, 0xC0C0C0);
       }
     else if(sg == 1) {
-      drawMonsterType(eMonster(id), drawcell, sId, minf[id].color, 0, minf[id].color);
+      drawMonsterType(eMonster(id), drawcell, Id, minf[id].color, 0, minf[id].color);
       }
     else if(sg == 2) {
-      drawItemType(eItem(id), drawcell, sId, iinf[id].color, 0, false);
+      drawItemType(eItem(id), drawcell, Id, iinf[id].color, 0, false);
       }
     else {
-      draw_qfi(drawcell, sId, 0, PPR::FLOOR);
+      draw_qfi(drawcell, Id, 0, PPR::FLOOR);
       }
 
     sortquickqueue();
@@ -2002,7 +1925,7 @@ EX namespace mapeditor {
       int d = dsCur->rots * (dsCur->sym ? 2 : 1);
       
       for(int i=0; i < cnt/d; i++)
-        dsCur->list.push_back(unshift(ptd.V) * glhr::gltopoint((*ptd.tab)[i+ptd.offset]));
+        dsCur->list.push_back(ptd.V * glhr::gltopoint((*ptd.tab)[i+ptd.offset]));
       
       layer++;      
       if(layer == USERLAYERS) break;
@@ -2307,12 +2230,12 @@ EX namespace mapeditor {
         addMessage(XLAT("Hint: use F7 to edit floor under the player"));
       }
     
-    shiftpoint mh = GDIM == 2 ? mouseh : find_mouseh3();
-    hyperpoint mh1 = inverse_shift(drawtrans, mh);
+    hyperpoint mh = GDIM == 2 ? mouseh : find_mouseh3();
+    mh = inverse(drawtrans) * mh;
 
     bool clickused = false;
     
-    if((uni == 'p' && mousekey == 'g') || (uni == 'g' && coldcenter == ccenter && ccenter == mh1)) {
+    if((uni == 'p' && mousekey == 'g') || (uni == 'g' && coldcenter == ccenter && ccenter == mh)) {
       static unsigned grid_colors[] = {
         8,
         0x00000040,
@@ -2331,7 +2254,7 @@ EX namespace mapeditor {
     char mkuni = uni == '-' ? mousekey : uni;
     
     if(mkuni == 'g') 
-      coldcenter = ccenter, ccenter = mh1, clickused = true;
+      coldcenter = ccenter, ccenter = mh, clickused = true;
     
     if(uni == 'd' || uni == 'l' || uni == 'c' || uni == 'e' || uni == 'T')
       mousekey = uni;
@@ -2434,7 +2357,6 @@ EX namespace mapeditor {
     #endif
 
     if(freedraw) {
-      if(lstartcell) lstart = ggmatrix(lstartcell) * lstart_rel;
 
 #if CAP_TEXTURE    
       int tcolor = (dtcolor >> 8) | ((dtcolor & 0xFF) << 24);
@@ -2442,21 +2364,21 @@ EX namespace mapeditor {
       
       if(uni == '-' && !clickused) {
         if(mousekey == 'e') {
-          dt_erase(mh);
+          dt_erase(mouseh);
           clickused = true;
           }
         else if(mousekey == 'l' || mousekey == 'c' || mousekey == 'T') {
-          if(!holdmouse) lstart = mh, lstartcell = mouseover, lstart_rel = inverse_shift(ggmatrix(mouseover), lstart), holdmouse = true;
+          if(!holdmouse) lstart = mouseh, lstartcell = mouseover, holdmouse = true;
           }
 #if CAP_TEXTURE
         else if(intexture) {
           if(!holdmouse) texture::config.data.undoLock();
-          texture::drawPixel(mouseover, mh, tcolor);
+          texture::drawPixel(mouseover, mouseh, tcolor);
           holdmouse = true; lstartcell = NULL;
           }
 #endif
         else {
-          dt_add_free(mh);
+          dt_add_free(mouseh);
           holdmouse = true;
           }
         }
@@ -2467,23 +2389,23 @@ EX namespace mapeditor {
         if(mousekey == 'l' && intexture) { 
           texture::config.data.undoLock();
           texture::where = mouseover;
-          texture::drawPixel(mouseover, mh, tcolor);
-          texture::drawLine(mh, lstart, tcolor);
+          texture::drawPixel(mouseover, mouseh, tcolor);
+          texture::drawLine(mouseh, lstart, tcolor);
           lstartcell = NULL;
           }
         else 
 #endif
         if(mousekey == 'l') {
-          dt_add_line(mh, lstart, 10);
+          dt_add_line(mouseh, lstart, 10);
           lstartcell = NULL;
           }
 #if CAP_TEXTURE
         else if(mousekey == 'c' && intexture) { 
           texture::config.data.undoLock();
-          ld rad = hdist(lstart, mh);
+          ld rad = hdist(lstart, mouseh);
           int circp = int(1 + 3 * (circlelength(rad) / dtwidth));
           if(circp > 1000) circp = 1000;
-          shiftmatrix T = rgpushxto0(lstart);
+          transmatrix T = rgpushxto0(lstart);
           texture::where = lstartcell;
           for(int i=0; i<circp; i++)
             texture::drawPixel(T * xspinpush0(2 * M_PI * i / circp, rad), tcolor);
@@ -2491,21 +2413,23 @@ EX namespace mapeditor {
           }
 #endif          
         else if(mousekey == 'c') {
-          dt_add_circle(lstart, mh);
+          dt_add_circle(lstart, mouseh);
           lstartcell = NULL;
           }
         else if(mousekey == 'T') {
           static string text = "";
           dialog::edit_string(text, "", "");
-          shiftpoint h = mh;
+          hyperpoint h = mouseh;
           dialog::reaction_final = [h] {
             if(text != "")
               dt_add_text(h, dtwidth * 50, text);
             };
           lstartcell = nullptr;          
           }
-        else 
-          dt_finish();
+        else {
+          cfree = nullptr;
+          cfree_at = nullptr;
+          }
         }
       
       if(uni >= 1000 && uni < 1010)
@@ -2542,7 +2466,7 @@ EX namespace mapeditor {
     else {
       dslayer %= USERLAYERS;
 
-      applyToShape(drawcellShapeGroup(), drawcellShapeID(), uni, mh1);
+      applyToShape(drawcellShapeGroup(), drawcellShapeID(), uni, mh);
 
       if(uni == 'e' || (uni == '-' && mousekey == 'e')) {
         initdraw(mouseover ? mouseover : cwt.at);
@@ -2612,7 +2536,8 @@ EX namespace mapeditor {
     if(!cheater) patterns::whichShape = 0;
     modelcell.clear();
     mapeditor::dtshapes.clear();
-    dt_finish();
+    mapeditor::cfree = nullptr;
+    mapeditor::cfree_at = nullptr;    
     drawcell = nullptr;
     }) + 
   addHook(hooks_removecells, 0, [] () {
@@ -2636,17 +2561,17 @@ EX namespace mapeditor {
   
   transmatrix textrans;
 
-  EX void queue_hcircle(shiftmatrix Ctr, ld radius) {
+  EX void queue_hcircle(transmatrix Ctr, ld radius) {
     vector<hyperpoint> pts;
     int circp = int(6 * pow(2, vid.linequality));
     if(radius > 0.04) circp *= 2;
     if(radius > .1) circp *= 2; 
     
     for(int j=0; j<circp; j++)
-      pts.push_back(xspinpush0(M_PI*j*2/circp, radius));
+      pts.push_back(Ctr * xspinpush0(M_PI*j*2/circp, radius));
     for(int j=0; j<circp; j++) curvepoint(pts[j]);
     curvepoint(pts[0]);
-    queuecurve(Ctr, dtcolor, 0, PPR::LINE);
+    queuecurve(dtcolor, 0, PPR::LINE);
     }
 
 #if CAP_POLY
@@ -2660,7 +2585,7 @@ EX namespace mapeditor {
 #endif
   
 #if CAP_TEXTURE      
-  EX void draw_texture_ghosts(cell *c, const shiftmatrix& V) {
+  EX void draw_texture_ghosts(cell *c, const transmatrix& V) {
     if(!c) return;
     if(holdmouse && !lstartcell) return;
     cell *ls = lstartcell ? lstartcell : lmouseover;     
@@ -2671,14 +2596,14 @@ EX namespace mapeditor {
     
     if(sio.id == sih.id) {
       if(c == ls)
-        textrans = z_inverse(V.T * applyPatterndir(ls, sio));
+        textrans = inverse(V * applyPatterndir(ls, sio));
       
-      transmatrix mh = textrans * rgpushxto0(unshift(mouseh, V.shift));
-      transmatrix ml = textrans * rgpushxto0(unshift(lstart, V.shift));
+      transmatrix mh = textrans * rgpushxto0(mouseh);
+      transmatrix ml = textrans * rgpushxto0(lstart);
 
       for(int j=0; j<=texture::texturesym; j++)
       for(int i=0; i<c->type; i += sih.symmetries) {
-        shiftmatrix M2 = V * applyPatterndir(c, sih) * spin(2*M_PI*i/c->type);
+        transmatrix M2 = V * applyPatterndir(c, sih) * spin(2*M_PI*i/c->type);
         if(j) M2 = M2 * Mirror;
         switch(holdmouse ? mousekey : 'd') {
           case 'c':
@@ -2696,7 +2621,7 @@ EX namespace mapeditor {
 #endif
 
 #if CAP_POLY
-  EX bool drawUserShape(const shiftmatrix& V, eShapegroup group, int id, color_t color, cell *c, PPR prio IS(PPR::DEFAULT)) {
+  EX bool drawUserShape(const transmatrix& V, eShapegroup group, int id, color_t color, cell *c, PPR prio IS(PPR::DEFAULT)) {
   #if !CAP_EDIT
     return false;
   #else
@@ -2753,42 +2678,40 @@ EX namespace mapeditor {
      
         usershapelayer &ds(us->d[mapeditor::dslayer]);
         
-        shiftpoint moh = GDIM == 2 ? mouseh : find_mouseh3();
-        
-        hyperpoint mh = inverse_shift(mapeditor::drawtrans, moh);
+        hyperpoint mh = inverse(mapeditor::drawtrans) * mouseh;
     
         for(int a=0; a<ds.rots; a++) 
         for(int b=0; b<(ds.sym?2:1); b++) {
     
           if(mouseout()) break;
     
-          shiftpoint P2 = V * spin(2*M_PI*a/ds.rots) * (b?Mirror*mh:mh);
+          hyperpoint P2 = V * spin(2*M_PI*a/ds.rots) * (b?Mirror*mh:mh);
         
           queuestr(P2, 10, "x", 0xFF00FF);
           }
         
         if(isize(ds.list) == 0) return us;
         
-        shiftpoint Plast = V * spin(-2*M_PI/ds.rots) * (ds.sym?Mirror*ds.list[0]:ds.list[isize(ds.list)-1]);
+        hyperpoint Plast = V * spin(-2*M_PI/ds.rots) * (ds.sym?Mirror*ds.list[0]:ds.list[isize(ds.list)-1]);
         int state = 0;
         int gstate = 0;
         double dist2 = 0;
-        shiftpoint lpsm;
+        hyperpoint lpsm;
         
         for(int a=0; a<ds.rots; a++) 
         for(int b=0; b<(ds.sym?2:1); b++) {
         
           hyperpoint mh2 = spin(2*M_PI*-ew.rotid/ds.rots) * mh;
           if(ew.symid) mh2 = Mirror * mh2;
-          shiftpoint pseudomouse = V * spin(2*M_PI*a/ds.rots) * mirrorif(mh2, b);      
+          hyperpoint pseudomouse = V * spin(2*M_PI*a/ds.rots) * mirrorif(mh2, b);      
         
           for(int t=0; t<isize(ds.list); t++) {
             int ti = b ? isize(ds.list)-1-t : t;
   
-            shiftpoint P2 = V * spin(2*M_PI*a/ds.rots) * mirrorif(ds.list[ti], b);
+            hyperpoint P2 = V * spin(2*M_PI*a/ds.rots) * mirrorif(ds.list[ti], b);
             
             if(!mouseout()) {
-              double d = hdist(moh, P2);
+              double d = hdist(mouseh, P2);
               if(d < ewsearch.dist)
                 ewsearch.dist = d,
                 ewsearch.rotid = a,
@@ -2797,10 +2720,10 @@ EX namespace mapeditor {
                 ewsearch.c = c,
                 ewsearch.side = b,
                 state = 1,
-                dist2 = d + hdist(moh, Plast) - hdist(P2, Plast);
+                dist2 = d + hdist(mouseh, Plast) - hdist(P2, Plast);
             
               else if(state == 1) {
-                double dist3 = d + hdist(moh, Plast) - hdist(P2, Plast);
+                double dist3 = d + hdist(mouseh, Plast) - hdist(P2, Plast);
                 if(dist3 < dist2) 
                   ewsearch.side = !ewsearch.side;
                 state = 2;
@@ -2826,8 +2749,8 @@ EX namespace mapeditor {
                 
         if(gstate == 1) queueline(lpsm, V * ds.list[0], 0x90000080), gstate = 0;
         if(state == 1) {
-          shiftpoint P2 = V * ds.list[0];
-          if(hdist(moh, P2) + hdist(moh, Plast) - hdist(P2, Plast) < dist2) 
+          hyperpoint P2 = V * ds.list[0];
+          if(hdist(mouseh, P2) + hdist(mouseh, Plast) - hdist(P2, Plast) < dist2) 
             ewsearch.side = 1;
           }
         }

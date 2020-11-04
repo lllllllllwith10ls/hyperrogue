@@ -127,7 +127,7 @@ namespace rogueviz {
   void close();
   extern bool showlabels;
   
-  namespace pres {
+  namespace rvtour {
     using namespace hr::tour;
     inline hookset<void(vector<slide>&)> hooks_build_rvtour;
     slide *gen_rvtour();
@@ -179,7 +179,7 @@ function<void(presmode)> roguevizslide_action(char c, const T& t, const U& act) 
   extern string fname;
 
   colorpair perturb(colorpair cp);
-  void queuedisk(const shiftmatrix& V, const colorpair& cp, bool legend, const string* info, int i);
+  void queuedisk(const transmatrix& V, const colorpair& cp, bool legend, const string* info, int i);
 
   }
 

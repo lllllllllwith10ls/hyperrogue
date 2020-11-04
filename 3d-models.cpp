@@ -785,19 +785,19 @@ void geometry_information::shift_last_straight(ld z) {
   for(int i=last->s; i<isize(hpc); i++) hpc[i] = zpush(z) * hpc[i];
   }
 
-EX void queueball(const shiftmatrix& V, ld rad, color_t col, eItem what) {
+EX void queueball(const transmatrix& V, ld rad, color_t col, eItem what) {
   if(what == itOrbSpeed) {
-    shiftmatrix V1 = V * cspin(1, 2, M_PI/2);
+    transmatrix V1 = V * cspin(1, 2, M_PI/2);
     ld tt = ptick(100);
     for(int t=0; t<5; t++) {
       for(int a=-50; a<50; a++)
-        curvepoint(cspin(0, 2, a * M_PI/100.) * cspin(0, 1, t * 72 * degree + tt + a*2*M_PI/50.) * xpush0(rad));
-      queuecurve(V1, col, 0, PPR::LINE);
+        curvepoint(V1 * cspin(0, 2, a * M_PI/100.) * cspin(0, 1, t * 72 * degree + tt + a*2*M_PI/50.) * xpush0(rad));
+      queuecurve(col, 0, PPR::LINE);
       }
     return;
     }
   ld z = 63.43 * degree;
-  shiftmatrix V1 = V * cspin(0, 2, M_PI/2);
+  transmatrix V1 = V * cspin(0, 2, M_PI/2);
   if(what == itOrbShield) V1 = V * cspin(0, 1, ptick(500));
   if(what == itOrbFlash) V1 = V * cspin(0, 1, ptick(1500));
   if(what == itOrbShield) V1 = V * cspin(1, 2, ptick(1000));
@@ -808,8 +808,8 @@ EX void queueball(const shiftmatrix& V, ld rad, color_t col, eItem what) {
     hyperpoint h0 = A * xpush0(1);
     hyperpoint h1 = B * xpush0(1);
     for(int i=0; i<=8; i++)
-      curvepoint(rspintox(normalize(h0*(8-i) + h1*i)) * xpush0(rad));
-    queuecurve(V1, col, 0, PPR::LINE);
+      curvepoint(V1 * rspintox(normalize(h0*(8-i) + h1*i)) * xpush0(rad));
+    queuecurve(col, 0, PPR::LINE);
     };
   for(int i=0; i<5; i++) {
     auto a = cspin(1, 2, (72 * i   ) * degree) * spin(z);
@@ -845,7 +845,7 @@ void geometry_information::make_3d_models() {
     }
 #endif
   
-  if(WDIM == 2 || euclid) {
+  if(WDIM == 2) {
     DEBB(DF_POLY, ("shadows"));
     for(hpcshape* sh: {&shBatWings, &shBugBody, &shBullBody, &shButterflyWing, &shCatBody, &shDogBody, &shDogTorso,
       &shEagle, &shFemaleBody, &shFlailMissile, &shGadflyWing, &shGargoyleWings, &shHawk, &shJiangShi, &shKnife,

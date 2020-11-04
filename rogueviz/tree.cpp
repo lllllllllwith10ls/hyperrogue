@@ -122,8 +122,8 @@ int readArgs() {
   }
 
 int ah = addHook(hooks_args, 120, readArgs)
-+ addHook(pres::hooks_build_rvtour, 120, [] (vector<tour::slide>& v) {
-    using namespace pres;
++ addHook(rvtour::hooks_build_rvtour, 120, [] (vector<tour::slide>& v) {
+    using namespace rvtour;
     v.push_back(
       tour::slide{"hyperbolic geometry and data/Tree of Life", 61, LEGAL::UNLIMITED | QUICKGEO,
       "Hyperbolic geometry is much better than the Euclidean geometry at visualizing large trees and other hierarchical structures. "

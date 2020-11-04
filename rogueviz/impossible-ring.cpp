@@ -214,7 +214,7 @@ void reset() {
   ir = nullptr;
   }
 
-bool draw_ptriangle(cell *c, const shiftmatrix& V) {
+bool draw_ptriangle(cell *c, const transmatrix& V) {
 
   if(!on) return false;
   
@@ -290,10 +290,10 @@ auto hchook = addHook(hooks_drawcell, 100, draw_ptriangle)
 
 + addHook(hooks_o_key, 80, o_key)
 
-+ addHook(pres::hooks_build_rvtour, 167, [] (vector<tour::slide>& v) {
++ addHook(rvtour::hooks_build_rvtour, 152, [] (vector<tour::slide>& v) {
   using namespace tour;
   v.push_back(
-    tour::slide{"non-isotropic geometries/Impossible architecture in Nil/impossible ring", 18, LEGAL::NONE | QUICKGEO, 
+    tour::slide{"Impossible architecture in Nil/impossible ring", 18, LEGAL::NONE | QUICKGEO, 
       "Ring with a square cross-section. Cut it in half. Rotate one of the two halves by 90°, "
       "keeping one of the two ends connected to the other half. Do this in Nil geometry, so the other pair of ends remains connected too.\n\n"
       "Move with mouse/arrows/PgUpDn. Press '5' to enable animation, 'o' to change ring size.\n\n",
@@ -312,9 +312,7 @@ auto hchook = addHook(hooks_drawcell, 100, draw_ptriangle)
       tour::slide_backup(mapeditor::drawplayer, false);
       tour::slide_backup(on, true);
       tour::slide_backup(smooth_scrolling, true);
-      tour::on_restore(nilv::set_flags);
       tour::slide_backup(nilv::nilperiod, make_array(3, 3, 3));
-      nilv::set_flags();
       start_game();
       playermoved = false;
       }

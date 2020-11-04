@@ -12,7 +12,7 @@ EX int frames;
 EX bool outoffocus = false;
 
 EX int mousex, mousey;
-EX shiftpoint mouseh, mouseoh;
+EX hyperpoint mouseh, mouseoh;
 
 EX bool pandora_leftclick, pandora_rightclick;
 
@@ -66,17 +66,17 @@ EX int lastt;
 
 EX bool mouseout() {
   if((getcstat != '-' && getcstat) || (lgetcstat && lgetcstat != '-')) return true;
-  return outofmap(mouseh.h);
+  return outofmap(mouseh);
   }
 
 EX bool mouseout2() {
   if((getcstat && getcstat != '-') || (lgetcstat && lgetcstat != '-')) return true;
-  return outofmap(mouseh.h) || outofmap(mouseoh.h);
+  return outofmap(mouseh) || outofmap(mouseoh);
   }
 
 EX movedir vectodir(hyperpoint P) {
 
-  transmatrix U = unshift(ggmatrix(cwt.at));
+  transmatrix U = ggmatrix(cwt.at);
   if(GDIM == 3 && WDIM == 2)  U = radar_transform * U;
 
   P = direct_exp(lp_iapply(P));
@@ -137,18 +137,18 @@ EX void movepckeydir(int d) {
 EX void calcMousedest() {
   if(mouseout()) return;
   if(vid.revcontrol == true) { mouseh[0] = -mouseh[0]; mouseh[1] = -mouseh[1]; }
-  ld mousedist = hdist(mouseh, tC0(ggmatrix(cwt.at)));
+  ld mousedist = intval(mouseh, tC0(ggmatrix(cwt.at)));
   mousedest.d = -1;
   
   cellwalker bcwt = cwt;
   
   vector<ld> dists(cwt.at->type);
   
-  shiftmatrix U = ggmatrix(cwt.at);
+  transmatrix U = ggmatrix(cwt.at);
   
   for(int i=0; i<cwt.at->type; i++) {
     transmatrix T = currentmap->adj(cwt.at, i);
-    dists[i] = hdist(mouseh, U * T * C0);
+    dists[i] = intval(mouseh, U * T * C0);
     }
   
   for(int i=0; i<cwt.at->type; i++) if(dists[i] < mousedist) {
@@ -314,14 +314,11 @@ EX void zoom_or_fov(ld t) {
     vpconf.scale *= t;
   }
 
-EX ld camera_speed = 1;
-EX ld camera_rot_speed = 1;
-
 EX void full_forward_camera(ld t) {
   if(anyshiftclick) 
     zoom_or_fov(exp(-t/10.));
   else if(GDIM == 3) {
-    shift_view(ctangent(2, t * camera_speed));
+    shift_view(ctangent(2, t));
     didsomething = true;
     playermoved = false;
     }
@@ -329,15 +326,14 @@ EX void full_forward_camera(ld t) {
 
 EX void full_rotate_camera(int dir, ld val) {
   if(rug::rug_control() && lshiftclick) {
-    val *= camera_rot_speed;
     hyperpoint h;
     if(nonisotropic) {
-      transmatrix T2 = eupush( tC0(view_inverse(View)) );
+      transmatrix T2 = eupush( tC0(inverse(View)) );
       transmatrix nlp = View * T2;  
-      auto rV = ortho_inverse(nlp) * View;
-      h = nlp * inverse_exp(shiftless(tC0(rV)));
+      auto rV = inverse(nlp) * View;
+      h = nlp * inverse_exp(tC0(rV));
       }
-    else h = inverse_exp(shiftless(tC0(View)));
+    else h = inverse_exp(tC0(View));
     shift_view(-h);
     rotate_view(cspin(dir, 2, val));
     shift_view(h);    
@@ -345,13 +341,12 @@ EX void full_rotate_camera(int dir, ld val) {
   else if(history::on)
     history::lvspeed += (dir?1:-1) * val / 2;
   else if(GDIM == 3 && rshiftclick)
-    shift_view(ctangent(dir, -val * camera_speed)), didsomething = true, playermoved = false; /* -val because shift reverses */
+    shift_view(ctangent(dir, -val)), didsomething = true, playermoved = false; /* -val because shift reverses */
   #if CAP_CRYSTAL && CAP_RUG
   else if(rug::rug_control() && rug::in_crystal())
-    crystal::apply_rotation(cspin(dir, 2, val * camera_rot_speed));
+    crystal::apply_rotation(cspin(dir, 2, val));
   #endif
   else if(GDIM == 3) {
-    val *= camera_rot_speed;
     if(keep_vertical()) {
       hyperpoint vv = vertical_vector();
       ld alpha = -atan2(vv[2], vv[1]);
@@ -369,14 +364,14 @@ EX void full_rotate_camera(int dir, ld val) {
     if(!rug::rug_control()) didsomething = true;
     }
   else
-    shift_view(ctangent(dir, val * camera_speed)), playermoved = false, didsomething = true;      
+    shift_view(ctangent(dir, val)), playermoved = false, didsomething = true;      
   }
 
 EX void full_rotate_view(ld h, ld v) {
   if(history::on && !rug::rug_control())
-    models::rotation += h * camera_rot_speed;
+    models::rotation += h;
   else {
-    rotate_view(spin(v * camera_rot_speed));
+    rotate_view(spin(v));
     didsomething = true;
     if(isGravityLand(cwt.at->land) && !rug::rug_control())
       playermoved = false;
@@ -386,8 +381,8 @@ EX void full_rotate_view(ld h, ld v) {
 EX void handlePanning(int sym, int uni) {
   if(mousepan && dual::split([=] { handlePanning(sym, uni); })) return;
   if(GDIM == 3) {
-    if(sym == PSEUDOKEY_WHEELUP) shift_view(ztangent(-0.05*shiftmul) * camera_speed), didsomething = true, playermoved = false;
-    if(sym == PSEUDOKEY_WHEELDOWN) shift_view(ztangent(0.05*shiftmul) * camera_speed), didsomething = true, playermoved = false;
+    if(sym == PSEUDOKEY_WHEELUP) shift_view(ztangent(-0.05*shiftmul)), didsomething = true, playermoved = false;
+    if(sym == PSEUDOKEY_WHEELDOWN) shift_view(ztangent(0.05*shiftmul)), didsomething = true, playermoved = false;
     }
 
   #if CAP_RUG
@@ -415,7 +410,7 @@ EX void handlePanning(int sym, int uni) {
     ld jx = (mousex - current_display->xcenter - .0) / current_display->radius / 10;
     ld jy = (mousey - current_display->ycenter - .0) / current_display->radius / 10;
     playermoved = false;
-    rotate_view(gpushxto0(hpxy(jx * camera_speed, jy * camera_speed)));
+    rotate_view(gpushxto0(hpxy(jx, jy)));
     sym = 1;
     }
   }
@@ -480,13 +475,11 @@ EX void handleKeyNormal(int sym, int uni) {
     }
 #endif
 
-  #if CAP_COMPLEX2
   if(DEFAULTNOR(sym)) {
     gmodekeys(sym, uni);
     if(uni == 'm' && canmove && (centerover == cwt.at ? mouseover : centerover))
       mine::performMarkCommand(mouseover);
     }
-  #endif
   
   if(DEFAULTCONTROL) {
     if(sym == '.' || sym == 's') movepcto(-1, 1);
@@ -627,11 +620,6 @@ int lastframe;
 
 EX int sc_ticks;
 
-EX bool mouseaiming(bool shmupon) {
-  return
-    (GDIM == 3 && !shmupon) || (rug::rugged && (lctrlclick ^ rug::mouse_control_rug));
-  }
-
 EX void mainloopiter() {
 
   DEBB(DF_GRAPH, ("main loop\n"));
@@ -666,9 +654,7 @@ EX void mainloopiter() {
     if(cwt.mirrored) playerV = playerV * Mirror;
     }
   
-  mousepan = cmode & sm::NORMAL;
-  if((cmode & (sm::DRAW | sm::MAP)) && !hiliteclick) mousepan = true;
-  mousepan = mousepan && mouseaiming(false) && mouseaim_sensitivity;
+  mousepan = (cmode & (sm::NORMAL | sm::DRAW | sm::MAP)) && (GDIM == 3 || (rug::rugged && lctrlclick)) && mouseaim_sensitivity;
   if(mousepan != oldmousepan) {
     oldmousepan = mousepan;
     #if CAP_MOUSEGRAB
@@ -709,7 +695,6 @@ EX void mainloopiter() {
     frames++;
     if(!outoffocus) {
       drawscreen();
-      need_refresh = false;
       }
     lastframe = ticks;
     }      
@@ -757,7 +742,7 @@ EX void mainloopiter() {
   SDL_Event ev;
   DEBB(DF_GRAPH, ("polling for events\n"));
   
-  if(mouseaiming(shmup::on)) {
+  if((GDIM == 3 && !shmup::on) || (lctrlclick && rug::rugged)) {
     #if CAP_MOUSEGRAB
     rug::using_rugview urv;
     dynamicval<bool> ds(didsomething, didsomething);
@@ -792,9 +777,7 @@ EX void mainloopiter() {
   if(joydir.d != -1) checkjoy();
   #endif
   }
-
-EX bool need_refresh;
-
+  
 EX void handle_event(SDL_Event& ev) {
   bool normal = cmode & sm::NORMAL;
     DEBB(DF_GRAPH, ("got event type #%d\n", ev.type));
@@ -1026,15 +1009,6 @@ EX void handle_event(SDL_Event& ev) {
       nofps = !nofps;
       sym = 0;
       }
-    
-    if(sym || uni) {
-      if(need_refresh) {
-        just_refreshing = true;
-        screens.back()();
-        just_refreshing = false;
-        }
-      need_refresh = true;
-      }
       
     handlekey(sym, uni);
     }
@@ -1113,7 +1087,7 @@ EX bool gmodekeys(int sym, int uni) {
       ld maxs = 0;
       auto& cd = current_display;
       for(auto& p: gmatrix) for(int i=0; i<p.first->type; i++) {
-        shiftpoint h = tC0(p.second * currentmap->adj(p.first, i));
+        hyperpoint h = tC0(p.second * currentmap->adj(p.first, i));
         hyperpoint onscreen;
         applymodel(h, onscreen);
         maxs = max(maxs, onscreen[0] / cd->xsize);
@@ -1129,13 +1103,7 @@ EX bool gmodekeys(int sym, int uni) {
     else if(NUMBERKEY == '3' && !rug::rugged) { pconf.alpha = 1; pconf.scale = 1; pconf.xposition = pconf.yposition = 0; }
     else if(NUMBERKEY == '4' && !rug::rugged) { pconf.alpha = 0; pconf.scale = 1; pconf.xposition = pconf.yposition = 0; }
     else if(NUMBERKEY == '5') { vid.wallmode += 60 + (shiftmul > 0 ? 1 : -1); vid.wallmode %= 7; }
-    else if((NUMBERKEY == '8' && hiliteclick) || NUMBERKEY == 508) { 
-      vid.highlightmode += 60 + (shiftmul > 0 ? 1 : -1); vid.highlightmode %= 3; 
-      }
-    else if(NUMBERKEY == '8') { 
-      vid.monmode += 60 + (shiftmul > 0 ? 1 : -1); vid.monmode %= 4; 
-      }
-       
+    else if(NUMBERKEY == '8') { vid.monmode += 60 + (shiftmul > 0 ? 1 : -1); vid.monmode %= 6; }  
     else if(uni == '%') { 
       if(vid.wallmode == 0) vid.wallmode = 6;
       vid.wallmode--;
@@ -1329,9 +1297,9 @@ EX void check_orientation() {
     }
   transmatrix next_orientation = MirrorX * getOrientation();
   transmatrix T = inverse(next_orientation) * last_orientation;
-  if(mode == 1) unrotate(View), unrotate(cwtV.T);
+  if(mode == 1) unrotate(View), unrotate(cwtV);
   relative_matrix = change_geometry(T);
-  if(mode == 1) rerotate(View), rerotate(cwtV.T);
+  if(mode == 1) rerotate(View), rerotate(cwtV);
   if(mode == 2) View = relative_matrix * View, last_orientation = next_orientation;
 #endif
   }

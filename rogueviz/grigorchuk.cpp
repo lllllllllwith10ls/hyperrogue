@@ -393,15 +393,17 @@ struct hrmap_grigorchuk : hrmap_standard {
     return h;
     }
   
-  void draw_at(cell *at, const shiftmatrix& where) override {
+  void draw() override {
   
-    dq::clear_all();
-    dq::enqueue_by_matrix(at->master, where * master_relative(centerover, true));
+    dq::visited_by_matrix.clear();
+    dq::enqueue_by_matrix(centerover->master, cview() * master_relative(centerover, true));
     
     while(!dq::drawqueue.empty()) {      
       auto& p = dq::drawqueue.front();
       heptagon *h = get<0>(p);
-      shiftmatrix V = get<1>(p);
+      transmatrix V = get<1>(p);
+      dynamicval<ld> b(band_shift, get<2>(p));
+      bandfixer bf(V);
       dq::drawqueue.pop();
             
       cell *c = h->c7;
@@ -417,19 +419,19 @@ struct hrmap_grigorchuk : hrmap_standard {
       drawcell(c, V * master_relative(c, false));
       
       for(int i=0; i<3; i++) if(c->move(i))
-        dq::enqueue_by_matrix(h->cmove(i), optimized_shift(V * adj(h, i)));
+        dq::enqueue_by_matrix(h->cmove(i), V * adj(h, i));
       }
     }
   
   transmatrix relative_matrix(heptagon *h2, heptagon *h1, const hyperpoint& hint) override {
     if(gmatrix0.count(h2->c7) && gmatrix0.count(h1->c7))
-      return inverse_shift(gmatrix0[h1->c7], gmatrix0[h2->c7]);
+      return inverse(gmatrix0[h1->c7]) * gmatrix0[h2->c7];
     return Id;
     }
 
   transmatrix relative_matrix(cell *c2, cell *c1, const struct hyperpoint& hint) override {
     if(gmatrix0.count(c2) && gmatrix0.count(c1))
-      return inverse_shift(gmatrix0[c1], gmatrix0[c2]);
+      return inverse(gmatrix0[c1]) * gmatrix0[c2];
     return Id;
     }
   };
@@ -440,6 +442,7 @@ void create_grigorchuk_geometry() {
   if(gGrigorchuk != eGeometry(-1)) return;
   ginf.push_back(ginf[gNormal]);
   gGrigorchuk = eGeometry(isize(ginf) - 1);
+  variation = eVariation::pure;
   auto& gi = ginf[gGrigorchuk];
   gi.sides = 3;
   gi.vertex = 8;
@@ -448,6 +451,7 @@ void create_grigorchuk_geometry() {
   gi.quotient_name = "Grigorchuk";
   gi.menu_displayed_name = "Grigorchuk group";
   gi.shortname = "Grig";
+  gi.xcode = 0x31400;
   gi.default_variation = eVariation::pure;
   }
 
@@ -496,8 +500,8 @@ auto hook = addHook(hooks_args, 100, readArgsG)
     })
    + addHook(hooks_initialize, 100, create_grigorchuk_geometry)
 
-  + addHook(rogueviz::pres::hooks_build_rvtour, 140, [] (vector<tour::slide>& v) {
-    using namespace rogueviz::pres;
+  + addHook(rogueviz::rvtour::hooks_build_rvtour, 140, [] (vector<tour::slide>& v) {
+    using namespace rogueviz::rvtour;
     v.push_back(tour::slide{
       "unsorted/Grigorchuk group", 10, tour::LEGAL::NONE,
 

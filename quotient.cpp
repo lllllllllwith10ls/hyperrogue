@@ -32,9 +32,9 @@ EX namespace quotientspace {
   
   int rv(int x) { return (rvadd+x*rvdir) % S7; }
 
-#if HDR
-constexpr int symmask = (1<<30);
+  constexpr int symmask = (1<<30);
 
+#if HDR
 struct code {
   vector<int> connections;
 

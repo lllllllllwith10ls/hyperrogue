@@ -63,8 +63,10 @@ struct drawqueueitem {
 
 /** \brief Drawqueueitem used to draw polygons. The majority of drawqueueitems fall here. */
 struct dqi_poly : drawqueueitem {
+  /** \brief see hr::band_shift */
+  ld band_shift;
   /** \brief matrix used to transform the model */
-  shiftmatrix V;
+  transmatrix V;
   /** \brief a vector of GL vertices where the model is stored */
   const vector<glvertex> *tab;
   /** \brief the where does the model start */
@@ -93,8 +95,10 @@ struct dqi_poly : drawqueueitem {
 
 /** \brief Drawqueueitem used to draw lines */
 struct dqi_line : drawqueueitem {
+  /** \brief see hr::band_shift */
+  ld band_shift;
   /** \brief starting and ending point */
-  shiftpoint H1, H2;
+  hyperpoint H1, H2;
   /** \brief how accurately to render the line */
   int prf;
   /** \brief width of this line */
@@ -213,7 +217,7 @@ EX void glflush() {
     // printf("%08X | %d texts, %d vertices\n", text_color, texts_merged, isize(text_vertices));
     current_display->next_shader_flags = GF_TEXTURE;
     dynamicval<eModel> m(pmodel, mdPixel);
-    if(!svg::in) current_display->set_all(0,0);
+    if(!svg::in) current_display->set_all(0);
     glBindTexture(GL_TEXTURE_2D, text_texture);
     glhr::color2(text_color);
     glhr::set_depthtest(false);
@@ -262,19 +266,14 @@ void add1(const hyperpoint& H) {
   glcoords.push_back(glhr::pointtogl(H)); 
   }  
 
-int axial_sign() {
-  return ((axial_x ^ axial_y)&1) ? -1:1;
-  }
-
 bool is_behind(const hyperpoint& H) {
-  if(pmodel == mdAxial && sphere) return axial_sign() * H[2] <= BEHIND_LIMIT;
   return pmodel == mdDisk && (hyperbolic ? H[2] >= 0 : true) && (nonisotropic ? false : pconf.alpha + H[2] <= BEHIND_LIMIT);
   }
 
 hyperpoint be_just_on_view(const hyperpoint& H1, const hyperpoint &H2) {
   // H1[2] * t + H2[2] * (1-t) == BEHIND_LIMIT - pconf.alpha
   // H2[2]- BEHIND_LIMIT + pconf.alpha = t * (H2[2] - H1[2])
-  ld t = (axial_sign() * H2[2] - BEHIND_LIMIT + (pmodel == mdAxial ? 0 : pconf.alpha)) / (H2[2] - H1[2]) * axial_sign();
+  ld t = (H2[2] - BEHIND_LIMIT + pconf.alpha) / (H2[2] - H1[2]);
   return H1 * t + H2 * (1-t);
   }
 
@@ -293,8 +292,6 @@ EX bool two_sided_model() {
   if(pmodel == mdHyperboloid) return !euclid;
   // if(pmodel == mdHemisphere) return true;
   if(pmodel == mdDisk) return sphere;
-  if(pmodel == mdRetroLittrow) return sphere;
-  if(pmodel == mdRetroHammer) return sphere;
   if(pmodel == mdHemisphere) return true;
   if(pmodel == mdRotatedHyperboles) return true;
   if(pmodel == mdSpiral && pconf.spiral_cone < 360) return true;
@@ -307,12 +304,6 @@ EX int get_side(const hyperpoint& H) {
     double horizon = curnorm / pconf.alpha;
     return (H[2] <= -horizon) ? -1 : 1;
     }
-  if(pmodel == mdRetroLittrow && sphere) {
-    return H[2] >= 0 ? 1 : -1;
-    }
-  if(pmodel == mdRetroHammer && sphere) {
-    return H[2] >= 0 ? 1 : -1;
-    }
   if(pmodel == mdRotatedHyperboles)
     return H[1] > 0 ? -1 : 1;
   if(pmodel == mdHyperboloid && hyperbolic)
@@ -321,11 +312,11 @@ EX int get_side(const hyperpoint& H) {
     return (models::sin_ball * H[2] > models::cos_ball * H[1]) ? -1 : 1;
   if(pmodel == mdHemisphere) {
     hyperpoint res;
-    applymodel(shiftless(H), res);
+    applymodel(H, res);
     return res[2] < 0 ? -1 : 1;
     }
   if(pmodel == mdSpiral && pconf.spiral_cone < 360) {    
-    return cone_side(shiftless(H));
+    return cone_side(H);
     }
   return 0;
   }
@@ -347,20 +338,20 @@ void fixpoint(glvertex& hscr, hyperpoint H) {
       bad = mid;
     }
   hyperpoint Hscr;
-  applymodel(shiftless(good), Hscr); 
+  applymodel(good, Hscr); 
   hscr = glhr::makevertex(Hscr[0]*current_display->radius, Hscr[1]*current_display->radius*pconf.stretch, Hscr[2]*current_display->radius); 
   }
 
-void addpoint(const shiftpoint& H) {
+void addpoint(const hyperpoint& H) {
   if(true) {
     ld z = current_display->radius;
     // if(pconf.alpha + H[2] <= BEHIND_LIMIT && pmodel == mdDisk) poly_flags |= POLY_BEHIND;
     
     if(spherespecial) {
-      auto H0 = H.h;
-      if(correct_side(H0)) {
+      
+      if(correct_side(H)) {
         poly_flags |= POLY_INFRONT, last_infront = false;
-        if(!knowgood || (spherespecial > 0 ? H[2]>goodpoint[2] : H[2]<goodpoint[2])) goodpoint = H0, knowgood = true;
+        if(!knowgood || (spherespecial > 0 ? H[2]>goodpoint[2] : H[2]<goodpoint[2])) goodpoint = H, knowgood = true;
         } 
       else if(sphere && (poly_flags & POLY_ISSIDE)) {
         double curnorm = H[0]*H[0]+H[1]*H[1]+H[2]*H[2];
@@ -377,8 +368,8 @@ void addpoint(const shiftpoint& H) {
         }
       else {
         poly_flags |= POLY_NOTINFRONT;
-        tofix.push_back(make_pair(glcoords.size(), H0));
-        add1(H0);
+        tofix.push_back(make_pair(glcoords.size(), H));
+        add1(H);
         return;
         }
       }
@@ -387,12 +378,13 @@ void addpoint(const shiftpoint& H) {
     if(sphere && pmodel == mdSpiral) {
       if(isize(glcoords)) {
         hyperpoint Hscr1;
-        shiftpoint H1 = H; H1.shift += 2 * M_PI;
-        applymodel(H1, Hscr1);
+        band_shift += 2 * M_PI;
+        applymodel(H, Hscr1);
         if(hypot_d(2, Hlast-Hscr1) < hypot_d(2, Hlast-Hscr)) { Hscr = Hscr1; }
-        H1.shift -= 4 * M_PI;
-        applymodel(H1, Hscr1);
+        band_shift -= 4 * M_PI;
+        applymodel(H, Hscr1);
         if(hypot_d(2, Hlast-Hscr1) < hypot_d(2, Hlast-Hscr)) { Hscr = Hscr1; }
+        band_shift += 2 * M_PI;
         }
       Hlast = Hscr;
       }
@@ -420,18 +412,18 @@ void coords_to_poly() {
     }
   }
 
-bool behind3(shiftpoint h) {
-  if(pmodel == mdGeodesic) 
-    return lp_apply(inverse_exp(h))[2] < 0;
+bool behind3(hyperpoint h) {
+  if(pmodel == mdGeodesic)
+    h = lp_apply(inverse_exp(h));
   return h[2] < 0;
   }
 
-void addpoly(const shiftmatrix& V, const vector<glvertex> &tab, int ofs, int cnt) {
+void addpoly(const transmatrix& V, const vector<glvertex> &tab, int ofs, int cnt) {
   if(pmodel == mdPixel) {
     for(int i=ofs; i<ofs+cnt; i++) {
       hyperpoint h = glhr::gltopoint(tab[i]);
       h[3] = 1;
-      h = V.T * h;
+      h = V * h;
       add1(h);
       }
     return;
@@ -440,35 +432,35 @@ void addpoly(const shiftmatrix& V, const vector<glvertex> &tab, int ofs, int cnt
   if(among(pmodel, mdPerspective, mdGeodesic)) {
     if(poly_flags & POLY_TRIANGLES) {
       for(int i=ofs; i<ofs+cnt; i+=3) {
-        shiftpoint h0 = V * glhr::gltopoint(tab[i]);
-        shiftpoint h1 = V * glhr::gltopoint(tab[i+1]);
-        shiftpoint h2 = V * glhr::gltopoint(tab[i+2]);
+        hyperpoint h0 = V * glhr::gltopoint(tab[i]);
+        hyperpoint h1 = V * glhr::gltopoint(tab[i+1]);
+        hyperpoint h2 = V * glhr::gltopoint(tab[i+2]);
         if(!behind3(h0) && !behind3(h1) && !behind3(h2)) 
           addpoint(h0), addpoint(h1), addpoint(h2);
         }
       }
     else {
       for(int i=ofs; i<ofs+cnt; i++) {
-        shiftpoint h = V * glhr::gltopoint(tab[i]);
+        hyperpoint h = V * glhr::gltopoint(tab[i]);
         if(!behind3(h)) addpoint(h);
         }
       }
     return;
     }
-  shiftpoint last = V * glhr::gltopoint(tab[ofs]);
-  bool last_behind = is_behind(last.h);
+  hyperpoint last = V * glhr::gltopoint(tab[ofs]);
+  bool last_behind = is_behind(last);
   if(!last_behind) addpoint(last);
   hyperpoint enter = C0;
   hyperpoint firstleave;
   int start_behind = last_behind ? 1 : 0;
   for(int i=ofs+1; i<ofs+cnt; i++) {
-    shiftpoint curr = V*glhr::gltopoint(tab[i]);
-    if(is_behind(curr.h) != last_behind) {
-      hyperpoint h = be_just_on_view(last.h, curr.h);
+    hyperpoint curr = V*glhr::gltopoint(tab[i]);
+    if(is_behind(curr) != last_behind) {
+      hyperpoint h = be_just_on_view(last, curr);
       if(start_behind == 1) start_behind = 2, firstleave = h;
       if(!last_behind) enter = h;
       else if(h[0] * enter[0] + h[1] * enter[1] < 0) poly_flags |= POLY_BEHIND;
-      addpoint(shiftless(h));
+      addpoint(h);
       last_behind = !last_behind;
       }
     if(!last_behind) addpoint(curr);
@@ -476,12 +468,12 @@ void addpoly(const shiftmatrix& V, const vector<glvertex> &tab, int ofs, int cnt
     }
   if(start_behind == 2) {
     if(firstleave[0] * enter[0] + firstleave[1] * enter[1] < 0) poly_flags |= POLY_BEHIND;
-    else addpoint(shiftless(firstleave));
+    else addpoint(firstleave);
     }
   if(knowgood && isize(tofix)) {
     
     if(true) {
-      hyperpoint Hx = V.T * C0, Hy = goodpoint;
+      hyperpoint Hx = V * C0, Hy = goodpoint;
       for(int i=0; i<20; i++) {
         hyperpoint mid = midz(Hx, Hy);
         if(correct_side(mid)) Hy = mid;
@@ -590,13 +582,13 @@ void dqi_poly::gldraw() {
 
     if((flags & POLY_CCONVEX) && !(flags & POLY_VCONVEX)) {
       vector<glvertex> v2(cnt+1);
-      for(int i=0; i<cnt+1; i++) v2[i] = glhr::pointtogl( V.T * glhr::gltopoint( v[offset+i-1] ) );
+      for(int i=0; i<cnt+1; i++) v2[i] = glhr::pointtogl( V * glhr::gltopoint( v[offset+i-1] ) );
       if(color) for(int i=0; i<cnt; i++) triangle_vertices.push_back(v2[0]), triangle_vertices.push_back(v2[i]), triangle_vertices.push_back(v2[i+1]);
       for(int i=1; i<cnt; i++) line_vertices.push_back(v2[i]), line_vertices.push_back(v2[i+1]);
       }
     else {
       vector<glvertex> v2(cnt);
-      for(int i=0; i<cnt; i++) v2[i] = glhr::pointtogl( V.T * glhr::gltopoint( v[offset+i] ) );
+      for(int i=0; i<cnt; i++) v2[i] = glhr::pointtogl( V * glhr::gltopoint( v[offset+i] ) );
       if(color) for(int i=2; i<cnt-1; i++) triangle_vertices.push_back(v2[0]), triangle_vertices.push_back(v2[i-1]), triangle_vertices.push_back(v2[i]);
       for(int i=1; i<cnt; i++) line_vertices.push_back(v2[i-1]), line_vertices.push_back(v2[i]);
       }
@@ -606,17 +598,10 @@ void dqi_poly::gldraw() {
 #endif
   
   if(tinf) {
-    bool col = isize(tinf->colors);
-    if(col)
-      glhr::be_color_textured();
-    else
-      glhr::be_textured();
+    glhr::be_textured();
     if(flags & POLY_SHADE_TEXTURE) current_display->next_shader_flags |= GF_TEXTURE_SHADED;
     glBindTexture(GL_TEXTURE_2D, tinf->texture_id);
-    if(isize(tinf->colors))
-      glhr::vertices_texture_color(v, tinf->tvertices, tinf->colors, offset, offset_texture);
-    else
-      glhr::vertices_texture(v, tinf->tvertices, offset, offset_texture);
+    glhr::vertices_texture(v, tinf->tvertices, offset, offset_texture);
     ioffset = 0;
     }
   else { 
@@ -628,21 +613,14 @@ void dqi_poly::gldraw() {
 
   for(int ed = current_display->stereo_active() ? -1 : 0; ed<2; ed+=2) {
     if(global_projection && global_projection != ed) continue;
-
-    if(min_slr < max_slr) {
-      current_display->set_all(ed, sl2 ? 0 : V.shift);
-      glhr::set_index_sl(V.shift + M_PI * min_slr * hybrid::csteps / cgi.psl_steps);
-      }
-    else {
-      current_display->set_all(ed, V.shift);
-      }
+    current_display->set_all(ed);
     bool draw = color;
-
+    
     flagtype sp = get_shader_flags();
     
     if(sp & SF_DIRECT) {
       if((sp & SF_BAND) && V[2][2] > 1e8) continue;
-      glapplymatrix(V.T);
+      glapplymatrix(V);
       }
 
     if(draw) {
@@ -684,7 +662,7 @@ void dqi_poly::gldraw() {
           glhr::id_modelview();
           glDrawArrays(tinf ? GL_TRIANGLES : GL_TRIANGLE_FAN, 0, 4);
           glhr::vertices(v);
-          if(sp & SF_DIRECT) glapplymatrix(V.T);
+          if(sp & SF_DIRECT) glapplymatrix(V);
           }
         else { 
           glStencilOp( GL_ZERO, GL_ZERO, GL_ZERO);
@@ -723,15 +701,16 @@ void dqi_poly::gldraw() {
       }
     }
 
-  if(min_slr+1 < max_slr) {
+  if(min_slr < max_slr) {
     min_slr++;
+    glhr::set_index_sl(M_PI * min_slr);
     goto next_slr;
     }
   }
 #endif
 
-EX ld scale_at(const shiftmatrix& T) {
-  if(GDIM == 3 && pmodel == mdPerspective) return 1 / abs((tC0(unshift(T)))[2]);
+EX ld scale_at(const transmatrix& T) {
+  if(GDIM == 3 && pmodel == mdPerspective) return 1 / abs((tC0(T))[2]);
   if(sol) return 1;
   hyperpoint h1, h2, h3;
   applymodel(tC0(T), h1);
@@ -742,9 +721,9 @@ EX ld scale_at(const shiftmatrix& T) {
 
 EX int perfect_linewidth = 1;
 
-EX ld linewidthat(const shiftpoint& h) {
+EX ld linewidthat(const hyperpoint& h) {
   if(!(vid.antialias & AA_LINEWIDTH)) return 1;
-  else if(hyperbolic && pmodel == mdDisk && pconf.alpha == 1 && !ISWEB && !flat_on) {
+  else if(hyperbolic && pmodel == mdDisk && pconf.alpha == 1 && !ISWEB) {
     double dz = h[LDIM];
     if(dz < 1) return 1;
     else {
@@ -755,8 +734,8 @@ EX ld linewidthat(const shiftpoint& h) {
       }
     }
   else if(perfect_linewidth >= (inHighQual ? 1 : 2)) {
-    hyperpoint h0 = h.h / zlevel(h.h);
-    shiftmatrix T = shiftless(rgpushxto0(h0), h.shift);
+    hyperpoint h0 = h / zlevel(h);
+    transmatrix T = rgpushxto0(h0);
     return scale_at(T);
     }
   return 1;
@@ -785,7 +764,6 @@ ld period_at(ld y) {
   
   switch(pmodel) {
     case mdBand:
-    case mdMiller:
       return m * 4;
     case mdSinusoidal:
       return m * 2 * cos(y * M_PI);
@@ -912,8 +890,8 @@ ld glhypot2(glvertex a, glvertex b) {
 void compute_side_by_centerin(dqi_poly *p, bool& nofill) {
 
   hyperpoint hscr;
-  shiftpoint h1 = p->V * p->intester;
-  if(is_behind(h1.h)) {
+  hyperpoint h1 = p->V * p->intester;
+  if(is_behind(h1)) {
     if(sphere) {
       for(int i=0; i<3; i++) h1[i] = -h1[i];
       poly_flags &= ~POLY_CENTERIN;
@@ -937,7 +915,7 @@ void compute_side_by_centerin(dqi_poly *p, bool& nofill) {
   poly_flags &= ~POLY_INVERSE;
   if(poly_flags & POLY_CENTERIN) {
     poly_flags |= POLY_INVERSE;
-    if(abs(zlevel(tC0(p->V.T)) - 1) > 1e-6) nofill = true;
+    if(abs(zlevel(tC0(p->V)) - 1) > 1e-6) nofill = true;
 
     /* nofill = true;
     outline = (flags & POLY_CENTERIN) ? 0x00FF00FF : 0xFF0000FF;
@@ -971,7 +949,7 @@ ld get_width(dqi_poly* p) {
   else if(p->flags & POLY_PRECISE_WIDE) {
     ld maxwidth = 0;
     for(int i=0; i<p->cnt; i++) {
-      shiftpoint h1 = p->V * glhr::gltopoint((*p->tab)[p->offset+i]);
+      hyperpoint h1 = p->V * glhr::gltopoint((*p->tab)[p->offset+i]);
       maxwidth = max(maxwidth, linewidthat(h1));
       }
     return maxwidth * p->linewidth;
@@ -1155,15 +1133,14 @@ void draw_s2xe(dqi_poly *p) {
     else {
       npoly.tinf = NULL;
       }
-    npoly.V = shiftless(Id);
-    auto& pV = p->V.T;
+    npoly.V = Id;
     set_width(1);
     glcoords.clear();
     stinf.tvertices.clear();
     for(int i=0; i<p->cnt; i+=3) {
       array<pt, 3> v;
       for(int k=0; k<3; k++) {
-        hyperpoint h = pV * glhr::gltopoint( (*p->tab)[p->offset+i+k]);
+        hyperpoint h = p->V * glhr::gltopoint( (*p->tab)[p->offset+i+k]);
         v[k][2] = hypot_d(3, h);
 
         auto dp = product_decompose(h);
@@ -1198,7 +1175,7 @@ void draw_s2xe0(dqi_poly *p) {
   dqi_poly npoly = *p;
   npoly.offset = 0;
   npoly.tab = &glcoords;
-  npoly.V = shiftless(Id);
+  npoly.V = Id;
   npoly.flags &= ~ (POLY_INVERSE | POLY_FORCE_INVERTED);
   set_width(1);
   glcoords.clear();
@@ -1208,7 +1185,7 @@ void draw_s2xe0(dqi_poly *p) {
   auto crossdot = [&] (const hyperpoint h1, const hyperpoint h2) { return make_pair(h1[0] * h2[1] - h1[1] * h2[0], h1[0] * h2[0] + h1[1] * h2[1]); };
   vector<point_data> pd;
   for(int i=0; i<p->cnt; i++) {
-    hyperpoint h = p->V.T * glhr::gltopoint( (*p->tab)[p->offset+i]);
+    hyperpoint h = p->V * glhr::gltopoint( (*p->tab)[p->offset+i]);
     pd.emplace_back();
     auto& next = pd.back();
     auto dp = product_decompose(h);
@@ -1274,99 +1251,6 @@ void draw_s2xe0(dqi_poly *p) {
   }
 #endif
 EX }
-
-EX int berger_limit = 2;
-
-void draw_stretch(dqi_poly *p) {
-
-  dqi_poly npoly = *p;
-  
-  npoly.offset = 0;
-  npoly.tab = &glcoords;
-  npoly.V = shiftless(Id);
-  npoly.flags &= ~(POLY_INVERSE | POLY_FORCE_INVERTED);
-  
-  transmatrix T2 = stretch::translate( tC0(iso_inverse(View)) );
-  transmatrix U = View * T2;
-  
-  transmatrix iUV = iso_inverse(U) * p->V.T;
-  
-  vector<hyperpoint> hs;
-  vector<hyperpoint> ths;
-  hs.resize(p->cnt);
-  ths.resize(p->cnt);
-  for(int i=0; i<p->cnt; i++) 
-    hs[i] = iUV * glhr::gltopoint( (*p->tab)[p->offset+i] );
-    
-  vector<vector<hyperpoint> > results;
-  results.resize(p->cnt);
-
-  auto& stinf = s2xe::stinf;
-
-  if(p->tinf) {
-    npoly.tinf = &stinf;
-    npoly.offset_texture = 0;
-    stinf.texture_id = p->tinf->texture_id;
-    stinf.tvertices.clear();
-    }
-  else {
-    npoly.tinf = NULL;
-    }
-  npoly.V = shiftless(Id);
-  set_width(1);
-  glcoords.clear();
-
-  for(int i=0; i<p->cnt; i++) results[i] = stretch::inverse_exp_all(hs[i], berger_limit);
-
-  auto test = [] (hyperpoint a, hyperpoint b) -> bool {
-    return sqhypot_d(3, a-b) < 2;
-    };
- 
-  if(p->flags & POLY_TRIANGLES) {
-    for(int i=0; i<p->cnt; i+=3) {
-      auto &la = results[i];
-      auto &lb = results[i+1];
-      auto &lc = results[i+2];
-      
-      int ia = 0, ib = 0, ic = 0;
-      
-      for(auto& ha: la) for(auto& hb: lb) if(test(ha, hb))
-        for(auto& hc: lc) if(test(ha, hc) && test(hb, hc)) {
-        
-        glcoords.push_back(glhr::pointtogl(U * ha));
-        glcoords.push_back(glhr::pointtogl(U * hb));
-        glcoords.push_back(glhr::pointtogl(U * hc));
-        if(p->tinf) 
-          for(int j=0; j<3; j++)
-            stinf.tvertices.push_back(p->tinf->tvertices[p->offset_texture+i+j]);
-        ia++; ib++; ic++;
-        }
-      }
-    npoly.cnt = isize(glcoords);  
-    npoly.gldraw();
-    }
-  else if(p->cnt) {
-    for(auto& ha: results[0]) {
-      vector<hyperpoint> has;
-      has.push_back(ha);
-      glcoords.push_back(glhr::pointtogl(U * ha));
-      for(int i=1; i<p->cnt; i++) {
-        hyperpoint best = C0;
-        ld dist = 10;
-        for(auto& hb: results[i]) {
-          ld d = sqhypot_d(3, hb-has.back());
-          if(d < dist) dist = d, best = hb;
-          }
-        if(dist < 2) has.push_back(best);
-        }
-      if(isize(has) < 3) continue;
-      glcoords.clear();
-      for(auto& h: has) glcoords.push_back(glhr::pointtogl(U * h));
-      npoly.cnt = isize(glcoords);  
-      npoly.gldraw();      
-      }
-    }  
-  }
 
 EX namespace ods {
 #if CAP_ODS
@@ -1509,95 +1393,10 @@ EX namespace ods {
 #endif
   EX }
 
-/** @brief render in a broken projection; return false if normal rendering is not applicable */
-bool broken_projection(dqi_poly& p0) {
-  int broken_coord = models::get_broken_coord(pmodel);
-  static bool in_broken = false;
-  if(broken_coord && !in_broken) {
-
-    int zcoord = broken_coord;
-    int ycoord = 3 - zcoord;
-    
-    vector<hyperpoint> all;
-    for(int i=0; i<p0.cnt; i++) 
-      all.push_back(p0.V.T * glhr::gltopoint((*p0.tab)[p0.offset+i]));
-    int fail = 0;
-    int last_fail;
-
-    for(auto& h: all) models::apply_orientation(h[0], h[1]);
-    
-    auto break_in = [&] (hyperpoint a, hyperpoint b) {
-      return a[0] * b[0] <= 0 && (a[0] * b[zcoord] - b[0] * a[zcoord]) * (a[0] - b[0]) < 0;
-      };
-    
-    for(int i=0; i<p0.cnt-1; i++) 
-      if(break_in(all[i], all[i+1]))
-        last_fail = i, fail++;
-    vector<glvertex> v;
-    dqi_poly p = p0;
-    p.tab = &v;
-    p.offset = 0;
-    p.V.T = Id;
-
-    /* we don't rotate h's back, just change p.V */
-    for(int i=0; i<3; i++)
-      models::apply_orientation(p.V.T[i][0], p.V.T[i][1]);
-
-    if(fail) {
-      if(p0.tinf) return true;
-      dynamicval<bool> ib(in_broken, true);
-      ld part = ilerp(all[last_fail][0], all[last_fail+1][0], 0);
-      hyperpoint initial = normalize(lerp(all[last_fail], all[last_fail+1], 1 - (1-part) * .99));
-      bool have_initial = true;
-      v.push_back(glhr::pointtogl(initial));
-      last_fail++;
-      int at = last_fail;
-      do {
-        v.push_back(glhr::pointtogl(all[at]));
-        if(at == p0.cnt-1 && all[at] != all[0]) {
-          p.cnt = isize(v); p.draw(); v.clear(); at = 0;
-          have_initial = false;
-          }
-        int next = at+1;
-        if(next == p0.cnt) next = 0;
-        if(break_in(all[at], all[next])) {
-          ld part = ilerp(all[at][0], all[next][0], 0);
-          hyperpoint final = normalize(lerp(all[at], all[next], part * .99));
-          v.push_back(glhr::pointtogl(final));
-          if(have_initial) {
-            int max = 4 << vid.linequality;
-            if(final[0] * initial[0] > 0) {
-              for(int i=1; i<=max; i++)
-                v.push_back(glhr::pointtogl(lerp(final, initial, i * 1. / max)));
-              }
-            else {
-              hyperpoint end = Hypc;
-              end[ycoord] = final[ycoord] > 0 ? 1 : -1;
-              for(int i=1; i<=max; i++)
-                v.push_back(glhr::pointtogl(lerp(final, end, i * 1. / max)));
-              for(int i=1; i<=max; i++)
-                v.push_back(glhr::pointtogl(lerp(end, initial, i * 1. / max)));
-              }
-            }
-          p.cnt = isize(v); p.draw(); v.clear();
-          initial = normalize(lerp(all[at], all[next], 1 - (1-part) * .99));
-          have_initial = true;
-          v.push_back(glhr::pointtogl(initial));
-          }
-        at = next;
-        }
-      while(at != last_fail);
-      return true;
-      }
-    }
-  return false;
-  }
-
 void dqi_poly::draw() {
   if(flags & POLY_DEBUG) debug_this();
-
   if(debugflags & DF_VERTEX) {
-    println(hlog, tie(V, offset, cnt, offset_texture, outline, linewidth, flags, intester, cache), (cell*) tinf);
+    println(hlog, tie(band_shift, V, offset, cnt, offset_texture, outline, linewidth, flags, intester, cache), (cell*) tinf);
     for(int i=0; i<cnt; i++) print(hlog, (*tab)[i]);
     println(hlog);
     }
@@ -1610,16 +1409,17 @@ void dqi_poly::draw() {
   #endif
 
   #if CAP_GL
-  if(in_s2xe() && vid.usingGL && pmodel == mdPerspective && (current_display->set_all(global_projection, 0), (get_shader_flags() & SF_DIRECT))) {
+  if(in_s2xe() && vid.usingGL && pmodel == mdPerspective && (current_display->set_all(global_projection), (get_shader_flags() & SF_DIRECT))) {
     s2xe::draw_s2xe(this);
     return;
     }
   #endif
 
+  dynamicval<ld> bs(hr::band_shift, band_shift);
   if(!hyperbolic && among(pmodel, mdPolygonal, mdPolynomial)) {
     bool any = false;
     for(int i=0; i<cnt; i++) {
-      hyperpoint h1 = V.T * glhr::gltopoint((*tab)[offset+i]);
+      hyperpoint h1 = V * glhr::gltopoint((*tab)[offset+i]);
       if(h1[2] > 0) any = true;
       }
     if(!any) return;
@@ -1638,9 +1438,7 @@ void dqi_poly::draw() {
     cnt = i;
     return;
     }
-  
-  if(broken_projection(*this)) return;  
-  
+
   if(sphere && pmodel == mdTwoPoint && !in_twopoint) {
     #define MAX_PHASE 4
     vector<glvertex> phases[MAX_PHASE];
@@ -1649,7 +1447,7 @@ void dqi_poly::draw() {
     int pha;
     if(twopoint_do_flips) {
       for(int i=0; i<cnt; i++) {
-        shiftpoint h1 = V * glhr::gltopoint((*tab)[offset+i]);
+        hyperpoint h1 = V * glhr::gltopoint((*tab)[offset+i]);
         for(int j=0; j<MAX_PHASE; j++) {
           twopoint_sphere_flips = j;
           hyperpoint h2; applymodel(h1, h2);
@@ -1680,16 +1478,16 @@ void dqi_poly::draw() {
         int cpha = 0;
         for(int i=0; i<cnt; i++) {
 
-          shiftpoint h1 = V * glhr::gltopoint((*tab)[offset+i]);
+          hyperpoint h1 = V * glhr::gltopoint((*tab)[offset+i]);
           hyperpoint mh1; applymodel(h1, mh1); mh1[1] *= pconf.stretch;
           phases[cpha].push_back(glhr::pointtogl(mh1 * current_display->radius));
 
           // check if the i-th edge intersects the boundary of the ellipse
           // (which corresponds to the segment between the antipodes of foci)
           // if yes, switch cpha to the opposite
-          shiftpoint h2 = V * glhr::gltopoint((*tab)[offset+(i+1)%cnt]);
+          hyperpoint h2 = V * glhr::gltopoint((*tab)[offset+(i+1)%cnt]);
           
-          hyperpoint ah1 = h1.h, ah2 = h2.h;
+          hyperpoint ah1 = h1, ah2 = h2;
           models::apply_orientation(ah1[0], ah1[1]);
           models::apply_orientation(ah2[0], ah2[1]);
           if(ah1[1] * ah2[1] > 0) continue;
@@ -1703,7 +1501,7 @@ void dqi_poly::draw() {
         }
       }
     dynamicval<eModel> d1(pmodel, mdPixel);
-    dynamicval<transmatrix> d2(V.T, Id);
+    dynamicval<transmatrix> d2(V, Id);
     dynamicval<int> d3(offset, 0);
     dynamicval<decltype(tab)> d4(tab, tab);
     for(int j=0; j<pha; j++) {
@@ -1721,26 +1519,17 @@ void dqi_poly::draw() {
     return;
     } */
 
-  if(vid.usingGL && (current_display->set_all(global_projection, V.shift), get_shader_flags() & SF_DIRECT) && sphere && (stretch::factor || ray::in_use)) {
-    draw_stretch(this);  
-    return;
-    }
-    
 #if CAP_GL
-  if(vid.usingGL && (current_display->set_all(global_projection, V.shift), get_shader_flags() & SF_DIRECT)) {
-    if(sl2 && pmodel == mdGeodesic && hybrid::csteps) {
-      ld z = atan2(V.T[2][3], V.T[3][3]) + V.shift;
+  if(vid.usingGL && (current_display->set_all(global_projection), get_shader_flags() & SF_DIRECT)) {
+    if(sl2 && pmodel == mdGeodesic) {
+      ld z = atan2(V[2][3], V[3][3]);
       auto zr = sightranges[geometry];
-      ld ns = stretch::not_squared();
-      ld db = cgi.psl_steps / M_PI / ns / hybrid::csteps;
-
-      min_slr = floor((-zr - z) * db);
-      max_slr = ceil((zr - z) * db);
+      min_slr = ceil((-zr - z) / M_PI);
+      max_slr = floor((zr - z) / M_PI);
       if(min_slr > max_slr) return;
       if(flags & POLY_ONE_LEVEL) min_slr = max_slr = 0;
-      max_slr++;
+      glhr::set_index_sl(M_PI * min_slr);
       }
-    else min_slr = 0, max_slr = 1;
     set_width(get_width(this));
     flags &= ~POLY_INVERSE;
     gldraw();
@@ -1753,7 +1542,7 @@ void dqi_poly::draw() {
   
   double d = 0, curradius = 0;
   if(sphere) {
-    d = det(V.T);
+    d = det(V);
     curradius = pow(abs(d), 1/3.);
     }
   
@@ -1806,7 +1595,6 @@ void dqi_poly::draw() {
   
   bool can_have_inverse = false;  
   if(sphere && pmodel == mdDisk && (spherespecial > 0 || equi)) can_have_inverse = true;
-  if(sphere && among(pmodel, mdEquidistant, mdEquiarea)) can_have_inverse = true;
   if(pmodel == mdJoukowsky) can_have_inverse = true;
   if(pmodel == mdJoukowskyInverted && pconf.skiprope) can_have_inverse = true;
   if(pmodel == mdDisk && hyperbolic && pconf.alpha <= -1) can_have_inverse = true;
@@ -1849,7 +1637,7 @@ void dqi_poly::draw() {
       }
     
     if(equi && (poly_flags & POLY_INVERSE)) {
-      if(abs(zlevel(V.T * C0) - 1) < 1e-6 && !tinf) {
+      if(abs(zlevel(V * C0) - 1) < 1e-6 && !tinf) {
         // we should fill the other side
         ld h = atan2(glcoords[0][0], glcoords[0][1]);
         for(int i=0; i<=360; i++) {
@@ -1874,7 +1662,7 @@ void dqi_poly::draw() {
         }
       set_width(get_width(this));
       dqi_poly npoly = (*this);
-      npoly.V = shiftless(Id, V.shift);
+      npoly.V = Id;
       npoly.tab = &glcoords;
       npoly.offset = 0;
       npoly.cnt = isize(glcoords);
@@ -1966,12 +1754,13 @@ EX void prettylinesub(const hyperpoint& h1, const hyperpoint& h2, int lev) {
   else prettypoint(h2);
   }
 
-EX void prettyline(hyperpoint h1, hyperpoint h2, ld shift, color_t col, int lev, int flags, PPR prio) {
+EX void prettyline(hyperpoint h1, hyperpoint h2, color_t col, int lev, int flags, PPR prio) {
   prettylinepoints.clear();
   prettypoint(h1);
   prettylinesub(h1, h2, lev);
   dqi_poly ptd;
-  ptd.V = shiftless(Id, shift);
+  ptd.V = Id;
+  ptd.band_shift = band_shift;
   ptd.tab = &prettylinepoints;
   ptd.offset = 0;
   ptd.cnt = isize(prettylinepoints);
@@ -1991,7 +1780,8 @@ EX void prettypoly(const vector<hyperpoint>& t, color_t fillcol, color_t linecol
   for(int i=0; i<isize(t); i++)
     prettylinesub(t[i], t[(i+1)%3], lev);
   dqi_poly ptd;
-  ptd.V = shiftless(Id);
+  ptd.V = Id;
+  ptd.band_shift = band_shift;
   ptd.tab = &prettylinepoints;
   ptd.offset = 0;
   ptd.cnt = isize(prettylinepoints);
@@ -2014,7 +1804,8 @@ EX void queuereset(eModel m, PPR prio) {
 
 void dqi_line::draw() {
   dynamicval<ld> d(vid.linewidth, width); 
-  prettyline(H1.h, unshift(H2, H1.shift), H1.shift, color, prf, 0, prio);
+  dynamicval<ld> bs(hr::band_shift, band_shift);
+  prettyline(H1, H2, color, prf, 0, prio);
   }
 
 void dqi_string::draw() {
@@ -2059,7 +1850,7 @@ EX void sortquickqueue() {
 EX void quickqueue() {
   current_display->next_shader_flags = 0;
   spherespecial = 0; 
-  reset_projection(); current_display->set_all(0, 0);
+  reset_projection(); current_display->set_all(0);
   int siz = isize(ptds);
   for(int i=0; i<siz; i++) ptds[i]->draw();
   ptds.clear();
@@ -2069,11 +1860,10 @@ EX void quickqueue() {
     }
   }
 
-/* todo */
-ld xintval(const shiftpoint& h) {
-  if(sphereflipped()) return -h.h[2];
-  if(hyperbolic) return -h.h[2];
-  return -intval(h.h, C0);
+ld xintval(const hyperpoint& h) {
+  if(sphereflipped()) return -h[2];
+  if(hyperbolic) return -h[2];
+  return -intval(h, C0);
   }
 
 EX ld backbrightness = .25;
@@ -2107,10 +1897,6 @@ void dqi_line::draw_back() {
   }
 
 EX void sort_drawqueue() {
-
-  #if MAXMDIM >= 4 && CAP_GL
-  if(WDIM == 2 && GDIM == 3 && hyperbolic) make_air();
-  #endif
 
   DEBBI(DF_GRAPH, ("sort_drawqueue"));
   
@@ -2164,7 +1950,7 @@ EX void reverse_side_priorities() {
 // on the sphere, parts on the back are drawn first
 EX void draw_backside() {
   DEBBI(DF_GRAPH, ("draw_backside"));
-  if(pmodel == mdHyperboloid && hyperbolic && pconf.show_hyperboloid_flat) {
+  if(pmodel == mdHyperboloid && hyperbolic) {
     dynamicval<eModel> dv (pmodel, mdHyperboloidFlat);
     for(auto& ptd: ptds) 
       if(!among(ptd->prio, PPR::MOBILE_ARROW, PPR::OUTCIRCLE, PPR::CIRCLE))
@@ -2204,11 +1990,14 @@ EX void reverse_transparent_walls() {
 
 EX void draw_main() {
   DEBBI(DF_GRAPH, ("draw_main"));
-  if(sphere && GDIM == 3 && pmodel == mdPerspective && !stretch::in() && !ray::in_use) {
+  if(sphere && GDIM == 3 && pmodel == mdPerspective) {
 
     if(ray::in_use && !ray::comparison_mode) {
       ray::cast();
       reset_projection();
+      /* currently incompatible with primitive-based renderer */
+      /* also not implemented in stretch */
+      if(stretch::factor) return;
       }
 
     #if CAP_GL
@@ -2245,21 +2034,12 @@ EX void draw_main() {
       }
     #endif
     }
-  else if(pmodel == mdAxial && sphere) {
-    for(auto& ptd: ptds) if(ptd->prio == PPR::OUTCIRCLE)
-      ptd->draw();
-    for(axial_x=-4; axial_x<=4; axial_x++) 
-    for(axial_y=-4; axial_y<=4; axial_y++) 
-    for(auto& ptd: ptds) if(ptd->prio != PPR::OUTCIRCLE) {
-      ptd->draw();
-      }
-    glflush();
-    }
   else {
     DEBB(DF_GRAPH, ("draw_main1"));
     if(ray::in_use && !ray::comparison_mode) {
       ray::cast();
       reset_projection();
+      if(stretch::in()) return; /*primitive not implemented */
       }
 
     DEBB(DF_GRAPH, ("outcircle"));
@@ -2412,8 +2192,6 @@ EX void drawqueue() {
   if(!keep_curvedata) {
     curvedata.clear(); curvestart = 0;
     }
-  
-  GLERR("drawqueue");
   }
 
 #if HDR
@@ -2473,12 +2251,13 @@ EX color_t monochromatize(color_t x) {
   return c * 0x1010100 | (part(x, 0));
   }
 
-EX dqi_poly& queuepolyat(const shiftmatrix& V, const hpcshape& h, color_t col, PPR prio) {
+EX dqi_poly& queuepolyat(const transmatrix& V, const hpcshape& h, color_t col, PPR prio) {
   if(prio == PPR::DEFAULT) prio = h.prio;
 
   auto& ptd = queuea<dqi_poly> (prio);
 
   ptd.V = V;
+  ptd.band_shift = band_shift;
   ptd.offset = h.s;
   ptd.cnt = h.e-h.s;
   ptd.tab = &cgi.ourshape;
@@ -2545,11 +2324,16 @@ EX dqi_poly& queuepolyat(const shiftmatrix& V, const hpcshape& h, color_t col, P
   }
 #endif
 
-EX dqi_poly& queuetable(const shiftmatrix& V, const vector<glvertex>& f, int cnt, color_t linecol, color_t fillcol, PPR prio) {
+void addfloats(vector<GLfloat>& v, hyperpoint h) {
+  for(int i=0; i<3; i++) v.push_back(h[i]);
+  }
+
+EX dqi_poly& queuetable(const transmatrix& V, const vector<glvertex>& f, int cnt, color_t linecol, color_t fillcol, PPR prio) {
  
   auto& ptd = queuea<dqi_poly> (prio);
 
   ptd.V = V;
+  ptd.band_shift = band_shift;
   ptd.tab = &f;
   ptd.offset = 0;
   ptd.cnt = cnt;
@@ -2563,11 +2347,11 @@ EX dqi_poly& queuetable(const shiftmatrix& V, const vector<glvertex>& f, int cnt
   }
 
 #if CAP_SHAPES
-EX dqi_poly& queuepoly(const shiftmatrix& V, const hpcshape& h, color_t col) {
+EX dqi_poly& queuepoly(const transmatrix& V, const hpcshape& h, color_t col) {
   return queuepolyat(V,h,col,h.prio);
   }
 
-void queuepolyb(const shiftmatrix& V, const hpcshape& h, color_t col, int b) {
+void queuepolyb(const transmatrix& V, const hpcshape& h, color_t col, int b) {
   queuepolyat(V,h,col,h.prio+b);
   }
 #endif
@@ -2576,8 +2360,8 @@ EX void curvepoint(const hyperpoint& H1) {
   curvedata.push_back(glhr::pointtogl(H1));
   }
 
-EX dqi_poly& queuecurve(const shiftmatrix& V, color_t linecol, color_t fillcol, PPR prio) {
-  auto &res = queuetable(V, curvedata, isize(curvedata)-curvestart, linecol, fillcol, prio);
+EX dqi_poly& queuecurve(color_t linecol, color_t fillcol, PPR prio) {
+  auto &res = queuetable(Id, curvedata, isize(curvedata)-curvestart, linecol, fillcol, prio);
   res.offset = curvestart;
   curvestart = isize(curvedata);
   return res;
@@ -2587,11 +2371,12 @@ EX dqi_action& queueaction(PPR prio, const reaction_t& action) {
   return queuea<dqi_action> (prio, action);
   }
 
-EX dqi_line& queueline(const shiftpoint& H1, const shiftpoint& H2, color_t col, int prf IS(0), PPR prio IS(PPR::LINE)) {
+EX dqi_line& queueline(const hyperpoint& H1, const hyperpoint& H2, color_t col, int prf IS(0), PPR prio IS(PPR::LINE)) {
   auto& ptd = queuea<dqi_line> (prio);
 
   ptd.H1 = H1;
   ptd.H2 = H2;
+  ptd.band_shift = band_shift;
   ptd.prf = prf;
   ptd.width = vid.linewidth;
   ptd.color = (darkened(col >> 8) << 8) + (col & 0xFF);
@@ -2621,7 +2406,7 @@ EX void queuecircle(int x, int y, int size, color_t color, PPR prio IS(PPR::CIRC
   ptd.linewidth = vid.linewidth;
   }
 
-EX void getcoord0(const shiftpoint& h, int& xc, int &yc, int &sc) {
+EX void getcoord0(const hyperpoint& h, int& xc, int &yc, int &sc) {
   hyperpoint hscr;
   applymodel(h, hscr);
   xc = current_display->xcenter + current_display->radius * hscr[0];
@@ -2630,30 +2415,30 @@ EX void getcoord0(const shiftpoint& h, int& xc, int &yc, int &sc) {
   // EYETODO sc = vid.eye * current_display->radius * hscr[2];
   }
 
-EX ld scale_in_pixels(const shiftmatrix& V) {
+EX ld scale_in_pixels(const transmatrix& V) {
   return scale_at(V) * cgi.scalefactor * current_display->radius / 2.5;
   }
 
-EX bool getcoord0_checked(const shiftpoint& h, int& xc, int &yc, int &zc) {
+EX bool getcoord0_checked(const hyperpoint& h, int& xc, int &yc, int &zc) {
   if(invalid_point(h)) return false;
   if(point_behind(h)) return false;
   getcoord0(h, xc, yc, zc);
   return true;
   }
 
-EX void queuestr(const shiftpoint& h, int size, const string& chr, color_t col, int frame IS(0)) {
+EX void queuestr(const hyperpoint& h, int size, const string& chr, color_t col, int frame IS(0)) {
   int xc, yc, sc; 
   if(getcoord0_checked(h, xc, yc, sc))
     queuestr(xc, yc, sc, size, chr, col, frame);
   }
   
-EX void queuestr(const shiftmatrix& V, double size, const string& chr, color_t col, int frame IS(0), int align IS(8)) {
+EX void queuestr(const transmatrix& V, double size, const string& chr, color_t col, int frame IS(0), int align IS(8)) {
   int xc, yc, sc; 
   if(getcoord0_checked(tC0(V), xc, yc, sc))
     queuestr(xc, yc, sc, scale_in_pixels(V) * size, chr, col, frame, align);
   }
   
-EX void queuestrn(const shiftmatrix& V, double size, const string& chr, color_t col, int frame IS(0), int align IS(8)) {
+EX void queuestrn(const transmatrix& V, double size, const string& chr, color_t col, int frame IS(0), int align IS(8)) {
   switch(neon_mode) {
     case eNeon::none:
       queuestr(V, size, chr, col, frame, align);
@@ -2686,7 +2471,7 @@ EX void queuestrn(const shiftmatrix& V, double size, const string& chr, color_t 
     }
   }
   
-EX void queuecircle(const shiftmatrix& V, double size, color_t col) {
+EX void queuecircle(const transmatrix& V, double size, color_t col) {
   int xc, yc, sc; 
   if(!getcoord0_checked(tC0(V), xc, yc, sc)) return;
   int xs, ys, ss; getcoord0(V * xpush0(.01), xs, ys, ss);  

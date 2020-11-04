@@ -2957,18 +2957,12 @@ EX namespace sword {
   EX void determine_sword_angles() {
     sword_angles = 2;
     if(SWORDDIM == 3) sword_angles = 1;
-    #if CAP_IRR
     else if(IRREGULAR) sword_angles = 840;
-    #endif
-    #if CAP_BT
     else if(bt::in()) sword_angles = 42;
-    #endif
-    #if CAP_ARCM
     else if(arcm::in()) {
       if(!PURE) possible_divisor((BITRUNCATED ? 2 : 1) * isize(arcm::current.faces));
       if(!DUAL) for(int f: arcm::current.faces) possible_divisor(f);
       }
-    #endif
     else {
       possible_divisor(S7);
       if(BITRUNCATED) possible_divisor(S3);
@@ -3890,10 +3884,6 @@ EX namespace halloween {
   EX void getTreat(cell *where) {
     if(!items[itTreat]) reset();
     gainItem(itTreat);
-    changes.at_commit(after_treat);
-    }
-  
-  EX void after_treat() {
     farempty()->item = itTreat;
     int itr = items[itTreat];
     items[itOrbTime] += 30;
@@ -3993,7 +3983,7 @@ EX namespace halloween {
       else if(CHANCE(5) && itr >= 60) {
         dragoncount++;
         }
-      else if(dragoncount && BITRUNCATED && geometry == gSphere && !mcount) {
+      else if(dragoncount && BITRUNCATED && !mcount) {
         bool fill = false;
         for(int i=0; i<4; i++) 
           if(!dragoncells[i] || dragoncells[i]->monst)

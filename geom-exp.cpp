@@ -300,7 +300,6 @@ void set_or_configure_geometry(eGeometry g) {
           addMessage(XLAT("Only works with (semi-)regular tilings"));
           return;
           }
-        #if CAP_ARCM
         if(arcm::in()) {
           int steps, single_step;
           if(!arcm::current.get_step_values(steps, single_step)) {
@@ -308,7 +307,6 @@ void set_or_configure_geometry(eGeometry g) {
             return;
             }
           }
-        #endif
         }
       }
     dual::may_split_or_do([g] { set_geometry(g); });
@@ -386,9 +384,7 @@ void ge_select_tiling() {
 
 EX string current_proj_name() {
   bool h = hyperbolic || sn::in();
-  if(vpconf.model == mdPanini && vpconf.alpha == 1)
-    return XLAT("stereographic Panini");
-  else if(vpconf.model != mdDisk)
+  if(vpconf.model != mdDisk)
     return models::get_model_name(vpconf.model);
   else if(h && vpconf.alpha == 1)
     return XLAT("Poincaré model");
@@ -544,10 +540,8 @@ EX void select_quotient_screen() {
           }
         else if(g == gFieldQuotient) 
           pushScreen(showQuotientConfig);
-        #if CAP_CRYSTAL
         else if(g == gCrystal)
           pushScreen(crystal::show);
-        #endif
         else {
           dual::may_split_or_do([g] { set_geometry(g); });
           start_game();
@@ -575,8 +569,6 @@ EX void select_quotient() {
     }
   else if(prod)
     pushScreen(product::show_config);
-  else if(rotspace)
-    hybrid::configure_period();
   else {
     vector<eGeometry> choices;
     for(int i=0; i<isize(ginf); i++) if(same_tiling(eGeometry(i))) choices.push_back(eGeometry(i));
@@ -628,28 +620,10 @@ EX void showEuclideanMenu() {
   int denom = (2*ts + 2*tv - ts * tv);
   
   #if CAP_GP
-  if(GOLDBERG || INVERSE) {
+  if(GOLDBERG) {
     ld area = PIU(cgi.gpdata->area);
-
-    if(GOLDBERG || WARPED) {
-      nom = 2 * (2*tv + (S3-2) * ts * (area-1));
-      }
-    else if(UNRECTIFIED) {
-      if((gp::param.first + gp::param.second) % 2 == 0)
-        nom = ts * 2 * area;
-      else
-        nom = (2*tv + (S3-2) * ts * (area-1));    
-      }
-    else if(UNTRUNCATED) {
-      if((gp::param.first - gp::param.second) % 3 == 0) {
-        nom = ts * 4 * area;
-        denom *= 3;
-        }
-      else {
-        nom = 2 * (2*tv + (S3-2) * ts * (area-1));
-        denom *= 3;
-        }
-      }
+  
+    nom = 2 * (2*tv + (S3-2) * ts * (area-1));
     }
   #endif
 
@@ -701,7 +675,7 @@ EX void showEuclideanMenu() {
   nom *= euler;
   denom *= 2;
         
-  if(hybri) nom *= hybrid::csteps, denom *= cgi.single_step;
+  if(hybri && !prod) nom *= cgi.steps, denom *= cgi.single_step;
 
   int g = gcd(nom, denom);
   if(g) {
@@ -713,9 +687,7 @@ EX void showEuclideanMenu() {
     worldsize = euc::eu.det;
     if(BITRUNCATED) worldsize *= (a4 ? 2 : 3);
     if(GOLDBERG) worldsize *= cgi.gpdata->area;
-    #if CAP_IRR
     if(IRREGULAR) worldsize *= isize(irr::cells) / isize(irr::cells_of_heptagon);
-    #endif
     }
   else 
   worldsize = denom ? nom / denom : 0;
@@ -753,38 +725,12 @@ EX void showEuclideanMenu() {
     spf = "[4..8]^3";
   #endif
   #if CAP_GP
-  else if(UNRECTIFIED || UNTRUNCATED) {
-    if(UNRECTIFIED && (gp::param.first-gp::param.second) % 2 != 0)
-      spf = "(?)";
-    else if(UNTRUNCATED && (gp::param.first-gp::param.second) % 3 != 0)
-      spf = "(?)";
-    else {      
-      string each = UNRECTIFIED ? "4" : "3";
-      int first = UNRECTIFIED ? 4 : 6;
-      int second = S7;
-      if(gp::param == gp::loc(1, 1))
-        first = second;
-      else if(second < first)
-        swap(first, second);
-      spf = each;
-      for(int z=1; z<first; z++) spf += "," + each;
-      if(first != second) {
-        spf += "[";
-        for(int z=first; z<second; z++) spf += "," + each;
-        spf += "]";
-        }
-      }
-    }
   else if(GOLDBERG && S3 == 4 && gp::param == gp::loc(1, 1))
     spf = spf + ",4," + spf + ",4";
   else if(GOLDBERG && S3 == 4 && gp::param == gp::loc(2, 0))
     spf = spf + ",4,4,4";
   else if(GOLDBERG && S3 == 4)
     spf = "[" + spf + ",4],4,4,4";
-  else if(WARPED && S3 == 3 && gp::param == gp::loc(1,1))
-    spf = spf + ",3,3";
-  else if(WARPED && S3 == 3)
-    spf = "[" + spf + ",6],3,3";
   else if(GOLDBERG && S3 == 3)
     spf = "[" + spf + ",6],6,6";
   #endif
@@ -802,19 +748,15 @@ EX void showEuclideanMenu() {
 
   dialog::add_action(select_quotient);
   
-  #if CAP_ARCM
   if(arcm::in()) {
     dialog::addItem(XLAT("advanced parameters"), '4');
     dialog::add_action_push(arcm::show);
     }
-  #endif
 
-  #if CAP_CRYSTAL
   if(cryst) {
     dialog::addItem(XLAT("advanced parameters"), '4');
     dialog::add_action_push(crystal::show);
     }
-  #endif
   
   if(fake::available()) {
     dialog::addItem(XLAT("fake curvature"), '4');
@@ -858,8 +800,7 @@ EX void showEuclideanMenu() {
       });
     }
   else if(hybri) {
-    dialog::addSelItem(XLAT("number of levels"), its(hybrid::csteps / cgi.single_step), 'L');
-    dialog::add_action(hybrid::configure_period);
+    dialog::addSelItem(XLAT("number of levels"), its(cgi.steps / cgi.single_step), 0);
     }
   else if(bt::in()) {
     dialog::addSelItem(XLAT("width"), fts(vid.binary_width), 'v');
@@ -930,12 +871,11 @@ EX void showEuclideanMenu() {
   if(stretch::applicable()) {
     dialog::addSelItem(XLAT("stretched geometry"), fts(stretch::factor), 'S');
     dialog::add_action([] {
-      stretch::mstretch = false;
-      ray::reset_raycaster();
       dialog::editNumber(stretch::factor, -1, 9, 0.1, 0, XLAT("stretched geometry"),
         XLAT(
           "Stretch the metric along the fibers. This can currently be done in rotation spaces and in 8-cell, 24-cell and 120-cell. "
-          "Value of 0 means not stretched, -1 means S2xE or H2xE (works only in the limit). (Must be > -1)"
+          "Value of 0 means not stretched, -1 means S2xE or H2xE (works only in the limit). "
+          "Only the raycaster is implemented for stretched geometry, so you will see only walls. (Must be > -1)"
           )
         );
       dialog::reaction = ray::reset_raycaster;

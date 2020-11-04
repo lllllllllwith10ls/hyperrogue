@@ -64,10 +64,7 @@ EX namespace dialog {
   EX color_t dialogcolor = 0xC0C0C0;
 
   EX void addBack() {
-    addItem(XLAT("go back"), 
-      (cmode & sm::NUMBER) ? SDLK_RETURN :
-      ISWEB ? SDLK_BACKSPACE :
-      SDLK_ESCAPE);
+    addItem(XLAT("go back"), SDLK_ESCAPE);
     }
 
   EX void addHelp() {
@@ -165,7 +162,6 @@ EX namespace dialog {
     if(k == 32) return "space";
     if(k >= 1 && k <= 26) { string s = "Ctrl+"; s += (k+64); return s; }
     if(k < 128) { string s; s += k; return s; }
-    if(k == 508) return "Alt+8";
     return "?";
     }
 
@@ -428,8 +424,6 @@ EX namespace dialog {
       I.position = mid;
       if(I.type == diTitle || I.type == diInfo) {
         bool xthis = (mousey >= top && mousey < tothei && I.key);
-        if(cmode & sm::DIALOG_STRICT_X)
-          xthis = xthis && (mousex >= dcenter - dialogwidth/2 && mousex <= dcenter + dialogwidth/2);
         displayfr(dcenter, mid, 2, dfsize * I.scale/100, I.body, I.color, 8);
         if(xthis) getcstat = I.key;
         }
@@ -525,38 +519,21 @@ EX namespace dialog {
   bool isitem(item& it) {
     return it.type == diItem || it.type == diBigItem;
     }
-
-  EX void handle_actions(int &sym, int &uni) {
-    if(key_actions.count(uni)) {
-      key_actions[uni]();
-      sym = uni = 0;
-      return;
-      }
-    if(key_actions.count(sym)) {
-      key_actions[sym]();
-      sym = uni = 0;
-      return;
-      }
-    }
   
   EX void handleNavigation(int &sym, int &uni) {
-    if(uni == '\n' || uni == '\r' || DIRECTIONKEY == SDLK_KP5) {
+    if(uni == '\n' || uni == '\r' || DIRECTIONKEY == SDLK_KP5)
       for(int i=0; i<isize(items); i++) 
         if(isitem(items[i]))
           if(items[i].body == highlight_text) {
             uni = sym = items[i].key;
-            handle_actions(sym, uni);
             return;
             }
-      }
     if(DKEY == SDLK_PAGEDOWN) {
-      uni = sym = 0;
       for(int i=0; i<isize(items); i++)
         if(isitem(items[i]))
           highlight_text = items[i].body;
       }
     if(DKEY == SDLK_PAGEUP) {
-      uni = sym = 0;
       for(int i=0; i<isize(items); i++) 
         if(isitem(items[i])) {
           highlight_text = items[i].body;
@@ -564,11 +541,11 @@ EX namespace dialog {
           }
       }    
     if(DKEY == SDLK_UP) {
-      uni = sym = 0;
       string last = "";
       for(int i=0; i<isize(items); i++) 
         if(isitem(items[i]))
           last = items[i].body;
+      uni = sym = 0;
       for(int i=0; i<isize(items); i++)
         if(isitem(items[i])) {
           if(items[i].body == highlight_text) {
@@ -579,7 +556,6 @@ EX namespace dialog {
       highlight_text = last;
       }
     if(DKEY == SDLK_DOWN) {
-      uni = sym = 0;
       int state = 0;
       for(int i=0; i<isize(items); i++)
         if(isitem(items[i])) {
@@ -587,12 +563,20 @@ EX namespace dialog {
           else if(items[i].body == highlight_text) state = 1;
           }
       for(int i=0; i<isize(items); i++)
-        if(isitem(items[i])) {
+        if(isitem(items[i])) 
           highlight_text = items[i].body;
-          break;
-          }
+      uni = sym = 0;
       }
-    handle_actions(sym, uni);
+    if(key_actions.count(uni)) {
+      key_actions[uni]();
+      sym = uni = 0;
+      return;
+      }
+    if(key_actions.count(sym)) {
+      key_actions[sym]();
+      sym = uni = 0;
+      return;
+      }
     }
 
   color_t colorhistory[10] = {

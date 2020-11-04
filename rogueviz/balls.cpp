@@ -9,10 +9,6 @@
 
 namespace rogueviz {
 
-namespace balls {
-
-bool on = true;
-
 struct ball {
   hyperpoint at;
   hyperpoint vel;
@@ -25,8 +21,10 @@ ld r_big_ball = 1;
 
 hpcshape shSmallBall, shBigBall, shShell;
 
-void initialize(int max_ball) {
-  on = true;
+bool init = false;
+
+void initialize() {
+  init = true;
   
   cgi.make_ball(shSmallBall, r_small_ball, 2);
   cgi.make_ball(shBigBall, r_big_ball, 4);
@@ -35,7 +33,7 @@ void initialize(int max_ball) {
   shShell.flags |= POLY_TRIANGLES;
 
   auto pt = [] (int i, int j) {
-    cgi.hpcpush(direct_exp(/* cspin(0, 2, -30*degree) **/ cspin(2, 1, 90*degree) * cspin(0, 1, j * degree) * cspin(0, 2, i * M_PI / 2 / 16) * ztangent(r_big_ball)));
+    cgi.hpcpush(direct_exp(cspin(0, 2, -30*degree) * cspin(0, 2, 90*degree) * cspin(0, 1, j * degree) * cspin(0, 2, i * M_PI / 2 / 16) * ztangent(r_big_ball)));
     };
 
   for(int i=0; i<16; i++)
@@ -50,9 +48,9 @@ void initialize(int max_ball) {
   cgi.finishshape();
   cgi.extra_vertices();
   
-  for(int a=-max_ball; a<=max_ball; a++) 
-  for(int b=-max_ball; b<=max_ball; b++) 
-  for(int c=-max_ball; c<=max_ball; c++)
+  for(int a=-3; a<=3; a++) 
+  for(int b=-3; b<=3; b++) 
+  for(int c=-3; c<=3; c++)
   {
     hyperpoint h = point3(0.21*a + 1e-2, 0.21*b, 0.21*c);
     
@@ -65,13 +63,13 @@ void initialize(int max_ball) {
     
   }
 
-bool draw_balls(cell *c, const shiftmatrix& V) {
-  if(!on) return false;
+bool draw_balls(cell *c, const transmatrix& V) {
+  if(!init) initialize();
   
   if(c == currentmap->gamestart()) {
     for(auto& b: balls)
       queuepoly(V * rgpushxto0(b.at), shSmallBall, 0xFFFFFFFF);
-    queuepoly(V, shShell, 0x0000F0FF);
+    queuepoly(Id, shShell, 0x0000F0FF);
     }
   
   return false;
@@ -106,7 +104,6 @@ ld elastic_out = .2;
 ld gravity = 1;
 
 bool turn(int delta) {
-  if(!on) return false;
   for(int i=0; i<delta; i++) {
     for(auto& b: balls) {
       /* gravity direction: z */
@@ -121,7 +118,7 @@ bool turn(int delta) {
         b.vel -= b.at * e2;
         }
       
-      hyperpoint v = inverse_exp(shiftless(b.at));
+      hyperpoint v = inverse_exp(b.at);
       ld d = hypot_d(3, v);
       ld rbs = r_big_ball - r_small_ball;
       if(d > rbs) {
@@ -145,12 +142,12 @@ bool turn(int delta) {
     for(auto& b1: balls) 
     for(auto& b2: balls) {
       if(&b2 == &b1) break;
-      hyperpoint dif = inverse_exp(shiftless(gpushxto0(b1.at) * b2.at));
+      hyperpoint dif = inverse_exp(gpushxto0(b1.at) * b2.at);
       ld d = hypot_d(3, dif);
       if(d < r_small_ball * 2) {
         hyperpoint ort1 = (dif / d);
         ld vel1 = +inner(gpushxto0(b1.at) * b1.vel, ort1);
-        hyperpoint ort2 = inverse_exp(shiftless(gpushxto0(b2.at) * b1.at)) / d;
+        hyperpoint ort2 = inverse_exp(gpushxto0(b2.at) * b1.at) / d;
         ld vel2 = +inner(gpushxto0(b2.at) * b2.vel, ort2);
         ld vels = vel1 + vel2;
         if(vels < 0) continue;
@@ -165,32 +162,8 @@ bool turn(int delta) {
   return false;
   }
 
-int args() {
-  using namespace arg;
-           
-  if(0) ;
-
-  else if(argis("-ball-physics")) {
-    start_game();
-    check_cgi();
-    cgi.require_shapes();
-    shift();
-    initialize(argi());
-    View = cspin(1, 2, M_PI/2);
-    }
-
-  else return 1;
-  return 0;
-  }
-
-
 auto celldemo = addHook(hooks_drawcell, 100, draw_balls) +
-    addHook(shmup::hooks_turn, 100, turn) +
-    addHook(hooks_args, 100, args) +
-    addHook(hooks_clearmemory, 40, [] () {
-      balls.clear();
-      on = false;      
-      });
+    addHook(shmup::hooks_turn, 100, turn);
 
-}
+
 }

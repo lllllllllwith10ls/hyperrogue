@@ -8,7 +8,7 @@
 #include "hyper.h"
 namespace hr {
 
-EX bool hide_hud = true;
+bool hide_hud = true;
 
 #if HDR
 namespace shot { void default_screenshot_content(); }
@@ -400,7 +400,8 @@ EX always_false in;
         tdata.push_back(p.tinf->tvertices[p.offset_texture+i]);
       }
     for(auto& d: data) {
-      shiftpoint h = p.V * d;
+      hyperpoint h;
+      h = p.V * d;
       applymodel(h, d);
       }
     if(print && (p.flags & POLY_FAT)) {
@@ -1168,11 +1169,11 @@ bool joukowsky_anim;
 
 EX void reflect_view() {
   if(centerover) {
-    shiftmatrix T = shiftless(Id);
+    transmatrix T = Id;
     cell *mbase = centerover;
     cell *c = centerover;
     if(shmup::reflect(c, mbase, T))
-      View = iso_inverse(T.T) * View;
+      View = inverse(T) * View;
     }
   }
 
@@ -1401,14 +1402,14 @@ EX bool record_video_std() {
 void display_animation() {
   if(ma == maCircle && (circle_display_color & 0xFF)) {
     for(int s=0; s<10; s++) {
-      if(s == 0) curvepoint(xpush0(circle_radius - .1));
-      for(int z=0; z<100; z++) curvepoint(xspinpush0((z+s*100) * 2 * M_PI / 1000., circle_radius));
-      queuecurve(ggmatrix(rotation_center), circle_display_color, 0, PPR::LINE);
+      if(s == 0) curvepoint(ggmatrix(rotation_center) * xpush0(circle_radius - .1));
+      for(int z=0; z<100; z++) curvepoint(ggmatrix(rotation_center) * xspinpush0((z+s*100) * 2 * M_PI / 1000., circle_radius));
+      queuecurve(circle_display_color, 0, PPR::LINE);
       }
     if(sphere) for(int s=0; s<10; s++) {
-      if(s == 0) curvepoint(xpush0(circle_radius - .1));
-      for(int z=0; z<100; z++) curvepoint(xspinpush0((z+s*100) * 2 * M_PI / 1000., circle_radius));
-      queuecurve(ggmatrix(rotation_center) * centralsym, circle_display_color, 0, PPR::LINE);
+      if(s == 0) curvepoint(centralsym * ggmatrix(rotation_center) * xpush0(circle_radius - .1));
+      for(int z=0; z<100; z++) curvepoint(centralsym * ggmatrix(rotation_center) * xspinpush0((z+s*100) * 2 * M_PI / 1000., circle_radius));
+      queuecurve(circle_display_color, 0, PPR::LINE);
       }
     }
   }
@@ -1589,14 +1590,12 @@ EX void show() {
   animator(XLATN("Ocean"), env_ocean, 'o');
   animator(XLATN("Volcanic Wasteland"), env_volcano, 'v');
   if(shmup::on) dialog::addBoolItem_action(XLAT("shmup action"), env_shmup, 'T');
-  #if CAP_FILES && CAP_SHOT
   if(cheater) {
     dialog::addSelItem(XLAT("monster turns"), its(numturns), 'n');
     dialog::add_action([] {      
       dialog::editNumber(numturns, 0, 100, 1, 0, XLAT("monster turns"), XLAT("Number of turns to pass. Useful when simulating butterflies or cellular automata."));
       });
     }
-  #endif
 
   #if CAP_RUG
   if(rug::rugged) {
@@ -1815,7 +1814,6 @@ void no_init() { }
 
 startanim null_animation { "", no_init, [] { gamescreen(2); }};
 
-#if CAP_STARTANIM
 startanim joukowsky { "Joukowsky transform", no_init, [] {
   dynamicval<eModel> dm(pmodel, mdJoukowskyInverted);
   dynamicval<ld> dt(pconf.model_orientation, ticks / 25.);
@@ -1875,20 +1873,18 @@ startanim spin_around { "spinning around", no_init,  [] {
   dynamicval<transmatrix> dv(View, spin(-cos_auto(circle_radius)*alpha) * xpush(circle_radius) * spin(alpha) * View);
   gamescreen(2);
   }};
-#endif
 
 reaction_t add_to_frame;
 
 #if CAP_STARTANIM
 void draw_ghost(const transmatrix V, int id) {
-  auto sV = shiftless(V);
   if(id % 13 == 0) {
-    queuepoly(sV, cgi.shMiniGhost, 0xFFFF00C0);
-    queuepoly(sV, cgi.shMiniEyes, 0xFF);
+    queuepoly(V, cgi.shMiniGhost, 0xFFFF00C0);
+    queuepoly(V, cgi.shMiniEyes, 0xFF);
     }
   else {
-    queuepoly(sV, cgi.shMiniGhost, 0xFFFFFFC0);
-    queuepoly(sV, cgi.shMiniEyes, 0xFF);
+    queuepoly(V, cgi.shMiniGhost, 0xFFFFFFC0);
+    queuepoly(V, cgi.shMiniEyes, 0xFF);
     }
   }
 
@@ -1918,7 +1914,7 @@ startanim army_of_ghosts { "army of ghosts", no_init, [] {
       for(int y=0;; y++) {
         ld ay = (mod - y)/4.;
         transmatrix U = spin(M_PI/2) * xpush(ay / cosh(ax)) * T;
-        if(!in_smart_range(shiftless(U))) break;
+        if(!in_smart_range(U)) break;
         draw_ghost(U, (-y - t));
         if(y) {
           ay = (mod + y)/4.;

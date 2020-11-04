@@ -349,11 +349,9 @@ EX void showGraphQuickKeys() {
   const char *wdmodes[7] = {"ASCII", "black", "plain", "Escher", "plain/3D", "Escher/3D", "ASCII/3D"};
   dialog::addSelItem(XLAT("wall display mode"), XLAT(wdmodes[vid.wallmode]), '5');
 
-  const char *mdmodes[6] = {"ASCII", "items only", "items and monsters", "3D", "?", "?"};
+  const char *mdmodes[6] = {"ASCII", "items only", "items and monsters", "high contrast",
+    "3D", "high contrast/3D"};
   dialog::addSelItem(XLAT("monster display mode"), XLAT(mdmodes[vid.monmode]), '8');
-
-  const char *hlmodes[3] = {"press Alt", "highlight", "super-highlight"};
-  dialog::addSelItem(XLAT("highlight stuff"), XLAT(hlmodes[vid.highlightmode]), 508);
 
   dialog::addBoolItem(XLAT("draw the grid"), (vid.grid), '6');
   dialog::addBoolItem(XLAT("mark heptagons"), (vid.darkhepta), '7');
@@ -552,7 +550,7 @@ EX void showChangeMode() {
   multi::cpid = 0;
   dialog::addBoolItem(XLAT("Chaos mode"), (chaosmode), 'C');
   dialog::add_action_push(show_chaos);
-  dialog::addBoolItem(XLAT("puzzle/exploration mode"), peace::on, 'p');
+  dialog::addBoolItem(XLAT("peaceful mode"), peace::on, 'p');
   dialog::addBoolItem(XLAT("Orb Strategy mode"), (inv::on), 'i');
   dialog::addBoolItem(XLAT("pure tactics mode"), (tactic::on), 't');
   dialog::addBoolItem(XLAT("Yendor Challenge"), (yendor::on), 'y');
@@ -998,7 +996,7 @@ EX named_functionality get_o_key() {
     res.push_back(named_dialog(XLAT("Yendor Challenge"), yendor::showMenu));
 
   if(peace::on)
-    res.push_back(named_dialog(XLAT("puzzles and exploration"), peace::showMenu));
+    res.push_back(named_dialog(XLAT("peaceful mode"), peace::showMenu));
   
   #if CAP_TEXTURE
   if(texture::config.tstate)

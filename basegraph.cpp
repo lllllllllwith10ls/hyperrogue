@@ -20,9 +20,9 @@ struct display_data {
   /** Camera rotation, used in nonisotropic geometries. */
   transmatrix local_perspective;
   /** The view relative to the player character. */
-  shiftmatrix player_matrix;
+  transmatrix player_matrix;
   /** On-screen coordinates for all the visible cells. */
-  unordered_map<cell*, shiftmatrix> cellmatrices, old_cellmatrices;
+  unordered_map<cell*, transmatrix> cellmatrices, old_cellmatrices;
   /** Position of the current map view, relative to the screen (0 to 1). */
   ld xmin, ymin, xmax, ymax;
   /** Position of the current map view, in pixels. */
@@ -43,14 +43,14 @@ struct display_data {
   bool in_anaglyph();
 
   void set_viewport(int ed);
-  void set_projection(int ed, ld shift);
+  void set_projection(int ed);
   void set_mask(int ed);
 
-  void set_all(int ed, ld shift);
+  void set_all(int ed);
   /** Which copy of the player cell? */
   transmatrix which_copy;
   /** On-screen coordinates for all the visible cells. */
-  unordered_map<cell*, vector<shiftmatrix>> all_drawn_copies;
+  unordered_map<cell*, vector<transmatrix>> all_drawn_copies;
   };
 
 #define View (::hr::current_display->view_matrix)
@@ -79,14 +79,7 @@ int utfsize(char c) {
   }
 
 EX int get_sightrange() { return getDistLimit() + sightrange_bonus; }
-
-EX int get_sightrange_ambush() { 
-  #if CAP_COMPLEX2
-  return max(get_sightrange(), ambush::distance); 
-  #else
-  return get_sightrange();
-  #endif
-  }
+EX int get_sightrange_ambush() { return max(get_sightrange(), ambush::distance); }
 
 bool display_data::in_anaglyph() { return vid.stereo_mode == sAnaglyph; }
 bool display_data::stereo_active() { return vid.stereo_mode != sOFF; }
@@ -220,7 +213,7 @@ EX color_t darkena(color_t c, int lev, int a) {
   }
 
 #if !CAP_GL
-EX void setcameraangle(bool b) { }
+void setcameraangle(bool b) { }
 #endif
 
 #if !CAP_GL
@@ -252,13 +245,13 @@ inline void reset_projection() { new_projection_needed = true; }
 
 EX ld lband_shift;
 
-void display_data::set_all(int ed, ld shift) {
+void display_data::set_all(int ed) {
   auto t = this;
   auto current_projection = tie(ed, pmodel, t, current_rbuffer);
-  if(new_projection_needed || !glhr::current_glprogram || (next_shader_flags & GF_which) != (glhr::current_glprogram->shader_flags & GF_which) || current_projection != last_projection || shift != lband_shift) {
+  if(new_projection_needed || !glhr::current_glprogram || (next_shader_flags & GF_which) != (glhr::current_glprogram->shader_flags & GF_which) || current_projection != last_projection || band_shift != lband_shift) {
     last_projection = current_projection;
-    lband_shift = shift;
-    set_projection(ed, shift);
+    lband_shift = band_shift;
+    set_projection(ed);
     set_mask(ed);
     set_viewport(ed);
     new_projection_needed = false;
@@ -610,9 +603,7 @@ EX void resetGL() {
   matched_programs.clear();
   glhr::current_glprogram = nullptr;
   ray::reset_raycaster();
-  #if CAP_RUG
   if(rug::glbuf) rug::close_glbuf();
-  #endif
   }
 
 #endif
@@ -686,7 +677,7 @@ EX bool displaystr(int x, int y, int shift, int size, const char *str, color_t c
 
   if(strlen(str) == 0) return false;
 
-  if(size < 4 || size > 2000) {
+  if(size < 4 || size > 255) {
     return false;
     }
   
@@ -965,7 +956,7 @@ EX void drawCircle(int x, int y, int size, color_t color, color_t fillcolor IS(0
       float rr = (M_PI * 2 * r) / pts;
       glcoords.push_back(glhr::makevertex(x + size * sin(rr), y + size * pconf.stretch * cos(rr), 0));
       }
-    current_display->set_all(0, lband_shift);
+    current_display->set_all(0);
     glhr::vertices(glcoords);
     glhr::set_depthtest(false);
     if(fillcolor) {
@@ -1151,7 +1142,8 @@ EX void initgraph() {
   }
 
 #if ISWEB
-  get_canvas_size();
+  vid.xscr = vid.xres = 1200;
+  vid.yscr = vid.yres = 900;
 #else
   const SDL_VideoInfo *inf = SDL_GetVideoInfo();
   vid.xscr = vid.xres = inf->current_w;
@@ -1169,9 +1161,7 @@ EX void initgraph() {
 #if CAP_CONFIG
   loadConfig();
 #endif
-#if CAP_ARCM
   arcm::current.parse();
-#endif
   if(hybri) geometry = hybrid::underlying;
 
 #if CAP_COMMANDLINE

@@ -33,7 +33,8 @@
 #define REQAS(x,y)
 #endif
 
-MONSTER( 0,   0,        "no monster"       , moNone, ZERO | CF_NOGHOST | CF_NOBLOW, RESERVED, moNone, NODESC)
+
+MONSTER( 0,   0,        "no monster"       , moNone, ZERO | CF_NOGHOST | CF_NOBLOW, RESERVED, moNone, NULL)
 MONSTER( 'Y', 0x4040FF, "Yeti"       , moYeti, CF_FACE_UP, RESERVED, moYeti,
     "A big and quite intelligent monster living in the Icy Land."
   )
@@ -427,7 +428,7 @@ MONSTER( 'B', 0xC0C040, "Western Hawk", moWestHawk, CF_FACE_SIDE | CF_BIRD | CF_
     "Some readers misinterpreted the early maps of Free Fall, thinking that it is a land to the west from some wall. "
     "The name Western Hawks remained." )
 
-ITEM( 0,   0,        "no item", itNone, -1, ZERO | IF_FIREPROOF, RESERVED, osNone,       NODESC)
+ITEM( 0,   0,        "no item", itNone, -1, ZERO | IF_FIREPROOF, RESERVED, osNone,       NULL)
 ITEM( '*', 0xFFFFFF, "Ice Diamond", itDiamond, IC_TREASURE, ZERO, RESERVED, osNone, 
     "Cold white gems, found in the Icy Land."
     )
@@ -872,7 +873,7 @@ ITEM( 'o', 0xD08080, "Orb of Choice", itOrbChoice, IC_ORB, ZERO, RESERVED, osNon
     )
 //ITEM( '*', 0x26619C, "Lapis Lazuli", itLapisLazuli, IC_TREASURE, ZERO, RESERVED, osNone, NODESCYET)
 
-WALL( '.', 0xFF00FF, "no wall", waNone, ZERO | WF_HEATCOLOR, RESERVED, 0, sgNone,        NODESC)
+WALL( '.', 0xFF00FF, "no wall", waNone, ZERO | WF_HEATCOLOR, RESERVED, 0, sgNone,        NULL)
 WALL( '#', 0x8080FF, "ice wall", waIcewall, WF_WALL | WF_HIGHWALL | WF_HEATCOLOR, RESERVED, 0, sgNone,    
     "Ice Walls melt after some time has passed."
     )
@@ -1190,7 +1191,7 @@ LAND( 0xFFFF00, "Land of Power", laPower, ZERO, itPower, RESERVED,
 
 LAND( 0xD0D0D0, "Camelot", laCamelot, ZERO | LF_CYCLIC, itHolyGrail, RESERVED, camelothelp )
   NATIVE((m == moKnight || m == moHedge || m == moFlailer || m == moLancer) ? 1 : 0)
-  REQ(ITEMS(itEmerald, U5) ACCONLY3(laCrossroads, laCrossroads3, laCrossroads4))
+  REQ(ITEMS(itEmerald, U5) ACCONLY2(laCrossroads, laCrossroads3))
 
 LAND( 0xD000D0, "Temple of Cthulhu", laTemple, ZERO | LF_CYCLIC, itGrimoire, RESERVED, templehelp )
   NATIVE((m == moTentacle || m == moCultist || m == moPyroCultist || m == moCultistLeader) ? 1 : 0)
@@ -1531,7 +1532,7 @@ LAND( 0x211F6F, "Free Fall", laWestWall, ZERO | LF_GRAVITY | LF_EQUI, itWest, RE
     " of an infinitely high tower. Jump from the window, and let the magical gravity carry you..."
     )
   NATIVE(among(m, moWestHawk, moFallingDog) ? 2 : 0)
-  REQ(ITEMS(itFeather, U5) ITEMS(itIvory, U5))
+  REQ(ITEMS(itFeather, 5) ITEMS(itIvory, 5))
 
 LAND( 0x30FF30, "Irradiated Field", laVariant, ZERO, itVarTreasure, RESERVED, 
     "These fields are ravaged with many kinds of magical radiation, which not only make the ground glow nicely in various colors, "
@@ -1741,5 +1742,4 @@ MONSTER( '*', 0,        "vertex", moRogueviz, ZERO | CF_TECHNICAL, RESERVED, moN
 #undef ITEMS_TOTAL
 #undef ACCONLY
 #undef ACCONLY2
-#undef ACCONLY3
 #undef ACCONLYF

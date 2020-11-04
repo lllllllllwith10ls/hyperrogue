@@ -197,8 +197,8 @@ void bantar_note(cell *c) {
 using bantar_config = pair<cell*, cell*>;
 
 tuple<ld,bool,ld> quality(bantar_config cp) {
-  shiftpoint h1 = tC0(ggmatrix(cp.first));
-  shiftpoint h2 = tC0(ggmatrix(cp.second));
+  hyperpoint h1 = tC0(ggmatrix(cp.first));
+  hyperpoint h2 = tC0(ggmatrix(cp.second));
   return make_tuple(hdist0(h1) * hdist0(h2), h2[1] > 0, abs(h2[0] / h2[1]));
   }
 
@@ -558,8 +558,8 @@ int readArgs() {
 auto hook = addHook(hooks_args, 100, readArgs)
   + addHook(hooks_initgame, 100, bantar)
   + addHook(hooks_frame, 100, bantar_stats)
-  + addHook(pres::hooks_build_rvtour, 140, [] (vector<tour::slide>& v) {
-    using namespace pres;
+  + addHook(rvtour::hooks_build_rvtour, 140, [] (vector<tour::slide>& v) {
+    using namespace rvtour;
     v.push_back(
       tour::slide{"unsorted/Banach-Tarski-like", 62, LEGAL::NONE,
      "Banach-Tarski-like decomposition. Break a hyperbolic plane into two hyperbolic planes.\n\n"

@@ -102,7 +102,7 @@ transmatrix random_snow_matrix(cell *c) {
     }
   }
 
-bool draw_snow(cell *c, const shiftmatrix& V) {
+bool draw_snow(cell *c, const transmatrix& V) {
   
   if(!matrices_at.count(c)) {
     auto& v = matrices_at[c];
@@ -140,7 +140,7 @@ bool draw_snow(cell *c, const shiftmatrix& V) {
 
 bool cylanim = false;
 
-string cap = "non-isotropic geometries/non-Euclidean snowballs/";
+string cap = "non-Euclidean snowballs/";
 
 void snow_slide(vector<tour::slide>& v, string title, string desc, reaction_t t) {
   using namespace tour;
@@ -236,7 +236,7 @@ auto hchook = addHook(hooks_drawcell, 100, draw_snow)
   })
 #endif
 
-+ addHook(pres::hooks_build_rvtour, 161, [] (vector<tour::slide>& v) {
++ addHook(rvtour::hooks_build_rvtour, 140, [] (vector<tour::slide>& v) {
   v.push_back(tour::slide{
     cap+"snowball visualization", 10, tour::LEGAL::NONE | tour::QUICKSKIP,
     "Non-Euclidean visualizations usually show some regular constructions. Could we visualize the geometries themselves? Let's distribute the snowballs randomly."

@@ -560,8 +560,8 @@ int ah = addHook(hooks_args, 100, readArgs)
     dialog::addSelItem(XLAT("SAG mode"), sag::sagmodes[sag::sagmode], 'm'); 
     dialog::add_action([] { sag::sagmode = sag::eSagmode( (1+sag::sagmode) % 3 ); });
     })
-  + addHook(pres::hooks_build_rvtour, 120, [] (vector<tour::slide>& v) {
-    using namespace pres;
+  + addHook(rvtour::hooks_build_rvtour, 120, [] (vector<tour::slide>& v) {
+    using namespace rvtour;
     string sagf = "hyperbolic geometry and data/SAG/";
     v.push_back(
       slide{sagf+"Roguelikes", 63, LEGAL::UNLIMITED | QUICKGEO,

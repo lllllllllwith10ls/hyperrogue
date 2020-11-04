@@ -1,5 +1,5 @@
 // Hyperbolic Rogue -- main graphics file
-// Copyright (C) 2011-2020 Zeno Rogue, see 'hyper.cpp' for details
+// Copyright (C) 2011-2019 Zeno Rogue, see 'hyper.cpp' for details
 
 /** \file graph.cpp
  *  \brief Drawing cells, monsters, items, etc.

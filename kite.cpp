@@ -327,7 +327,7 @@ struct hrmap_kite : hrmap {
 
   transmatrix relative_matrix(heptagon *h2, heptagon *h1, const hyperpoint& hint) override {
     if(gmatrix0.count(h2->c7) && gmatrix0.count(h1->c7))
-      return inverse_shift(gmatrix0[h1->c7], gmatrix0[h2->c7]);
+      return inverse(gmatrix0[h1->c7]) * gmatrix0[h2->c7];
     transmatrix gm = Id, where = Id;
     while(h1 != h2) {
       if(h1->distance <= h2->distance)
@@ -343,6 +343,37 @@ struct hrmap_kite : hrmap {
     origin = newtile(pKite, 0);
     }
 
+  void draw() override {
+             
+    dq::visited.clear();
+    dq::enqueue(centerover->master, cview());
+    
+    while(!dq::drawqueue.empty()) {
+      auto& p = dq::drawqueue.front();
+      heptagon *h = get<0>(p);
+      transmatrix V = get<1>(p);
+      dynamicval<ld> b(band_shift, get<2>(p));
+      bandfixer bf(V);
+      dq::drawqueue.pop();
+
+      cell *c = h->c7;
+      if(!do_draw(c, V)) continue;
+      drawcell(c, V);
+      
+      for(int i=0; i<c->type; i++)
+        dq::enqueue(c->cmove(i)->master, V * adj(c, i));
+          /*
+          ld err = hdist(where[h->c7->cmove(i)->master] * C0, where[h] * M * C0);
+          if(err > -.01)
+          println(hlog, 
+            " for ", make_tuple(getshape(h), i, getshape(h->c7->cmove(i)->master), h->c7->c.spin(i)),
+            " error = ",  format("%f", float(err)),
+            " source = ", s0+source[{h->c7, h->c7->cmove(i)}]
+            );
+            */
+      }
+    }
+  
   ~hrmap_kite() {
     clearfrom(origin);
     }

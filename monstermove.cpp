@@ -76,8 +76,6 @@ EX void moveEffect(const movei& mi, eMonster m) {
     cf->wall = waChasm;
     }
   
-  if(ct->wall == waReptile) ct->wparam = -1;
-    
   if(ct->wall == waArrowTrap && !ignoresPlates(m) && normal_gravity_at(ct))
     activateArrowTrap(ct);
 
@@ -1480,7 +1478,7 @@ EX void moveghosts() {
       int goodmoves = 0;
 
       for(int k=0; k<c->type; k++) if(c->move(k) && c->move(k)->cpdist < c->cpdist)
-        if(ghostmove(c->monst, c->move(k), c, 0) && !isPlayerOn(c->move(k)))
+        if(ghostmove(c->monst, c->move(k), c) && !isPlayerOn(c->move(k)))
           goodmoves++;
       
       movesofgood.grow(goodmoves).push_back(c);
@@ -1505,7 +1503,7 @@ EX void moveghosts() {
           }
     
       for(int k=0; k<c->type; k++) if(c->move(k) && c->move(k)->cpdist < c->cpdist)
-        if(ghostmove(c->monst, c->move(k), c, 0))
+        if(ghostmove(c->monst, c->move(k), c))
           mdir.push_back(k);
       if(mdir.empty()) continue;
       int d = hrand_elt(mdir);

@@ -213,8 +213,7 @@ EX bool activateRecall() {
 
 EX void saveRecall(cellwalker cw2) {  
   if(!recallCell.at) {
-    changes.value_set(recallCell, cw2);
-    changes.value_keep(recallDisplay);
+    recallCell = cw2;
     recallDisplay = *current_display;
     }
   }

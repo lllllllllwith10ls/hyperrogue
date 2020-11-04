@@ -332,12 +332,13 @@ EX eItem wanderingTreasure(cell *c) {
 
 /** generate the wandering monsters */
 EX void wandering() {
-  #if CAP_COMPLEX2
-  if(mine::in_minesweeper()) {
-    mine::count_status();
+  if(bounded && specialland == laMinefield) {
+    kills[moBomberbird] = 0;
+    kills[moTameBomberbird] = 0;
+    for(cell *c: currentmap->allcells()) if(c->wall == waMineUnknown) kills[moBomberbird]++;
+    for(cell *c: currentmap->allcells()) if(among(c->wall, waMineMine, waMineUnknown) && mine::marked_mine(c)) kills[moTameBomberbird]++;
     return;
     }
-  #endif
   if(!canmove) return;
   if(!gen_wandering) return;
   if(racing::on) return;
