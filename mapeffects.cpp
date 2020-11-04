@@ -1,5 +1,5 @@
 // Hyperbolic Rogue - Map effects
-// Copyright (C) 2011-2019 Zeno Rogue, see 'hyper.cpp' for details
+// Copyright (C) 2011-2020 Zeno Rogue, see 'hyper.cpp' for details
 
 /** \file mapeffects.cpp
  *  \brief Routines handling the map effects

@@ -698,16 +698,16 @@ EX namespace gp {
     config = human_representation(xy);
     auto g = screens;
     if(xy.first == 0 && xy.second == 0) xy.first = 1;
+    stop_game();
+    param = xy;
     if(xy.first == 1 && xy.second == 0) {
-      stop_game(); set_variation(eVariation::pure);
+      set_variation(eVariation::pure);
       }
     else if(xy.first == 1 && xy.second == 1 && S3 == 3) {
-      stop_game(); set_variation(eVariation::bitruncated);
+      set_variation(eVariation::bitruncated);
       }
-    else {
-      param = xy;
-      stop_game(); set_variation(eVariation::goldberg);
-      }
+    else 
+      set_variation(eVariation::goldberg);
     start_game();
     screens = g;
     }
@@ -798,12 +798,15 @@ EX namespace gp {
       dialog::addInfo(XLAT("This pattern needs x-y divisible by 3"));
     else if((config.first-config.second)%2 && min_quality_chess)
       dialog::addInfo(XLAT("This pattern needs x-y divisible by 2"));
-    else    
-      dialog::addBoolItem(XLAT("select"), param == internal_representation(config) && !IRREGULAR, 'f');
+    else {
+      dialog::addBoolItem(XLAT("select"), param == internal_representation(config) && !IRREGULAR && !INVERSE, 'f');
+      dialog::lastItem().value = "GP(x,y)";
+      }
     dialog::add_action_confirmed([] { whirl_set(config); });
 
     dialog::addBreak(100);
       
+    #if CAP_IRR
     if(irr::supports(geometry)) {
       dialog::addBoolItem(XLAT("irregular"), IRREGULAR, 'i');
       dialog::add_action(dialog::add_confirmation([=] () { 
@@ -815,6 +818,7 @@ EX namespace gp {
         if(!IRREGULAR) irr::visual_creator(); 
         }));
       }
+    #endif
 
     dialog::addBreak(100);
     int style = 0;
@@ -1119,6 +1123,16 @@ EX namespace gp {
       return c;
       }
     
+    transmatrix relative_matrix(heptagon *h2, heptagon *h1, const hyperpoint& hint) override {
+      return in_underlying([&] { return currentmap->relative_matrix(h2, h1, hint); });
+      }
+
+    transmatrix relative_matrix(cell *c2, cell *c1, const hyperpoint& hint) override {
+      c1 = mapping[c1];
+      c2 = mapping[c2];
+      return in_underlying([&] { return currentmap->relative_matrix(c2, c1, hint); });
+      }
+
     ~hrmap_inverse() {
       in_underlying([this] { delete underlying_map; });
       }
@@ -1225,19 +1239,17 @@ EX namespace gp {
       return T;
       }
     
-    void draw() override {
+    void draw_at(cell *at, const shiftmatrix& where) override {
       
       dq::clear_all();
       
       auto enqueue = (quotient ? dq::enqueue_by_matrix_c : dq::enqueue_c);
-      enqueue(centerover, cview());      
+      enqueue(at, where);
 
       while(!dq::drawqueue_c.empty()) {
         auto& p = dq::drawqueue_c.front();
-        cell *c = get<0>(p);
-        transmatrix V = get<1>(p);
-        dynamicval<ld> b(band_shift, get<2>(p));
-        bandfixer bf(V);
+        cell *c = p.first;
+        shiftmatrix V = p.second;
         auto c1 = get_mapped(c, 0);
         
         in_underlying([&] {
@@ -1257,7 +1269,7 @@ EX namespace gp {
         drawcell(c, V);
         
         for(int i=0; i<c->type; i++) if(c->cmove(i))
-          enqueue(c->move(i), V * adj(c, i));
+          enqueue(c->move(i), optimized_shift(V * adj(c, i)));
         }
       }
 

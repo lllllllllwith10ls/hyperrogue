@@ -89,8 +89,6 @@ struct archimedean_tiling {
   };
 #endif
 
-#if CAP_ARCM
-
 #if HDR
 static const int sfPH = 1;
 static const int sfLINE = 2;
@@ -98,6 +96,8 @@ static const int sfCHESS = 4;
 static const int sfTHREE = 8;
 static const int sfSEMILINE = 16;
 #endif
+
+#if CAP_ARCM
 
 EX archimedean_tiling current;
 EX archimedean_tiling fake_current;
@@ -170,13 +170,24 @@ void archimedean_tiling::prepare() {
     errors++;
     return;
     }
-  if(isize(faces) < 2) {
+
+  for(int i: faces) if(i < 2) {
+    errormsg = XLAT("not enough edges");
+    errors++;
+    return;
+    }
+
+  vector<int> nondigonal;
+  for(int i: faces) if(i > 2) nondigonal.push_back(i);
+
+  if(isize(faces) < 2 || isize(nondigonal) == 1) {
     errormsg = XLAT("not enough faces");
     errors++;
     return;
     }
-  for(int i: faces) if(i < 2) {
-    errormsg = XLAT("not enough edges");
+    
+  if(isize(nondigonal) == 2 && faces[0] != faces[1]) {
+    errormsg = XLAT("invalid dihedron");
     errors++;
     return;
     }
@@ -625,7 +636,7 @@ struct hrmap_archimedean : hrmap {
       dynamicval<hrmap*> cm(currentmap, current_altmap);
       U = T;
       current_altmap->virtualRebase(alt, T);
-      U = U * inverse(T);
+      U = U * iso_inverse(T);
       }
     
     if(euclid) {
@@ -676,15 +687,14 @@ struct hrmap_archimedean : hrmap {
     return hnew;
     }
   
-  void draw() override {
-    dq::visited.clear();
-    dq::enqueue(centerover->master, cview());
+  void draw_at(cell *at, const shiftmatrix& where) override {
+    dq::clear_all();
+    dq::enqueue(at->master, where);
     
     while(!dq::drawqueue.empty()) {
       auto& p = dq::drawqueue.front();
-      heptagon *h = get<0>(p);
-      transmatrix V = get<1>(p);
-      dynamicval<ld> b(band_shift, get<2>(p));
+      heptagon *h = p.first;
+      shiftmatrix V = p.second;
       dq::drawqueue.pop();
   
       int id = id_of(h);
@@ -699,8 +709,8 @@ struct hrmap_archimedean : hrmap {
         if(DUAL && (i&1)) continue;
         h->cmove(i);
         if(PURE && id >= 2*current.N && h->move(i) && id_of(h->move(i)) >= 2*current.N) continue;
-        transmatrix V1 = V * current.adjcell_matrix(h, i);
-        bandfixer bf(V1);
+        shiftmatrix V1 = V * current.adjcell_matrix(h, i);
+        optimize_shift(V1);
         dq::enqueue(h->move(i), V1);
         }
       }
@@ -712,7 +722,7 @@ struct hrmap_archimedean : hrmap {
   
   transmatrix relative_matrix(heptagon *h2, heptagon *h1, const hyperpoint& hint) override {
     if(use_gmatrix && gmatrix0.count(h2->c7) && gmatrix0.count(h1->c7))
-      return inverse(gmatrix0[h1->c7]) * gmatrix0[h2->c7];
+      return inverse_shift(gmatrix0[h1->c7], gmatrix0[h2->c7]);
     transmatrix gm = Id, where = Id;
     auto& cof = current_or_fake();
     while(h1 != h2) {
@@ -726,7 +736,7 @@ struct hrmap_archimedean : hrmap {
         h1 = h1->move(0);
         }
       else {
-        where = inverse(cof.adjcell_matrix(h2, 0)) * where;
+        where = iso_inverse(cof.adjcell_matrix(h2, 0)) * where;
         h2 = h2->move(0);
         }
       }
@@ -831,8 +841,8 @@ void connectHeptagons(heptspin hi, heptspin hs) {
 
 /** T and X are supposed to be equal -- move T so that it is closer to X */
 void fixup_matrix(transmatrix& T, const transmatrix& X, ld step) {
-  for(int i=0; i<MDIM; i++)
-  for(int j=0; j<MDIM; j++)
+  for(int i=0; i<MXDIM; i++)
+  for(int j=0; j<MXDIM; j++)
     T[i][j] = (T[i][j] * (1-step) + X[i][j] * step);
 
   /*
@@ -1440,9 +1450,9 @@ EX int valence() {
   return total / isize(current.faces);
   }
  
-#endif
-
 EX map<gp::loc, cdata>& get_cdata() { return ((arcm::hrmap_archimedean*) (currentmap))->eucdata; }
+
+#endif
 
 EX }
 

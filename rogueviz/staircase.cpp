@@ -29,7 +29,7 @@ hyperpoint spcoord(hyperpoint h) {
   }
 
 rug::rugpoint *pt(hyperpoint h, hyperpoint c) {
-  auto r = rug::addRugpoint(C0, -1);
+  auto r = rug::addRugpoint(shiftless(C0), -1);
   r->native = spcoord(h);
   r->x1 = c[0];
   r->y1 = c[1];
@@ -353,7 +353,7 @@ int phooks = addHook(hooks_args, 100, readArgs)
      if(staircase::on) { staircase::showMenu(); return true; }
      return false;
      })
-  + addHook(rvtour::hooks_build_rvtour, 141, [] (vector<tour::slide>& v) {
+  + addHook(pres::hooks_build_rvtour, 141, [] (vector<tour::slide>& v) {
     using namespace tour;
     v.push_back(
       tour::slide{"unsorted/Spiral Staircase", 62, LEGAL::NONE | QUICKGEO,

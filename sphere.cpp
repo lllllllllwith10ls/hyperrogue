@@ -161,14 +161,16 @@ struct hrmap_spherical : hrmap_standard {
   
   transmatrix relative_matrix(cell *c2, cell *c1, const hyperpoint& hint) {
     if(!gmatrix0.count(c2) || !gmatrix0.count(c1)) {
+      #if !ISWEB
       printf("building gmatrix0 (size=%d)\n", isize(gmatrix0));
+      #endif
       #if CAP_GP
       auto bak = gp::draw_li;
       #endif
       swap(gmatrix, gmatrix0);
       just_gmatrix = true;
       dynamicval<cell*> cco(centerover, gamestart());
-      draw();
+      draw_all();
       just_gmatrix = false;
       swap(gmatrix, gmatrix0);
       #if CAP_GP
@@ -176,7 +178,7 @@ struct hrmap_spherical : hrmap_standard {
       #endif
       }
     if(gmatrix0.count(c2) && gmatrix0.count(c1)) {
-      transmatrix T = inverse(gmatrix0[c1]) * gmatrix0[c2];
+      transmatrix T = inverse_shift(gmatrix0[c1], gmatrix0[c2]);
       if(elliptic && T[LDIM][LDIM] < 0)
         T = centralsym * T;
       return T;

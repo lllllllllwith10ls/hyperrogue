@@ -1,5 +1,5 @@
 // Hyperbolic Rogue -- land generation
-// Copyright (C) 2011-2019 Zeno Rogue, see 'hyper.cpp' for details
+// Copyright (C) 2011-2020 Zeno Rogue, see 'hyper.cpp' for details
 
 /** \file landgen.cpp
  *  \brief generating various lands

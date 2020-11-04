@@ -204,7 +204,7 @@ bool displayglyph(int cx, int cy, int buttonsize, char glyph, color_t color, int
           V[i][i] /= cgi.wormscale;
       int mcol = color;
       mcol -= (color & 0xFCFCFC) >> 2;
-      drawMonsterType(m, NULL, V, mcol, glyphphase[id]/500.0, NOCOLOR);
+      drawMonsterType(m, NULL, shiftless(V), mcol, glyphphase[id]/500.0, NOCOLOR);
       }
     else {
       eItem it = eItem(id);
@@ -226,7 +226,7 @@ bool displayglyph(int cx, int cy, int buttonsize, char glyph, color_t color, int
         ((glyph == 't' && qty%5) || it == itOrbYendor) ? ticks/2 : 
         it == itTerra ? glyphphase[id] * 3 * M_PI + 900 * M_PI:
         glyphphase[id] * 2;
-      drawItemType(it, NULL, V, icol, t, false);
+      drawItemType(it, NULL, shiftless(V), icol, t, false);
       }
     quickqueue();
     }
@@ -355,11 +355,11 @@ void drawMobileArrow(int i) {
   ld scale = vid.mobilecompasssize * (sphere ? 7 : euclid ? 6 : 5);
   // m2[0][0] = scale; m2[1][1] = scale; m2[2][2] = 1;
 
-  transmatrix U = ggmatrix(cwt.at);
-  hyperpoint H = sphereflip * tC0(U);
-  transmatrix Centered = sphereflip * rgpushxto0(H);
+  shiftmatrix U = ggmatrix(cwt.at);
+  shiftpoint H = tC0(U);
+  shiftmatrix Centered = rgpushxto0(H);
 
-  hyperpoint P = inverse(Centered) * U * T * C0;
+  hyperpoint P = inverse_shift(Centered, U * T * C0);
   double alpha = atan2(P[1], P[0]);
 
   using namespace shmupballs;
@@ -367,7 +367,7 @@ void drawMobileArrow(int i) {
   double dx = xmove + rad*(1+SKIPFAC-.2)/2 * cos(alpha);
   double dy = yb + rad*(1+SKIPFAC-.2)/2 * sin(alpha);
   
-  queuepolyat(atscreenpos(dx, dy, scale) * spin(-alpha), cgi.shArrow, col, PPR::MOBILE_ARROW);
+  queuepolyat(shiftless(atscreenpos(dx, dy, scale) * spin(-alpha)), cgi.shArrow, col, PPR::MOBILE_ARROW);
   }
 #endif
 
@@ -386,8 +386,27 @@ EX int hud_margin(int side) {
   return 0;
   }
 
+EX void draw_crosshair() {
+  auto& cd = current_display;
+  auto xc = cd->xcenter;
+  auto yc = cd->ycenter;
+  
+  flat_model_enabler fme;
+
+  if(crosshair_color && crosshair_size > 0) {
+    initquickqueue();
+    vid.linewidth = 1;
+    queueline(shiftless(tC0(atscreenpos(xc - crosshair_size, yc, 1))), shiftless(tC0(atscreenpos(xc + crosshair_size, yc, 1))), crosshair_color).prio = PPR::SUPERLINE;
+    queueline(shiftless(tC0(atscreenpos(xc, yc - crosshair_size, 1))), shiftless(tC0(atscreenpos(xc, yc + crosshair_size, 1))), crosshair_color).prio = PPR::SUPERLINE;
+    quickqueue();
+    }
+  return;
+  }
+  
 EX void drawStats() {
-  if(nohud || vid.stereo_mode == sLR) return;
+  if(vid.stereo_mode == sLR) return;
+  draw_crosshair();
+  if(nohud) return;
   if(callhandlers(false, hooks_prestats)) return;
   if(viewdists && show_distance_lists) 
     expansion.view_distances_dialog();
@@ -402,20 +421,6 @@ EX void drawStats() {
   
   {
   
-  auto& cd = current_display;
-  auto xc = cd->xcenter;
-  auto yc = cd->ycenter;
-
-  flat_model_enabler fme;
-
-  if(crosshair_color && crosshair_size > 0) {
-    initquickqueue();
-    vid.linewidth = 1;
-    queueline(tC0(atscreenpos(xc - crosshair_size, yc, 1)), tC0(atscreenpos(xc + crosshair_size, yc, 1)), crosshair_color).prio = PPR::SUPERLINE;
-    queueline(tC0(atscreenpos(xc, yc - crosshair_size, 1)), tC0(atscreenpos(xc, yc + crosshair_size, 1)), crosshair_color).prio = PPR::SUPERLINE;
-    quickqueue();
-    }
-  
   if(vid.radarsize > 0 && h)
   #if CAP_RACING
     if(!racing::on)
@@ -423,6 +428,8 @@ EX void drawStats() {
     if(!peace::on)
     if(!(cmode & sm::MISSION))
       draw_radar(cornermode);
+
+  flat_model_enabler fme;
 
   if(haveMobileCompass()) {
     initquickqueue();

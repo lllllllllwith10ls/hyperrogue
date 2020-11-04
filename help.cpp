@@ -231,7 +231,8 @@ EX void buildCredits() {
     "wonderfullizardofoz, Piotr Migdał, tehora, Michael Heerdegen, Sprite Guard, zelda0x181e, Vipul, snowyowl0, Patashu, phenomist, Alan Malloy, Tom Fryers, Sinquetica, _monad, CtrlAltDestroy, jruderman, "
     "Kojiguchi Kazuki, baconcow, Alan, SurelyYouJest, hotdogPi, DivisionByZero, xXxWeedGokuxXx, jpystynen, Dmitry Marakasov, Alexandre Moine, Arthur O'Dwyer, "
     "Triple_Agent_AAA, bluetailedgnat, Allalinor, Shitford, KittyTac, Christopher King, KosGD, TravelDemon, Bubbles, rdococ, frozenlake, MagmaMcFry, "
-    "Snakebird Priestess, roaringdragon2, Stopping Dog, bengineer8, Sir Light IJIJ, ShadeBlade, Saplou, shnourok, Ralith, madasa, 6% remaining, Chimera245, Remik Pi, alien foxcat thing"
+    "Snakebird Priestess, roaringdragon2, Stopping Dog, bengineer8, Sir Light IJIJ, ShadeBlade, Saplou, shnourok, Ralith, madasa, 6% remaining, Chimera245, Remik Pi, alien foxcat thing, "
+    "Piotr Grochowski, Ann, still-flow"
     );
 #ifdef EXTRALICENSE
   help += EXTRALICENSE;
@@ -443,7 +444,8 @@ EX string generateHelpForItem(eItem it) {
     if(it == itOrbYendor || it == itHolyGrail)
       help += XLAT(
         "\n\nCollect %the1 to gain an extra Orb of the Mirror. "
-        "You can gain further Orbs of the Mirror by collecting 2, 4, 8..."
+        "You can gain further Orbs of the Mirror by collecting 2, 4, 8...",
+        it
         );  
     
     if(it == itPower)
@@ -664,6 +666,7 @@ void add_reqs(eLand l, string& s) {
       { int now = 0; string t = ""; for(eItem i: list) { if(t!="") t += " + "; t += XLATN(iinf[i].name); now += items[i]; } s += XLAT("Treasure required: %1 x %2.\n", its(z), t); buteol(s, now, z); }
     #define ACCONLY(z) s += XLAT("Accessible only from %the1.\n", z);
     #define ACCONLY2(z,x) s += XLAT("Accessible only from %the1 or %the2.\n", z, x);
+    #define ACCONLY3(z,y,x) s += XLAT("Accessible only from %the1 or %the2.\n", z, y, x);
     #define ACCONLYF(z) s += XLAT("Accessible only from %the1 (until finished).\n", z);
     #include "content.cpp"
 
@@ -806,6 +809,10 @@ int windtotal;
 
 EX hookset<void(cell*)> hooks_mouseover;
 
+template<class T> void set_help_to(T t) { 
+  help = bygen([t] { gotoHelpFor(t); });
+  }
+
 EX void describeMouseover() {
   DEBBI(DF_GRAPH, ("describeMouseover"));
 
@@ -814,7 +821,7 @@ EX void describeMouseover() {
   if(!c || instat || getcstat != '-') { }
   else if(c->wall != waInvisibleFloor) {
     out = XLAT1(linf[c->land].name);
-    help = bygen([c] () { gotoHelpFor(c->land); });
+    set_help_to(c->land);
     
     if(WDIM == 3 && isGravityLand(c->land)) out += " [" + its(gravityLevel(c)) + "]";
     
@@ -911,7 +918,7 @@ EX void describeMouseover() {
         if(c->wall != waSea && c->wall != waPalace && c->wall != waDeadfloor)
         if(!((c->wall == waCavefloor || c->wall == waCavewall) && (c->land == laEmerald || c->land == laCaves)))
         if(!((isAlch(c->wall) && c->land == laAlchemist)))
-          help = bygen([c] () { gotoHelpFor(c->wall); });
+          set_help_to(c->wall);
       }
     
     if(isActivable(c)) out += XLAT(" (touch to activate)");
@@ -921,8 +928,12 @@ EX void describeMouseover() {
     if(isReptile(c->wall))
       out += " [" + turnstring((unsigned char) c->wparam) + "]";
       
+    #if CAP_COMPLEX2
     if(c->monst == moKnight)
       out += XLAT(", %1 the Knight", camelot::knight_name(c));
+    #else
+    if(0) ;
+    #endif
   
     else if(c->monst) {
       out += ", "; out += XLAT1(minf[c->monst].name); 
@@ -935,22 +946,23 @@ EX void describeMouseover() {
 
       if(c->monst == moTortoise && tortoise::seek()) 
         out += " " + tortoise::measure(tortoise::getb(c));
-
-      help = bygen([c] () { gotoHelpFor(c->monst); });
+        
+      set_help_to(c->monst);
       }
   
     if(c->item && !itemHiddenFromSight(c)) {
       out += ", "; 
       out += XLAT1(iinf[c->item].name); 
       if(c->item == itBarrow) out += " (x" + its(c->landparam) + ")";
-      if(c->land == laHunting) {
+      #if CAP_COMPLEX2
+      if(c->land == laHunting) {      
         int i = ambush::size(c, c->item);
         if(i) out += " (" + XLAT("ambush:") + " " + its(i) + ")";
         }
+      #endif
       if(c->item == itBabyTortoise && tortoise::seek()) 
         out += " " + tortoise::measure(tortoise::babymap[c]);
-      if(!c->monst) 
-        help = bygen([c] () { gotoHelpFor(c->item); });
+      if(!c->monst) set_help_to(c->item);
       }
     
     if(isPlayerOn(c) && !shmup::on) out += XLAT(", you"), help = generateHelpForMonster(moPlayer);
@@ -994,6 +1006,14 @@ EX void describeMouseover() {
   callhooks(hooks_mouseover, c);
   
   if(mousey < vid.fsize * 3/2 && getcstat == '-' && !instat) getcstat = SDLK_F1;
+  #if CAP_TOUR
+  if(tour::on && !tour::texts) {
+    if(tour::slides[tour::currentslide].flags & tour::NOTITLE)
+      mouseovers = "";
+    else
+      mouseovers = XLAT(tour::slides[tour::currentslide].name);
+    }
+  #endif
   }
 
 EX void showHelp() {

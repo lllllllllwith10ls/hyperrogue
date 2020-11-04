@@ -170,7 +170,7 @@ void write_ghosts(string seed, int mcode) {
   }
 #endif
 
-transmatrix get_ghostmoment_matrix(ghostmoment& p) {
+shiftmatrix get_ghostmoment_matrix(ghostmoment& p) {
   cell *w = rti[p.where_id].c;
   transmatrix T = spin_uchar(p.alpha) * xpush(uchar_to_frac(p.distance) * distance_multiplier) * spin_uchar(p.beta);
   return gmatrix[w] * T;
@@ -615,7 +615,7 @@ EX void generate_track() {
   
   for(int i=0; i<motypes; i++) kills[i] = 0;
   
-  vector<transmatrix> forbidden;
+  vector<shiftmatrix> forbidden;
   for(auto& ghost: ghostset()[specialland])
     forbidden.push_back(get_ghostmoment_matrix(ghost.history[0]));
   for(auto& ghost: oghostset()[specialland]) 
@@ -634,7 +634,7 @@ EX void generate_track() {
         who->at = straight * parabolic1(start_line_width * (rand() % 20000 - 10000) / 40000) * spin(rand() % 360);
       who->base = s;
       bool ok = true;
-      for(const transmatrix& t: forbidden) if(hdist(t*C0, who->at * C0) < 10. / (j+10)) ok = false;
+      for(const shiftmatrix& t: forbidden) if(hdist(t*C0, shiftless(who->at) * C0) < 10. / (j+10)) ok = false;
       if(ok) break;
       }
     virtualRebase(who);
@@ -751,6 +751,21 @@ EX bool use_standard_centering() {
   return standard_centering || force_standard_centering();
   }
 
+EX transmatrix track_matrix(int at, int dir) {
+  transmatrix res = unshift(ggmatrix(racing::track[at]));
+  while(true) {
+    if(at+dir < 0 || at+dir >= isize(racing::track)) return res;
+    for(int x=0; x<MXDIM; x++) for(int y=0; y<MXDIM; y++)
+      if(abs(res[y][x]) > 10000) return res;
+    cell *cur = racing::track[at];
+    at += dir;
+    cell *next = racing::track[at];
+    int nei = neighborId(cur, next);
+    if(nei == -1) return res;
+    res = res * currentmap->adj(cur, nei);
+    }
+  }
+
 EX bool set_view() {
 
   multi::cpid = subscreens::in ? subscreens::current_player : 0;
@@ -775,26 +790,30 @@ EX bool set_view() {
   if(use_standard_centering()) return false;
   if(player_relative && specialland == laAsteroids) return false;
 
-  transmatrix at = ypush(-vid.yshift) * ggmatrix(who->base) * who->at;
+  transmatrix at = ypush(-vid.yshift) * unshift(ggmatrix(who->base)) * who->at;
   
   if(racing::player_relative || quotient || (kite::in() && GDIM == 3)) {
-    View = inverse(at) * View;
+    View = iso_inverse(at) * View;
     }
   else {
+    /* this works only in isotropic geometries, but we don't really care about this in 3D */
     int z = get_info(who->base).completion;
-    int steps = euclid ? 1000 : PURE ? 10 :  20;
-    cell *c1 = racing::track[max(z-steps, 0)];
-    cell *c2 = racing::track[min(z+steps, isize(racing::track)-1)];
-    transmatrix T1 = ypush(-vid.yshift) * ggmatrix(c1);
-    transmatrix T2 = ypush(-vid.yshift) * ggmatrix(c2);
-    transmatrix T = spintox(inverse(T1) * T2 * C0);
-    hyperpoint h = T * inverse(T1) * at * C0;
+    
+    transmatrix T1 = track_matrix(z, -1);
+    transmatrix T2 = track_matrix(z, +1);
+    
+    transmatrix iT1 = iso_inverse(T1);
+
+    transmatrix T = spintox(iT1 * T2 * C0);
+    
+    hyperpoint h = T * iT1 * ypush(vid.yshift) * at * C0;
     ld y = GDIM == 2 ? asin_auto(h[1]) : asin_auto(hypot(h[1], h[2]));
     ld x = asin_auto(h[0] / cos_auto(y));
     x += race_advance;
     if(GDIM == 3 && race_advance == 0 && pmodel == mdPerspective) race_advance = -1;
-    transmatrix Z = T1 * inverse(T) * xpush(x);
-    View = inverse(Z) * View;
+
+    View = xpush(-x) * T * iT1 * ypush(vid.yshift) * View;
+
     if(GDIM == 3) View = cspin(2, 0, M_PI/2) * View;
     fixmatrix(View);
     }
@@ -1326,7 +1345,7 @@ EX void race_won() {
     }
   }
 
-void draw_ghost_at(ghost& ghost, cell *w, const transmatrix& V, ghostmoment& p) {
+void draw_ghost_at(ghost& ghost, cell *w, const shiftmatrix& V, ghostmoment& p) {
   dynamicval<charstyle> x(getcs(), ghost.cs);
   if(ghost.cs.charid == -1) {
     dynamicval<bool> pc(peace::on, true);
@@ -1355,9 +1374,9 @@ void draw_ghost(ghost& ghost) {
   draw_ghost_at(ghost, w, get_ghostmoment_matrix(p), p);
   }
 
-transmatrix racerel(ld rel) {
+shiftmatrix racerel(ld rel) {
   int bsize = vid.fsize * 2;
-  return atscreenpos(bsize, vid.yres - bsize - rel * (vid.yres - bsize*2) / 100, bsize) * spin(M_PI/2);
+  return shiftless(atscreenpos(bsize, vid.yres - bsize - rel * (vid.yres - bsize*2) / 100, bsize) * spin(M_PI/2));
   }
 
 EX int get_percentage(cell *c) {
@@ -1390,7 +1409,7 @@ EX void drawStats() {
     curvepoint(atscreenpos(bsize*3/2, y, bsize) * C0);
     curvepoint(atscreenpos(bsize, y, bsize) * C0);
     }
-  queuecurve(0xFFFFFFFF, 0, PPR::ZERO);
+  queuecurve(shiftless(Id), 0xFFFFFFFF, 0, PPR::ZERO);
   
   for(auto& ghost: ghostset()[specialland]) draw_ghost_state(ghost);
   for(auto& ghost: oghostset()[specialland]) draw_ghost_state(ghost);
@@ -1418,8 +1437,8 @@ EX void markers() {
     
     if(!goal) return;
 
-    hyperpoint H = tC0(ggmatrix(goal));
-    if(invalid_point(H)) return;
+    shiftpoint H = tC0(ggmatrix(goal));
+    if(invalid_point(H.h)) return;
 
     queuestr(H, 2*vid.fsize, "X", 0x10100 * int(128 + 100 * sintick(150)));
     int cd = celldistance(track.back(), cwt.at);
@@ -1444,8 +1463,8 @@ EX void markers() {
   if(gmatrix.count(track[0])) {
     hyperpoint h = WDIM == 2 && GDIM == 3 ? zpush(cgi.FLOOR - cgi.human_height/80) * C0 : C0;
     for(ld z=-start_line_width; z<=start_line_width; z+=0.1) 
-      curvepoint(ggmatrix(track[0]) * straight * parabolic1(z) * h);
-    queuecurve(0xFFFFFFFF, 0, PPR::BFLOOR);
+      curvepoint(parabolic1(z) * h);
+    queuecurve(ggmatrix(track[0]) * straight, 0xFFFFFFFF, 0, PPR::BFLOOR);
     }
   }
 

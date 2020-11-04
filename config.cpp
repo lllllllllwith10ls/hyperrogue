@@ -22,6 +22,8 @@ struct supersaver {
   virtual bool dosave() = 0;
   virtual void reset() = 0;
   virtual ~supersaver() {};
+  virtual bool affects(void* v) { return false; }
+  virtual void set_default() = 0;
   };
 
 typedef vector<shared_ptr<supersaver>> saverlist;
@@ -36,6 +38,8 @@ template<class T> struct dsaver : supersaver {
   bool dosave() { return val != dft; }
   void reset() { val = dft; }
   dsaver(T& val) : val(val) { }
+  bool affects(void* v) { return v == &val; }
+  void set_default() { dft = val; }
   };
 
 template<class T> struct saver : dsaver<T> {};
@@ -51,6 +55,18 @@ template<class T> void addsaver(T& i, string name) {
   addsaver(i, name, i);
   }
 
+template<class T> void removesaver(T& val) {
+  for(int i=0; i<isize(savers); i++)
+    if(savers[i]->affects(&val))
+      savers.erase(savers.begin() + i);
+  }
+
+template<class T> void set_saver_default(T& val) {
+  for(auto sav: savers)
+    if(sav->affects(&val))
+      sav->set_default();
+  }
+
 template<class T> struct saverenum : supersaver {
   T& val;
   T dft;
@@ -59,6 +75,8 @@ template<class T> struct saverenum : supersaver {
   saverenum<T>(T& v) : val(v) { }
   string save() { return its(int(val)); }
   void load(const string& s) { val = (T) atoi(s.c_str()); }
+  virtual bool affects(void* v) { return v == &val; }
+  virtual void set_default() { dft = val; }
   };
 
 template<class T, class U> void addsaverenum(T& i, U name, T dft) {
@@ -131,7 +149,8 @@ EX int bounded_mine_quantity, bounded_mine_max;
 
 EX const char *conffile = "hyperrogue.ini";
 
-EX array<ld, gGUARD> sightranges;
+/* extra space if more geometries are added */
+EX array<ld, gGUARD+64> sightranges;
 
 EX videopar vid;
 
@@ -412,6 +431,7 @@ EX void initConfig() {
   addsaver(pconf.top_z, "topz", 5);
   addsaver(pconf.model_transition, "model transition", 1);
   addsaver(pconf.halfplane_scale, "halfplane scale", 1);
+  addsaver(pconf.rotational_nil, "rotnil", 1);
   addsaver(history::autoband, "automatic band");
   addsaver(history::autobandhistory, "automatic band history");
   addsaver(history::dospiral, "do spiral");
@@ -471,7 +491,9 @@ EX void initConfig() {
   addsaver(shmup::on, "mode-shmup", false);
   addsaver(hardcore, "mode-hardcore", false);
   addsaver(chaosmode, "mode-chaos");
+  #if CAP_INV
   addsaver(inv::on, "mode-Orb Strategy");
+  #endif
   addsaverenum(variation, "mode-variation", eVariation::bitruncated);
   addsaver(peace::on, "mode-peace");
   addsaver(peace::otherpuzzles, "mode-peace-submode");
@@ -493,6 +515,12 @@ EX void initConfig() {
   addsaver(vid.binary_width, "binary-tiling-width", 1);
   addsaver(pconf.collignon_parameter, "collignon-parameter", 1);
   addsaver(pconf.collignon_reflected, "collignon-reflect", false);
+  addsaver(pconf.show_hyperboloid_flat, "hyperboloid-flat", true);
+
+  addsaver(pconf.aitoff_parameter, "aitoff-parameter");
+  addsaver(pconf.miller_parameter, "miller-parameter");
+  addsaver(pconf.loximuthal_parameter, "loximuthal_parameter");
+  addsaver(pconf.winkel_parameter, "winkel_parameter");
 
   addsaver(vid.plevel_factor, "plevel_factor", 0.7);
 
@@ -553,6 +581,7 @@ EX void initConfig() {
   addsaver(vid.use_smart_range, "smart-range", 0);
   addsaver(vid.smart_range_detail, "smart-range-detail", 8);
   addsaver(vid.smart_range_detail_3, "smart-range-detail", 30);
+  addsaver(vid.smart_area_based, "smart-area-based", false);
   addsaver(vid.cells_drawn_limit, "limit on cells drawn", 10000);
   addsaver(vid.cells_generated_limit, "limit on cells generated", 250);
   
@@ -569,7 +598,9 @@ EX void initConfig() {
   addsaverenum(pconf.basic_model, "basic model");
   addsaver(pconf.use_atan, "use_atan");
   
+  #if CAP_ARCM
   addsaver(arcm::current.symbol, "arcm-symbol", "4^5");
+  #endif
   addsaverenum(hybrid::underlying, "product-underlying");
   
   for(int i=0; i<isize(ginf); i++) {
@@ -580,6 +611,8 @@ EX void initConfig() {
     else if(ginf[i].cclass == gcEuclid)
       sightranges[i] = 10;
     else if(ginf[i].cclass == gcSL2)
+      sightranges[i] = 4.5;
+    else if(ginf[i].cclass == gcHyperbolic && ginf[i].g.gameplay_dimension == 2)
       sightranges[i] = 4.5;
     else
       sightranges[i] = 5;
@@ -627,7 +660,7 @@ EX void initConfig() {
 
   addsaver(vid.sloppy_3d, "sloppy3d", true);
 
-  addsaver(vid.texture_step, "wall-quality", 1);
+  addsaver(vid.texture_step, "wall-quality", 4);
   
   addsaver(smooth_scrolling, "smooth-scrolling", false);
   addsaver(mouseaim_sensitivity, "mouseaim_sensitivity", 0.01);
@@ -673,7 +706,14 @@ EX void initConfig() {
   addsaver(bright, "bright");
   addsaver(cblind, "cblind");
   
+  addsaver(berger_limit, "berger_limit");
+  
   addsaverenum(centering, "centering");
+  
+  addsaver(camera_speed, "camera-speed", 1);
+  addsaver(camera_rot_speed, "camera-rot-speed", 1);
+
+  addsaver(panini_alpha, "panini_alpha", 0);
 
   callhooks(hooks_configfile);
 
@@ -999,6 +1039,9 @@ EX void edit_sightrange() {
         dialog::addSelItem(XLAT("game range bonus"), its(gamerange_bonus), 'S');
         dialog::add_action([] () { gamerange_bonus = sightrange_bonus; doOvergenerate(); });
         }      
+      if(vid.use_smart_range && WDIM == 2) {
+        dialog::addBoolItem_action(XLAT("area-based range"), vid.smart_area_based, 'A');
+        }
       if(!allowChangeRange() || !allowIncreasedSight()) {
         dialog::addItem(XLAT("enable the cheat mode for additional options"), 'X');
         dialog::add_action(enable_cheat);
@@ -1094,6 +1137,19 @@ EX void showGraphConfig() {
 #endif
 
   dialog::addSelItem(XLAT("scrolling speed"), fts(vid.sspeed), 'a');
+
+  dialog::addSelItem(XLAT("camera movement speed"), fts(camera_speed), 'c');
+  dialog::add_action([] { 
+    dialog::editNumber(camera_speed, -10, 10, 0.1, 1, XLAT("camera movement speed"), 
+      "This affects:\n\nin 2D: scrolling with arrow keys and Wheel Up\n\nin 3D: camera movement with Home/End."
+      );
+    });
+  dialog::addSelItem(XLAT("camera rotation speed"), fts(camera_rot_speed), 'r');
+  dialog::add_action([] { 
+    dialog::editNumber(camera_rot_speed, -10, 10, 0.1, 1, XLAT("camera rotation speed"), 
+      "This affects view rotation with Page Up/Down, and in 3D, camera rotation with arrow keys or mouse."
+      );
+    });
     
   dialog::addSelItem(XLAT("movement animation speed"), fts(vid.mspeed), 'm');
 
@@ -1497,17 +1553,49 @@ EX void explain_detail() {
     ));
   }
 
-EX void add_edit_fov(char key IS('f')) {
-  dialog::addSelItem(XLAT("field of view"), fts(vid.fov) + "°", key);
-  dialog::add_action([] {
-    dialog::editNumber(vid.fov, 1, 170, 1, 45, "field of view", 
+EX ld max_fov_angle() {
+  if(panini_alpha >= 1 || panini_alpha <= -1) return 360;
+  return acos(-panini_alpha) * 2 / degree;
+  }
+
+EX void add_edit_fov(char key IS('f'), bool pop IS(false)) {
+
+  string sfov = fts(vid.fov) + "°";
+  if(panini_alpha) {
+    sfov += " / " + fts(max_fov_angle()) + "°";
+    }
+  dialog::addSelItem(XLAT("field of view"), sfov, key);
+  dialog::add_action([=] {
+    if(pop) popScreen();
+    dialog::editNumber(vid.fov, 1, max_fov_angle(), 1, 45, "field of view", 
       XLAT(
         "Horizontal field of view, in angles. "
         "This affects the Hypersian Rug mode (even when stereo is OFF) "
-        "and non-disk models.")
+        "and non-disk models.") + "\n\n" +
+      XLAT(
+        "Must be less than %1°. Panini projection can be used to get higher values.",
+        fts(max_fov_angle())
+        )
         );
     dialog::bound_low(1e-8);
-    dialog::bound_up(179);
+    dialog::bound_up(max_fov_angle() - 0.01);
+    dialog::extra_options = [] {
+      dialog::addSelItem(XLAT("Panini projection"), fts(panini_alpha), 'P');
+      dialog::add_action([] {
+        popScreen();
+        dialog::editNumber(panini_alpha, 0, 1, 0.1, 0, "Panini parameter", 
+          XLAT(
+            "The Panini projection is an alternative perspective projection "
+            "which allows very wide field-of-view values. HyperRogue uses "
+            "a quick implementation, so parameter values too close to 1 may "
+            "be buggy; try e.g. 0.9 instead.")
+            );
+        dialog::reaction = ray::reset_raycaster;
+        dialog::extra_options = [] {
+          add_edit_fov('F', true);
+          };
+        });
+      };
     });
   }
 
@@ -1701,7 +1789,15 @@ EX void show3D() {
       dialog::editNumber(mouseaim_sensitivity, -1, 1, 0.002, 0.01, XLAT("mouse aiming sensitivity"), "set to 0 to disable");
       });
     }
-  dialog::addSelItem(XLAT("camera rotation"), fts(vpconf.camera_angle), 's');
+  if(true) {
+    dialog::addSelItem(XLAT("camera rotation"), fts(vpconf.camera_angle), 'S');
+    dialog::add_action([] {
+      dialog::editNumber(vpconf.camera_angle, -180, 180, 5, 0, XLAT("camera rotation"), 
+        XLAT("Rotate the camera. Can be used to obtain a first person perspective, "
+        "or third person perspective when combined with Y shift.")
+        );
+      });
+    }
   if(GDIM == 2) {
     dialog::addSelItem(XLAT("fixed facing"), vid.fixed_facing ? fts(vid.fixed_facing_dir) : XLAT("OFF"), 'f');
     dialog::add_action([] () { vid.fixed_facing = !vid.fixed_facing; 
@@ -1726,6 +1822,16 @@ EX void show3D() {
     dialog::add_action([] () {
       dialog::editNumber(vid.radarsize, 0, 360, 15, 90, "", XLAT("set to 0 to disable"));
       dialog::extra_options = [] () { draw_radar(true); };
+      });
+    }
+  
+  if(WDIM == 3 && sphere && stretch::factor) {
+    dialog::addItem(XLAT("Berger sphere limit"), berger_limit);
+    dialog::add_action([] () {
+      dialog::editNumber(berger_limit, 0, 10, 1, 2, "", 
+        XLAT("Primitive-based rendering of Berger sphere is currently very slow and low quality. "
+          "Here you can choose how many images to draw.")
+        );
       });
     }
   
@@ -1926,11 +2032,6 @@ EX void show3D() {
         dialog::addBoolItem_action(XLAT("reduce if walls on the way"), vid.use_wall_radar, 'R');
         };
       }
-    else if(uni == 's') 
-      dialog::editNumber(vpconf.camera_angle, -180, 180, 5, 0, XLAT("camera rotation"), 
-        XLAT("Rotate the camera. Can be used to obtain a first person perspective, "
-        "or third person perspective when combined with Y shift.")
-        );
     else if(uni == 'b') 
       config_camera_rotation();
     else if(uni == 'M') 
@@ -1991,7 +2092,7 @@ EX void showCustomizeChar() {
   
   double alpha = atan2(mousex - vid.xres/2, mousey - firsty) - M_PI/2;
   V = V * spin(alpha);
-  drawMonsterType(moPlayer, NULL, V, 0, cc_footphase / scale, NOCOLOR);
+  drawMonsterType(moPlayer, NULL, shiftless(V), 0, cc_footphase / scale, NOCOLOR);
   quickqueue();
   
   keyhandler = [] (int sym, int uni) {
@@ -2065,6 +2166,9 @@ EX void show_color_dialog() {
 
   dialog::addColorItem(XLAT("background"), backcolor << 8, 'b');
   dialog::add_action([] () { dialog::openColorDialog(backcolor); dialog::colorAlpha = false; dialog::dialogflags |= sm::SIDE; });
+  
+  if(WDIM == 2 && GDIM == 3 && hyperbolic)
+    dialog::addBoolItem_action(XLAT("cool fog effect"), context_fog, 'B');
 
   dialog::addColorItem(XLAT("foreground"), forecolor << 8, 'f');
   dialog::add_action([] () { dialog::openColorDialog(forecolor); dialog::colorAlpha = false; dialog::dialogflags |= sm::SIDE; });
@@ -2560,6 +2664,10 @@ EX int read_config_args() {
     PHASEFROM(2);
     shift(); smooth_scrolling = argi();
     }
+  else if(argis("-via-shader")) {
+    PHASEFROM(2);
+    shift(); vid.consider_shader_projection = argi();
+    }
   else if(argis("-neonnf")) {
     PHASEFROM(2);
     shift(); neon_nofill = argi();
@@ -2669,6 +2777,12 @@ EX unordered_map<string, ld&> params = {
   {"mgrid", vid.multiplier_grid},
   {"mring", vid.multiplier_ring},
   {"collignon", pconf.collignon_parameter},
+  {"aitoff", pconf.aitoff_parameter},
+  {"loxidromic", pconf.loximuthal_parameter},
+  {"miller", pconf.miller_parameter},
+  {"winkel", pconf.winkel_parameter},
+  {"camspd", camera_speed},
+  {"camrot", camera_rot_speed},
   {"levellines", levellines},
   #endif
   };

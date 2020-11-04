@@ -4035,6 +4035,121 @@ bugfixes:
 - new 3D Euclidean quotient space: Hantzsche-Wendt (double cube) manifold
 
 2020-07-13 01:32 Update 11.3r:
-- inverse variation
+- new options in the variation menu, which allow e.g. playing / map editing on the duals of Goldberg tessellations, or e.g. warped GP(2,1) {8,3}
 - redone some Guided Tour slides and possible crash
 - you can now add text in the Drawing Tool
+
+2020-07-25 02:27 Update 11.3s:
+Bugfixes:
+- the checkmate rule now takes tortoise calming into account
+- fixed colors of underwater compasses and rugs
+- collecting items while moving compass
+- Reptile counters are now reset when fast creatures move over them
+
+Geometries:
+- primitive-based rendering in stretched S3 and SL geometries (replacing the old SL renderer)
+- period can now be changed in rotation spaces, e.g. to obtain SL or the universal cover
+- fixed a crash when walking over a hyperbolic digon in Archimedean tiling
+- fixed a crash in untruncated sphere
+- statistics given in 'experiments in geometry' (world size, faces per vertex) are now correct in new variations
+
+2020-07-28 22:03 Update 11.3t:
+- HUD graphics now always use the default (not the one for the current geometry)
+- fixed a possible crash in kite-and-dart tiling
+- fixed distance computation in periodic product spaces (racing in H2xE no longer freezes)
+- rotation space over closed manifold now works correctly with theoretically correct period (divisor of Euler chi times PSL value)
+- fixed a stupid crash in universal cover of SL
+- fixed distance computation in quotient spaces
+- fixed radar in SL geometry
+- fixed a freeze in Berger sphere primitive
+- better raycaster in Berger sphere/SL geometry (now uses a geodesic formula, also bug fixed), also disabled by default
+- fixed key conflict in 3D config
+- shape editor/drawing tool now work correctly in 3D with mouseaiming off
+- mouse aiming can now be temporarily disabled in the editors using alt
+- drawing tool now works in 3D, and also if you are drawing while playing a movement animation
+- fixed drawing unnecessary cells in SL2
+- fixed a bug while saving/loading maps using new variations
+- improved handling of cases where matrices were not enough to represent positions (long band model, universal cover of SL) -- faraway monsters now face the player correctly, and racing/shmup now works in SL
+
+2020-07-29 23:02 Update 11.3u:
+- Orb of Air now kills Red Raiders if separating them, instead of crashing
+- fixed bad HUD in 3D
+- redone peaceful mode to puzzle/exploration mode
+
+2020-08-02 13:24 Update 11.3v:
+- cool fog effects in 2.5D
+- '@' no longer drawn (incorrectly) in 2.5D radar
+- fixed stranded boats in 3D
+- fixed a bug with Orb of Recall
+- fixed Minesweeper on huge bounded maps
+- improved mission screen in Minesweeper (it displays automatically on win now)
+- removed irrelevant hints and progress messages on the mission screen when you are not playing a full game
+- Safety saves / PTM scores / Yendor scores / high scores should now work correctly in all geometries (the system is not fully backward compatible, so some old scores might disappear)
+- a crash when setting new variations should be fixed
+
+2020-08-05 01:29 Update 11.3w:
+- fixed shmup in elliptic
+- fixed a crash with loading old save games
+
+2020-08-08 16:10 Update 11.3x:
+- fixed raycaster in twisted geometries; weirdly twisted spherical geometry
+- draw crosshair even if nohud
+- an attempt to fix/debug the crash that some people are reporting on loading a saved game
+
+2020-08-20 16:47 Update 11.3y:
+- Chaos Mode unlocking should be fixed
+- correct error message when trying to move from Rock III to a wall
+- Speed Witches are no longer incorrectly considered as threats (but Flash Witches are real threats!)
+- three new projections
+- Camelot help now mentions Crossroads IV
+- fixed premature victory screen in minesweeper
+
+2020-09-17 04:32 Update 11.3z:
+
+geometries and projections:
+- Nil can be now viewed in the loximuthal model, or in the Heisenberg model with changed orientation, or a mix
+- several new projections of S2/H2 based on cartography
+- chessboard pattern in 'unrectified' tessellations (also fixed the variation selection)
+- improved correctness checking for Archimedean symbols: 6,5 or 6,4,2 are no longer valid
+
+UI:
+- you can now configure camera movement/rotation speed
+- highlight feature is now separate from monster display, and you can configure permanent superhighlight
+- the 'copy' button in the Map Editor now works with the mouse
+
+game bugfixes:
+- improved Key generation in Land of Mirrors
+- you can now push Statue into Fire with Orb of Winter
+- fixed Free Wall unlock requirements in OSM
+- fix the Crossroads IV achievement (which also enables the Chaos Mode)
+- fixed Halloween (which was working completely incorrectly)
+
+graphics/UI bugfixes:
+- orb of domination X is no longer huge
+- fixed Yendor/Grail collection benefit help message in OSM
+- fixed errors with mirrors walls: monsters face the player correctly (except Mirror Spirits); mimics in mirrors display their X-signs correctly; player in mirror displays their X sign while previously they did not
+- down arrow in menus now works opposite to the up arrow (rolls around)
+- issues with racing (e.g. in band model) should be fixed
+- keys are buffered correctly (no more crash when clicking help quickly)
+- prevented crash when negative numbers are entered in 'view cells by distance'
+
+2020-09-21 12:06 Update 11.3ż:
+
+- fixed the issues with Orb of Yendor
+- fixed a bug in S2xE, and choosing cells in sphere
+- fixed Friendly Ghosts
+
+2020-11-02 00:08 Update 11.4:
+
+* Panini perspective projection (allows wider vision -- configurable in 3d config -> FOV)
+* Changed the default texture_step to 4
+* An option to hide the flat projection in hyperboloid
+* improved plain floor shapes in arbitrary tessellations
+* fixed the Asonov cat geometry
+* Five new projections: Poor Man (hyperbolic only), Panini, retroazimuthal: Craig, Hammer, Littrow (retro-Hammer buggy on sphere)
+* Various fixes related to product spaces, especially product+inverse
+* Fixed the navigation keys in dialogs
+* fixed duals for Euclidean tessellations
+
+Also, improvements in the Web version -- Backspace not Esc to exit dialogs, auto-resizing, raytracer is available. 
+Not yet in HyperRogue online, but see: https://zenorogue.itch.io/bringris
