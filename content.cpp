@@ -1697,10 +1697,6 @@ ITEM( 'o', 0xBFBF00, "Orb of Charging", itOrbCharge, IC_ORB, ZERO, RESERVED, osN
   NATIVE(among(m, moStormElemental) ? 2 : (among(m, moPirate, moAlbatross) ? 1 : 0))
   REQ(ITEMS(itWhirlpool, U5) ITEMS(itWindstone, U5))
   
-  
-ITEM( 'o', 0xFFFFFF, "Orb of Light", itOrbLight, IC_ORB, ZERO, RESERVED, osOffensive, 
-    "This orb makes you shoot a laser in the direction of your attack every time you attack."
-    )
 //shmupspecials
 MONSTER( '@', 0xC0C0C0, "Rogue", moPlayer, CF_FACE_UP | CF_PLAYER, RESERVED, moNone, "In the Shoot'em Up mode, you are armed with thrown Knives.")
 MONSTER( '*', 0xC0C0C0, "Knife", moBullet, ZERO | CF_BULLET, RESERVED, moNone, "A simple, but effective, missile, used by rogues.")

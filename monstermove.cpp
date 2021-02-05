@@ -1775,7 +1775,6 @@ EX void castWeakLightningBolt(cellwalker lig) {
     bool brk = false, spin = false;
     
     if(celldistance(cwt.at,c) >= 7)  brk = true, c->weakligon = 0;
-    if(c->monst == moStormElemental)brk = true, c->weakligon = 0;
     if(c->wall == waGargoyle)  brk = true;
     if(c->wall == waExplosiveBarrel) brk = true;
     if(c->wall == waCavewall)  brk = true;
