@@ -23,7 +23,6 @@ EX void initcell(cell *c) {
   c->land = laNone;
   c->ligon = 0;
   c->weakligon = 0;
-  c->laser = 0;
   c->stuntime = 0;
   c->monmirror = 0;
   }
