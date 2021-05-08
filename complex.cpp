@@ -2340,7 +2340,7 @@ EX void doLightningNextTurn() {
 
       flashAlchemist(c2);
       if(c2->monst == moMetalBeast2 && !c2->item) c2->item = itFulgurite;
-      if(c2->monst) 
+      if(c2->monst && c2->monst != moStormElemental) 
         if(canAttack(nullptr, moPlayer, c2, c2->monst, AF_MAGIC))
           attackMonster(c2, AF_MAGIC, moLightningBolt);
       if(isIcyLand(c2)) HEAT(c2) += 2;

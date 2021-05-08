@@ -1,0 +1,87 @@
+HyperRogue by Zeno Rogue <zeno@attnam.com>, version 11.3r
+released under GNU General Public License version 2 and thus
+comes with absolutely no warranty; see COPYING for details
+initgraph
+116671   restartGraph
+116671     (done)
+000030   load config
+000031   prepare_basics
+000031     geom3::compute
+000031       (done)
+000124     (done)
+000125   prepare_basics
+000125     geom3::compute
+000125       (done)
+000209     (done)
+000209   setvideomode
+Initializing GLEW
+CreateProgram = 78c8f880
+000540     reset GL
+000541       (done)
+000541     (done)
+000541   init joysticks
+000541   load music info
+000541     (done)
+000541   load music info
+000541     (done)
+000943   (done)
+000943 loadSave
+000943   (done)
+000943 start_game
+000945   initcells
+001087   initGame
+001090     addMessage: Welcome to HyperRogue!
+001090     addMessage: Press F1 or right-click things for help.
+001090     (done)
+001090   restartGraph
+001090     (done)
+001090   (done)
+compiler log (48): 'WARNING: 0:2: '' :  #version directive missing
+
+'
+compiler log (48): 'WARNING: 0:2: '' :  #version directive missing
+
+'
+compiler log (48): 'WARNING: 0:2: '' :  #version directive missing
+
+'
+compiler log (48): 'WARNING: 0:2: '' :  #version directive missing
+
+'
+compiler log (48): 'WARNING: 0:2: '' :  #version directive missing
+
+'
+compiler log (48): 'WARNING: 0:2: '' :  #version directive missing
+
+'
+002239 setvideomode
+002336   reset GL
+002337     (done)
+002337   (done)
+002337 OPENGL ERROR #1281: in file basegraph.cpp on line 292 :: pre_setGLProjection
+002337 
+compiler log (48): 'WARNING: 0:2: '' :  #version directive missing
+
+'
+compiler log (48): 'WARNING: 0:2: '' :  #version directive missing
+
+'
+compiler log (48): 'WARNING: 0:2: '' :  #version directive missing
+
+'
+compiler log (48): 'WARNING: 0:2: '' :  #version directive missing
+
+'
+compiler log (48): 'WARNING: 0:2: '' :  #version directive missing
+
+'
+compiler log (48): 'WARNING: 0:2: '' :  #version directive missing
+
+'
+WARNING: no translations for 'shape editor'
+WARNING: no translations for 'drawing tool'
+006214 addMessage: You activate your demonic powers!
+006214 addMessage: Shift+F, Shift+O, Shift+T, Shift+L, Shift+U, etc.
+011202 stop_game
+011202   saveStats [hyperrogue.log]
+011202     ERROR: Orbs not taken into account

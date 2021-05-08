@@ -2168,17 +2168,17 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
       if(d == 7 && !safety) {
         if(hrand(5000) < 500)
            c->wall = waBoat;
-        else if(hrand_monster(125000) < 10 + 1*itThunderStone + yendor::hardness())
+        else if(hrand_monster(50000) < 10 + items[itThunderStone] + yendor::hardness())
           c->monst = moStormElemental;
-        else if(hrand_monster(35000) < 10 + 1*itThunderStone + yendor::hardness())
+        else if(hrand_monster(15000) < 10 + items[itThunderStone] + yendor::hardness())
           c->monst = moAlbatross;
-        else if(hrand_monster(70000) < 10 + 1*itThunderStone + yendor::hardness()) {
+        else if(hrand_monster(20000) < 10 + items[itThunderStone] + yendor::hardness()) {
           c->wall = waBoat;
           c->monst = moPirate;
           }
         
         if(c->wall == waBoat) {
-          if(hrand(500) < PT(50 + kills[moStormElemental], 150) && notDippingFor(itThunderStone))
+          if(hrand(300) < PT(50 + kills[moStormElemental], 150) && notDippingFor(itThunderStone))
             c->item = itThunderStone;
            
           }

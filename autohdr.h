@@ -9507,27 +9507,27 @@ namespace hr {
   void castWeakLightningBoltFrom(cell *c);
 #line 1759 "monstermove.cpp"
   void castWeakLightningBolt(cellwalker lig);
-#line 1852 "monstermove.cpp"
+#line 1851 "monstermove.cpp"
   void specialMoves();
-#line 2042 "monstermove.cpp"
+#line 2041 "monstermove.cpp"
   void moveworms();
-#line 2051 "monstermove.cpp"
+#line 2050 "monstermove.cpp"
   void refreshFriend(cell *c);
-#line 2060 "monstermove.cpp"
+#line 2059 "monstermove.cpp"
   void consMove(cell *c, eMonster param);
-#line 2086 "monstermove.cpp"
+#line 2085 "monstermove.cpp"
   void moveNormals(eMonster param);
-#line 2107 "monstermove.cpp"
+#line 2106 "monstermove.cpp"
   void movehex_all();
-#line 2116 "monstermove.cpp"
+#line 2115 "monstermove.cpp"
   void movemonsters();
-#line 2242 "monstermove.cpp"
+#line 2241 "monstermove.cpp"
   bool nogoSlow(cell *to, cell *from);
-#line 2248 "monstermove.cpp"
+#line 2247 "monstermove.cpp"
   void beastcrash(cell *c, cell *beast);
-#line 2280 "monstermove.cpp"
+#line 2279 "monstermove.cpp"
   void stayEffect(cell *c);
-#line 2293 "monstermove.cpp"
+#line 2292 "monstermove.cpp"
   int realstuntime(cell *c);
 
   // implemented in: multigame.cpp
@@ -11647,7 +11647,7 @@ namespace hr {
     /** \brief the amount of boxes reserved for each hr::score item */
     #define MAXBOX 500
     /** \brief currently used boxes in hr::score */
-    #define POSSCORE 396 // update this when new boxes are added!
+    #define POSSCORE 398 // update this when new boxes are added!
     /** \brief a struct to keep local score from an earlier game */
     struct score {
     /** \brief version used */
@@ -11671,61 +11671,61 @@ namespace hr {
     void applyBoxNum(int& i, string name IS(""));
 #line 530 "system.cpp"
     void applyBoxes();
-#line 893 "system.cpp"
+#line 894 "system.cpp"
     void saveBox();
     }
   namespace anticheat {
-#line 936 "system.cpp"
+#line 937 "system.cpp"
     extern int certify(const string& s, int a, int b, int c, int d IS(0));
     }
   #if !CAP_CERTIFY
   namespace anticheat {
-#line 945 "system.cpp"
+#line 946 "system.cpp"
     extern bool tampered;
     }
   #endif
-#line 956 "system.cpp"
+#line 957 "system.cpp"
   void remove_emergency_save();
-#line 965 "system.cpp"
+#line 966 "system.cpp"
   void saveStats(bool emergency IS(false));
-#line 1092 "system.cpp"
+#line 1093 "system.cpp"
   void loadsave();
   #endif
-#line 1222 "system.cpp"
+#line 1223 "system.cpp"
   void stop_game();
-#line 1259 "system.cpp"
+#line 1260 "system.cpp"
   eModel default_model();
-#line 1265 "system.cpp"
+#line 1266 "system.cpp"
   extern purehookset hooks_on_geometry_change;
-#line 1267 "system.cpp"
+#line 1268 "system.cpp"
   void set_geometry(eGeometry target);
-#line 1313 "system.cpp"
+#line 1314 "system.cpp"
   void set_variation(eVariation target);
-#line 1334 "system.cpp"
+#line 1335 "system.cpp"
   void switch_game_mode(char switchWhat);
-#line 1462 "system.cpp"
+#line 1463 "system.cpp"
   void start_game();
-#line 1505 "system.cpp"
+#line 1506 "system.cpp"
   void restart_game(char switchWhat IS(rg::nothing));
-#line 1513 "system.cpp"
+#line 1514 "system.cpp"
   void stop_game_and_switch_mode(char switchWhat IS(rg::nothing));
-#line 1518 "system.cpp"
+#line 1519 "system.cpp"
   extern purehookset hooks_clearmemory;
-#line 1520 "system.cpp"
+#line 1521 "system.cpp"
   void clearMemory();
-#line 1524 "system.cpp"
-  extern bool fixseed;
 #line 1525 "system.cpp"
+  extern bool fixseed;
+#line 1526 "system.cpp"
   extern int startseed;
-#line 1527 "system.cpp"
+#line 1528 "system.cpp"
   extern eLand firstland0;
-#line 1529 "system.cpp"
+#line 1530 "system.cpp"
   extern purehookset hooks_initialize;
-#line 1531 "system.cpp"
+#line 1532 "system.cpp"
   void initAll();
-#line 1565 "system.cpp"
+#line 1566 "system.cpp"
   extern purehookset hooks_final_cleanup;
-#line 1567 "system.cpp"
+#line 1568 "system.cpp"
   void finishAll();
 
   // implemented in: tour.cpp
