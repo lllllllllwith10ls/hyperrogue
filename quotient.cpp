@@ -64,16 +64,16 @@ struct hrmap_quotient : hrmap_standard {
   
   void build();
   
-  hrmap_quotient() {
+  explicit hrmap_quotient() {
     generate_connections();    
     build();
     }
 
-  hrmap_quotient(const vector<int>& con) : connections(con) {
+  explicit hrmap_quotient(const vector<int>& con) : connections(con) {
     build();
     }
 
-  heptagon *getOrigin() { return allh[0]; }
+  heptagon *getOrigin() override { return allh[0]; }
 
   ~hrmap_quotient() {
     for(int i=0; i<isize(allh); i++) {
@@ -82,7 +82,7 @@ struct hrmap_quotient : hrmap_standard {
       }
     }
   
-  vector<cell*>& allcells() { return celllist; }
+  vector<cell*>& allcells() override { return celllist; }
   };
 #endif
   
@@ -353,25 +353,16 @@ struct hrmap_quotient : hrmap_standard {
     // printf("all cells = %d\n", TOT*(S7+S3)/S3);
     if(!TOT) exit(1);
     allh.resize(TOT);
-    for(int i=0; i<TOT; i++) allh[i] = tailored_alloc<heptagon> (S7);
+    for(int i=0; i<TOT; i++) allh[i] = init_heptagon(S7);
     // heptagon *oldorigin = origin;
     allh[0]->alt = base.origin;
   
     for(int i=0; i<TOT; i++) {
       heptagon *h = allh[i];
-      if(i) {
-        h->alt = NULL;
-        }
       if(true) {
         h->s = hsOrigin;
-        h->emeraldval = 0;
-        h->zebraval = 0;
-        h->fiftyval = 0;
         h->fieldval = S7*i;
-        h->rval0 = h->rval1 = 0; h->cdata = NULL;
-        h->distance = 0;
         if(!IRREGULAR) h->c7 = newCell(S7, h);
-        else h->c7 = NULL;
         }
       for(int j=0; j<S7; j++) {
         int co = connections[i*S7+j];
@@ -387,7 +378,7 @@ struct hrmap_quotient : hrmap_standard {
     for(int i=0; i<TOT; i++) {
       if(i >= isize(by_dist)) { printf("too fast\n"); exit(1); }
       for(int a=0; a<S7; a++) if(by_dist[i]->move(a)->alt == NULL) by_dist.push_back(by_dist[i]->move(a));
-      currentmap->generateAlts(by_dist[i], 0, false);
+      currentmap->extend_altmap(by_dist[i], 0, false);
       }
   
     for(int i=0; i<TOT; i++) {

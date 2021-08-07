@@ -50,6 +50,15 @@ struct hpcshape {
 #define SIDE_BSHA 12
 #define SIDEPARS  13
 
+/** GOLDBERG_BITS controls the size of tables for Goldberg: 2*(x+y) should be below (1<<GOLDBERG_BITS) */
+
+#ifndef GOLDBERG_BITS
+#define GOLDBERG_BITS 5
+#endif
+
+static const int GOLDBERG_LIMIT = (1<<GOLDBERG_BITS);
+static const int GOLDBERG_MASK = (GOLDBERG_LIMIT-1);
+
 #ifndef BADMODEL
 #define BADMODEL 0
 #endif
@@ -92,6 +101,44 @@ struct basic_textureinfo {
   vector<glvertex> tvertices; 
   };
 
+/** additional modules can add extra shapes etc. */
+struct gi_extension {
+  virtual ~gi_extension() {}
+  };
+
+/** both for 'heptagon' 3D cells and subdivided 3D cells */
+struct subcellshape {
+  /** \brief raw coordinates of vertices of all faces */
+  vector<vector<hyperpoint>> faces;
+  /** \brief raw coordinates of all vertices in one vector */
+  vector<hyperpoint> vertices_only;
+  /** \brief cooked coordinates of vertices of all faces, computed from faces as: from_cellcenter * final_coords(v) */
+  vector<vector<hyperpoint>> faces_local;
+  /** \brief cooked coordinates of all vertices in one vector */
+  vector<hyperpoint> vertices_only_local;
+  /** \brief weights -- used to generate wall shapes in some geometries, empty otherwise */
+  vector<vector<double>> weights;
+  /** the center of every raw face */
+  vector<hyperpoint> face_centers;
+  vector<vector<char>> dirdist;
+  hyperpoint cellcenter;
+  transmatrix to_cellcenter;
+  transmatrix from_cellcenter;
+  /** \brief for adjacent directions a,b, next_dir[a][b] is the next direction adjacent to a, in (counter?)clockwise order from b */
+  vector<vector<char>> next_dir;
+  /** useful in product geometries */
+  vector<hyperpoint> walltester;
+
+  /** compute all the properties based on `faces`, for the main heptagon cellshape */
+  void compute_hept();
+
+  /** compute all the properties based on `faces`, for subcells */
+  void compute_sub();
+
+  /** common part of compute_hept and compute_sub */
+  void compute_common();
+  };
+
 /** basic geometry parameters */
 struct geometry_information {
 
@@ -124,21 +171,17 @@ struct geometry_information {
 
   int loop, face, schmid;
 
-  vector<hyperpoint> cellshape;
-  vector<hyperpoint> vertices_only;
-  
   transmatrix spins[32], adjmoves[32];
+  
+  unique_ptr<struct subcellshape> heptshape;  
+  vector<struct subcellshape> subshapes;
 
   ld adjcheck;
   ld strafedist;
-  bool dirs_adjacent[32][32];
 
   ld ultra_mirror_dist, ultra_material_part, ultra_mirror_part;
   
   vector<transmatrix> ultra_mirrors;  
-
-  /** \brief for adjacent directions a,b, next_dir[a][b] is the next direction adjacent to a, in (counter?)clockwise order from b */
-  int next_dir[32][32];
 
   vector<pair<string, string> > rels;
   int xp_order, r_order, rx_order;
@@ -209,7 +252,8 @@ hpcshape
   shEgg,
   shSpikedRing, shTargetRing, shSawRing, shGearRing, shPeaceRing, shHeptaRing,
   shSpearRing, shLoveRing,
-  shFrogRing, shReserved1, shReserved2,
+  shFrogRing, 
+  shPowerGearRing, shProtectiveRing, shTerraRing, shMoveRing, shReserved4, shMoonDisk,
   shDaisy, shTriangle, shNecro, shStatue, shKey, shWindArrow,
   shGun,
   shFigurine, shTreat,
@@ -253,7 +297,7 @@ hpcshape
   shKnife, shTongue, shFlailMissile, shTrapArrow,
   shPirateHook, shPirateHood, shEyepatch, shPirateX,
   // shScratch, 
-  shHeptaMarker, shSnowball, shSun, shNightStar, shEuclideanSky,
+  shHeptaMarker, shSnowball, shHugeDisk, shSun, shNightStar, shEuclideanSky,
   shSkeletonBody, shSkull, shSkullEyes, shFatBody, shWaterElemental,
   shPalaceGate, shFishTail,
   shMouse, shMouseLegs, shMouseEyes,
@@ -295,7 +339,14 @@ hpcshape
 
   hpcshape_animated 
     shAnimatedEagle, shAnimatedTinyEagle, shAnimatedGadfly, shAnimatedHawk, shAnimatedButterfly, 
-    shAnimatedGargoyle, shAnimatedGargoyle2, shAnimatedBat, shAnimatedBat2;  
+    shAnimatedGargoyle, shAnimatedGargoyle2, shAnimatedBat, shAnimatedBat2;
+  
+  hpcshape shTinyArrow;
+
+  hpcshape shReserved[16];
+  
+  int orb_inner_ring; //< for shDisk* shapes, the number of vertices in the inner ring
+  int res1, res2;
 
   map<int, hpcshape> shPipe;
 
@@ -437,11 +488,11 @@ hpcshape
   /* Goldberg parameters */
   #if CAP_GP
   struct gpdata_t {
-    vector<array<array<array<transmatrix, 6>, 32>, 32>> Tf;
+    vector<array<array<array<transmatrix, 6>, GOLDBERG_LIMIT>, GOLDBERG_LIMIT>> Tf;
     transmatrix corners;
     ld alpha;
     int area;
-    int pshid[3][8][32][32][8];
+    int pshid[3][8][GOLDBERG_LIMIT][GOLDBERG_LIMIT][8];
     int nextid;
     };
   shared_ptr<gpdata_t> gpdata = nullptr;
@@ -461,8 +512,21 @@ hpcshape
   int timestamp;
   
   hpcshape& generate_pipe(ld length, ld width);
+  
+  map<string, unique_ptr<gi_extension>> ext;
   };
 #endif
+
+EX subcellshape& get_hsh() {
+  if(!cgi.heptshape) cgi.heptshape = (unique_ptr<subcellshape>) (new subcellshape);
+  return *cgi.heptshape;
+  }
+
+EX void add_wall(int i, const vector<hyperpoint>& h) {
+  auto& f = get_hsh().faces;
+  if(isize(f) <= i) f.resize(i+1);
+  f[i] = h;
+  }
 
 /** values of hcrossf and hexf for the standard geometry. Since polygons are 
  *  usually drawn in this geometry, the scale in other geometries is usually
@@ -475,6 +539,14 @@ static const ld hcrossf7 = 0.620672, hexf7 = 0.378077, tessf7 = 1.090550, hexhex
 
 EX bool scale_used() { return (shmup::on && geometry == gNormal && BITRUNCATED) ? (cheater || autocheat) : true; }
 
+EX bool is_subcube_based(eVariation var) {
+  return among(var, eVariation::subcubes, eVariation::dual_subcubes, eVariation::bch, eVariation::bch_oct);
+  }
+
+EX bool is_reg3_variation(eVariation var) {
+  return var == eVariation::coxeter;
+  }
+
 void geometry_information::prepare_basics() {
 
   DEBBI(DF_INIT | DF_POLY | DF_GEOM, ("prepare_basics"));
@@ -486,6 +558,8 @@ void geometry_information::prepare_basics() {
   ld fmin, fmax;  
   
   ld s3, beta;
+  
+  heptshape = nullptr;
 
   if(arcm::in() && !prod) 
     ginf[gArchimedean].cclass = gcHyperbolic;
@@ -617,6 +691,13 @@ void geometry_information::prepare_basics() {
   #if MAXMDIM >= 4
   if(reg3::in()) reg3::generate();
   if(euc::in(3)) euc::generate();
+  #if CAP_SOLV
+  else if(sn::in()) sn::create_faces();
+  #endif
+  #if CAP_BT
+  else if(bt::in()) bt::create_faces();
+  #endif
+  else if(nil) nilv::create_faces();
   #endif
   
   hybrid_finish:
@@ -649,10 +730,19 @@ void geometry_information::prepare_basics() {
     auto csc = arb::current_or_slided().cscale;
     scalefactor = csc;
     hcrossf = crossf = orbsize = hcrossf7 * csc;
-    hexf = rhexf = hexvdist = csc * .5;
+    hexf = rhexf = hexvdist = csc * arb::current_or_slided().floor_scale;
+    base_distlimit = arb::current.range;
+    }
+  
+  if(is_subcube_based(variation)) {
+    scalefactor /= reg3::subcube_count;
+    orbsize /= reg3::subcube_count;
     }
 
-  if(scale_used()) scalefactor *= vid.creature_scale;
+  if(scale_used()) {
+    scalefactor *= vid.creature_scale;
+    orbsize *= vid.creature_scale;
+    }
 
   zhexf = BITRUNCATED ? hexf : crossf* .55;
   if(scale_used()) zhexf *= vid.creature_scale;
@@ -695,6 +785,13 @@ void geometry_information::prepare_basics() {
   prepare_compute3();
   if(hyperbolic && &currfp != &fieldpattern::fp_invalid)
     currfp.analyze(); 
+  
+  #if CAP_SOLV  
+  if(asonov::in()) {
+    asonov::prepare();    
+    asonov::prepare_walls();
+    }
+  #endif
   }
 
 EX transmatrix xspinpush(ld dir, ld dist) {
@@ -715,7 +812,7 @@ EX namespace geom3 {
   // projection: projection parameter
   // factor: zoom factor
   
-  ld abslev_to_projection(ld abslev) {
+  EX ld abslev_to_projection(ld abslev) {
     if(sphere || euclid) return vid.camera+abslev;
     return tanh(abslev) / tanh(vid.camera);
     }
@@ -790,16 +887,16 @@ EX namespace geom3 {
       pconf.alpha = tan_auto(vid.depth) / tan_auto(vid.camera);
     else if(vid.tc_depth < vid.tc_alpha && vid.tc_depth < vid.tc_camera) {
       ld v = pconf.alpha * tan_auto(vid.camera);
-      if(hyperbolic && (v<1e-6-12 || v>1-1e-12)) invalid = "cannot adjust depth", vid.depth = vid.camera;
+      if(hyperbolic && (v<1e-6-12 || v>1-1e-12)) invalid = XLAT("cannot adjust depth"), vid.depth = vid.camera;
       else vid.depth = atan_auto(v);
       }
     else {
       ld v = tan_auto(vid.depth) / pconf.alpha;
-      if(hyperbolic && (v<1e-12-1 || v>1-1e-12)) invalid = "cannot adjust camera", vid.camera = vid.depth;
+      if(hyperbolic && (v<1e-12-1 || v>1-1e-12)) invalid = XLAT("cannot adjust camera"), vid.camera = vid.depth;
       else vid.camera = atan_auto(v);
       }
     
-    if(fabs(pconf.alpha) < 1e-6) invalid = "does not work with perfect Klein";
+    if(fabs(pconf.alpha) < 1e-6) invalid = XLAT("does not work with perfect Klein");
   
     if(invalid != "") {
       INFDEEP = .7;
@@ -969,7 +1066,9 @@ EX void switch_always3() {
       vid.depth = ms;
       if(pmodel == mdDisk) pmodel = mdPerspective;
       swapmatrix(View);
+      swapmatrix(current_display->which_copy);
       callhooks(hooks_swapdim);
+      for(auto m: allmaps) m->on_dim_change();
       if(cgflags & qIDEAL && vid.texture_step < 32)
         vid.texture_step = 32;
 #if CAP_RACING
@@ -985,7 +1084,9 @@ EX void switch_always3() {
       vid.depth = 1;
       if(pmodel == mdPerspective) pmodel = mdDisk;
       swapmatrix(View);
+      swapmatrix(current_display->which_copy);
       callhooks(hooks_swapdim);
+      for(auto m: allmaps) m->on_dim_change();
       }
     View = models::rotmatrix() * View;
 #endif
@@ -1003,6 +1104,8 @@ EX map<string, geometry_information> cgis;
 EX int last_texture_step;
 
 int ntimestamp;
+
+EX hookset<void(string&)> hooks_cgi_string;
 
 EX string cgi_string() {
   string s;
@@ -1025,6 +1128,8 @@ EX string cgi_string() {
   
   if(GOLDBERG_INV) V("GP", its(gp::param.first) + "," + its(gp::param.second));
   if(IRREGULAR) V("IRR", its(irr::irrid));
+  if(is_subcube_based(variation)) V("SC", its(reg3::subcube_count));
+  if(variation == eVariation::coxeter) V("COX", its(reg3::coxeter_param));
 
   if(arcm::in()) V("ARCM", arcm::current.symbol);
 
@@ -1044,6 +1149,8 @@ EX string cgi_string() {
   if(nil) V("NIL", its(S7));
   
   if(bt::in()) V("BT", fts(vid.binary_width));
+
+  if(nil) V("NILW", fts(nilv::nilwidth));
   
   if(GDIM == 2) { 
     V("CAMERA", fts(vid.camera));
@@ -1066,6 +1173,8 @@ EX string cgi_string() {
   if(WDIM == 3) V("HTW", fts(vid.height_width));
 
   V("LQ", its(vid.linequality));
+
+  callhooks(hooks_cgi_string, s);
   
   return s;
   }
@@ -1077,6 +1186,7 @@ EX void check_cgi() {
   cgi.timestamp = ++ntimestamp;
   if(hybri) hybrid::underlying_cgip->timestamp = ntimestamp;
   if(fake::in()) fake::underlying_cgip->timestamp = ntimestamp;
+  if(arcm::alt_cgip) arcm::alt_cgip->timestamp = ntimestamp;
   
   if(isize(cgis) > 4) {
     vector<pair<int, string>> timestamps;

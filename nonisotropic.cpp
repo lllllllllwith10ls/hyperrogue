@@ -245,16 +245,12 @@ EX namespace sn {
     heptagon *get_at(heptagon *x, heptagon *y) {
       auto& h = at[make_pair(x, y)];
       if(h) return h;
-      h = tailored_alloc<heptagon> (S7);
+      h = init_heptagon(S7);
       h->c7 = newCell(S7, h);
       coords[h] = make_pair(x, y);
       h->distance = x->distance;
-      h->dm4 = 0;
       h->zebraval = x->emeraldval;
       h->emeraldval = y->emeraldval;
-      h->fieldval = 0;
-      h->cdata = NULL;
-      h->alt = NULL;
       return h;      
       }
 
@@ -265,27 +261,17 @@ EX namespace sn {
     
       if(true) {
         dynamicval<eGeometry> g(geometry, gBinary4); 
-        alt = tailored_alloc<heptagon> (S7);
+        alt = init_heptagon(S7);
         alt->s = hsOrigin;
         alt->alt = alt;
-        alt->cdata = NULL;
-        alt->c7 = NULL;
-        alt->zebraval = 0;
-        alt->distance = 0;
-        alt->emeraldval = 0;
         binary_map = bt::new_alt_map(alt);
         }
       
       if(nih) {
         dynamicval<eGeometry> g(geometry, gTernary); 
-        alt3 = tailored_alloc<heptagon> (S7);
+        alt3 = init_heptagon(S7);
         alt3->s = hsOrigin;
         alt3->alt = alt3;
-        alt3->cdata = NULL;
-        alt3->c7 = NULL;
-        alt3->zebraval = 0;
-        alt3->distance = 0;
-        alt3->emeraldval = 0;
         ternary_map = bt::new_alt_map(alt3);
         }
       else {
@@ -372,7 +358,7 @@ EX namespace sn {
           return NULL;
         }
 
-        default: throw "not solnihv";
+        default: throw hr_exception("not solnihv");
         }
       }
 
@@ -425,10 +411,12 @@ EX namespace sn {
           case 7:
           case 8:
             return xpush(bw*(4.5-j)) * zpush(-1) * ypush(bw*(i-7));
+          default:
+            throw hr_exception("wrong dir");
           }
         }
 
-      default: throw "not nihsolv";
+      default: throw hr_exception("wrong geometry");
       }
       }
 
@@ -436,7 +424,7 @@ EX namespace sn {
       h->cmove(d); return adjmatrix(d, h->c.spin(d));
       }
     
-    virtual transmatrix relative_matrix(heptagon *h2, heptagon *h1, const hyperpoint& hint) override { 
+    transmatrix relative_matrixh(heptagon *h2, heptagon *h1, const hyperpoint& hint) override { 
       for(int i=0; i<h1->type; i++) if(h1->move(i) == h2) return adjmatrix(i, h1->c.spin(i));
       if(gmatrix0.count(h2->c7) && gmatrix0.count(h1->c7))
         return inverse(gmatrix0[h1->c7]) * gmatrix0[h2->c7];
@@ -449,7 +437,7 @@ EX namespace sn {
         case gSol: up = 2; down = 6; break;
         case gSolN: up = 4; down = 7; break;
         case gNIH: up = 4; down = 4; break;
-        default: throw "not nihsolv";
+        default: throw hr_exception("not nihsolv");
         }
       
       while(h1->distance > h2->distance) front = front * adj(h1, down), h1 = h1->cmove(down);
@@ -548,7 +536,7 @@ EX namespace sn {
            0
            );
       default:
-        throw "christoffel not in solnihv";
+        throw hr_exception("christoffel not in solnihv");
       }
     }
   
@@ -712,7 +700,7 @@ EX namespace sn {
       case gSol: return solt;
       case gNIH: return niht;
       case gSolN: return sont;
-      default: throw "not solnih";
+      default: throw hr_exception("not solnih");
       }
     }
 
@@ -723,7 +711,58 @@ EX namespace sn {
     int d1 = bt::celldistance3_approx(m->coords[h1].first, m->coords[h2].first);
     int d2 = bt::celldistance3_approx(m->coords[h1].second, m->coords[h2].second);
     return d1 + d2 - abs(h1->distance - h2->distance);
-    }    
+    }
+  
+  EX void create_faces() {
+    if(geometry == gSol) {
+      ld zstep = -log(2) / 2;
+      ld bwh = vid.binary_width * zstep;
+      auto pt = [&] (int x, int y, int z) { return xpush(bwh*x) * ypush(bwh*y) * zpush(zstep*z) * C0; };
+      add_wall(0, {pt(-1,-1,-1), pt(-1,-1,+1), pt(-1,00,+1), pt(-1,+1,+1), pt(-1,+1,-1)});
+      add_wall(1, {pt(-1,-1,-1), pt(00,-1,-1), pt(+1,-1,-1), pt(+1,-1,+1), pt(-1,-1,+1)});
+      add_wall(2, {pt(+1,+1,-1), pt(+1,-1,-1), pt(00,-1,-1), pt(00,+1,-1)});
+      add_wall(3, {pt(00,+1,-1), pt(00,-1,-1), pt(-1,-1,-1), pt(-1,+1,-1)});
+      add_wall(4, {pt(+1,-1,-1), pt(+1,-1,+1), pt(+1,00,+1), pt(+1,+1,+1), pt(+1,+1,-1)});
+      add_wall(5, {pt(-1,+1,-1), pt(00,+1,-1), pt(+1,+1,-1), pt(+1,+1,+1), pt(-1,+1,+1)});
+      add_wall(6, {pt(-1,+1,+1), pt(+1,+1,+1), pt(+1,00,+1), pt(-1,00,+1)});
+      add_wall(7, {pt(-1,00,+1), pt(+1,00,+1), pt(+1,-1,+1), pt(-1,-1,+1)});
+      }
+  
+    if(geometry == gNIH) {
+      ld zstep = .5;
+      ld bwh = vid.binary_width / 6;
+      auto pt = [&] (int x, int y, int z) { return xpush(bwh*x) * ypush(bwh*y) * zpush(zstep*z) * C0; };
+      add_wall(0, {pt(+3,-3,-1), pt(+3,-3,+1), pt(+3,+3,+1), pt(+3,+3,-1), pt(+3,+1,-1), pt(+3,-1,-1) });
+      add_wall(1, {pt(-3,+3,-1), pt(-3,+3,+1), pt(+3,+3,+1), pt(+3,+3,-1), pt(+0,+3,-1) });
+      add_wall(2, {pt(-3,-3,-1), pt(-3,-3,+1), pt(-3,+3,+1), pt(-3,+3,-1), pt(-3,+1,-1), pt(-3,-1,-1) });
+      add_wall(3, {pt(-3,-3,-1), pt(-3,-3,+1), pt(+3,-3,+1), pt(+3,-3,-1), pt(+0,-3,-1)});
+      
+      add_wall(4, {pt(-3,-3,+1), pt(-3,+3,+1), pt(+3,+3,+1), pt(+3,-3,+1)});
+      
+      for(int i=0; i<6; i++) {
+        int x = -3 + (i%2) * 3;
+        int y = -3 + (i/2) * 2;
+        add_wall(5+i, {pt(x,y,-1), pt(x+3,y,-1), pt(x+3,y+2,-1), pt(x,y+2,-1)});
+        }
+      }
+    
+    if(geometry == gSolN) {
+      ld zstep = -.5;
+      ld bwh = vid.binary_width / 6;
+      auto pt = [&] (int x, int y, int z) { return xpush(bwh*x) * ypush(bwh*y) * zpush(zstep*z) * C0; };
+      add_wall(0, {pt(+3,-3,-1), pt(+3,-3,+1), pt(+3,-1,+1), pt(+3,+1,+1), pt(+3,+3,+1), pt(+3,+3,-1)});
+      add_wall(1, {pt(-3,+3,-1), pt(00,+3,-1), pt(+3,+3,-1), pt(+3,+3,+1), pt(-3,+3,+1)});
+      add_wall(2, {pt(-3,-3,-1), pt(-3,-3,+1), pt(-3,-1,+1), pt(-3,+1,+1), pt(-3,+3,+1), pt(-3,+3,-1)});
+      add_wall(3, {pt(-3,-3,-1), pt(00,-3,-1), pt(+3,-3,-1), pt(+3,-3,+1), pt(-3,-3,+1)});
+      add_wall(4, {pt(-3,+3,-1), pt(-3,-3,-1), pt(00,-3,-1), pt(00,+3,-1)});
+      add_wall(5, {pt(00,+3,-1), pt(00,-3,-1), pt(+3,-3,-1), pt(+3,+3,-1)});
+      add_wall(6, {pt(-3,-3,+1), pt(+3,-3,+1), pt(+3,-1,+1), pt(-3,-1,+1)});
+      add_wall(7, {pt(-3,-1,+1), pt(+3,-1,+1), pt(+3,+1,+1), pt(-3,+1,+1)});
+      add_wall(8, {pt(-3,+1,+1), pt(+3,+1,+1), pt(+3,+3,+1), pt(-3,+3,+1)});
+      }
+    
+    get_hsh().compute_hept();
+    }
 EX }
 #endif
 
@@ -908,15 +947,12 @@ EX namespace nilv {
     heptagon *get_at(mvec c) {
       auto& h = at[c];
       if(h) return h;
-      h = tailored_alloc<heptagon> (S7);
+      h = init_heptagon(S7);
       h->c7 = newCell(S7, h);
       coords[h] = c;
-      h->dm4 = 0;
       h->zebraval = c[0];
       h->emeraldval = c[1];
       h->fieldval = c[2];
-      h->cdata = NULL;
-      h->alt = NULL;
       return h;      
       }
 
@@ -931,7 +967,7 @@ EX namespace nilv {
 
     transmatrix adj(heptagon *h, int i) override { return adjmatrix(i); }
   
-    virtual transmatrix relative_matrix(heptagon *h2, heptagon *h1, const hyperpoint& hint) override { 
+    transmatrix relative_matrixh(heptagon *h2, heptagon *h1, const hyperpoint& hint) override { 
       for(int a=0; a<S7; a++) if(h2 == h1->move(a)) return adjmatrix(a);
       auto p = coords[h1].inverse() * coords[h2];
       for(int a=0; a<3; a++) p[a] = szgmod(p[a], nilperiod[a]);     
@@ -1051,6 +1087,16 @@ EX void show_niltorus3() {
   dialog::addBack();
   dialog::display();
   }
+
+EX void create_faces() {
+  for(int i=0; i<S7; i++) {
+    vector<hyperpoint> fvs = nilv::current_ns().facevertices[i];
+    using nilv::nilwidth;
+    for(auto& h: fvs) h[0] *= nilwidth, h[1] *= nilwidth, h[2] *= nilwidth * nilwidth;
+    add_wall(i, fvs);
+    }
+  get_hsh().compute_hept();
+  }
   
 EX }
 
@@ -1065,24 +1111,12 @@ EX namespace hybrid {
 
   EX eGeometryClass under_class() { return ginf[hybrid::underlying].cclass; }  
 
-  EX transmatrix ray_iadj(cell *c, int i) {
-    if(prod && i == c->type-2) return (mscale(Id, +cgi.plevel));
-    if(prod && i == c->type-1) return (mscale(Id, -cgi.plevel));
-    if(WDIM == 2) {
-      return to_other_side(get_corner_position(c, i), get_corner_position(c, (i+1)));
-      }
-    if(prod) {
-      transmatrix T;
-      cell *cw = hybrid::get_where(c).first;
-      hybrid::in_underlying_geometry([&] {
-        T = to_other_side(get_corner_position(cw, i), get_corner_position(cw, (i+1)));
-        });
-      return T;
-      }
-    if(rotspace) return rots::ray_iadj(c, i);
-    return currentmap->iadj(c, i);
-    }
+  EX int csteps;
   
+  EX int disc_quotient = 0;
+  
+  EX map<heptagon*, short> altmap_heights;
+
   EX void configure(eGeometry g) {
     if(WDIM == 3) return;
     ray::reset_raycaster();
@@ -1099,10 +1133,19 @@ EX namespace hybrid {
       ginf[g].g = sph ? giSphere3 : giSL2;
       ginf[g].tiling_name = "Iso(" + ginf[g].tiling_name + ")";
       string& qn = ginf[g].quotient_name;
-      string qplus = sph ? "elliptic" : qn;
-      if(qn == "none" || qn == "elliptic") qn = qplus;
-      else qn = qn + "/" + qplus;
+      if(csteps && csteps != (sph ? cgi.psl_steps*2 : 0)) {
+        string qplus;
+        if(csteps == cgi.psl_steps)
+          qplus = sph ? "elliptic" : "PSL";
+        else if(csteps == 2 * cgi.psl_steps && !sph)
+          qplus = "SL";
+        else qplus = its(csteps);
+        if(qn == "none") qn = qplus;
+        else qn = qn + "/" + qplus;
+        }
       if(sph) ginf[g].flags |= qELLIPTIC;
+      if(csteps && csteps != cgi.psl_steps && csteps != 2*cgi.psl_steps) 
+        ginf[g].flags |= qANYQ;
       }
     else {
       ginf[g].cclass = g == gRotSpace ? gcSL2 : gcProduct;
@@ -1184,32 +1227,22 @@ EX namespace hybrid {
       in_underlying([] { delete currentmap; });
       for(auto& p: at) destroy_cell(p.second);
       }
+    
+    void find_cell_connection(cell *c, int d) override { 
+      hybrid::find_cell_connection(c, d); 
+      }
+
+    int shvid(cell *c) override {
+      cell *c1 = hybrid::get_where(c).first; 
+      return PIU( hr::shvid(c1) );      
+      }
   
     virtual transmatrix spin_to(cell *c, int d, ld bonus) override { if(d >= c->type-2) return Id; c = get_where(c).first; return in_underlying([&] { return currentmap->spin_to(c, d, bonus); }); }
     virtual transmatrix spin_from(cell *c, int d, ld bonus) override { if(d >= c->type-2) return Id; c = get_where(c).first; return in_underlying([&] { return currentmap->spin_from(c, d, bonus); }); }
 
-    void draw() override {
-      cell* start = centerover;
-      
-      dq::visited_by_matrix.clear();
-      dq::enqueue_by_matrix_c(start, cview());
-      
-      while(!dq::drawqueue_c.empty()) {
-        auto& p = dq::drawqueue_c.front();
-        cell *c = get<0>(p);
-        transmatrix V = get<1>(p);
-        dq::drawqueue_c.pop();
-        
-        if(!do_draw(c, V)) continue;
-        drawcell(c, V);
-
-        if(in_wallopt() && isWall3(c) && isize(dq::drawqueue) > 1000) continue;
-
-        for(int i=0; i<c->type; i++) {
-          cell *c1 = c->cmove(i);
-          dq::enqueue_by_matrix_c(c1, V * adj(c, i));
-          }
-        }
+    subcellshape& get_cellshape(cell *c) override {      
+      int id = full_shvid(c);
+      return generate_subcellshape_if_needed(c, id);      
       }
     };
   
@@ -1268,6 +1301,7 @@ EX namespace hybrid {
       return mscale(get_corner_position(c, i+next), exp(lev));
       }
     else {
+      #if MAXMDIM >= 4
       ld tf, he, alpha;
       in_underlying_geometry([&] {
         hyperpoint h1 = get_corner_position(c, i);
@@ -1278,87 +1312,25 @@ EX namespace hybrid {
         alpha = atan2(hm[1], hm[0]);
         });
       return spin(alpha) * rots::uxpush(tf) * rots::uypush(next?he:-he) * rots::uzpush(lev) * C0;
+      #else
+      throw hr_exception();
+      #endif
       }
     }
   
-  EX int wall_offset(cell *c) {
-    if(GOLDBERG) {
-      /* a bit slow... */
-      cell *c1 = WDIM == 2 ? c : get_where(c).first;
-      gp::draw_li = WDIM == 2 ? gp::get_local_info(c1) : PIU(gp::get_local_info(c1));
-      }
-    auto ugeometry = hybri ? hybrid::underlying : geometry;    
-    int id = ugeometry == gArchimedean ? arcm::id_of(c->master) + 20 * arcm::parent_index_of(c->master) : shvid(c);
-    if(isize(cgi.walloffsets) <= id) cgi.walloffsets.resize(id+1, {-1, nullptr});
-    auto &wop = cgi.walloffsets[id];
-    int &wo = wop.first;
-    if(!wop.second) wop.second = c;
-    if(wo == -1) {
-      cell *c1 = hybri ? hybrid::get_where(c).first : c;
-      wo = isize(cgi.shWall3D);
-      int won = wo + c->type + (WDIM == 2 ? 2 : 0);
-      if(!cgi.wallstart.empty()) cgi.wallstart.pop_back();
-      cgi.reserve_wall3d(won);
-      
-      if(prod || WDIM == 2) for(int i=0; i<c1->type; i++) {
-        hyperpoint w;
-        auto f = [&] { 
-          /* mirror image of C0 in the axis h1-h2 */
-          hyperpoint h1 = get_corner_position(c1, i);
-          hyperpoint h2 = get_corner_position(c1, i+1);
-          transmatrix T = gpushxto0(h1);
-          T = spintox(T * h2) * T;
-          w = T * C0;
-          w[1] = -w[1];
-          w = inverse(T) * w;
-          };
-        if(prod)
-          ((hrmap_hybrid*)currentmap)->in_underlying(f);
-        else
-          f();
-        cgi.walltester[wo + i] = w;
-        } 
-
-      for(int i=0; i<c1->type; i++)
-       cgi.make_wall(wo + i, {hybrid::get_corner(c1, i, 0, -1), hybrid::get_corner(c1, i, 0, +1), hybrid::get_corner(c1, i, 1, +1), hybrid::get_corner(c1, i, 1, -1)});
-
-      for(int a: {0,1}) {
-        vector<hyperpoint> l;
-        int z = a ? 1 : -1;
-        hyperpoint ctr = zpush0(z * cgi.plevel/2);
-        for(int i=0; i<c1->type; i++)
-          if(prod || WDIM == 2)
-            l.push_back(hybrid::get_corner(c1, i, 0, z));
-          else {
-            l.push_back(ctr);
-            l.push_back(hybrid::get_corner(c1, i, 0, z));
-            l.push_back(hybrid::get_corner(c1, i+1, 1, z));
-            l.push_back(ctr);
-            l.push_back(hybrid::get_corner(c1, i, 1, z));
-            l.push_back(hybrid::get_corner(c1, i, 0, z));
-            }
-        if(a == 0) std::reverse(l.begin()+1, l.end());
-        cgi.make_wall(won-2+a, l);
-        }
-
-      cgi.wallstart.push_back(isize(cgi.raywall));
-      cgi.compute_cornerbonus();
-      cgi.extra_vertices();
-      }
-    return wo;
-    }
-
   auto clear_samples = addHook(hooks_clearmemory, 40, [] () {
     for(auto& c: cgis) for(auto& v: c.second.walloffsets)
       v.second = nullptr;
+    altmap_heights.clear();
     });
   
   EX vector<pair<int, cell*>> gen_sample_list() {
-    if(!hybri && WDIM != 2) return {make_pair(0, centerover), make_pair(centerover->type, nullptr)};
+    if(!hybri && WDIM != 2 && PURE)
+      return {make_pair(0, centerover), make_pair(centerover->type, nullptr)};
     vector<pair<int, cell*>> result;
     for(auto& v: cgi.walloffsets) if(v.first >= 0) result.push_back(v);
     sort(result.begin(), result.end());
-    result.emplace_back(isize(cgi.wallstart)-1, nullptr);
+    result.emplace_back(isize(cgi.wallstart), nullptr);
     return result;
     }
 
@@ -1419,6 +1391,52 @@ EX namespace hybrid {
       }
     }
 
+  EX void configure_period() {
+    static int s;
+    s = csteps / cgi.single_step;
+    string str = "";
+    if(rotspace)
+      str = XLAT(
+        "If the 2D underlying manifold is bounded, the period should be a divisor of the 'rotation space' "
+        "value (PSL(2,R)) times the Euler characteristics of the underlying manifold. "
+        "For unbounded underlying manifold, any value should work (theoretically, "
+        "the current implementation in HyperRogue is not perfect).\n\n"
+        "We won't stop you from trying illegal numbers, but they won't work correctly.");
+    dialog::editNumber(s, 0, 16, 1, 0, XLAT("%1 period", "Z"), str);
+    dialog::bound_low(0);
+    auto set_s = [] (int s1, bool ret) {
+      return [s1,ret] {
+        if(ret) popScreen();
+        if(csteps == s1) return;
+        stop_game();
+        csteps = s1 * cgi.single_step;
+        hybrid::reconfigure();
+        start_game();
+        };
+      };
+    dialog::extra_options = [=] () { 
+      if(rotspace) {
+        int e_steps = cgi.psl_steps / gcd(cgi.single_step, cgi.psl_steps); 
+        bool ubounded = PIU(bounded);
+        dialog::addSelItem( sphere ? XLAT("elliptic") : XLAT("PSL(2,R)"), its(e_steps), 'P');
+        dialog::add_action(set_s(e_steps, true));
+        dialog::addSelItem( sphere ? XLAT("sphere") : XLAT("SL(2,R)"), its(2*e_steps), 'P');
+        dialog::add_action(set_s(2*e_steps, true));
+        if(sl2 && !ubounded) {
+          dialog::addSelItem( XLAT("universal cover"), its(0), 'P');
+          dialog::add_action(set_s(0, true));
+          }
+        dialog::addSelItem(ubounded ? XLAT("maximum") : XLAT("works correctly so far"), its(disc_quotient), 'Q');
+        dialog::add_action(set_s(disc_quotient, true));
+        }
+      else {
+        dialog::addSelItem( XLAT("non-periodic"), its(0), 'N');
+        dialog::add_action(set_s(0, true));
+        }
+      dialog::reaction_final = set_s(s, false);
+      };
+    }
+
 EX }
   
 EX namespace product {
@@ -1426,8 +1444,8 @@ EX namespace product {
   int z0;
   
   struct hrmap_product : hybrid::hrmap_hybrid {
-    transmatrix relative_matrix(cell *c2, cell *c1, const hyperpoint& hint) override {
-      return in_underlying([&] { return calc_relative_matrix(where[c2].first, where[c1].first, hint); }) * mscale(Id, cgi.plevel * szgmod(where[c2].second - where[c1].second, csteps));
+    transmatrix relative_matrixc(cell *c2, cell *c1, const hyperpoint& hint) override {
+      return in_underlying([&] { return calc_relative_matrix(where[c2].first, where[c1].first, hint); }) * mscale(Id, cgi.plevel * szgmod(where[c2].second - where[c1].second, hybrid::csteps));
       }
 
     transmatrix adj(cell *c, int i) override {
@@ -1472,6 +1490,17 @@ EX namespace product {
           hybrid::link();
           });
         }
+      }
+
+    virtual transmatrix ray_iadj(cell *c, int i) override {
+      if(i == c->type-2) return (mscale(Id, +cgi.plevel));
+      if(i == c->type-1) return (mscale(Id, -cgi.plevel));
+      transmatrix T;
+      cell *cw = hybrid::get_where(c).first;
+      hybrid::in_underlying_geometry([&] {
+        T = currentmap->ray_iadj(cw, i);
+        });
+      return T;
       }
     };
 
@@ -1865,7 +1894,9 @@ EX namespace slr {
 EX }
 
 EX namespace rots {
-
+  EX ld underlying_scale = 0;
+  
+#if MAXMDIM >= 4
   EX transmatrix uxpush(ld x) { 
     if(sl2) return xpush(x);
     return cspin(1, 3, x) * cspin(0, 2, x);
@@ -1897,30 +1928,7 @@ EX namespace rots {
     return spin(beta) * uxpush(distance/2) * spin(-beta+alpha);
     }
   
-  std::unordered_map<int, transmatrix> saved_matrices_ray;
-
-  EX transmatrix ray_iadj(cell *c1, int i) {
-    if(i == c1->type-1) return uzpush(+cgi.plevel) * spin(-2*cgi.plevel);
-    if(i == c1->type-2) return uzpush(+cgi.plevel) * spin(+2*cgi.plevel);
-    cell *c2 = c1->cmove(i);
-    int id1 = hybrid::underlying == gArchimedean ? arcm::id_of(c1->master) + 20 * arcm::parent_index_of(c1->master) : shvid(c1);
-    int id2 = hybrid::underlying == gArchimedean ? arcm::id_of(c2->master) + 20 * arcm::parent_index_of(c2->master) : shvid(c2);
-    int j = c1->c.spin(i);
-    int id = id1 + (id2 << 10) + (i << 20) + (j << 26);
-    auto &M = saved_matrices_ray[id];
-    if(M[3][3]) return M;
-    
-    cell *cw = hybrid::get_where(c1).first;
-    
-    transmatrix T;
-    hybrid::in_underlying_geometry([&] {
-      hyperpoint h0 = get_corner_position(cw, i);
-      hyperpoint h1 = get_corner_position(cw, (i+1));
-      T = to_other_side(h0, h1);
-      });
-
-    return M = lift_matrix(T);
-    }
+  EX std::map<int, transmatrix> saved_matrices_ray;
 
   struct hrmap_rotation_space : hybrid::hrmap_hybrid {
 
@@ -1941,7 +1949,7 @@ EX namespace rots {
       return M = lift_matrix(PIU(currentmap->adj(cw, i)));      
       }
     
-    virtual transmatrix relative_matrix(cell *c2, cell *c1, const hyperpoint& hint) override { 
+    transmatrix relative_matrixc(cell *c2, cell *c1, const hyperpoint& hint) override { 
       if(c1 == c2) return Id;
       if(gmatrix0.count(c2) && gmatrix0.count(c1))
         return inverse(gmatrix0[c1]) * gmatrix0[c2];
@@ -1949,6 +1957,33 @@ EX namespace rots {
       return Id; // not implemented yet
       }
 
+    transmatrix ray_iadj(cell *c1, int i) override {
+      if(i == c1->type-1) return uzpush(-cgi.plevel) * spin(-2*cgi.plevel);
+      if(i == c1->type-2) return uzpush(+cgi.plevel) * spin(+2*cgi.plevel);
+      cell *c2 = c1->cmove(i);
+      #if CAP_ARCM
+      int id1 = hybrid::underlying == gArchimedean ? arcm::id_of(c1->master) + 20 * arcm::parent_index_of(c1->master) : shvid(c1);
+      int id2 = hybrid::underlying == gArchimedean ? arcm::id_of(c2->master) + 20 * arcm::parent_index_of(c2->master) : shvid(c2);
+      #else
+      int id1 = shvid(c1);
+      int id2 = shvid(c2);
+      #endif
+      int j = c1->c.spin(i);
+      int id = id1 + (id2 << 10) + (i << 20) + (j << 26);
+      auto &M = saved_matrices_ray[id];
+      if(M[3][3]) return M;
+      
+      cell *cw = hybrid::get_where(c1).first;
+      
+      transmatrix T;
+      hybrid::in_underlying_geometry([&] {
+        hyperpoint h0 = get_corner_position(cw, i);
+        hyperpoint h1 = get_corner_position(cw, (i+1));
+        T = to_other_side(h0, h1);
+        });
+  
+      return M = lift_matrix(T);
+      }
     };
 
   /** reinterpret the given point of rotspace as a rotation matrix in the underlying geometry */
@@ -1998,8 +2033,8 @@ EX namespace rots {
 
     return M;
     }
-  
-  EX ld underlying_scale = 0;
+    
+  EX bool drawing_underlying = false;
   
   EX void draw_underlying(bool cornermode) {
     if(underlying_scale <= 0) return;
@@ -2008,6 +2043,8 @@ EX namespace rots {
     transmatrix T = rots::uzpush(-d) * spin(-2*d);
   
     if(det(T) < 0) T = centralsym * T;
+    
+    if(prod) d = 0;
   
     hyperpoint h = inverse(View * spin(master_to_c7_angle()) * T) * C0;
     
@@ -2032,17 +2069,19 @@ EX namespace rots {
       dynamicval<bool> pf(playerfound, true);
       dynamicval<cell*> m5(centerover, co);
       dynamicval<transmatrix> m2(View, inprod ? pView : ypush(0) * qtm(h));
-      if(PURE) View = View * pispin;
-      dynamicval<transmatrix> m3(playerV, Id);
+      if(PURE && !inprod) View = View * pispin;
+      View = inverse(stretch::mstretch_matrix) * spin(2*d) * View;
+      dynamicval<shiftmatrix> m3(playerV, shiftless(Id));
       dynamicval<transmatrix> m4(actual_view_transform, Id);
       dynamicval<eModel> pm(pmodel, mdDisk);
-      dynamicval<ld> pss(pconf.scale, (sphere ? 10 : 1) * underlying_scale);
+      dynamicval<ld> pss(pconf.scale, (sphere ? 10 : euclid ? .4 : 1) * underlying_scale);
       dynamicval<ld> psa(pconf.alpha, sphere ? 10 : 1);
       dynamicval<hrmap*> p(hybrid::pmap, NULL);
       dynamicval<int> psr(sightrange_bonus, 0);
 
       dynamicval<int> psx(vid.use_smart_range, 2);
       dynamicval<ld> psy(vid.smart_range_detail, 1);
+      dynamicval<bool> pdu(drawing_underlying, true);
 
       calcparam();
       reset_projection(); current_display->set_all(0);
@@ -2058,6 +2097,65 @@ EX namespace rots {
     reset_projection(); current_display->set_all(0);
     }
 
+  /** @brief exponential function for both slr and Berger sphere */
+
+  EX hyperpoint formula_exp(hyperpoint vel) {
+    bool sp = sphere;
+    ld K = sp ? 1 : -1;    
+  
+    ld len = hypot_d(3, vel);
+  
+    if(vel[2] < 0) len = -len;
+    
+    ld z_part = vel[2]/len;
+    ld x_part = sqrt(max<ld>(1 - z_part * z_part, 0));
+  
+    ld SV = stretch::not_squared();
+    
+    ld rparam = x_part / z_part / SV;
+    
+    ld beta = atan2(vel[1], vel[0]);
+    if(len < 0) beta += M_PI;
+    
+    if(sl2 && rparam > 1) {  
+      ld cr = 1 / sqrt(rparam*rparam - 1); // *i
+      ld sr = rparam * cr;                 // *i
+      
+      if(z_part == 0) cr = 0, sr = 1;
+  
+      ld z = cr * (K - 1/SV/SV); // *i
+  
+      ld a = len / hypot(sr, cr/SV); // /i
+  
+      ld k = K*a; // /i
+      ld u = z*a;
+  
+      ld xy = sr * sinh(k);
+      ld zw = cr * sinh(k);
+      
+      return hyperpoint(K*xy * cos(u+beta), K*xy * sin(u+beta), zw * cos(u) - cosh(k) * sin(u), zw * sin(u) + cosh(k)*cos(u));
+      }
+  
+    else {
+      ld r = atan_auto(rparam);      
+      ld cr = cos_auto(r);
+      ld sr = sin_auto(r);
+    
+      ld z = cr * (K - 1/SV/SV);
+      
+      ld a = len / hypot(sr, cr/SV);
+    
+      ld k = K*a;
+      ld u = z*a;
+      
+      ld xy = sr * sin(k);  
+      ld zw = cr * sin(k);    
+      
+      return hyperpoint(K*xy * cos(u+beta), K*xy * sin(u+beta), zw * cos(u) - cos(k) * sin(u), zw * sin(u) + cos(k)*cos(u));
+      }
+    }
+
+#endif
 EX }
 
 /** stretched rotation space (S3 or SLR) */
@@ -2066,7 +2164,7 @@ EX namespace stretch {
   EX ld factor;  
 
   EX bool applicable() {
-    return rotspace || among(geometry, gCell120, gECell120, gCell24, gECell24, gCell8, gECell8);
+    return rotspace || (cgflags & qSTRETCHABLE);
     }
 
   EX bool in() {
@@ -2308,9 +2406,11 @@ EX namespace nisot {
     #if CAP_SOLV
     if(sn::in()) return new sn::hrmap_solnih;
     #endif
-    if(nil) return new nilv::hrmap_nil;
     if(prod) return new product::hrmap_product;
+    #if MAXMDIM >= 4
+    if(nil) return new nilv::hrmap_nil;
     if(hybri) return new rots::hrmap_rotation_space;
+    #endif
     return NULL;
     }
   
@@ -2380,6 +2480,13 @@ EX namespace nisot {
       shift_arg_formula(nilv::nilwidth);
       return 0;
       }
+    else if(argis("-nilh")) {
+      PHASEFROM(2);
+      stop_game();
+      shift(); ginf[gNil].sides = argi();
+      nilv::set_flags();
+      start_game();
+      }
     else if(argis("-rk-steps")) {
       PHASEFROM(2);
       shift(); rk_steps = argi();
@@ -2392,6 +2499,7 @@ EX namespace nisot {
       ginf[gNil].sides = argi();
       return 0;
       }
+    #if CAP_SOLV
     else if(argis("-catperiod")) {
       PHASEFROM(2);
       if(sol) stop_game();
@@ -2400,6 +2508,7 @@ EX namespace nisot {
       asonov::set_flags();
       return 0;
       }
+    #endif
     else if(argis("-prodperiod")) {
       PHASEFROM(2);
       if(prod) stop_game();

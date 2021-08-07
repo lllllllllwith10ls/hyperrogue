@@ -10,8 +10,6 @@ namespace rogueviz {
 
 namespace spiral {
 
-  int spiral_id;
-
   ld mul;
   
   transmatrix at(double d) {
@@ -20,7 +18,9 @@ namespace spiral {
 
   void place(int N, ld _mul) {
     mul = _mul;
-    init(&spiral_id, RV_GRAPH | RV_HAVE_WEIGHT | RV_INVERSE_WEIGHT);
+    init(RV_GRAPH | RV_HAVE_WEIGHT | RV_INVERSE_WEIGHT);
+    rv_hook(hooks_alt_edges, 100, spiral_altedge);
+    rv_hook(hooks_frame, 0, drawExtra);
     weight_label = "extent";
     vdata.resize(N);
   
@@ -65,7 +65,7 @@ namespace spiral {
   }
 
 bool spiral_altedge(edgeinfo* ei, bool store) {
-  bool onspiral = (vizid == &spiral::spiral_id) && abs(ei->i - ei->j) == 1;
+  bool onspiral = abs(ei->i - ei->j) == 1;
 
   if(onspiral) {
     const int prec = 20; 
@@ -88,8 +88,6 @@ bool spiral_altedge(edgeinfo* ei, bool store) {
   }
 
 auto hooks =
-  addHook(hooks_frame, 0, drawExtra) +
-  addHook(hooks_alt_edges, 100, spiral_altedge) +
   addHook(hooks_args, 100, [] {
     using namespace arg;
 

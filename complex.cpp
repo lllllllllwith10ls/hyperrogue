@@ -631,10 +631,10 @@ struct info {
         if(!inv::on || !inv::usedForbidden)
 #endif
           achievement_gain_once("PRINCESS1");
-        princess::saved = true;
-        princess::everSaved = true;
+        changes.value_set(princess::saved, true);
+        changes.value_set(princess::everSaved, true);
         if(inv::on && !princess::reviveAt)
-          princess::reviveAt = gold(NO_LOVE);
+          changes.value_set(princess::reviveAt, gold(NO_LOVE));
         items[itSavedPrincess]++;
         }
       if(newdist == OUT_OF_PRISON && princess::challenge) {
@@ -818,35 +818,29 @@ EX namespace clearing {
     }
   
   int plantdir(cell *c) {
-    if(!quotient) {
-      currentmap->generateAlts(c->master);
-      for(int i=0; i<S7; i++)
-        currentmap->generateAlts(c->master->move(i));
-      }
+    if(have_alt(c))
+      gen_alt_around(c);
     int d = celldistAlt(c);
     
     if(PURE) {
-      for(int i=0; i<S7; i++) {
-        cell *c2 = createMov(c, i);
+      forCellIdCM(c2, i, c) {
         if(!pseudohept(c2) && celldistAlt(c2) == d-1)
           return i;
         }
-      for(int i=0; i<S7; i++) {
-        cell *c2 = createMov(c, i);
+      forCellIdCM(c2, i, c) {
         if(celldistAlt(c2) == d-1)
-          return (i+1) % S7;
+          return geometry == gBinary4 ? i : (i+1) % c->type;
         }
       }
 
-    for(int i=1; i<S6; i+=2) {
-      cell *c2 = createMov(c, i);
-      if(celldistAlt(c2) == d-1)
+    forCellIdCM(c2, i, c) {
+      if(!pseudohept(c2) && celldistAlt(c2) == d-1)
         return i;
       }
 
     int quseful = 0, tuseful = 0, tuseful2 = 0;
-    for(int i=1; i<S6; i+=2) {
-      cell *c2 = c->move(i);
+
+    forCellIdCM(c2, i, c) if(!pseudohept(c2)) {
       if(celldistAlt(c2) == d) {
         bool useful = false;
         for(int j=1; j<S6; j++) {
@@ -865,7 +859,7 @@ EX namespace clearing {
       if(tuseful == (1<<1)+(1<<3)) i = 1;
       if(tuseful == (1<<5)+(1<<7)) i = 5;
       if(tuseful == (1<<7)+(1<<1)) i = 7;
-      if((d & 7) < 4) i = (i+2) % S6;
+      if((d & 7) < 4) i = (i+2) % c->type;
       return i;
       }
     printf("error in plantdir\n");
@@ -877,10 +871,6 @@ EX namespace clearing {
   vector<cell*> rpath;
     
   EX void generate(cell *c) {
-    if(sphere) return;    
-    if(NONSTDVAR) return;
-    if(quotient) return;
-    
     if(euclid) {
       if(quotient) return; // fix cylinder
       if(pseudohept(c)) return;
@@ -900,10 +890,11 @@ EX namespace clearing {
       return;
       }
     
+    if(!eubinary && !horo_ok()) return;
     // cell *oc = c;
-    if(!euclid) currentmap->generateAlts(c->master);
+    gen_alt(c);
     if(pseudohept(c)) return;
-    heptagon *a = euclid ? NULL : c->master->alt->alt;
+    heptagon *a = eubinary ? NULL : c->master->alt->alt;
     clearingdata& bd(bpdata[a]);
     if(!bd.root) { bd.root = c; bd.dist = 8; bd.buggy = false; }
     if(bd.buggy) return;
@@ -1839,7 +1830,7 @@ EX namespace hive {
         }
       }
     
-    hrandom_shuffle(&bugtomove[0], isize(bugtomove));
+    hrandom_shuffle(bugtomove);
     sort(bugtomove.begin(), bugtomove.end());
     
     int battlecount = 0;
@@ -1969,11 +1960,11 @@ EX namespace hive {
     cellwalker bf(c, gdir);
     int radius = 9;
     if(getDistLimit() <= 6) radius = 6;
-    if(chaosmode) radius = 5;
-    if(chaosmode && getDistLimit() <= 5) radius = 4;
+    if(ls::any_chaos()) radius = 5;
+    if(ls::any_chaos() && getDistLimit() <= 5) radius = 4;
     if(getDistLimit() <= 3) radius = 3;
 
-    for(int i=(chaosmode?0:2); i<radius; i++) 
+    for(int i=(ls::any_chaos()?0:2); i<radius; i++) 
       bf += revstep;
     cell *citycenter = bf.at;
     buginfo.clear();
@@ -2100,6 +2091,7 @@ EX namespace heat {
 
         if(c->monst == moRanger) hmod += 3 * xrate;
         if(c->monst == moDesertman) hmod += 4 * xrate;
+        if(c->monst == moAngryDie) hmod += 4 * xrate;
         if(c->monst == moMonkey) hmod += xrate;
         if(c->wall == waDeadTroll) hmod -= 2 * xrate;
         if(c->wall == waDeadTroll2) hmod -= 1.5 * xrate;
@@ -2432,7 +2424,7 @@ EX void livecaves() {
       for(cell *c2: adj_minefield_cells(c)) {
         eWall w = c2->wall;
         if(w == waDeadfloor) hv++, bringlife.push_back(c2);
-        else if(w == waDeadwall || (w == waDeadfloor2 && !c2->monst))
+        else if(w == waDeadwall || (w == waDeadfloor2 && !c2->monst && !isPlayerOn(c2)))
           hv--, bringlife.push_back(c2);
         else if(w == waCavefloor) hv++;
         else if(w == waCavewall) hv--;
@@ -2445,7 +2437,7 @@ EX void livecaves() {
         else if(w == waDeadTroll2) hv -= 3;
         else if(w == waPetrified || w == waPetrifiedBridge) hv -= 2;
         else if(w == waVinePlant) hv--;
-        else if(chaosmode && c2->land != laCaves && c2->land != laEmerald) ;
+        else if(ls::any_chaos() && c2->land != laCaves && c2->land != laEmerald) ;
         else if(c2->land == laTrollheim) ; // trollheim floor does not count
         else if(w != waBarrier) hv += 5;
         
@@ -2469,6 +2461,7 @@ EX void livecaves() {
         if(c2->monst == moNecromancer) hv += 10;
         if(c2->monst == moWormtail) hv++;
         if(c2->monst == moTentacletail) hv-=2;
+        if(c2->monst == moAngryDie) hv++;
         if(isIvy(c2)) hv--;
         if(isDemon(c2)) hv-=3;
         // if(c2->monst) c->tmp++;
@@ -2746,13 +2739,21 @@ EX namespace tortoise {
   
   EX string measure(int bits) {
     return "(" + its(progress(bits)) + "/" + its(tortoise::numbits) + ")";
-    }    
+    }  
+
+  EX void move_baby(cell *c1, cell *c2) {
+    swap_data(babymap, c1, c2);
+    }
+
+  EX void move_adult(cell *c1, cell *c2) {
+    swap_data(emap, c1, c2);
+    }
 EX }
 
 EX namespace dragon {
  
   EX int whichturn; // which turn has the target been set on
-  EX cell *target; // actually for all Orb of Control
+  EX cell *target; // actually for all Orb of Domination
 
   void pullback(cell *c) {
     int maxlen = iteration_limit;
@@ -3027,13 +3028,14 @@ EX namespace sword {
       int sub = (hybri) ? 2 : 0;
       int t2 = c2->type - sub;
       int t1 = c1->type - sub;
+      if(t1 == 0 || t2 == 0) return d;
       if(c1->c.mirror(s1))
         d.angle = ((s2*sword_angles/t2 - d.angle + s1*sword_angles/t1) + sword_angles/2) % sword_angles;
       else
         d.angle = ((s2*sword_angles/t2 - s1*sword_angles/t1) + sword_angles/2 + d.angle) % sword_angles;
       }
     else {
-      transmatrix T = currentmap->relative_matrix(c1->master, c2->master, C0);
+      transmatrix T = currentmap->relative_matrix(c1, c2, C0);
       T = gpushxto0(tC0(T)) * T;
       d.T = T * d.T;
       fixmatrix(d.T);
@@ -3123,6 +3125,7 @@ EX namespace kraken {
     for(int i=0; i<isize(dcal); i++) {
       cell *c = dcal[i];
       if(c->monst == moKrakenT && !c->stuntime) forCellEx(c2, c) {
+        if (!logical_adjacent(c2,moKrakenT,c)) continue;
         bool dboat = false;
         if(c2->monst && canAttack(c, moKrakenT, c2, c2->monst, AF_ONLY_FBUG)) {
           attackMonster(c2, AF_NORMAL | AF_MSG, c->monst);
@@ -3235,9 +3238,9 @@ EX namespace prairie {
     c->LHU.fi.walldist = 8;
     c->LHU.fi.walldist2 = 8;
 
-     if(chaosmode) {
-       c->LHU.fi.rval = 0;
-       }    
+    if(ls::any_chaos()) {
+      c->LHU.fi.rval = 0;
+      }    
     else if(quotient) { // fix cylinder
       c->LHU.fi.rval = 0;
       }
@@ -3409,6 +3412,11 @@ EX namespace prairie {
       if(!shmup::on) for(int q=qty-2; q>=0; q--) {
         cell *cp = whirlline[q];
         cell *cn = whirlline[q+1];
+        /* just pretend the roadblocks disappear */
+        if(cn->monst == moRagingBull && cn->cpdist == INFD && cn->stuntime) {
+          cn->stuntime--;
+          if(cn->stuntime == 0) cn->monst = moNone;
+          }
         if(cp->monst == moHerdBull && !cp->stuntime) {
           cp->mondir = neighborId(cp, cn);
           beastAttack(cp, true, true);
@@ -3429,7 +3437,7 @@ EX namespace prairie {
     }
           
   EX void move() {
-    if(chaosmode) return;
+    if(ls::any_chaos()) return;
     manual_celllister cl;
     for(int i=0; i<isize(dcal); i++) {
       cell *c = dcal[i];
@@ -3608,6 +3616,7 @@ auto ccm = addHook(hooks_clearmemory, 0, [] () {
   clearing::score.clear();
   tortoise::emap.clear();
   tortoise::babymap.clear();
+  dragon::target = NULL;
   #if CAP_FIELD
   prairie::lasttreasure = NULL;
   prairie::enter = NULL;
@@ -3651,6 +3660,7 @@ auto ccm = addHook(hooks_clearmemory, 0, [] () {
         }
       return false; 
       });
+    set_if_removed(dragon::target, NULL);
     #if CAP_FIELD
     set_if_removed(prairie::lasttreasure, NULL);
     set_if_removed(prairie::enter, NULL);
@@ -3706,6 +3716,7 @@ EX namespace windmap {
     }
 
   EX void create() {
+    if(cgflags & qPORTALSPACE) return;
     samples.clear();
     neighbors.clear();
     getid.clear();
@@ -3740,7 +3751,7 @@ EX namespace windmap {
       }
     
     int tries = 0;
-    int maxtries = specialland == laVolcano || specialland == laBlizzard || chaosmode ? 20 : 1;
+    int maxtries = specialland == laVolcano || specialland == laBlizzard || ls::any_chaos() ? 20 : 1;
     tryagain:
 
     for(int i=0; i<N; i++) windcodes[i] = hrand(256);
@@ -3748,7 +3759,7 @@ EX namespace windmap {
     vector<bool> inqueue(N, true);
     vector<int> tocheck;
     for(int i=0; i<N; i++) tocheck.push_back(i);
-    hrandom_shuffle(&tocheck[0], isize(tocheck));
+    hrandom_shuffle(tocheck);
     
     for(int a=0; a<isize(tocheck); a++) {
       if(a >= 200*N) { printf("does not converge\n"); break; }
@@ -4011,7 +4022,7 @@ EX namespace halloween {
       }
     else if(items[itTreat] == 2) {
 #if !ISMOBILE
-      addMessage(XLAT("Hint: press 1 2 3 4 to change the projection."));
+      addMessage(XLAT("Hint: press 1 to change the projection."));
 #endif
       }
     else if(items[itTreat] == 3) {
@@ -4048,6 +4059,21 @@ EX namespace halloween {
       items[itOrbShell] += 5;
       }
     }
+
+  EX void start_all() {
+      popScreenAll();
+      resetModes('g');
+      stampbase = ticks;
+      if(!sphere) {
+        stop_game();
+        specialland = laHalloween;
+        set_geometry(gSphere);
+        start_game();
+        pconf.alpha = 999;
+        pconf.scale = 998;
+        }
+      }
+
 EX }
 
 // ... also includes the Ivory Tower

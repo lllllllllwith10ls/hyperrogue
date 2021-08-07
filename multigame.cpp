@@ -58,7 +58,7 @@ void gamedata_all(gamedata& gd) {
   gd.store(cwt);
   gd.store(allmaps);
   gd.store(shmup::on);
-  gd.store(chaosmode);
+  gd.store(land_structure);
   gd.store(*current_display);
   gd.store(cgip);
   gd.store_ptr(vid);
@@ -417,7 +417,7 @@ EX namespace dual {
   EX void add_choice() {
     if(!state) return;
     dialog::addSelItem(XLAT("subgame affected"), 
-      XLAT(affect_both ? "both" : main_side == 0 ? "left" : "right"), '`');
+      affect_both ? XLAT("both") : main_side == 0 ? XLAT("left") : XLAT("right"), '`');
     dialog::add_action([] () {
       affect_both = !affect_both;
       if(!affect_both) {

@@ -346,7 +346,7 @@ struct debugScreen {
     gamescreen(0);
     getcstat = '-';
 
-    dialog::init(XLAT(show_debug_data ? "debug values" : "internal details"));
+    dialog::init(show_debug_data ? XLAT("debug values") : XLAT("internal details"));
     
     for(auto& p: drawbugs)
       drawBug(p.first, p.second);
@@ -403,6 +403,38 @@ struct debugScreen {
           dialog::use_hexeditor();
           });
         }
+      if(dice::on(what)) {
+        dialog::addSelItem(XLAT("die shape"), dice::die_name(dice::data[what].which), 'A');
+        dialog::add_action_push([what] {
+          dialog::init("die shape");
+          char key = 'a';
+          for(auto shape: dice::die_list) {
+            dialog::addItem(dice::die_name(shape), key++);
+            dialog::add_action([what, shape] {
+              dice::data[what].which = shape;
+              dice::data[what].val = 0;
+              popScreen();
+              });
+            }
+          dialog::display();
+          });
+        dialog::addSelItem(XLAT("die face"), its(dice::data[what].val), 'B');
+        dialog::add_action([what] {
+          auto& dd = dice::data[what];
+          int maxv = shape_faces(dd.which)-1;
+          dialog::editNumber(dd.val, 0, maxv, 1, 0, XLAT("die face"), "");
+          dialog::bound_low(0);
+          dialog::bound_up(maxv);
+          });
+        dialog::addSelItem(XLAT("die direction"), its(dice::data[what].dir), 'C');
+        dialog::add_action([what] {
+          auto& dd = dice::data[what];
+          dialog::editNumber(dd.dir, 0, what->type-1, 1, dd.dir, XLAT("die direction"), "");
+          dialog::bound_low(0);
+          dialog::bound_up(what->type-1);
+          });
+        dialog::addBoolItem_action(XLAT("die mirror status"), dice::data[what].mirrored, 'D');
+        }
       dialog::addBreak(50);
       
       if(show_debug_data) {
@@ -437,6 +469,9 @@ struct debugScreen {
         dialog::add_action([what] () {
           bitfield_editor(what->mondir, [what] (int i) { what->mondir = i; },
           "monster direction");
+          dialog::extra_options = [what] () { 
+            dialog::addBoolItem(XLAT("mirrored"), what->monmirror, 'M');
+            };
           });
         dialog::addSelItem("stuntime", its(what->stuntime), 's');
         dialog::add_action([what] () {
@@ -760,6 +795,9 @@ int read_cheat_args() {
     PHASE(3); start_game();
     viewall();
     }
+  else if(argis("-unlock-all")) {
+    cheat(); all_unlocked = true;
+    }
   else if(argis("-wef")) {
     PHASEFROM(2);
     shift(); int index = argi(); 
@@ -827,23 +865,11 @@ int read_cheat_args() {
     cheat();
     quantum = true;
     }
-  else if(argis("-chaos-circle")) {
+  else if(argis("-lands")) {
     PHASEFROM(2);
     cheat();
     stop_game();
-    chaosmode = 2;
-    }
-  else if(argis("-chaos-total")) {
-    PHASEFROM(2);
-    cheat();
-    stop_game();
-    chaosmode = 3;
-    }
-  else if(argis("-chaos-random")) {
-    PHASEFROM(2);
-    cheat();
-    stop_game();
-    chaosmode = 4;
+    shift(); land_structure = (eLandStructure) (argi());
     }
   else if(argis("-fix")) {
     PHASE(1);
@@ -856,6 +882,10 @@ int read_cheat_args() {
     PHASE(1);
     fixseed = true; autocheat = true;
     shift(); startseed = argi();
+    }
+  else if(argis("-reseed")) {
+    PHASEFROM(2);
+    shift(); shrand(argi());
     }
   else if(argis("-steplimit")) {
     fixseed = true; autocheat = true;
@@ -875,6 +905,8 @@ int read_cheat_args() {
     PHASEFROM(2);
     shift(); 
     firstland0 = firstland = specialland = readland(args());
+    if (!landUnlocked(firstland))
+      cheat();
     stop_game_and_switch_mode(rg::nothing);
     showstartmenu = false;
     }

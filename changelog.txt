@@ -4038,3 +4038,447 @@ bugfixes:
 - inverse variation
 - redone some Guided Tour slides and possible crash
 - you can now add text in the Drawing Tool
+
+2020-07-25 02:27 Update 11.3s:
+Bugfixes:
+- the checkmate rule now takes tortoise calming into account
+- fixed colors of underwater compasses and rugs
+- collecting items while moving compass
+- Reptile counters are now reset when fast creatures move over them
+
+Geometries:
+- primitive-based rendering in stretched S3 and SL geometries (replacing the old SL renderer)
+- period can now be changed in rotation spaces, e.g. to obtain SL or the universal cover
+- fixed a crash when walking over a hyperbolic digon in Archimedean tiling
+- fixed a crash in untruncated sphere
+- statistics given in 'experiments in geometry' (world size, faces per vertex) are now correct in new variations
+
+2020-07-28 22:03 Update 11.3t:
+- HUD graphics now always use the default (not the one for the current geometry)
+- fixed a possible crash in kite-and-dart tiling
+- fixed distance computation in periodic product spaces (racing in H2xE no longer freezes)
+- rotation space over closed manifold now works correctly with theoretically correct period (divisor of Euler chi times PSL value)
+- fixed a stupid crash in universal cover of SL
+- fixed distance computation in quotient spaces
+- fixed radar in SL geometry
+- fixed a freeze in Berger sphere primitive
+- better raycaster in Berger sphere/SL geometry (now uses a geodesic formula, also bug fixed), also disabled by default
+- fixed key conflict in 3D config
+- shape editor/drawing tool now work correctly in 3D with mouseaiming off
+- mouse aiming can now be temporarily disabled in the editors using alt
+- drawing tool now works in 3D, and also if you are drawing while playing a movement animation
+- fixed drawing unnecessary cells in SL2
+- fixed a bug while saving/loading maps using new variations
+- improved handling of cases where matrices were not enough to represent positions (long band model, universal cover of SL) -- faraway monsters now face the player correctly, and racing/shmup now works in SL
+
+2020-07-29 23:02 Update 11.3u:
+- Orb of Air now kills Red Raiders if separating them, instead of crashing
+- fixed bad HUD in 3D
+- redone peaceful mode to puzzle/exploration mode
+
+2020-08-02 13:24 Update 11.3v:
+- cool fog effects in 2.5D
+- '@' no longer drawn (incorrectly) in 2.5D radar
+- fixed stranded boats in 3D
+- fixed a bug with Orb of Recall
+- fixed Minesweeper on huge bounded maps
+- improved mission screen in Minesweeper (it displays automatically on win now)
+- removed irrelevant hints and progress messages on the mission screen when you are not playing a full game
+- Safety saves / PTM scores / Yendor scores / high scores should now work correctly in all geometries (the system is not fully backward compatible, so some old scores might disappear)
+- a crash when setting new variations should be fixed
+
+2020-08-05 01:29 Update 11.3w:
+- fixed shmup in elliptic
+- fixed a crash with loading old save games
+
+2020-08-08 16:10 Update 11.3x:
+- fixed raycaster in twisted geometries; weirdly twisted spherical geometry
+- draw crosshair even if nohud
+- an attempt to fix/debug the crash that some people are reporting on loading a saved game
+
+2020-08-20 16:47 Update 11.3y:
+- Chaos Mode unlocking should be fixed
+- correct error message when trying to move from Rock III to a wall
+- Speed Witches are no longer incorrectly considered as threats (but Flash Witches are real threats!)
+- three new projections
+- Camelot help now mentions Crossroads IV
+- fixed premature victory screen in minesweeper
+
+2020-09-17 04:32 Update 11.3z:
+
+geometries and projections:
+- Nil can be now viewed in the loximuthal model, or in the Heisenberg model with changed orientation, or a mix
+- several new projections of S2/H2 based on cartography
+- chessboard pattern in 'unrectified' tessellations (also fixed the variation selection)
+- improved correctness checking for Archimedean symbols: 6,5 or 6,4,2 are no longer valid
+
+UI:
+- you can now configure camera movement/rotation speed
+- highlight feature is now separate from monster display, and you can configure permanent superhighlight
+- the 'copy' button in the Map Editor now works with the mouse
+
+game bugfixes:
+- improved Key generation in Land of Mirrors
+- you can now push Statue into Fire with Orb of Winter
+- fixed Free Wall unlock requirements in OSM
+- fix the Crossroads IV achievement (which also enables the Chaos Mode)
+- fixed Halloween (which was working completely incorrectly)
+
+graphics/UI bugfixes:
+- orb of domination X is no longer huge
+- fixed Yendor/Grail collection benefit help message in OSM
+- fixed errors with mirrors walls: monsters face the player correctly (except Mirror Spirits); mimics in mirrors display their X-signs correctly; player in mirror displays their X sign while previously they did not
+- down arrow in menus now works opposite to the up arrow (rolls around)
+- issues with racing (e.g. in band model) should be fixed
+- keys are buffered correctly (no more crash when clicking help quickly)
+- prevented crash when negative numbers are entered in 'view cells by distance'
+
+2020-09-21 12:06 Update 11.3Å¼:
+
+- fixed the issues with Orb of Yendor
+- fixed a bug in S2xE, and choosing cells in sphere
+- fixed Friendly Ghosts
+
+2020-11-02 00:08 Update 11.4:
+
+* Panini perspective projection (allows wider vision -- configurable in 3d config -> FOV)
+* Changed the default texture_step to 4
+* An option to hide the flat projection in hyperboloid
+* improved plain floor shapes in arbitrary tessellations
+* fixed the Asonov cat geometry
+* Five new projections: Poor Man (hyperbolic only), Panini, retroazimuthal: Craig, Hammer, Littrow (retro-Hammer buggy on sphere)
+* Various fixes related to product spaces, especially product+inverse
+* Fixed the navigation keys in dialogs
+* fixed duals for Euclidean tessellations
+
+Also, improvements in the Web version -- Backspace not Esc to exit dialogs, auto-resizing, raytracer is available. 
+Not yet in HyperRogue online, but see: https://zenorogue.itch.io/bringris
+
+2020-11-05 18:53 Update 11.4a:
+
+- fixed the aura when camera angle changed
+- fixed selecting large regions for copying with mouse
+- messages at 30 treasures etc. should no longer appear in PTM
+- fixed a bug which allowed changing the generation/game range outside of cheat mode
+- fixed drawing of creatures in kill list (visible e.g. for dogs)
+- the RGB/RGBA hex value color is now shown with leading 0s
+- Orb of the Mind now actually kills reptiles
+- Orb of Chaos is now forbidden in the Princess Quest
+- highlight mode setting should be saved now
+- improved the safe move checking (fixes some minor bugs especially in multiplayer)
+- allies use the new safe move checking now (they now know whether attacking hedgehog warriors/pikemen is safe for them and do it if yes)
+- golems and bomberbirds now pathfind correctly
+
+2020-11-08 12:37 Update 11.4b:
+
+- fixed projections other than perspective not working in 2.5D
+- fixed the incorrect positioning with "camera angle" option on
+- in 3D config, automatic TPP/FPP now appears on top, as you usually want this, not 'use 3D models'
+- fixed a crash on picking up items without OpenGL
+- fixed rug movement animation
+- LShift+PgUp/Dn now changes the FOV in rug perspective
+- fixed unstable camera problems in 2.5D
+- show music volume setting when music is available
+
+2020-11-14 15:12 Update 11.4c:
+- Panini projection now works in any perspective (previously it did not work 2.5D and Hypersian rug, but it was incorrectly applied in orthogonally projected views)
+- fixed shader reset on Panini configuration
+- fixed the dual geometry mode
+- the screenshot feature should now correctly render the dual geometry mode (and some other things)
+- fixed the horosphere honeycombs (graphics)
+- fixed the game freezing on the generation of binary tiling x R
+- fixed the camera not rotating in Nil shmup
+- fixed the numerical inaccuracy explosion problem in nonisotropic shmup
+
+2020-11-22 17:55 Update 11.4d:
+- an attempt to set DPI awareness on Windows
+- a bit of Panini projection was still used even when off
+- preliminary implementation of VR (see: http://roguetemple.com/z/hyper/vr-status.txt for the current status)
+
+2020-12-31 19:18 Update 11.4e:
+  Improvements to VR:
+  - added VR demos
+  - simplified VR controls (reusing the mouse control)
+  - VR controls for shmup/racing
+  - correct pointing in VR in all contexts (including rug, drawing tool in 3D geometries, etc.)
+  - display various 2D and 3D models in VR
+  - "single" computer screen
+  - works with raycasting now
+
+  Other improvements:
+  - Orb of Slaying is now marked useful in Eclectic and Brownian
+  - Princess is now able to open the doors if she cannot reach the player
+  - Princess hug animation
+  - fixed potential crashes on Ivy errors
+  - fixed a crash bug when collecting an Orb of Safety via Orb of Space with Orb of Impact active
+  - fixed a crash bug when collecting an Orb of Safety via Orb of Water
+  - shmup: fixed redundant and incorrect revival of mirror spirits
+  - fixed more possible crashes
+
+2021-02-07 21:13 Update 11.4f:
+VR updates:
+- minor optimizations
+- pseudo-raycasting in equidistant mode
+- changed the defaults
+- fixed auto-vertical orientation in product spaces
+- items are better at facing the player
+
+Menu improvements:
+- keys '1234' no longer change the projection -- instead, '1' shows a small menu of projections, which also includes other nice options
+- this menu of projections is also used for "models & projections" (some new players explore too much weird projections and are confused)
+- the following menus have been redesigned: sightrange, resolution, vector graphics, sightrange
+- highlights in special modes
+- filename for history band can be changed now
+- [WIP] a menu which lists (automatically or manually) recently changed settings
+- nicer slider-dialog
+
+Game bugfixes:
+- fixed the game not determining the land correctly for Orb generation purposes in Haunted Woods border, mercury river bridges, and Warped Sea
+- fixed the 4xStabber and Princess achievements
+- trying to generate wall lines in non-standard Euclidean geometry no longer crashes the game
+
+Other improvements:
+- fixed bugs when switching FPP in E2 torus
+- drawing tool and shape editor can now be used with texture mode enabled
+- improved the wall/floor textures in 3D modes
+
+Bringris:
+- nicer "pentagons" geometry
+- flashes option
+- fixed disabling the raycaster
+- adapted to VR
+
+2021-03-09 16:13 Update 11.4g:
+VR improvements:
+- 'frustum culling' optimization is now used in 3D geometries in VR
+- if 'holonomy' or 'reference' is used in 2D, assume 'model_viewing' instead
+- optimized raycasting (raycast_map called just once per frame)
+- cool fog and sky should now work correctly in 2.5D
+- fixed the formula checking whether we are pointing at something in the UI
+- characters displayed on map are now drawn correctly (e.g., when in ASCII mode or for the bubbles)
+- added border between font letters to avoid rendering artifacts
+
+Gameplay:
+- fixed a revert-related bug which could cause a non-collected key to be considered collected
+- fixed reverse condition: allies' plague spreading worked only if you had no empathy
+- fixed generating treasure (Wetlands, Blizzard) and enemies (Wetland) in Safety; also made Wetlands easier to exit
+- Orb of Safety now prevents wandering monsters (for 7 turns)
+- in multiplayer, there should be no more crashes when a player leaves the game 
+- fixed the highlight/hardcore key conflict
+
+Projections & geometries:
+- fixed animations breaking
+- fixed a reverse_direction crash in kite-and-darts (happened e.g. in Hunting Ground)
+- field quotient can generate more manifolds (for example all three in the first Hurwitz triplet)
+- threepoint equidistant projection
+- 'reset special modes' disables dual geometry
+
+General:
+- sky rendering is optimized 
+- fixed a crash when trying to set some options
+
+2021-04-15 19:29 Update 11.4h:
+
+Improvements to the ASCII mode:
+- PC/monster movement is animated
+- ASCII items & monsters are now available in 3D graphical modes
+- ASCII displayed for terracotta warriors
+
+Improvements to 3D modes:
+- improved the fog effect in 3D modes (non-black fog did not interact correctly with black textures)
+- fixed the mirrors
+- fixed a possible black screen on firstperson mode change
+- fixed incorrect clipping in H2xE, and clipping planes affecting 2D geometries
+- stereographic projection added (as another way to obtain larger FOV)
+
+General:
+- you can now explicitly select the land structure (standard / chaos / single land / etc.) instead of having it determined by the land
+- knight names updated
+- new achievement Lovasz conjecture (see "highlights & achievements")
+- don't reopen the window needlessly
+
+2021-04-23 21:04 Update 11.4i:
+
+Fixed some issues with the "single land" mode (including PTM):
+- Camelot was not infinite
+- Crossroads (all types) generated correctly, also single-land Crossroads V is now available
+- fixed the Warped Coast
+- fixed the Elemental Planes
+- fixed the equidistant-based lands
+- fixed the Brown Islands
+- 'land structure' selector now displays OFF if the default structure is selected
+- fixed a crash trying to generate nowalls e.g. in {3,7}
+- fixed the Highlights & Achievements menu to set the correct land structure
+
+2021-04-25 11:53 Update 11.4j:
+
+- in Irradiated Fields monsters and generated outside of the vision and they did not make spawn sounds when entering vision -- this is fixed
+- fixed the Princess Challenge and some horocycle generation
+- fixed Crossroads II
+- clearing in the binary tiling variant (rather easy)
+- fixed ASCII display outside of OpenGL
+
+2021-05-01 14:10 Update 11.4k:
+
+more fixes to "land structure"hanging:
+- Prairie is no longer a trap in no walls mode
+- Crossroads II and V are no longer generated in nowalls mode
+- fixed Camelot having inside lands in some land structure modes, and also made it more likely to appear in nowalls (although still unlikely)
+- fixed "reset special mode" to reset correctly
+- starting in horocyclic lands in multi-land binary-like geometries works (it is the only horocycle in the world though)
+- in multi-land hybrid geometries, fixed the starting land
+- standard walls work again in hybrid geometries
+
+other fixes:
+- fixed "draw underlying space" in E2xE and other product geometries
+- Orb of Earth no longer marked useless in the Warped Coast
+- fixed the E2xE raycaster
+- added faraway monster highlight as in @still-flow's pull request
+- fixed the Temple of Cthulhu in bin44 so that it works like in https://www.youtube.com/watch?v=625ZwpjtWZU again
+
+2021-05-31 15:54 Update 12.0:
+
+Gameplay:
+- new lands: Cursed Canyon, Dice Reserve
+- casual mode
+- fixed the Caribbean Yendor Chalenge
+- Raging Bulls generated from Herd Bulls crashing into walls offscreen no longer permanently block the way when offscreen
+- Bulls crashing into rock formations now reduce their height, and ones falling from Rock III increase the height when they fall
+- rosescent no longer spreads into gravity lands, and rosephase is now reset to 0 on safety
+- no longer push statues through halfvines
+
+UI:
+- two new music tracks by Lincoln Domina
+- PL/CZ translations updated
+- 'plain' button shown in the inventory screen
+- no more world overview in Yendor Challenge
+- newbie-friendliness: explain how to get Safety
+- land selection (PTM, land structure) is now searchable
+- YASC codes
+- corner HUD now displays the active special modes
+
+Geometries:
+- fixed weird rotation of the orthographic view in shmup
+- fixed GP on Crystal
+- improved tree rules for more honeycombs
+- improved the raytracer so that it works with many tile shapes
+
+VR: 
+- fixed ASCII orientation
+- Panini/stereo projection now works in the 'single' VR screen (didn't work correctly) but not on the eyes (did work)
+- fixed the 'thurston racing' option
+- controllers are now shown on the desktop screen
+
+2021-06-06 10:54 Update 12.0a:
+
+- fixed a bug which caused the dice numbers not to be drawn sometimes
+- Orb of Earth no longer marked useless in Cursed Canyon (also it works in a more interesting way there)
+- Canyon Hag's attack now has a sound effect and an animation
+- the bug with android crashes should be fixed
+- fixed spurious messages about slashing the Shadow with the energy sword
+
+2021-06-17 09:52 Update 12.0b:
+
+Mostly Bugfixes:
+- fixed going thru vines
+- item graphics were not editable
+- fixed the first-person perspective for ideal 2D tessellations (also implemented previously missing sky)
+- 'edit cell values' option now visible in the map editor
+- Orb of Change no longer can produce Hunter Dogs and Zombies (who have special properties)
+- fixed 'inv' displayed incorrectly in the HUD mode line
+- full_geometry_name now displays the Archimedean symbol
+- dice:: numbers now shown outside of the OpenGL mode
+- dice:: Orb of Chaos works correctly now
+- dice:: now work correctly in non-orientable spaces
+- dice values are now editable in Shift+G
+- fixed the direction setup by Orb of Chaos
+- fixed the remaining spurious shadow messages
+
+2021-07-04 11:23 Update 12.0c:
+
+Mostly bugfixes:
+- Archimedean: fixed the possible crash on deleting arcms with large cells, because of the confusion of cdata
+- items in water no longer can burn
+- Overview cheats: arrow keys no longer make treasure/orb counts negative
+- Orb of Time now preserves Orb of Plague properly
+- Orb of Safety excludes more monsters
+- More fixes for Russian translation
+- Flash Witches no longer avoid killing the player's allies
+- Yellow Frogs no longer phase into the player's sword
+- Resolve conflict between 'Galápagos shading' and 'teleport'
+- Fix HUD kill list in 'items only' mode
+- Wandering rocksnakes no longer appear on hepts
+- Add wiki links to land help
+- Mention the Cursed Canyon in the Shadow's description
+- cheat Teleporting to Haunted Woods no longer puts you infinitely deep
+- Orb of Change no longer produces Jiangshi or Desert Man
+- Fix extra Viziers when walking around the Palace with 12 treasures
+- Help for Mutant Sapling no longer claims that it unlocks Orb of Luck globally
+- Orb of Slaying can now appear in hub lands
+- Orb of the Woods now only appears in lands where it is potentially useful (and in hubs)
+- Orb of Luck no longer appears in Free Fall
+- Orb of Friendship no longer appears in Terracotta Army
+- The Orb of Beauty now lifts rose-scent restrictions on targeting of ranged orbs
+- fixed a memory leak when drawing text
+
+2021-07-13 22:24 Update 12.0d:
+
+New features:
+- variations are now supported for regular honeycombs
+- better handling of 3D honeycombs (e.g. minesweeper with vertex adjacency now should work correctly everywhere, reflective raytracers works in more cases, etc.)
+
+Bugfixes:
+- Copy wparam when copying wall
+- prevent slime from duplicating dice
+- Orb of Lava no longer intimidates allies
+- Fix typo in Windy Plains description
+- some fixes to the Russian translation
+- Fix array indexing in totalbulldistance
+- Fix crash by disallowing statue-dice swaps
+- Ivy to Vine no longer overwrites Round Table
+- Reversing the Curse of Water now gives bonus Orb of Winter (as intended)
+- Fix some messages when using Orb of the Warp
+- Cave transformation is fairer to players
+- Prairie no longer appears on Crossroads IV
+- Raging Bull can no longer push Princess onto player's cell
+- Only show chasm trails in special modes
+- Orb of Air can no longer push sharks
+- Dice can now be pushed onto items
+- Fix crash after using Orb of Domination
+- Fix 'nowhere to blow' message for happy dice
+- Curse of Weakness no longer allows pushing parts of multitile monsters
+- Orb of shield/shell no longer bypasses 'kraken will destroy boat' warning
+- Fix checkmate check when standing on an Orb of Speed
+- Irradiated Field: bull generation no longer breaks ivy
+- Fix several Friendly Ivy interactions
+
+2021-08-01 11:19 Update 12.0e:
+
+New features:
+* better land boundaries in all (hyperbolic) 2D geometries, including Great Walls-like ones
+* improved CR4 and Camelot generation
+* tes files now support aperiodic (tree-based) tessellations and some other features, see "horotiling.tes" in samples
+* HyperRogue is now able to generate strict tree-based rules to generate periodic tessellations 
+  (including tes files and Archimedean, which previously were generated using other methods).
+  This way of generation avoids numerical precision errors and lets us understand the growth patterns
+  (experiment with geometry -> size of the world) and generate horocycles and Camelot. This
+  is currently disabled by default, but can be enabled in experiment with geometry -> size of the world -> strict.
+* Dice hover map now indicates hardness with color (thanks to @jruderman)
+* minor Russian translation updates (thanks to blargdag)
+
+Bugfixes:
+* fixed some issues with sky rendering in FPP (better stars and Palace ceiling)
+* fixed incorrect graphics in binary tilings
+* fixed bugs with moving the key with boats
+* Princess Quest no longer shows fail screen merely due to the princess being in peril
+
+2021-08-05 13:23 Update 12.0f:
+
+* fixed fake geometry with 2D tessellations (many fixes)
+* fractal landscapes for strict tree-based rules
+* improved the memory performance of strict tree rules generator (see 12.0e)
+* crossing Great Walls (CR3/Elemental Planes) for all 2D tessellations, fixed some bugs with Great Walls
+* fixed switching places (message shown correctly, can't switch with saved tortoises and dice in peace mode)
+* fixed possible bugs with Brownian colors, snake colors, interactions of arrow traps and terracotta warriors (thanks to @jruderman)
+* fixed 3-dimensional elliptic space
+* tes files: fixed a bug with 'ended at wrong edge determining vertex_valence'

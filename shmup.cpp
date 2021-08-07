@@ -21,22 +21,10 @@ EX namespace shmupballs {
     }
 EX }
 
-ld sqdist(hyperpoint a, hyperpoint b) {
+ld sqdist(shiftpoint a, shiftpoint b) {
   if(prod) return pow(hdist(a, b), 2);
-  else return intval(a, b);
+  else return intval(a.h, unshift(b, a.shift));
   }
-
-/*
-const char *lastprofile = "";
-int lt = 0;
-
-void profile(const char *buf) {
-  int gt = SDL_GetTicks();
-  printf("%4d %s\n", gt - lt, lastprofile);
-  lt = gt;
-  lastprofile = buf;
-  }
-*/
 
 #if HDR
 #define SCALE cgi.scalefactor
@@ -53,7 +41,7 @@ struct monster {
     // tortoises: origin
     // butterflies: last position
   transmatrix at;
-  transmatrix pat;
+  shiftmatrix pat;
   /** orientation for the product geometry */
   transmatrix ori;
   eMonster stk;
@@ -62,7 +50,6 @@ struct monster {
   bool inBoat;
   bool no_targetting;
   monster *parent; // who shot this missile
-  eMonster parenttype; // type of the parent
   int nextshot;    // when will it be able to shot (players/flailers)
   int pid;         // player ID
   int hitpoints;   // hitpoints; or time elapsed in Asteroids
@@ -74,19 +61,37 @@ struct monster {
   bool isVirtual;  // off the screen: gmatrix is unknown, and pat equals at
   hyperpoint inertia;// for frictionless lands
   
+  int refs;         // +1 for every reference (parent, lists of active monsters)
+  
   monster() { 
     dead = false; inBoat = false; parent = NULL; nextshot = 0; 
     stunoff = 0; blowoff = 0; footphase = 0; no_targetting = false;
-    swordangle = 0; inertia = Hypc; if(prod) ori = Id;
+    swordangle = 0; inertia = Hypc; ori = Id; refs = 1;
     }
   
+  eMonster get_parenttype() { return parent ? parent->type : moNone; }
+
   void store();
     
   void findpat();
 
-  cell *findbase(const transmatrix& T, int maxsteps);
+  cell *findbase(const shiftmatrix& T, int maxsteps);
 
-  void rebasePat(const transmatrix& new_pat, cell *tgt);
+  void rebasePat(const shiftmatrix& new_pat, cell *tgt);
+  
+  void remove_reference() {
+    refs--;
+    if(!refs) {
+      if(parent) parent->remove_reference();
+      delete this;
+      }
+    }
+  
+  void set_parent(monster *par) {
+    if(parent) parent->remove_reference();
+    parent = par;
+    parent->refs++;
+    }
 
   };  
 #endif
@@ -112,23 +117,23 @@ typedef multimap<cell*, monster*>::iterator mit;
 
 vector<monster*> active, nonvirtual, additional;
 
-cell *findbaseAround(hyperpoint p, cell *around, int maxsteps) {
+cell *findbaseAround(shiftpoint p, cell *around, int maxsteps) {
 
   if(fake::split()) {
-    auto p0 = inverse(ggmatrix(around)) * p;
+    auto p0 = inverse_shift(ggmatrix(around), p);
     virtualRebase(around, p0);
     return around;
     }
 
   cell *best = around;
-  transmatrix T = ggmatrix(around);
+  shiftmatrix T = ggmatrix(around);
   horo_distance d0(p, T);
 
   for(int k=0; k<maxsteps; k++) {
     for(int i=0; i<around->type; i++) {
       cell *c2 = around->move(i);
       if(c2) {
-        transmatrix U = ggmatrix(c2);
+        shiftmatrix U = ggmatrix(c2);
         horo_distance d1(p, U);
         if(d1 < d0) { best = c2; d0 = d1; }
         }
@@ -139,7 +144,7 @@ cell *findbaseAround(hyperpoint p, cell *around, int maxsteps) {
   return around;
   }
 
-cell *findbaseAround(const transmatrix& H, cell *around, int maxsteps) {
+cell *findbaseAround(const shiftmatrix& H, cell *around, int maxsteps) {
   return findbaseAround(tC0(H), around, maxsteps);
   }
 
@@ -153,15 +158,15 @@ void monster::store() {
   }
 
 void monster::findpat() {
-  isVirtual = !gmatrix.count(base) || invalid_matrix(gmatrix[base]);
+  isVirtual = !gmatrix.count(base) || invalid_matrix(gmatrix[base].T);
   if(!isVirtual) pat = gmatrix[base] * at;
-  else pat = at;
+  else pat = shiftless(at);
   }
 
-cell *monster::findbase(const transmatrix& T, int maxsteps) {
+cell *monster::findbase(const shiftmatrix& T, int maxsteps) {
   if(isVirtual) {
     cell *c = base;
-    auto cT = T;
+    auto cT = T.T;
     virtualRebase(c, cT);
     return c;
     }
@@ -173,22 +178,29 @@ void fix_to_2(transmatrix& T) {
     for(int i=0; i<4; i++) T[i][2] = 0, T[2][i] = 0;
     T[2][2] = 1;
     }
-  fixmatrix(T);
+  if(nonisotropic) {
+    hyperpoint h = tC0(T);
+    transmatrix rot = gpushxto0(h) * T;
+    fix_rotation(rot);
+    T = rgpushxto0(h) * rot;
+    }
+  else
+    fixmatrix(T);
   fixelliptic(T);
   }
 
-void monster::rebasePat(const transmatrix& new_pat, cell *c2) {
+void monster::rebasePat(const shiftmatrix& new_pat, cell *c2) {
   if(isVirtual) {
-    at = new_pat;
+    at = new_pat.T;
     virtualRebase(this);
     fix_to_2(at);
-    pat = at;
+    pat = shiftless(at);
     if(multi::players == 1 && this == shmup::pc[0])
-      current_display->which_copy = ggmatrix(base);
+      current_display->which_copy = back_to_view(ggmatrix(base));
     return;
     }
   if(quotient || fake::split()) {
-    at = inverse(gmatrix[base]) * new_pat;
+    at = inverse_shift(gmatrix[base], new_pat);
     transmatrix old_at = at;
     virtualRebase(this);
     fix_to_2(at);
@@ -197,29 +209,29 @@ void monster::rebasePat(const transmatrix& new_pat, cell *c2) {
       else {
         auto T = calc_relative_matrix(c2, base, tC0(at));
         base = c2;
-        at = inverse(T) * at;
+        at = iso_inverse(T) * at;
         }
       }
     if(multi::players == 1 && this == shmup::pc[0] && !eqmatrix(old_at, at))
-      current_display->which_copy = current_display->which_copy * old_at * inverse(at);
+      current_display->which_copy = current_display->which_copy * old_at * iso_inverse(at);
     return;
     }
   if(multi::players == 1 && this == shmup::pc[0])
-    current_display->which_copy = current_display->which_copy * inverse(gmatrix[base]) * gmatrix[c2];
+    current_display->which_copy = current_display->which_copy * inverse_shift(gmatrix[base], gmatrix[c2]);
   pat = new_pat;
   // if(c2 != base) printf("rebase %p -> %p\n", base, c2);
   base = c2;
-  at = inverse(gmatrix[c2]) * pat;
+  at = inverse_shift(gmatrix[c2], pat);
   fix_to_2(at);
   fixelliptic(at);
   }
 
-bool trackroute(monster *m, transmatrix goal, double spd) {
+bool trackroute(monster *m, shiftmatrix goal, double spd) {
   cell *c = m->base;
   
   // queuepoly(goal, shGrail, 0xFFFFFFC0);
 
-  transmatrix mat = inverse(m->pat) * goal;
+  transmatrix mat = inverse_shift(m->pat, goal);
   
   transmatrix mat2 = spintox(mat*C0) * mat;
   
@@ -227,7 +239,7 @@ bool trackroute(monster *m, transmatrix goal, double spd) {
 
   while(d < dist) {
     d += spd;
-    transmatrix nat = m->pat * rspintox(mat * C0) * xpush(d); 
+    shiftmatrix nat = m->pat * rspintox(mat * C0) * xpush(d); 
 
     // queuepoly(nat, cgi.shKnife, 0xFFFFFFC0);
 
@@ -330,16 +342,15 @@ void awakenMimics(monster *m, cell *c2) {
     m2->base = c;
     
     if(isBullet(m)) {
-      m2->parenttype = m->parenttype;
       m2->type = m->type;
       m2->vel = m->vel;
-      m2->parent = m->parent;
+      m2->set_parent(m->parent);
       m2->pid = m->pid;
       }
     else
       m2->type = moMimic;
     
-    hyperpoint H = inverse(gmatrix[c2]) * gmatrix[c] * C0;
+    hyperpoint H = inverse_shift(gmatrix[c2], tC0(gmatrix[c]));
     
     transmatrix xfer = rgpushxto0(H);
 
@@ -348,9 +359,9 @@ void awakenMimics(monster *m, cell *c2) {
       xfer = rspintox(H) * rpushxto0(H2) * mirrortrans * spintox(H);
       }
 
-    m2->pat = gmatrix[c2] * xfer * inverse(gmatrix[c2]) * m->pat;
+    m2->pat = gmatrix[c2] * xfer * inverse_shift(gmatrix[c2], m->pat);
       
-    m2->at = inverse(gmatrix[c]) * m2->pat;
+    m2->at = inverse_shift(gmatrix[c], m2->pat);
     m2->pid = cpid;
     
     additional.push_back(m2);
@@ -395,9 +406,8 @@ void shootBullet(monster *m) {
   if(WDIM == 3) bullet->at = bullet->at * cpush(2, 0.15 * SCALE);
   if(prod) bullet->ori = m->ori;
   bullet->type = moBullet;
-  bullet->parent = m;
+  bullet->set_parent(m);
   bullet->pid = m->pid;
-  bullet->parenttype = m->type;
   bullet->inertia = m->inertia;
   bullet->inertia[frontdir()] += bullet_velocity(m->type) * SCALE;
   bullet->hitpoints = 0;
@@ -415,9 +425,8 @@ void shootBullet(monster *m) {
     if(prod) bullet->ori = m->ori;
     if(WDIM == 3) bullet->at = bullet->at * cpush(2, 0.15 * SCALE);
     bullet->type = moBullet;
-    bullet->parent = m;
+    bullet->set_parent(m);
     bullet->pid = m->pid;
-    bullet->parenttype = m->type;
     bullet->hitpoints = 0;
     bullet->inertia = cspin(0, WDIM-1, -M_PI/4 * i) * m->inertia;
     bullet->inertia[frontdir()] += bullet_velocity(m->type) * SCALE;
@@ -430,7 +439,7 @@ EX void killThePlayer(eMonster m) {
     pc[cpid]->dead = true;
   }
 
-monster *playerCrash(monster *who, hyperpoint where) {
+monster *playerCrash(monster *who, shiftpoint where) {
   if(who->isVirtual) return NULL;
   // in the racing mode, neither crashing nor getting too far away is a problem
   if(racing::on) return NULL;
@@ -442,7 +451,7 @@ monster *playerCrash(monster *who, hyperpoint where) {
   return NULL;
   }
 
-void oceanCurrents(transmatrix& nat, monster *m, int delta) {
+void oceanCurrents(shiftmatrix& nat, monster *m, int delta) {
   cell *c = m->base;
   if(c->land == laWhirlpool) {
     for(int i=0; i<c->type; i++) {
@@ -457,11 +466,11 @@ void oceanCurrents(transmatrix& nat, monster *m, int delta) {
         spd = SCALE * delta / 900.;
         
       if(spd) {
-        transmatrix goal = gmatrix[c2];
+        shiftpoint goal = tC0(gmatrix[c2]);
 
         // transmatrix t = spintox(H) * xpush(delta/300.) * rspintox(H);
 
-        hyperpoint H = inverse(m->pat) * goal * C0;
+        hyperpoint H = inverse_shift(m->pat, goal);
         nat = nat * rspintox(H);
         nat = nat * xpush(spd);
         nat = nat * spintox(H);
@@ -470,7 +479,7 @@ void oceanCurrents(transmatrix& nat, monster *m, int delta) {
     }
   }
 
-bool airCurrents(transmatrix& nat, monster *m, int delta) {
+bool airCurrents(shiftmatrix& nat, monster *m, int delta) {
   bool carried = false;
   cell *c = m->base;
   #if CAP_COMPLEX2
@@ -481,11 +490,11 @@ bool airCurrents(transmatrix& nat, monster *m, int delta) {
         
     if(m->type == moVoidBeast) spd = -spd;
     if(spd) {
-      transmatrix goal = gmatrix[c2];
+      shiftpoint goal = tC0(gmatrix[c2]);
 
       // transmatrix t = spintox(H) * xpush(delta/300.) * rspintox(H);
 
-      hyperpoint H = inverse(m->pat) * goal * C0;
+      hyperpoint H = inverse_shift(m->pat, goal);
       nat = nat * rspintox(H);
       nat = nat * xpush(spd);
       nat = nat * spintox(H);
@@ -503,11 +512,11 @@ bool airCurrents(transmatrix& nat, monster *m, int delta) {
         
       if(m->type == moVoidBeast) spd = -spd;
       if(spd) {
-        transmatrix goal = gmatrix[c2];
+        shiftpoint goal = tC0(gmatrix[c2]);
 
         // transmatrix t = spintox(H) * xpush(delta/300.) * rspintox(H);
 
-        hyperpoint H = inverse(m->pat) * goal * C0;
+        hyperpoint H = inverse_shift(m->pat, goal);
         nat = nat * rspintox(H);
         nat = nat * xpush(spd);
         nat = nat * spintox(H);
@@ -524,11 +533,11 @@ bool airCurrents(transmatrix& nat, monster *m, int delta) {
       if(z >= 128) z -= 256;
       if(m->type == moVoidBeast) z = -z;
       if(z < windmap::NOWINDFROM && z > -windmap::NOWINDFROM) {
-        transmatrix goal = gmatrix[c2];
+        shiftmatrix goal = gmatrix[c2];
 
         // transmatrix t = spintox(H) * xpush(delta/300.) * rspintox(H);
 
-        hyperpoint H = inverse(m->pat) * goal * C0;
+        hyperpoint H = inverse_shift(m->pat, goal) * C0;
         nat = nat * rspintox(H);
         nat = nat * xpush(z * SCALE * delta / 50000.);
         nat = nat * spintox(H);
@@ -540,7 +549,7 @@ bool airCurrents(transmatrix& nat, monster *m, int delta) {
   return carried;
   }
 
-void roseCurrents(transmatrix& nat, monster *m, int delta) {
+void roseCurrents(shiftmatrix& nat, monster *m, int delta) {
   if(ignoresSmell(m->type)) return;
   cell *c = m->base;
   
@@ -559,11 +568,11 @@ void roseCurrents(transmatrix& nat, monster *m, int delta) {
     double spd = SCALE * delta / 300. / qty;
         
     if(spd) {
-      transmatrix goal = gmatrix[c2];
+      shiftpoint goal = tC0(gmatrix[c2]);
 
       // transmatrix t = spintox(H) * xpush(delta/300.) * rspintox(H);
 
-      hyperpoint H = inverse(m->pat) * goal * C0;
+      hyperpoint H = inverse_shift(m->pat, goal);
       nat = nat * rspintox(H);
       nat = nat * xpush(spd);
       nat = nat * spintox(H);
@@ -571,7 +580,7 @@ void roseCurrents(transmatrix& nat, monster *m, int delta) {
     }
   }
 
-hyperpoint keytarget(int i) {
+shiftpoint keytarget(int i) {
   double d = 2 + sin(curtime / 350.);
   return pc[i]->pat * cpush0(WDIM == 3 ? 2 : 0, d * cgi.scalefactor);
   }
@@ -589,14 +598,14 @@ ld getHornsSize() { return cgi.scalefactor * 0.33; }
 // used in 3D
 EX transmatrix swordmatrix[MAXPLAYER];
 
-hyperpoint swordpos(int id, bool rev, double frac) {
+shiftpoint swordpos(int id, bool rev, double frac) {
   if(WDIM == 3)
     return pc[id]->pat * swordmatrix[id] * cpush0(2, (rev?-frac:frac) * getSwordSize());
   else
     return pc[id]->pat * xspinpush0(pc[id]->swordangle, (rev?-frac:frac) * getSwordSize());
   }
 
-hyperpoint hornpos(int id) {
+shiftpoint hornpos(int id) {
   return pc[id]->pat * xpush0(getHornsSize());
   }
 
@@ -635,7 +644,7 @@ EX void activateArrow(cell *c) {
     traplist.emplace(ticks + 500, c);
   }
 
-monster arrowtrap_fakeparent;
+monster arrowtrap_fakeparent, dragon_fakeparent;
 
 void doTraps() {
   while(true) { 
@@ -649,15 +658,15 @@ void doTraps() {
       traplist.emplace(t.first + 500, t.second);
       
       for(int i=0; i<5; i += 4) try {
-        transmatrix& tu = gmatrix.at(tl[i]);
-        transmatrix& tv = gmatrix.at(tl[4-i]);
+        shiftmatrix& tu = gmatrix.at(tl[i]);
+        shiftmatrix& tv = gmatrix.at(tl[4-i]);
         monster* bullet = new monster;
         bullet->base = tl[i];
-        bullet->at = rspintox(inverse(tu) * tC0(tv));
+        bullet->at = rspintox(inverse_shift(tu, tC0(tv)));
         bullet->type = moArrowTrap;
-        bullet->parent = &arrowtrap_fakeparent;
+        bullet->set_parent(&arrowtrap_fakeparent);
+        arrowtrap_fakeparent.type = moArrowTrap;
         bullet->pid = 0;
-        bullet->parenttype = moArrowTrap;
         additional.push_back(bullet);
         }
       catch(out_of_range&) {}
@@ -760,6 +769,22 @@ void movePlayer(monster *m, int delta) {
     mdy = (mousey - yb) / (rad/2.);
     }
   #endif
+
+  #if CAP_VR
+  if(vrhr::active()) {
+    if(GDIM == 3) {
+      mouseaim_x += vrhr::vraim_x * delta / 400;
+      mouseaim_y -= vrhr::vraim_y * delta / 400;
+      mdy -= vrhr::vrgo_y;
+      mdx += vrhr::vrgo_x;
+      }
+    else {
+      println(hlog, "2dim");
+      mturn -= vrhr::vraim_x + vrhr::vrgo_x;
+      mgo += vrhr::vrgo_y + vrhr::vraim_y;
+      }
+    }
+  #endif
   
   if(actionspressed[b+pcOrbPower] && !lactionpressed[b+pcOrbPower] && mouseover && !m->dead) {
     cwt.at = m->base;
@@ -790,7 +815,7 @@ void movePlayer(monster *m, int delta) {
     #endif
     }
   
-  transmatrix nat = m->pat;
+  shiftmatrix nat = m->pat;
   
   // if(ka == b+pcOrbPower) dropgreen = true;
   
@@ -827,11 +852,11 @@ void movePlayer(monster *m, int delta) {
     
     if(mdd > 1e-6) {
       hyperpoint jh = hpxy(mdx/100.0, mdy/100.0);
-      hyperpoint ctr = m->pat * C0;
+      shiftpoint ctr = m->pat * C0;
   
       if(sphere && pconf.alpha > 1.001) for(int i=0; i<3; i++) ctr[i] = -ctr[i];
   
-      hyperpoint h = inverse(m->pat) * rgpushxto0(ctr) * jh;
+      hyperpoint h = inverse_shift(m->pat, rgpushxto0(ctr) * jh);
       
       playerturn[cpid] = -atan2(h[1], h[0]);
       mgo += mdd;
@@ -839,11 +864,15 @@ void movePlayer(monster *m, int delta) {
     }
 
 #if CAP_SDL
-  Uint8 *keystate = SDL_GetKeyState(NULL);
+  const Uint8 *keystate = SDL12_GetKeyState(NULL);
+  #if CAP_SDL2
+  bool forcetarget = (keystate[SDL_SCANCODE_RSHIFT] | keystate[SDL_SCANCODE_LSHIFT]);
+  #else
   bool forcetarget = (keystate[SDLK_RSHIFT] | keystate[SDLK_LSHIFT]);
+  #endif
   if(((mousepressed && !forcetarget) || facemouse) && delta > 0 && !mouseout() && !stdracing && GDIM == 2) {
     // playermoved = true;
-    hyperpoint h = inverse(m->pat) * mouseh;
+    hyperpoint h = inverse_shift(m->pat, mouseh);
     playerturn[cpid] = -atan2(h[1], h[0]);
     // nat = nat * spin(alpha);
     // mturn += alpha * 150. / delta;
@@ -863,10 +892,10 @@ void movePlayer(monster *m, int delta) {
     
   if(playerturn[cpid] && canmove && !blown && WDIM == 2) {
     m->swordangle -= playerturn[cpid];
-    rotate_object(nat, m->ori, spin(playerturn[cpid]));
+    rotate_object(nat.T, m->ori, spin(playerturn[cpid]));
     if(inertia_based) m->inertia = spin(-playerturn[cpid]) * m->inertia;
     }
-  transmatrix nat0 = nat;
+  shiftmatrix nat0 = nat;
   
   if(m->base->land == laWhirlpool && !markOrb(itOrbWater))
     oceanCurrents(nat, m, delta);
@@ -922,6 +951,7 @@ void movePlayer(monster *m, int delta) {
     }
   
   if(playergo[cpid] && markOrb(itOrbDash)) playergo[cpid] *= 1.5;
+  if(playergo[cpid] && markOrb(itCurseFatigue)) playergo[cpid] *= 0.75;
 
   bool go = false; 
   
@@ -942,7 +972,7 @@ void movePlayer(monster *m, int delta) {
   
   nextstep:
 
-  transmatrix nat1 = nat;
+  shiftmatrix nat1 = nat;
   
   hyperpoint avg_inertia;
   
@@ -983,14 +1013,13 @@ void movePlayer(monster *m, int delta) {
       hyperpoint drag = m->inertia * cinertia * delta / -1. / SCALE;
       m->inertia += drag;
       avg_inertia += drag/2;
-      transmatrix T = inverse(m->pat);
       ld xp = SCALE / 60000. / isize(below) * delta / 15;
       ld yp = 0;
       if(cwt.at->land == laDungeon) xp = -xp;
       if(cwt.at->land == laWestWall) yp = xp * 1, xp *= 0.7;
       for(cell *c2: below) if(c2 != m->base) {
         
-        hyperpoint h = rspintox(T * tC0(gmatrix[c2])) * hpxy(xp, yp);
+        hyperpoint h = rspintox(inverse_shift(m->pat, tC0(gmatrix[c2]))) * hpxy(xp, yp);
       
         m->inertia += h;
         avg_inertia += h/2;
@@ -1009,8 +1038,8 @@ void movePlayer(monster *m, int delta) {
       playergoturn[cpid] = 0;
       if(igo) { go = false; break; }
       ld r = hypot_d(WDIM, avg_inertia);
-      apply_parallel_transport(nat, m->ori, rspintox(avg_inertia) * xtangent(r * delta));
-      if(WDIM == 3) rotate_object(nat, m->ori, cspin(0, 2, playerturn[cpid]) * cspin(1, 2, playerturny[cpid]));
+      apply_parallel_transport(nat.T, m->ori, rspintox(avg_inertia) * xtangent(r * delta));
+      if(WDIM == 3) rotate_object(nat.T, m->ori, cspin(0, 2, playerturn[cpid]) * cspin(1, 2, playerturny[cpid]));
       m->vel = r * (600/SCALE);
       }
     else if(WDIM == 3) {
@@ -1020,15 +1049,15 @@ void movePlayer(monster *m, int delta) {
         playersmallspin[cpid] = cspin(0, 1, fspin) * cspin(2, 0, igospan[igo]);
         if(fspin < 360) igo--; else fspin = 0;
         }
-      nat = parallel_transport(nat1, m->ori, playersmallspin[cpid] * point3(playerstrafe[cpid], 0, playergo[cpid]));
-      rotate_object(nat, m->ori, cspin(0, 2, playerturn[cpid]) * cspin(1, 2, playerturny[cpid]));
+      nat.T = parallel_transport(nat1.T, m->ori, playersmallspin[cpid] * point3(playerstrafe[cpid], 0, playergo[cpid]));
+      rotate_object(nat.T, m->ori, cspin(0, 2, playerturn[cpid]) * cspin(1, 2, playerturny[cpid]));
       m->inertia[0] = playerstrafe[cpid] / delta;
       m->inertia[1] = 0;
       m->inertia[2] = playergo[cpid] / delta;
       }
     else if(playergo[cpid]) {
       playergoturn[cpid] = igospan[igo]+godir[cpid];    
-      nat = parallel_transport(nat1, m->ori, spin(playergoturn[cpid]) * xtangent(playergo[cpid]));
+      nat.T = parallel_transport(nat1.T, m->ori, spin(playergoturn[cpid]) * xtangent(playergo[cpid]));
       m->inertia = spin(playergoturn[cpid]) * xtangent(playergo[cpid] / delta);
       }
     
@@ -1057,7 +1086,7 @@ void movePlayer(monster *m, int delta) {
         if(HEAT(c2) > .5) HEAT(c2) = .5;
         }
   
-      else if(c2->wall == waBigStatue && canPushStatueOn(m->base) && !nonAdjacent(c2, m->base)) {
+      else if(c2->wall == waBigStatue && canPushStatueOn(m->base, P_ISPLAYER) && !nonAdjacent(c2, m->base)) {
         visibleFor(300);
         c2->wall = m->base->wall;
         if(cellUnstable(cwt.at))
@@ -1095,7 +1124,7 @@ void movePlayer(monster *m, int delta) {
           if(d<bestd) bestd=d, subdir = di;
           }
         pushmonsters();
-        auto mip = determinePush(cellwalker(c2, sd1)+wstep, subdir, [m, c2] (cell *c) { return canPushThumperOn(c, c2, m->base); });
+        auto mip = determinePush(cellwalker(c2, sd1)+wstep, subdir, [m] (movei mi) { return canPushThumperOn(mi, m->base); });
         visibleFor(300);
         if(!mip.proper()) go = false;
         else pushThumper(mip);
@@ -1118,7 +1147,7 @@ void movePlayer(monster *m, int delta) {
         int i0 = i;
         for(int a=0; a<3; a++) v[a] = (i0 % 3) - 1, i0 /= 3;
         v = v * .1 / hypot_d(3, v);
-        transmatrix T1 = (i == 13) ? nat : parallel_transport(nat, m->ori, v);
+        shiftmatrix T1 = (i == 13) ? nat : shiftless(parallel_transport(nat.T, m->ori, v), nat.shift);
         cell *c3 = c2;
         while(true) {
           cell *c4 = findbaseAround(tC0(T1), c3, 1);
@@ -1148,12 +1177,19 @@ void movePlayer(monster *m, int delta) {
       }
 
     if(c2 != m->base) {
+      doPickupItemsWithMagnetism(c2);
+
       if(cellUnstable(m->base) && !markOrb(itOrbAether))
         doesFallSound(m->base);
     
       if(items[itOrbFire]) {
         visibleFor(800);
         if(makeflame(m->base, 10, false)) markOrb(itOrbFire);
+        }
+
+      if(items[itCurseWater]) {
+        visibleFor(800);
+        if(makeshallow(m->base, 10, false)) markOrb(itCurseWater);
         }
 
       if(isIcyLand(m->base) && m->base->wall == waNone && markOrb(itOrbWinter)) {
@@ -1168,8 +1204,10 @@ void movePlayer(monster *m, int delta) {
       
       cwt.at = c2; afterplayermoved();
       if(c2->item && c2->land == laAlchemist) c2->wall = m->base->wall;
+      #if CAP_COMPLEX2
       if(m->base->wall == waRoundTable)
         camelot::roundTableMessage(c2);
+      #endif
       if(c2->wall == waCloud || c2->wall == waMirror) {
         visibleFor(500);
         cellwalker cw(c2, 0, false);
@@ -1190,7 +1228,9 @@ void movePlayer(monster *m, int delta) {
         items[itOrbLife] = 0;
         m->dead = true;
         }
+      #if CAP_COMPLEX2
       mine::uncover_full(c2);
+      #endif
       
       if(isWatery(c2) && isWatery(m->base) && m->inBoat)
         moveItem(m->base, c2, true);
@@ -1246,7 +1286,7 @@ void movePlayer(monster *m, int delta) {
   playerfire[cpid] = false;
   
   if(items[itOrbHorns] && !m->isVirtual) {
-    hyperpoint H = hornpos(cpid);
+    shiftpoint H = hornpos(cpid);
 
     for(monster *m2: nonvirtual) {
       if(m2 == m) continue;
@@ -1265,7 +1305,7 @@ void movePlayer(monster *m, int delta) {
   for(int b=0; b<2; b++) if(sword::orbcount(b) && !m->isVirtual) {
   
     for(double d=0; d<=1.001; d += .1) {
-      hyperpoint H = swordpos(cpid, b, d);
+      shiftpoint H = swordpos(cpid, b, d);
   
       for(monster *m2: nonvirtual) {
         if(m2 == m) continue;
@@ -1343,23 +1383,23 @@ EX monster *getPlayer() {
 void virtualize(monster *m) {
   if(doall) forCellCM(c2, m->base) if(!gmatrix.count(c2)) {
     m->isVirtual = true;
-    m->pat = m->at;
+    m->pat = shiftless(m->at);
     return;
     }
   }
 
-bool reflectmatrix(transmatrix& M, cell *c1, cell *c2, bool onlypos) {
+bool reflectmatrix(shiftmatrix& M, cell *c1, cell *c2, bool onlypos) {
   if(!gmatrix.count(c1) || !gmatrix.count(c2)) return false;
-  transmatrix H = inverse(gmatrix[c1]) * gmatrix[c2];
+  transmatrix H = inverse_shift(gmatrix[c1], gmatrix[c2]);
   transmatrix S = spintox(tC0(H));
   ld d = hdist0(tC0(H));
-  transmatrix T = xpush(-d/2) * S * inverse(gmatrix[c1]) * M;
+  transmatrix T = xpush(-d/2) * S * inverse_shift(gmatrix[c1], M);
   if(onlypos && tC0(T)[0] < 0) return false;
-  M = gmatrix[c1] * inverse(S) * xpush(d/2) * MirrorX * T;
+  M = gmatrix[c1] * iso_inverse(S) * xpush(d/2) * MirrorX * T;
   return true;
   }
 
-EX int reflect(cell*& c2, cell*& mbase, transmatrix& nat) {
+EX int reflect(cell*& c2, cell*& mbase, shiftmatrix& nat) {
   int reflections = 0;
   if(c2 != mbase && c2->wall == waMirrorWall && inmirror(c2)) {
     if(reflectmatrix(nat, mbase, c2, false)) {
@@ -1409,15 +1449,15 @@ EX int reflect(cell*& c2, cell*& mbase, transmatrix& nat) {
 
 void moveMimic(monster *m) {
   virtualize(m);
-  transmatrix nat = m->pat;
+  shiftmatrix nat = m->pat;
   cpid = m->pid;
   m->footphase = getPlayer()->footphase;
   
   // no need to care about Mirror images, as they already have their 'at' matrix reversed :|
 
   if(WDIM == 3) {
-    nat = parallel_transport(nat, m->ori, playersmallspin[cpid] * point3(playerstrafe[cpid], 0, playergo[cpid]));
-    rotate_object(nat, m->ori, cspin(0, 2, playerturn[cpid]) * cspin(1, 2, playerturny[cpid]));
+    nat.T = parallel_transport(nat.T, m->ori, playersmallspin[cpid] * point3(playerstrafe[cpid], 0, playergo[cpid]));
+    rotate_object(nat.T, m->ori, cspin(0, 2, playerturn[cpid]) * cspin(1, 2, playerturny[cpid]));
     }
   else
     nat = nat * spin(playerturn[cpid] + playergoturn[cpid]) * xpush(playergo[cpid]) * spin(-playergoturn[cpid]);
@@ -1465,7 +1505,7 @@ void destroyMimics() {
 EX void teleported() {
   monster *m = pc[cpid];
   m->base = cwt.at;
-  m->at = rgpushxto0(inverse(gmatrix[cwt.at]) * mouseh) * spin(rand() % 1000 * M_PI / 2000);
+  m->at = rgpushxto0(inverse_shift(gmatrix[cwt.at], mouseh)) * spin(rand() % 1000 * M_PI / 2000);
   m->findpat();
   destroyMimics();
   }
@@ -1473,19 +1513,18 @@ EX void teleported() {
 void shoot(eItem it, monster *m) {
   monster* bullet = new monster;
   bullet->base = m->base;
-  bullet->at = m->at * rspintox(inverse(m->pat) * mouseh);
+  bullet->at = m->at * rspintox(inverse_shift(m->pat, mouseh));
   /* ori */
   if(WDIM == 3) bullet->at = bullet->at * cpush(2, 0.15 * SCALE);
   bullet->type = it == itOrbDragon ? moFireball : it == itOrbAir ? moAirball : moBullet;
-  bullet->parent = m;
+  bullet->set_parent(m);
   bullet->pid = m->pid;
-  bullet->parenttype = m->type;
   items[it]--;
   additional.push_back(bullet);
   }
 
 eItem targetRangedOrbKey(orbAction a) {
-  hyperpoint h = mouseh;
+  shiftpoint h = mouseh;
   cell *b = mouseover;
   monster *mt = mousetarget;
 
@@ -1578,7 +1617,7 @@ void spawn_asteroids(monster *bullet, monster *target) {
   if(target->hitpoints <= 1) return;
   hyperpoint rnd = random_spin() * point2(SCALE/3000., 0);
   
-  hyperpoint bullet_inertia = inverse(target->pat) * bullet->pat * bullet->inertia;
+  hyperpoint bullet_inertia = inverse_shift(target->pat, bullet->pat * bullet->inertia);
 
   for(int i=0; i<2; i++) {
     monster* child = new monster;
@@ -1586,9 +1625,7 @@ void spawn_asteroids(monster *bullet, monster *target) {
     child->at = target->at;
     child->ori = target->ori;
     child->type = target->type;
-    child->parent = NULL;
     child->pid = target->pid;
-    child->parenttype = target->type;
     child->inertia = target->inertia;
     child->inertia += bullet_inertia / 5;
     child->hitpoints = target->hitpoints - 1;
@@ -1608,8 +1645,8 @@ void moveBullet(monster *m, int delta) {
   m->findpat();
   virtualize(m);
   
-  transmatrix nat0 = m->pat;
-  transmatrix nat = m->pat;
+  shiftmatrix nat0 = m->pat;
+  shiftmatrix nat = m->pat;
   
   bool inertia_based = m->base->land == laAsteroids;
   
@@ -1633,10 +1670,10 @@ void moveBullet(monster *m, int delta) {
     m->dead = true;
 
   if(inertia_based) {
-    nat = parallel_transport(nat, m->ori, m->inertia * delta);
+    nat.T = parallel_transport(nat.T, m->ori, m->inertia * delta);
     }
   else 
-    nat = parallel_transport(nat, m->ori, fronttangent(delta * SCALE * m->vel / speedfactor()));
+    nat.T = parallel_transport(nat.T, m->ori, fronttangent(delta * SCALE * m->vel / speedfactor()));
   cell *c2 = m->findbase(nat, fake::split() ? 10 : 1);
 
   if(m->parent && isPlayer(m->parent) && markOrb(itOrbLava) && c2 != m->base && !isPlayerOn(m->base)) 
@@ -1656,9 +1693,16 @@ void moveBullet(monster *m, int delta) {
   
   bool godragon = m->type == moFireball && isDragon(c2->monst);
   
+  eMonster ptype = parentOrSelf(m)->type;
+  bool slayer = m->type == moCrushball ||
+    (markOrb(itOrbSlaying) && (markOrb(itOrbEmpathy) ? isPlayerOrImage(ptype) : ptype == moPlayer));
+  bool weak = m->type == moAirball || 
+    (markOrb(itCurseWeakness) && (markOrb(itOrbEmpathy) ? isPlayerOrImage(ptype) : ptype == moPlayer));
+      
   if(m->type != moTongue && !(godragon || (c2==m->base && m->type == moArrowTrap) || passable(c2, m->base, P_BULLET | P_MIRRORWALL))) {
     m->dead = true;
-    if(m->type != moAirball) killMonster(c2, m->parent ? m->parent->type : moNone);
+    if(!weak && (!isDie(c2->monst) || slayer))
+      killMonster(c2, m->get_parenttype());
     // cell *c = m->base;
     if(m->parent && isPlayer(m->parent)) {
       if(c2->wall == waBigTree) {
@@ -1695,10 +1739,6 @@ void moveBullet(monster *m, int delta) {
     
     if(m2->dead) continue;
 
-    eMonster ptype = parentOrSelf(m)->type;
-    bool slayer = m->type == moCrushball ||
-      (markOrb(itOrbSlaying) && (markOrb(itOrbEmpathy) ? isPlayerOrImage(ptype) : ptype == moPlayer));
-    
     // Flailers only killable by themselves
     if(m2->type == moFlailer && m2 != m->parent) continue;
     // be nice to your images! would be too hard otherwise...
@@ -1714,10 +1754,10 @@ void moveBullet(monster *m, int delta) {
 
       if(m2->type == passive_switch) { m->dead = true; continue; }
       
-      if(m->type == moAirball && isBlowableMonster(m2->type)) {
+      if(weak && isBlowableMonster(m2->type)) {
 
         if(m2->blowoff < curtime) {
-          hyperpoint h = inverse(m2->pat) * nat0 * C0;
+          hyperpoint h = inverse_shift(m2->pat, nat0 * C0);
           if(WDIM == 3)
            swordmatrix[m2->pid] = spintox(h) * swordmatrix[m2->pid];
           else
@@ -1729,7 +1769,7 @@ void moveBullet(monster *m, int delta) {
         }
       // Hedgehog Warriors only killable outside of the 45 degree angle
       if(m2->type == moHedge && !peace::on && !slayer) {
-        hyperpoint h = inverse(m2->pat) * m->pat * C0;
+        hyperpoint h = inverse_shift(m2->pat, m->pat * C0);
         if(h[0] > fabsl(h[1])) { m->dead = true; continue; }
         }
       if(peace::on && !isIvy(m2->type)) {
@@ -1799,7 +1839,7 @@ void moveBullet(monster *m, int delta) {
           nat = spin_towards(nat, m->ori, tC0(m->parent->pat), bulletdir(), 1);
           m->rebasePat(nat, m->base);
           }
-        m->parent = m2;
+        m->set_parent(m2);
         continue;
         }
       m->dead = true;
@@ -1807,12 +1847,10 @@ void moveBullet(monster *m, int delta) {
       // Orb of Winter protects from fireballs
       if(m->type == moFireball && ((isPlayer(m2) && markOrb(itOrbWinter)) || m2->type == moWitchWinter)) 
         continue;
-      bool revive = m2->type == moMirrorSpirit && !m2->dead;
-      killMonster(m2, m->parent ? m->parent->type : moNone);
-      if(revive && m2->dead) {
-        hr::kills[moMirrorSpirit]--;
+      int ms = mirrorspirits;
+      killMonster(m2, m->get_parenttype());
+      if(mirrorspirits > ms) {
         multi::kills[cpid]--;
-        mirrorspirits++;
         }
       if(m2->dead && m2->type == moAsteroid) {
         gainItem(itAsteroid);
@@ -1822,7 +1860,7 @@ void moveBullet(monster *m, int delta) {
     }
   }
 
-hyperpoint closerTo;
+shiftpoint closerTo;
 
 bool closer(monster *m1, monster *m2) {
   return sqdist(m1->pat*C0,  closerTo) < sqdist(m2->pat*C0, closerTo);
@@ -1832,9 +1870,9 @@ EX bool dragonbreath(cell *dragon) {
   int randplayer = hrand(numplayers());
   monster* bullet = new monster;
   bullet->base = dragon;
-  bullet->at = spin_towards(Id, bullet->ori, inverse(gmatrix[dragon]) * tC0(pc[randplayer]->pat), bulletdir(), 1);
+  bullet->at = spin_towards(Id, bullet->ori, inverse_shift(gmatrix[dragon], tC0(pc[randplayer]->pat)), bulletdir(), 1);
   bullet->type = moFireball;
-  bullet->parent = bullet;
+  bullet->set_parent(&dragon_fakeparent); dragon_fakeparent.type = moDragonHead;
   bullet->pid = randplayer;
   additional.push_back(bullet);
   return true;
@@ -1882,7 +1920,7 @@ void moveMonster(monster *m, int delta) {
   if(m->dead) return;
     
   cell *c = m->base;
-  transmatrix goal = gmatrix[c];
+  shiftmatrix goal = gmatrix[c];
   
   bool direct = false; // is there a direct path to the target?
   int directi = 0; // which player has direct path (to set as pid in missiles)
@@ -1926,12 +1964,12 @@ void moveMonster(monster *m, int delta) {
   if(m->isVirtual) {
     if(inertia_based) {
       ld r = hypot_d(WDIM, m->inertia);
-      transmatrix nat = m->pat * rspintox(m->inertia) * xpush(r * delta) * spintox(m->inertia);
+      shiftmatrix nat = m->pat * rspintox(m->inertia) * xpush(r * delta) * spintox(m->inertia);
       m->rebasePat(nat, m->base);
       }
     return;
     }
-  transmatrix nat = m->pat;
+  shiftmatrix nat = m->pat;
 
   if(stunned) {
     if(m->blowoff > curtime) {
@@ -2062,7 +2100,7 @@ void moveMonster(monster *m, int delta) {
       }
 
     if(m->type == moHedge) {
-      hyperpoint h = inverse(m->pat) * goal * C0;
+      hyperpoint h = inverse_shift(m->pat, tC0(goal));
       if(h[1] < 0)
         nat = nat * spin(M_PI * delta / 3000 / speedfactor());
       else
@@ -2101,7 +2139,7 @@ void moveMonster(monster *m, int delta) {
   
   int igo = 0;
   
-  transmatrix nat0 = nat;
+  shiftmatrix nat0 = nat;
   
   igo_retry:
   
@@ -2120,14 +2158,14 @@ void moveMonster(monster *m, int delta) {
   
   if(inertia_based) {
     if(igo) return;
-    nat = parallel_transport(nat, m->ori, m->inertia * delta);
+    nat.T = parallel_transport(nat.T, m->ori, m->inertia * delta);
     }
   else if(WDIM == 3 && igo) {
     ld fspin = rand() % 1000;  
-    nat = parallel_transport(nat0, m->ori, cspin(1,2,fspin) * spin(igospan[igo]) * xtangent(step));
+    nat.T = parallel_transport(nat0.T, m->ori, cspin(1,2,fspin) * spin(igospan[igo]) * xtangent(step));
     }
   else {
-    nat = parallel_transport(nat0, m->ori, spin(igospan[igo]) * xtangent(step));
+    nat.T = parallel_transport(nat0.T, m->ori, spin(igospan[igo]) * xtangent(step));
     }
 
   if(m->type != moRagingBull && !peace::on)
@@ -2136,7 +2174,7 @@ void moveMonster(monster *m, int delta) {
 
   for(int i=0; i<multi::players; i++) for(int b=0; b<2; b++) if(sword::orbcount(b)) {  
     if(pc[i]->isVirtual) continue;
-    hyperpoint H = swordpos(i, b, 1);
+    shiftpoint H = swordpos(i, b, 1);
     double d = sqdist(H, nat*C0);
     if(d < SCALE2 * 0.12) { igo++; goto igo_retry; }
     }
@@ -2204,8 +2242,7 @@ void moveMonster(monster *m, int delta) {
       bullet->at = m->at;
       bullet->ori = m->ori;
       bullet->type = moTongue;
-      bullet->parent = m;
-      bullet->parenttype = m->type;
+      bullet->set_parent(m);
       bullet->pid = whichPlayerOn(c2);
       additional.push_back(bullet);
       return;
@@ -2277,8 +2314,7 @@ void moveMonster(monster *m, int delta) {
           undead->base = c2;
           undead->at = Id;
           undead->type = moZombie;
-          undead->parent = m;
-          undead->parenttype = m->type;
+          undead->set_parent(m);
           undead->pid = 0;
           undead->findpat();
           additional.push_back(undead);
@@ -2287,8 +2323,7 @@ void moveMonster(monster *m, int delta) {
           undead->base = c3;
           undead->at = Id;
           undead->type = moGhost;
-          undead->parent = m;
-          undead->parenttype = m->type;
+          undead->set_parent(m);
           undead->findpat();
           undead->pid = 0;
           additional.push_back(undead);
@@ -2310,7 +2345,7 @@ void moveMonster(monster *m, int delta) {
     }
   if(isLeader(m->type)) {
     if(c2 != m->base) {
-      if(c2->wall == waBigStatue && canPushStatueOn(m->base)) {
+      if(c2->wall == waBigStatue && canPushStatueOn(m->base, 0)) {
         c2->wall = m->base->wall;
         if(cellUnstable(m->base))
           m->base->wall = waChasm;
@@ -2357,7 +2392,7 @@ void moveMonster(monster *m, int delta) {
       bullet->at = m->at;
       bullet->ori = m->ori;
       bullet->type = moFireball;
-      bullet->parent = m;
+      bullet->set_parent(m);
       additional.push_back(bullet);
       bullet->pid = directi;
       if(m->type == moPyroCultist) 
@@ -2371,8 +2406,7 @@ void moveMonster(monster *m, int delta) {
       bullet->at = m->at;
       bullet->ori = m->ori;
       bullet->type = moBullet;
-      bullet->parent = m;
-      bullet->parenttype = moOutlaw;
+      bullet->set_parent(m);
       bullet->pid = directi;
       additional.push_back(bullet);
       m->nextshot = curtime + 1500;
@@ -2384,7 +2418,7 @@ void moveMonster(monster *m, int delta) {
       bullet->at = m->at;
       bullet->ori = m->ori;
       bullet->type = moAirball;
-      bullet->parent = m;
+      bullet->set_parent(m);
       bullet->pid = i;
       additional.push_back(bullet);
       m->nextshot = curtime + 1500;
@@ -2393,7 +2427,7 @@ void moveMonster(monster *m, int delta) {
       if(m->type == moTortoise && tortoise::seek() && !tortoise::diff(getBits(m->torigin)) && sqdist(m->pat*C0, pc[i]->pat*C0) < SCALE2) {
         items[itBabyTortoise] += 4;
         m->dead = true;
-        addMessage(XLAT(playergender() == GEN_F ? "You are now a tortoise heroine!" : "You are now a tortoise hero!"));
+        tortoise_hero_message(m->base);
         }
     for(int i=0; i<players; i++) if(!pc[i]->isVirtual)
     if(m->type == moFlailer && curtime >= m->nextshot && 
@@ -2404,7 +2438,7 @@ void moveMonster(monster *m, int delta) {
       bullet->at = m->at;
       bullet->ori = m->ori;
       bullet->type = moFlailBullet;
-      bullet->parent = m;
+      bullet->set_parent(m);
       bullet->vel = 1/400.0;
       bullet->pid = i;
       additional.push_back(bullet);
@@ -2418,9 +2452,17 @@ void moveMonster(monster *m, int delta) {
       bullet->at = m->at;
       bullet->ori = m->ori;
       bullet->type = moCrushball;
-      bullet->parent = m;
+      bullet->set_parent(m);
       bullet->pid = i;
       additional.push_back(bullet);
+      break;
+      }
+    for(int i=0; i<players; i++) if(!pc[i]->isVirtual)
+    if(m->type == moHexer && m->base->item && (classflag(m->base->item) & IF_CURSE) && sqdist(m->pat*C0, pc[i]->pat*C0) < SCALE2 * 2) {
+      addMessage(XLAT("%The1 curses you with %the2!", m->type, m->base->item));
+      items[m->base->item] += orbcharges(m->base->item);
+      m->base->item = itNone;
+      m->stunoff = curtime + 250;
       break;
       }
     }
@@ -2438,7 +2480,7 @@ void activateMonstersAt(cell *c) {
     }
   if(c->monst && isMimic(c->monst)) c->monst = moNone;
   // mimics are awakened by awakenMimics
-  if(c->monst && !isIvy(c) && !isWorm(c) && !isMutantIvy(c) && !isKraken(c->monst) && c->monst != moPrincess && c->monst != moHunterGuard) {
+  if(c->monst && !isIvy(c) && !isWorm(c) && !isMutantIvy(c) && !isKraken(c->monst) && c->monst != moPrincess && c->monst != moHunterGuard && !isDie(c->monst)) {
     // awaken as a monster
     monster *enemy = new monster;
     enemy->at = Id;
@@ -2524,7 +2566,7 @@ EX void turn(int delta) {
   if(doall)
     for(cell *c: currentmap->allcells()) activateMonstersAt(c);
   else
-    for(unordered_map<cell*, transmatrix>::iterator it = gmatrix.begin(); it != gmatrix.end(); it++) 
+    for(map<cell*, shiftmatrix>::iterator it = gmatrix.begin(); it != gmatrix.end(); it++) 
       activateMonstersAt(it->first);
   
   /* printf("size: gmatrix = %ld, active = %ld, monstersAt = %ld, delta = %d\n", 
@@ -2631,12 +2673,15 @@ EX void turn(int delta) {
         moveivy();
         movemutant();
         if(havewhat&HF_HEX) movehex_all();
+        if(havewhat & HF_DICE) groupmove(moAnimatedDie, 0);    
         wandering();
         livecaves();
         #if CAP_INV
         if(inv::on) inv::compute();
         #endif
+        #if CAP_COMPLEX2
         terracotta::check();
+        #endif
         heat::processfires();
         if(havewhat&HF_WHIRLPOOL) whirlpool::move();
         if(havewhat&HF_WHIRLWIND) whirlwind::move();
@@ -2718,11 +2763,9 @@ EX void turn(int delta) {
   // deactivate all monsters
   for(monster *m: active)
     if(m->dead && m->type != moPlayer) {
-      for(monster *m2: active) if(m2->parent == m)
-        m2->parent = m->parent;
       if(m == mousetarget) mousetarget = NULL;
       if(m == lmousetarget) lmousetarget = NULL;
-      delete m;
+      m->remove_reference();
       }
     else {
       m->store();
@@ -2757,7 +2800,7 @@ EX void init() {
       pc[i]->at = Id;
     else
       pc[i]->at = spin(2*M_PI*i/players) * xpush(firstland == laMotion ? .5 : .3) * Id;
-    pc[i]->pat = pc[i]->at;
+    pc[i]->pat = shiftless(pc[i]->at);
     pc[i]->base = cwt.at;
     pc[i]->vel = 0;
     pc[i]->inBoat = (firstland == laCaribbean || firstland == laOcean || firstland == laLivefjord ||
@@ -2785,12 +2828,12 @@ EX bool boatAt(cell *c) {
   return false;
   }
 
-EX hookset<bool(const transmatrix&, cell*, shmup::monster*)> hooks_draw;
+EX hookset<bool(const shiftmatrix&, cell*, shmup::monster*)> hooks_draw;
 
 EX void clearMonsters() {
   for(mit it = monstersAt.begin(); it != monstersAt.end(); it++)
     delete(it->second);
-  for(monster *m: active) delete m;
+  for(monster *m: active) m->remove_reference();
   mousetarget = NULL;
   lmousetarget = NULL;
   monstersAt.clear();
@@ -2895,7 +2938,7 @@ bool celldrawer::draw_shmup_monster() {
     monstersAt.equal_range(c);
     
   if(p.first == p.second) return false;
-  ld zlev = -geom3::factor_to_lev(zlevel(tC0(Vd)));
+  ld zlev = -geom3::factor_to_lev(zlevel(tC0(Vd.T)));
    
   vector<monster*> monsters;
 
@@ -2903,7 +2946,11 @@ bool celldrawer::draw_shmup_monster() {
     monster* m = it->second;
     if(c != m->base) continue; // may happen in RogueViz Collatz
     m->pat = ggmatrix(m->base) * m->at;
-    transmatrix view = V * m->at;
+    shiftmatrix view = V * m->at;
+
+    bool half_elliptic = elliptic && GDIM == 3 && WDIM == 2;
+    bool mirrored = det(view.T) > 0;
+    if(half_elliptic && mirrored) continue;
     
     if(!mouseout()) {
       if(m->no_targetting) ; else
@@ -2975,7 +3022,7 @@ bool celldrawer::draw_shmup_monster() {
           }
 
         if(ths && keyresult[cpid]) {
-          hyperpoint h = keytarget(cpid);
+          shiftpoint h = keytarget(cpid);
           if(WDIM == 2) 
             queuestr(h, vid.fsize, "+", iinf[keyresult[cpid]].color);
           else {
@@ -2989,12 +3036,12 @@ bool celldrawer::draw_shmup_monster() {
       case moBullet: {
         color_t col;
         cpid = m->pid;
-        if(m->parenttype == moPlayer)
+        if(m->get_parenttype() == moPlayer)
           col = getcs().swordcolor;
-        else if(m->parenttype == moMimic)
-          col = (mirrorcolor(det(view) < 0) << 8) | 0xFF;
+        else if(m->get_parenttype() == moMimic)
+          col = (mirrorcolor(det(view.T) < 0) << 8) | 0xFF;
         else
-          col = (minf[m->parenttype].color << 8) | 0xFF;
+          col = (minf[m->get_parenttype()].color << 8) | 0xFF;
         if(getcs().charid >= 4) {
           queuepoly(mmscale(view, 1.15), cgi.shPHead, col);
           ShadowV(view, cgi.shPHead);
@@ -3004,7 +3051,7 @@ bool celldrawer::draw_shmup_monster() {
           ShadowV(view, cgi.shPHead);
           }
         else {
-          transmatrix t = view * spin(curtime / 50.0);
+          shiftmatrix t = view * spin(curtime / 50.0);
           queuepoly(WDIM == 3 ? t : GDIM == 3 ? mscale(t, cgi.BODY) : mmscale(t, 1.15), cgi.shKnife, col);
           ShadowV(t, cgi.shKnife);
           }
@@ -3016,7 +3063,7 @@ bool celldrawer::draw_shmup_monster() {
         break;
         }
       case moTongue: {
-        queuepoly(mmscale(view, 1.15), cgi.shTongue, (minf[m->parenttype].color << 8) | 0xFF);
+        queuepoly(mmscale(view, 1.15), cgi.shTongue, (minf[m->get_parenttype()].color << 8) | 0xFF);
         ShadowV(view, cgi.shTongue);
         break;
         }
@@ -3026,14 +3073,14 @@ bool celldrawer::draw_shmup_monster() {
         break;
         }
       case moFlailBullet: case moCrushball: {
-        transmatrix t = view * spin(curtime / 50.0);
+        shiftmatrix t = view * spin(curtime / 50.0);
         queuepoly(mmscale(t, 1.15), cgi.shFlailMissile, (minf[m->type].color << 8) | 0xFF);
         ShadowV(view, cgi.shFlailMissile);
         break;        
         }
       case moAsteroid: {
         if(GDIM == 3) addradar(view, '*', 0xFFFFFF, 0xC0C0C0FF);
-        transmatrix t = view;
+        shiftmatrix t = view;
         if(WDIM == 3) t = face_the_player(t);
         t = t * spin(curtime / 500.0);
         ShadowV(t, cgi.shAsteroid[m->hitpoints & 7]);
@@ -3054,7 +3101,7 @@ bool celldrawer::draw_shmup_monster() {
         if(m->inBoat) m->footphase = 0;
         color_t col = minf[m->type].color;
         if(m->type == moMimic) 
-          col = mirrorcolor(det(view) < 0);
+          col = mirrorcolor(det(view.T) < 0);
         if(m->type == moSlime) {
           col = winf[c->wall].color;
           col |= (col >> 1);

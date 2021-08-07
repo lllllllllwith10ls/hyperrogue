@@ -231,7 +231,8 @@ EX void buildCredits() {
     "wonderfullizardofoz, Piotr Migdał, tehora, Michael Heerdegen, Sprite Guard, zelda0x181e, Vipul, snowyowl0, Patashu, phenomist, Alan Malloy, Tom Fryers, Sinquetica, _monad, CtrlAltDestroy, jruderman, "
     "Kojiguchi Kazuki, baconcow, Alan, SurelyYouJest, hotdogPi, DivisionByZero, xXxWeedGokuxXx, jpystynen, Dmitry Marakasov, Alexandre Moine, Arthur O'Dwyer, "
     "Triple_Agent_AAA, bluetailedgnat, Allalinor, Shitford, KittyTac, Christopher King, KosGD, TravelDemon, Bubbles, rdococ, frozenlake, MagmaMcFry, "
-    "Snakebird Priestess, roaringdragon2, Stopping Dog, bengineer8, Sir Light IJIJ, ShadeBlade, Saplou, shnourok, Ralith, madasa, 6% remaining, Chimera245, Remik Pi, alien foxcat thing"
+    "Snakebird Priestess, roaringdragon2, Stopping Dog, bengineer8, Sir Light IJIJ, ShadeBlade, Saplou, shnourok, Ralith, madasa, 6% remaining, Chimera245, Remik Pi, alien foxcat thing, "
+    "Piotr Grochowski, Ann, still-flow, tyzone, Paradoxica, LottieRatWorld"
     );
 #ifdef EXTRALICENSE
   help += EXTRALICENSE;
@@ -407,7 +408,7 @@ EX string generateHelpForItem(eItem it) {
     for(int i=0; i<ittypes; i++) {
       eItem it2 = eItem(i);
       if(isEmpathyOrb(it2)) {
-        help += XLAT(cnt ? ", %1" : " %1", it2);
+        help += cnt ? XLAT(", %1", it2) : XLAT(" %1", it2);
         cnt++;
         }
       }
@@ -470,6 +471,19 @@ EX string generateHelpForItem(eItem it) {
     }
 #endif
   
+  if(it == itOrbLuck) {
+    help += XLAT("\n\nAdditionally, the probabilities of generating terrain features are subtly changed in the following lands:");
+    
+    int cnt = 0;
+    for(int i=0; i<landtypes; i++) {
+      eLand land = eLand(i);
+      if(isLuckyLand(land)) {
+        help += cnt ? XLAT(", %1", land) : XLAT(" %1", land);
+        cnt++;
+        }
+      }
+    }
+
   if(itemclass(it) == IC_ORB || it == itGreenStone || it == itOrbYendor) {
     for(auto& oi: orbinfos) {
       if(oi.orb == it && oi.is_native()) describeOrb(help, oi);
@@ -480,11 +494,13 @@ EX string generateHelpForItem(eItem it) {
     for(auto& oi: orbinfos) {
       if(treasureType(oi.l) == it) {
         if(oi.gchance > 0) {
+          help += "\n\n";
           help += XLAT("\n\nOrb unlocked: %1", oi.orb);
           describeOrb(help, oi);
           }
         else if(oi.l == cwt.at->land || inv::on) {
-          help += XLAT("\n\nSecondary orb: %1", oi.orb);
+          help += "\n\n";
+          help += XLAT("Secondary orb: %1", oi.orb);
           describeOrb(help, oi);
           }
         }
@@ -829,7 +845,7 @@ EX void describeMouseover() {
       out += XLAT(" (level %1)", its(snakelevel(c)));
     if(c->land == laDryForest && c->landparam) 
       out += " (" + its(c->landparam)+"/10)";
-    if(c->land == laOcean && chaosmode)
+    if(c->land == laOcean && ls::any_chaos())
       out += " (" + its(c->CHAOSPARAM)+"S"+its(c->SEADIST)+"L"+its(c->LANDDIST)+")";
     else if(c->land == laOcean && c->landparam <= 25) {
       if(shmup::on)
@@ -863,6 +879,26 @@ EX void describeMouseover() {
 
     if(c->land == laTortoise && tortoise::seek()) out += " " + tortoise::measure(getBits(c));
 
+    // describe the shadow path
+    if(among(c->land, laGraveyard, laCursed) && shpos.size()) {
+      string shadowtimes;
+      vector<cell*> route;
+      for(int s=1; s<SHSIZE; s++) {
+        bool shadow = false;
+        for(int p: player_indices())
+          if(shpos[(cshpos+s)%SHSIZE][p] == c) 
+            shadow = true;
+        if(shadow) {
+          if(shadowtimes == "")
+            shadowtimes = its(s);
+          else
+            shadowtimes += " " + its(s);
+          }
+        }
+      if(shadowtimes != "")
+        out += XLAT(" (shadow in %1)", shadowtimes);
+      }
+
     if(buggyGeneration) {
       char buf[80]; sprintf(buf, " %p H=%d M=%d", hr::voidp(c), c->landparam, c->mpdist); out += buf;
       }
@@ -877,7 +913,7 @@ EX void describeMouseover() {
       out += ")";
       }
 
-    if(cheater && euc::in(3)) {
+    if(cheater && euc::in(3) && !(cgflags & qPORTALSPACE)) {
       auto co = euc::get_ispacemap()[c->master];
       out += " (" + its(co[0]);
       for(int i=1; i<WDIM; i++) out += "," + its(co[i]);
@@ -902,7 +938,10 @@ EX void describeMouseover() {
       out += ", "; out += XLAT1(winf[c->wall].name); 
       
       if(c->wall == waRose) out += " (" + its(7-rosephase) + ")";
-      if(c->wall == waTerraWarrior) out += " (" + its(c->landparam) + ")";
+      if(c->wall == waTerraWarrior) out += " (" + its(c->wparam) + ")";
+      #if CAP_COMPLEX2
+      if(isDie(c->wall)) out += " (" + dice::describe(c) + ")";
+      #endif
       
       if((c->wall == waBigTree || c->wall == waSmallTree) && c->land != laDryForest)
         help = 
@@ -926,6 +965,10 @@ EX void describeMouseover() {
   
     else if(c->monst) {
       out += ", "; out += XLAT1(minf[c->monst].name); 
+      #if CAP_COMPLEX2
+      if(isDie(c->monst))
+        out += " (" + dice::describe(c) + ")";
+      #endif
       if(hasHitpoints(c->monst))
         out += " (" + its(c->hitpoints)+" HP)";
       if(isMutantIvy(c))
@@ -1124,8 +1167,12 @@ EX void gotoHelpFor(eLand l) {
   else listbeasts();  
   
   if(l == laTortoise)
-    help_extensions.push_back(help_extension{'t', XLAT("Galápagos shading"), [] () {
+    help_extensions.push_back(help_extension{'s', XLAT("Galápagos shading"), [] () {
       tortoise::shading_enabled = !tortoise::shading_enabled;
       }});
+
+  help_extensions.push_back(help_extension{'w', XLAT("wiki"), [l] () {
+    open_wiki(linf[l].name);
+    }});
   }
 }

@@ -136,7 +136,7 @@ template<class T> struct connection_table {
   unsigned char *spintable() { return (unsigned char*) (&move_table[full()->degree()]); }
 
   /** \brief get the full T from the pointer to this connection table */
-  T* full() { T* x = (T*) this; return (T*)((char*)this - ((char*)(&(x->c)) - (char*)x)); }
+  T* full() { return (T*)((char*)this - offsetof(T, c)); }
   /** \brief for the edge d, set the `spin` and `mirror` attributes */
   void setspin(int d, int spin, bool mirror) { 
     unsigned char& c = spintable() [d];
@@ -180,10 +180,9 @@ template<class T> struct connection_table {
  */
 
 template<class T> T* tailored_alloc(int degree) {
-  const T* sample = (T*) &degree;
   T* result;
 #ifndef NO_TAILORED_ALLOC
-  int b = (char*)&sample->c.move_table[degree] + degree - (char*) sample;
+  int b = offsetof(T, c) + offsetof(connection_table<T>, move_table) + sizeof(T*) * degree + degree;
   result = (T*) new char[b];
   new (result) T();
 #else
@@ -261,6 +260,11 @@ template<class T> struct walker {
   bool operator < (const walker<T>& cw2) const {
     return tie(at, spin, mirrored) < tie(cw2.at, cw2.spin, cw2.mirrored);
     }
+  
+  /** how much should we spin to face direction dir */
+  int to_spin(int dir) {
+    return gmod(dir - spin, at->type) * (mirrored ? -1 : 1);
+    }
 
   walker<T>& operator ++ (int) { return (*this) += 1; }
   walker<T>& operator -- (int) { return (*this) -= 1; }
@@ -284,7 +288,9 @@ enum hstate { hsOrigin, hsA, hsB, hsError, hsA0, hsA1, hsB0, hsB1, hsC };
 struct cell *createMov(struct cell *c, int d);
 struct heptagon *createStep(struct heptagon *c, int d);
 
-struct cdata {
+struct cdata_or_heptagon { virtual ~cdata_or_heptagon() {} };
+
+struct cdata : cdata_or_heptagon {
   int val[4];
   int bits;
   };
@@ -310,14 +316,14 @@ constexpr int iteration_limit = 10000000;
  *  heptagons are unused
  */
 
-struct heptagon {
+struct heptagon : cdata_or_heptagon {
   /** \brief Automata are used to generate the standard maps. s is the state of this automaton */
   hstate s : 6;
   /** \brief distance modulo 4, in heptagons */
   unsigned int dm4: 2;
   /** \brief distance from the origin; based on the final geometry of cells, not heptagons themselves */
   short distance;
-  /** \brief Wmerald/wineyard generator. May have different meaning in other geometries. */
+  /** \brief Emerald/wineyard generator. May have different meaning in other geometries. */
   short emeraldval;
   /** \brief Palace pattern generator. May have different meaning in other geometries. */
   short fiftyval;
@@ -486,7 +492,9 @@ struct movei {
   movei rev() const { return movei(t, s, rev_dir_or(d)); }
   int dir_or(int x) const { return proper() ? d : x; }
   int rev_dir_or(int x) const { return proper() ? s->c.spin(d) : x; }
-  int rev_dir() const { return s->c.spin(d); }
+  int rev_dir_mirror() const { return proper() ? s->c.spin(d) : d; }
+  int rev_dir_force() const { hassert(proper()); return s->c.spin(d); }
+  int dir_force() const { hassert(proper()); return d; }
   bool mirror() { return s->c.mirror(d); }
   };
 #endif

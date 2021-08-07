@@ -115,7 +115,7 @@ EX namespace multi {
 #define SHMUPAXES_CUR ((SHMUPAXES_BASE) + 4 * playercfg)
 #endif
 
-const char* axemodes[SHMUPAXES] = {
+EX const char* axemodes[SHMUPAXES] = {
   "do nothing", 
   "rotate view",
   "panning X",
@@ -150,7 +150,7 @@ const char* axemodes[SHMUPAXES] = {
   "player 7 spin"
   };
 
-const char* axemodes3[4] = {
+EX const char* axemodes3[4] = {
   "do nothing",
   "camera forward",
   "camera rotate X",
@@ -167,7 +167,11 @@ string listkeys(int id) {
   string lk = "";
   for(int i=0; i<512; i++)
     if(scfg.keyaction[i] == id)
+      #if CAP_SDL2
+      lk = lk + " " + SDL_GetScancodeName(SDL_Scancode(i));
+      #else
       lk = lk + " " + SDL_GetKeyName(SDLKey(i));
+      #endif
 #if CAP_SDLJOY
   for(int i=0; i<numsticks; i++) for(int k=0; k<SDL_JoystickNumButtons(sticks[i]) && k<MAXBUTTON; k++)
     if(scfg.joyaction[i][k] == id) {
@@ -207,14 +211,14 @@ bool configdead;
 void handleConfig(int sym, int uni);
 
 EX string player_count_name(int p) {
-  return XLAT(
-    p == 2 ? "two players" : 
-    p == 3 ? "three players" : 
-    p == 4 ? "four players" : 
-    p == 5 ? "five players" : 
-    p == 6 ? "six players" : 
-    p == 7 ? "seven players" : 
-    "one player");
+  return 
+    p == 2 ? XLAT("two players") : 
+    p == 3 ? XLAT("three players") : 
+    p == 4 ? XLAT("four players") : 
+    p == 5 ? XLAT("five players") : 
+    p == 6 ? XLAT("six players") : 
+    p == 7 ? XLAT("seven players") : 
+    XLAT("one player");
   }
 
 struct key_configurer {
@@ -302,7 +306,21 @@ struct key_configurer {
     }
   };
 
-EX reaction_t get_key_configurer(int sc, vector<string>& sct) { return key_configurer(sc, sct); }
+EX reaction_t get_key_configurer(int sc, vector<string>& sct, string caption) { 
+  return key_configurer(sc, sct, caption); 
+  }
+
+EX reaction_t get_key_configurer(int sc, vector<string>& sct) { 
+  return key_configurer(sc, sct, sc == 1 ? XLAT("configure player 1") :
+    sc == 2 ? XLAT("configure player 2") :
+    sc == 3 ? XLAT("configure panning") :
+    sc == 4 ? XLAT("configure player 3") :
+    sc == 5 ? XLAT("configure player 4") :
+    sc == 6 ? XLAT("configure player 5") :
+    sc == 7 ? XLAT("configure player 6") :
+    sc == 8 ? XLAT("configure player 7") : ""
+    ); 
+  }
 
 #if CAP_SDLJOY
 struct joy_configurer {
@@ -367,6 +385,8 @@ struct joy_configurer {
   };
 #endif
 
+EX const char *axmodes[7] = {"OFF", "auto", "light", "heavy", "arrows", "WASD keys", "VI keys"};
+
 struct shmup_configurer {
 
   void operator()() {
@@ -384,7 +404,7 @@ struct shmup_configurer {
     if(players > 1)
       dialog::addItem(XLAT("configure player 2"), '2');
     else if(players == 1 && !shmup::on)
-      dialog::addSelItem(XLAT("input"), XLAT(multi::alwaysuse ? "config" : "default"), 'a');
+      dialog::addSelItem(XLAT("input"), multi::alwaysuse ? XLAT("config") : XLAT("default"), 'a');
     else
       dialog::addBreak(100);
     if(players > 2)
@@ -407,7 +427,6 @@ struct shmup_configurer {
       dialog::addItem(XLAT("configure player 5"), '5');
     else if(!shmup::on && !multi::alwaysuse) {
       if(GDIM == 2) {
-        const char *axmodes[7] = {"OFF", "auto", "light", "heavy", "arrows", "WASD keys", "VI keys"};
         dialog::addSelItem(XLAT("help for keyboard users"), XLAT(axmodes[vid.axes]), 'h');
         dialog::add_action([] {vid.axes += 70 + (shiftmul > 0 ? 1 : -1); vid.axes %= 7; } );
         }
@@ -544,6 +563,43 @@ EX void initConfig() {
   
   char* t = scfg.keyaction;
   
+  #if CAP_SDL2
+
+  t[SDL_SCANCODE_W] = 16 + 4;
+  t[SDL_SCANCODE_D] = 16 + 5;
+  t[SDL_SCANCODE_S] = 16 + 6;
+  t[SDL_SCANCODE_A] = 16 + 7;
+
+  t[SDL_SCANCODE_KP_8] = 16 + 4;
+  t[SDL_SCANCODE_KP_6] = 16 + 5;
+  t[SDL_SCANCODE_KP_2] = 16 + 6;
+  t[SDL_SCANCODE_KP_4] = 16 + 7;
+
+  t[SDL_SCANCODE_F] = 16 + pcFire;
+  t[SDL_SCANCODE_G] = 16 + pcFace;
+  t[SDL_SCANCODE_H] = 16 + pcFaceFire;
+  t[SDL_SCANCODE_R] = 16 + pcDrop;
+  t[SDL_SCANCODE_T] = 16 + pcOrbPower;
+  t[SDL_SCANCODE_Y] = 16 + pcCenter;
+
+  t[SDL_SCANCODE_I] = 32 + 4;
+  t[SDL_SCANCODE_L] = 32 + 5;
+  t[SDL_SCANCODE_K] = 32 + 6;
+  t[SDL_SCANCODE_J] = 32 + 7;
+  t[SDL_SCANCODE_SEMICOLON] = 32 + 8;
+  t[SDL_SCANCODE_APOSTROPHE] = 32 + 9;
+  t[SDL_SCANCODE_P] = 32 + 10;
+  t[SDL_SCANCODE_LEFTBRACKET] = 32 + pcCenter;
+
+  t[SDL_SCANCODE_UP] = 48 ;
+  t[SDL_SCANCODE_RIGHT] = 48 + 1;
+  t[SDL_SCANCODE_DOWN] = 48 + 2;
+  t[SDL_SCANCODE_LEFT] = 48 + 3;
+  t[SDL_SCANCODE_PAGEUP] = 48 + 4;
+  t[SDL_SCANCODE_PAGEDOWN] = 48 + 5;
+  t[SDL_SCANCODE_HOME] = 48 + 6;
+  
+  #else  
   t[(int)'w'] = 16 + 4;
   t[(int)'d'] = 16 + 5;
   t[(int)'s'] = 16 + 6;
@@ -581,6 +637,7 @@ EX void initConfig() {
   t[SDLK_PAGEDOWN] = 48 + 5;
   t[SDLK_HOME] = 48 + 6;
 #endif
+  #endif
 
   scfg.joyaction[0][0] = 16 + pcFire;
   scfg.joyaction[0][1] = 16 + pcOrbPower;
@@ -662,7 +719,7 @@ EX void handleInput(int delta) {
 #if CAP_SDL
   double d = delta / 500.;
 
-  Uint8 *keystate = SDL_GetKeyState(NULL);
+  const Uint8 *keystate = SDL12_GetKeyState(NULL);
 
   for(int i=0; i<NUMACT; i++) 
     lactionpressed[i] = actionspressed[i],
@@ -670,7 +727,7 @@ EX void handleInput(int delta) {
 
   for(int i=0; i<SHMUPAXES; i++) axespressed[i] = 0;
   
-  for(int i=0; i<SDLK_LAST; i++) if(keystate[i]) 
+  for(int i=0; i<KEYSTATES; i++) if(keystate[i]) 
     pressaction(scfg.keyaction[i]);
 
 #if CAP_SDLJOY  
@@ -788,7 +845,7 @@ EX void handleInput(int delta) {
     }
   
   EX void checklastmove() {
-    for(int i=0; i<numplayers(); i++) if(playerActive(i)) {
+    for(int i: player_indices()) {
       multi::cpid = i;
       cwt = multi::player[i]; break;
       }
@@ -815,7 +872,7 @@ EX void handleInput(int delta) {
       multi::player[0] = cwt;
       }
     
-    for(int i=0; i<numplayers(); i++) if(playerActive(i)) {
+    for(int i: player_indices()) {
     
       using namespace multi;
       
@@ -899,13 +956,13 @@ EX void handleInput(int delta) {
       // check for crashes
       needinput = true;
 
-      for(int i=0; i<numplayers(); i++) if(playerActive(i)) {
+      for(int i: player_indices()) {
         origpos[i] = player[i].at;
         origtarget[i] = multiPlayerTarget(i);
         }
   
-      for(int i=0; i<numplayers(); i++) if(playerActive(i))
-      for(int j=0; j<numplayers(); j++) if(playerActive(j)) if(i != j) {
+      for(int i: player_indices())
+      for(int j: player_indices()) if(i != j) {
         if(origtarget[i] == origtarget[j]) {
           addMessage("Two players cannot move/attack the same location!");
           return;

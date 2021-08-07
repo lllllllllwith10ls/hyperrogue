@@ -35,23 +35,6 @@ void build(crystal::coord co, int at) {
   
   }
 
-void magic(int sides) {
-  stop_game();
-  if(sides < 0)
-    set_geometry(gCrystal344);
-  else
-    crystal::set_crystal(sides);
-  set_variation(eVariation::pure);
-  firstland = specialland = laCanvas;
-  patterns::whichCanvas = 'g';
-  patterns::canvasback = back;
-  check_cgi();
-  start_game();
-  
-  build(crystal::c0, 0);
-  vizid = (void*) &magic;
-  }
-
 void curveline(hyperpoint a, hyperpoint b, int lev) {
   if(lev>0) {
     hyperpoint c = mid(a, b);
@@ -61,8 +44,7 @@ void curveline(hyperpoint a, hyperpoint b, int lev) {
   curvepoint(b);
   }
 
-bool magic_markers(cell *c, const transmatrix& V) {
-  if(vizid != (void*) &magic) return false;
+bool magic_markers(cell *c, const shiftmatrix& V) {
   timerghost = false;
   if(c->landparam == back) {
     if(GDIM == 2) {
@@ -73,15 +55,15 @@ bool magic_markers(cell *c, const transmatrix& V) {
     for(int i=0; i<S7; i++) {
       cell *c2 = c->move(i);
       if(c2->landparam != back) {
-        hyperpoint h1 = V * get_corner_position(c, i, 3/.9);
-        hyperpoint h2 = V * get_corner_position(c, i+1, 3/.9);
+        hyperpoint h1 = get_corner_position(c, i, 3/.9);
+        hyperpoint h2 = get_corner_position(c, i+1, 3/.9);
         curvepoint(h1);
         curveline(h1, h2, 3);
-        hyperpoint h3 = V * get_corner_position(c, i, 3/.7);
-        hyperpoint h4 = V * get_corner_position(c, i+1, 3/.7);
+        hyperpoint h3 = get_corner_position(c, i, 3/.7);
+        hyperpoint h4 = get_corner_position(c, i+1, 3/.7);
         curvepoint(h4);
         curveline(h4, h3, 3);
-        queuecurve(0xFF, (c2->landparam << 8) | 0xFF, PPR::LINE);
+        queuecurve(V, 0xFF, (c2->landparam << 8) | 0xFF, PPR::LINE);
         }
       }
     }
@@ -89,22 +71,6 @@ bool magic_markers(cell *c, const transmatrix& V) {
     c->wall = GDIM == 2 ? waInvisibleFloor : waWaxWall;
     }
   return false;
-  }
-
-int readArgs() {
-  using namespace arg;
-  
-  if(0) ;
-  else if(argis("-magic")) {
-    PHASEFROM(2);
-    shift(); magic(argi());
-    }
-  else if(argis("-magic3")) {
-    PHASEFROM(2);
-    magic(-1);
-    }
-  else return 1;
-  return 0;
   }
 
 void twos_to_fours(vector<int>& zeros, crystal::coord co, int d) {
@@ -133,7 +99,6 @@ void twos_to_fours(vector<int>& zeros, crystal::coord co, int d) {
   }
 
 bool magic_rotate(cell *c) {
-  if(vizid != (void*) &magic) return false;
   if(c->landparam != back) return false;
   vector<int> zeros;
   auto co = crystal::get_coord(c->master);
@@ -151,7 +116,6 @@ bool magic_rotate(cell *c) {
   }
 
 bool magic_rugkey(int sym, int uni) {
-  if(vizid != (void*) &magic) return false;
   if((cmode & sm::NORMAL) && uni == 'p') {
     rug::texturesize = 4096;
     if(rug::rugged) rug::close();
@@ -172,9 +136,27 @@ bool magic_rugkey(int sym, int uni) {
   return false;
   }
 
-auto magichook = addHook(hooks_args, 100, readArgs) + addHook(hooks_drawcell, 100, magic_markers)
-  + addHook(mine::hooks_mark, 150, magic_rotate)
-  + addHook(hooks_handleKey, 150, magic_rugkey);
+void magic(int sides) {
+  stop_game();
+  if(sides < 0)
+    set_geometry(gCrystal344);
+  else
+    crystal::set_crystal(sides);
+  set_variation(eVariation::pure);
+  firstland = specialland = laCanvas;
+  patterns::whichCanvas = 'g';
+  patterns::canvasback = back;
+  check_cgi();
+  start_game();
+  
+  build(crystal::c0, 0);
+ 
+  rv_hook(hooks_drawcell, 100, magic_markers);
+  rv_hook(mine::hooks_mark, 150, magic_rotate);
+  rv_hook(hooks_handleKey, 150, magic_rugkey);
+  }
+
+auto magichook = arg::add2("-magic3", [] { magic(-1); }) + arg::add2("-magic", [] { magic(arg::shift_argi()); });
  
 }
 #endif

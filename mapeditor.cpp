@@ -11,6 +11,7 @@ namespace hr {
 EX namespace mapeditor {
 
   EX bool drawing_tool;
+  EX bool intexture;
 
   #if HDR
   enum eShapegroup { sgPlayer, sgMonster, sgItem, sgFloor, sgWall };
@@ -415,7 +416,7 @@ namespace mapstream {
     cellids[c] = numcells;
     }
   
-  int fixspin(int rspin, int dir, int t, int vernum) {
+  EX int fixspin(int rspin, int dir, int t, int vernum) {
     if(vernum < 11018 && dir == 14)
       return NODIR;
     else if(vernum < 11018 && dir == 15)
@@ -456,16 +457,29 @@ namespace mapstream {
     #if CAP_ARCM
     if(geometry == gArchimedean) f.write(arcm::current.symbol);
     #endif
+    if(geometry == gArbitrary) {
+      f.write<bool>(rulegen::known());
+      f.write<bool>(arb::convert::in());
+      if(arb::convert::in()) {
+        dynamicval<eGeometry> dg(geometry, arb::convert::base_geometry);
+        dynamicval<eVariation> dv(variation, arb::convert::base_variation);
+        save_geometry(f);
+        }
+      else
+        f.write(arb::current.filename);
+      }
     if(geometry == gNil) {
       f.write(S7);
       f.write(nilv::nilperiod);
       }
+    #if CAP_SOLV
     if(geometry == gArnoldCat) {
       f.write(asonov::period_xy);
       f.write(asonov::period_z);
       }
-    if(geometry == gProduct) {
-      f.write(product::csteps);
+    #endif
+    if(prod) {
+      f.write(hybrid::csteps);
       f.write(product::cspin);
       }
     if(hybri) {
@@ -529,6 +543,22 @@ namespace mapstream {
         }
       }
     #endif
+    if(geometry == gArbitrary) {    
+      bool rk = vernum >= 0xA905 && f.get<bool>();
+      bool ac = vernum >= 0xA905 && f.get<bool>();
+      if(ac) {
+        load_geometry(f);
+        arb::convert::convert();
+        arb::convert::activate();
+        }
+      else {
+        string s;
+        f.read(s);
+        arb::run(s);
+        stop_game();
+        }
+      if(rk) rulegen::prepare_rules();
+      }
     #if CAP_ARCM
     if(geometry == gArchimedean) {
       string& symbol = arcm::current.symbol;
@@ -544,14 +574,17 @@ namespace mapstream {
       f.read(nilv::nilperiod);
       nilv::set_flags();
       }
-    if(geometry == gArnoldCat && f.vernum >= 0xA80C) {
+    #if CAP_SOLV
+    if(geometry == gArnoldCat && vernum >= 0xA80C) {
       f.read(asonov::period_xy);
       f.read(asonov::period_z);
       asonov::set_flags();
       }
-    if(geometry == gProduct && f.vernum >= 0xA80C) {
-      f.read(product::csteps);
-      if(f.vernum >= 0xA80D) f.read(product::cspin);
+    #endif
+    if(geometry == gProduct && vernum >= 0xA80C) {
+      f.read(hybrid::csteps);
+      if(vernum >= 0xA80D) f.read(product::cspin);
+      if(vernum >= 0xA833) f.read(product::cmirror);
       }
     if(hybri && f.vernum >= 0xA80C) {
       auto g = geometry;
@@ -568,6 +601,14 @@ namespace mapstream {
       f.read(mine_adjacency_rule);
     }
   
+  EX hookset<void(fhstream&)> hooks_savemap, hooks_loadmap_old;
+  EX hookset<void(fhstream&, int)> hooks_loadmap;
+  
+  EX cell *save_start() {
+    return (bounded || euclid || prod || arcm::in() || INVERSE) ? currentmap->gamestart() : cwt.at->master->c7;
+    }
+
+#if CAP_EDIT  
   void save_only_map(fhstream& f) {
     f.write(patterns::whichPattern);
     save_geometry(f);
@@ -594,17 +635,24 @@ namespace mapstream {
     for(int k=0; k<i; k++) f.write(kills[k]); 
     }
     
-    addToQueue((bounded || euclid || prod || arcm::in()) ? currentmap->gamestart() : cwt.at->master->c7);
+    addToQueue(save_start());
     for(int i=0; i<isize(cellbyid); i++) {
       cell *c = cellbyid[i];
       if(i) {
+        bool ok = false;
         for(int j=0; j<c->type; j++) if(c->move(j) && cellids.count(c->move(j)) && 
           cellids[c->move(j)] < i) {
           int32_t i = cellids[c->move(j)];
           f.write(i);
           f.write_char(c->c.spin(j));
           f.write_char(j);
+          ok = true;
           break;
+          }
+        if(!ok) {
+          println(hlog, "parent not found for ", c, "!");
+          for(int j=0; j<c->type; j++) println(hlog, j, ": ", c->move(j), "; ", int(cellids.count(c->move(j)) ? cellids[c->move(j)] : -1));
+          throw hr_exception("parent not found");
           }
         }
       f.write_char(c->land);
@@ -613,6 +661,13 @@ namespace mapstream {
       if(c->monst == moTortoise)
         f.write(tortoise::emap[c] = tortoise::getb(c));
       f.write_char(c->wall);
+      if(dice::on(c)) {
+        auto& dat = dice::data[c];
+        f.write_char(dice::get_die_id(dat.which));
+        f.write_char(dat.val);
+        f.write_char(dat.dir);
+        f.write_char(dat.mirrored);
+        }
       // f.write_char(c->barleft);
       // f.write_char(c->barright);
       f.write_char(c->item);
@@ -645,6 +700,9 @@ namespace mapstream {
     if(multi::players > 1)
       for(int i=0; i<multi::players; i++)
         f.write(cellids[multi::player[i].at]);
+      
+    callhooks(hooks_savemap, f);
+    f.write<int>(0);
 
     cellids.clear();
     cellbyid.clear();
@@ -760,6 +818,14 @@ namespace mapstream {
       if(c->monst == moTortoise && f.vernum >= 11001)
         f.read(tortoise::emap[c]);
       c->wall = (eWall) f.read_char();
+      if(dice::on(c)) {
+        auto& dat = dice::data[c];        
+        dat.which = dice::get_by_id(f.read_char());
+        dat.val = f.read_char();
+        dat.dir = fixspin(rspin, f.read_char(), c->type, f.vernum);
+        if(f.vernum >= 0xA902)
+          dat.mirrored = f.read_char();
+        }
       // c->barleft = (eLand) f.read_char();
       // c->barright = (eLand) f.read_char();
       c->item = (eItem) f.read_char();
@@ -846,6 +912,17 @@ namespace mapstream {
           mp.mirrored = false;
           }
       }
+    
+    if(f.vernum >= 0xA848) {
+      int i;
+      f.read(i);
+      while(i) {
+        callhooks(hooks_loadmap, f, i);
+        f.read(i);        
+        }
+      }
+    else
+      callhooks(hooks_loadmap_old, f);
 
     cellbyid.clear();
     restartGraph();
@@ -1144,6 +1221,10 @@ namespace mapeditor {
           for(int i=0; i<100; i++) c1 = c1->cmove(hrand(c1->type));
           tortoise::emap[c] = tortoise::getRandomBits();
           }
+        
+        if(isDie(c->monst)) {
+          if(!dice::generate_random(c)) c->monst = moNone;
+          }
         break;
         }
       case 1: {
@@ -1185,6 +1266,11 @@ namespace mapeditor {
           c->wparam = paintstatueid;
           c->mondir = cdir;
           }
+
+        if(isDie(c->wall)) {
+          if(!dice::generate_random(c)) c->wall = waNone;
+          }
+
         break;
         }
       case 5:
@@ -1210,6 +1296,7 @@ namespace mapeditor {
         c->wparam = copywhat->wparam;
         c->hitpoints = copywhat->hitpoints;
         c->stuntime = copywhat->stuntime; 
+        if(dice::on(c)) dice::data[c] = dice::data[copywhat];
         if(copywhat->mondir == NODIR) c->mondir = NODIR;
         else c->mondir = gmod((where.first.mirrored == where.second.mirrored ? 1 : -1) * (copywhat->mondir - where.second.spin) + cdir, c->type);
         break;
@@ -1497,8 +1584,8 @@ namespace mapeditor {
     queuecircleat1(c, V, .78, 0x00FFFFFF);
     }
 
-  hyperpoint ccenter = C0;
-  hyperpoint coldcenter = C0;
+  hyperpoint ccenter = C02;
+  hyperpoint coldcenter = C02;
   
   unsigned gridcolor = 0xC0C0C040;
   
@@ -1675,19 +1762,21 @@ namespace mapeditor {
     string line1, line2;
   
     usershape *us = NULL;
+
+#if CAP_TEXTURE
+    if(texture::config.tstate != texture::tsActive && intexture) {
+      intexture = false; drawing_tool = true;
+      }
+#endif
     
-    bool intexture = false;
-    (void) intexture;
-    
-    bool freedraw = drawing_tool;
+    bool freedraw = drawing_tool || intexture;    
 
 #if CAP_TEXTURE        
-    if(texture::config.tstate == texture::tsActive) {
+    if(intexture) {
       sg = 16;
       line1 = "texture";
       line2 = "";
       texture::config.data.update();
-      intexture = true;
       freedraw = true;
       drawing_tool = false;
       }
@@ -1716,15 +1805,11 @@ namespace mapeditor {
         case sgFloor:
           line1 = GDIM == 3 ? XLAT("pick something") : XLAT("floor");
           line2 = "#" + its(drawcellShapeID());
-          /* line2 = XLAT(ishept(drawcell) ? "heptagonal" : 
-            ishex1(drawcell) ? "hexagonal #1" : "hexagonal"); */
           break;        
 
         case sgWall:
           line1 = XLAT("statue");
           line2 = "#" + its(drawcellShapeID());
-          /* line2 = XLAT(ishept(drawcell) ? "heptagonal" : 
-            ishex1(drawcell) ? "hexagonal #1" : "hexagonal"); */
           break;        
         }
       
@@ -1741,14 +1826,14 @@ namespace mapeditor {
         displayButton(8, 8+fs*2, line2 + XLAT(" (r = complex tesselations)"), 'r', 0);
       else
         displayfr(8, 8+fs*2, 2, vid.fsize, line2, 0xC0C0C0, 0);
-      displayButton(8, 8+fs*3, XLAT(GDIM == 3 ? "l = color group: %1" : "l = layers: %1", its(dslayer)), 'l', 0);
+      displayButton(8, 8+fs*3, GDIM == 3 ? XLAT("l = color group: %1", its(dslayer)) : XLAT("l = layers: %1", its(dslayer)), 'l', 0);
       }
 
     if(us && isize(us->d[dslayer].list)) {
       usershapelayer& ds(us->d[dslayer]);
       if(!EDITING_TRIANGLES) {
         displayButton(8, 8+fs*4, XLAT("1-9 = rotations: %1", its(ds.rots)), '1' + (ds.rots % 9), 0);
-        displayButton(8, 8+fs*5, XLAT(ds.sym ? "0 = symmetry" : "0 = asymmetry"), '0', 0);
+        displayButton(8, 8+fs*5, ds.sym ? XLAT("0 = symmetry") : XLAT("0 = asymmetry"), '0', 0);
         }
 
       displayfr(8, 8+fs*7, 2, vid.fsize, XLAT("%1 vertices", its(isize(ds.list))), 0xC0C0C0, 0);
@@ -1762,7 +1847,7 @@ namespace mapeditor {
           displayButton(8, 8+fs*9, XLAT("m = move v"), 'm', 0);
           displayButton(8, 8+fs*10, XLAT("d = delete v"), 'd', 0);
           }
-        displaymm('c', 8, 8+fs*11, 2, vid.fsize, XLAT(autochoose ? "autochoose" : "c = choose"), 0);
+        displaymm('c', 8, 8+fs*11, 2, vid.fsize, autochoose ? XLAT("autochoose") : XLAT("c = choose"), 0);
         displayButton(8, 8+fs*12, XLAT("b = switch auto"), 'b', 0);
         }
       else {
@@ -1784,7 +1869,7 @@ namespace mapeditor {
       }
 #if CAP_TEXTURE
     else if(freedraw) {
-      displayButton(8, 8+fs*2, XLAT(texture::texturesym ? "0 = symmetry" : "0 = asymmetry"), '0', 0);
+      displayButton(8, 8+fs*2, texture::texturesym ? XLAT("0 = symmetry") : XLAT("0 = asymmetry"), '0', 0);
       if(mousekey == 'g')
         displayButton(8, 8+fs*16, XLAT("p = grid color"), 'p', 0);
       else
@@ -1812,11 +1897,11 @@ namespace mapeditor {
       }
     
     if(GDIM == 3)
-      displayfr(8, 8+fs*19, 2, vid.fsize, XLAT(front_config == eFront::sphere_camera ? "z = camera" : front_config == eFront::sphere_center ? "z = spheres" : 
-        nonisotropic && front_config == eFront::equidistants ? "Z =" :
-        nonisotropic && front_config == eFront::const_x ? "X =" :
-        nonisotropic && front_config == eFront::const_y ? "Y =" :
-        "z = equi") + " " + fts(front_edit), 0xC0C0C0, 0);
+      displayfr(8, 8+fs*19, 2, vid.fsize, (front_config == eFront::sphere_camera ? XLAT("z = camera") : front_config == eFront::sphere_center ? XLAT("z = spheres") : 
+        nonisotropic && front_config == eFront::equidistants ? XLAT("Z =") :
+        nonisotropic && front_config == eFront::const_x ? XLAT("X =") :
+        nonisotropic && front_config == eFront::const_y ? XLAT("Y =") :
+        XLAT("z = equi")) + " " + fts(front_edit), 0xC0C0C0, 0);
 
     displaymm('g', vid.xres-8, 8+fs*4, 2, vid.fsize, XLAT("g = grid"), 16);
 
@@ -2265,7 +2350,7 @@ namespace mapeditor {
       if(sym == SDLK_F5) {
         dialog::push_confirm_dialog([] {
           stop_game();
-          firstland = specialland = laCanvas;
+          enable_canvas();
           canvas_default_wall = waInvisibleFloor;
           patterns::whichCanvas = 'g';
           patterns::canvasback = 0xFFFFFF;
@@ -2294,7 +2379,7 @@ namespace mapeditor {
         dialog::add_action([] { front_config = eFront::sphere_camera; });
         dialog::addBoolItem(XLAT("place points at fixed radius"), front_config == eFront::sphere_center, 'B');
         dialog::add_action([] { front_config = eFront::sphere_center; });
-        dialog::addBoolItem(XLAT(nonisotropic ? "place points on surfaces of const Z" : "place points on equidistant surfaces"), front_config == eFront::equidistants, 'C');
+        dialog::addBoolItem(nonisotropic ? XLAT("place points on surfaces of const Z") : XLAT("place points on equidistant surfaces"), front_config == eFront::equidistants, 'C');
         dialog::add_action([] { front_config = eFront::equidistants; });
         if(nonisotropic) {
           dialog::addBoolItem(XLAT("place points on surfaces of const X"), front_config == eFront::const_x, 'D');
@@ -2350,11 +2435,7 @@ namespace mapeditor {
     (void)clickused;
     
     
-    bool freedraw = drawing_tool;
-    #if CAP_TEXTURE
-    bool intexture = texture::config.tstate == texture::tsActive;
-    freedraw |= intexture;
-    #endif
+    bool freedraw = drawing_tool || intexture;
 
     if(freedraw) {
 
@@ -2790,6 +2871,9 @@ namespace mapeditor {
 
     dialog::addItem(XLAT("configure WFC"), 'W');
     dialog::add_action_push(wfc::wfc_menu);
+
+    dialog::addItem(XLAT("edit cell values"), 'G');
+    dialog::add_action(push_debug_screen);
     
     dialog::addBack();
     dialog::display();
@@ -2808,6 +2892,7 @@ int read_editor_args() {
   if(argis("-lev")) { shift(); levelfile = args(); }
   else if(argis("-pic")) { shift(); picfile = args(); }
   else if(argis("-load")) { PHASE(3); shift(); mapstream::loadMap(args()); }
+  else if(argis("-save")) { PHASE(3); shift(); mapstream::saveMap(args().c_str()); }
   else if(argis("-d:draw")) { PHASE(3); 
     #if CAP_EDIT
     start_game();

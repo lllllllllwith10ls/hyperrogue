@@ -36,12 +36,11 @@ EX int getAnthraxData(cell *c, bool b) {
   if(b) return rad;
   return d;
   }
-
-EX int roundTableRadius(cell *c) {
-  if(eubinary) return 28;
-  if(tactic::on) return getAnthraxData(c, true);
+  #if CAP_COMPLEX2
+  if(ls::single()) return getAnthraxData(c, true);
+  #endif
   if(!c->master->alt) return 28;
-  return c->master->alt->alt->emeraldval & GRAIL_RADIUS_MASK;
+  return altmap::radius(c->master->alt->alt) & GRAIL_RADIUS_MASK;
   }
 
 EX int celldistAltRelative(cell *c) {
@@ -55,7 +54,9 @@ EX int celldistAltRelative(cell *c) {
   if(sphere || quotient) {
     return celldist(c) - 3;
     }
-  if(tactic::on) return getAnthraxData(c, false);
+  #if CAP_COMPLEX2
+  if(ls::single()) return getAnthraxData(c, false);
+  #endif
   return celldistAlt(c) - roundTableRadius(c);
   }
 
@@ -115,7 +116,7 @@ EX cell *findcompass(cell *c) {
   
   while(inscreenrange(c)) {
     if(!eubinary && !sphere && !quotient)
-      currentmap->generateAlts(c->master);
+      currentmap->extend_altmap(c->master);
     forCellEx(c2, c) if(compassDist(c2) < d) {
       c = c2;
       d = compassDist(c2);
@@ -130,10 +131,11 @@ EX cell *findcompass(cell *c) {
 
 EX bool grailWasFound(cell *c) {
   if(eubinary || quotient || sphere) return items[itHolyGrail];
-  return c->master->alt->alt->emeraldval & GRAIL_FOUND;
+  return altmap::radius(c->master->alt->alt) & GRAIL_FOUND;
   }
 
 EX int default_levs() {
+  if(arb::in()) return 2;
   if(IRREGULAR)
     return 1;
   if(S3 >= OINF)
@@ -144,8 +146,26 @@ EX int default_levs() {
   return S3-3;
   }
 
-void hrmap::generateAlts(heptagon *h, int levs, bool link_cdata) {
-  if(hybri) { PIU ( generateAlts(h, levs, link_cdata) ); }
+#if HDR
+namespace altmap {
+  /** h->move(relspin(h->alt)) corresponds to h->alt->move(0) */
+  inline short& relspin(heptagon *alt) { return alt->zebraval; }
+
+  /** for Camelot, the radius */
+  inline short& radius(heptagon *alt) { return alt->emeraldval; }
+
+  /** type of the horocycle -- currently used in Land of Storms which has two types */
+  inline short& which(heptagon *alt) { return alt->emeraldval; }
+
+  /** the original land, for altmaps which may appear in multiple lands (Camelot) */
+  inline short& orig_land(heptagon *alt) { return alt->fiftyval; }
+  
+  /** NOTE: do not use fieldval, because it would conflict with the map generation for hrmap_h3_rule and hrmap_rulegen */
+  }
+#endif
+
+void hrmap::extend_altmap(heptagon *h, int levs, bool link_cdata) {
+  if(hybri) { PIU ( extend_altmap(h, levs, link_cdata) ); }
   if(!h->alt) return;
   preventbarriers(h->c7);
   if(h->c7) forCellEx(c2, h->c7) preventbarriers(c2);
@@ -153,66 +173,48 @@ void hrmap::generateAlts(heptagon *h, int levs, bool link_cdata) {
     for(int i=0; i<S7; i++) preventbarriers(createStep(h, i)->c7);
   for(int i=0; i<h->type; i++) 
     createStep(h->alt, i)->alt = h->alt->alt;
-  int relspin = -4; // for horocycles it must go the other way
-  if(quotient) relspin = 0;
-  #if MAXMDIM >= 4
-  else if(reg3::in_rule()) relspin = 0;
-  #endif
-  else {
-  for(int j=0; j<h->type; j++) for(int i=0; i<h->type; i++) {
-    createStep(h, i);
-    if(h->move(i)->alt == h->alt->move(j)) {
-      relspin = (i-j+S7) % S7;
-      break;
-      }
-    }
-  if(relspin == -4 && geometry != gFieldQuotient) {
-    if(h->alt != h->alt->alt) {
-      printf("relspin {%p:%p}\n", hr::voidp(h->alt), hr::voidp(h->alt->alt));
-      {for(int i=0; i<S7; i++) printf("%p ", hr::voidp(h->alt->move(i)));} printf(" ALT\n");
-      {for(int i=0; i<S7; i++) printf("%p ", hr::voidp(h->move(i)));} printf(" REAL\n");
-      {for(int i=0; i<S7; i++) printf("%p ", hr::voidp(h->move(i)->alt));} printf(" REAL ALT\n");
-      }
-    relspin = 3;
-    } }
+    
+  auto relspin = altmap::relspin(h->alt);
+
   // h[relspin] matches alt[0]
-//printf("{%d~%d}\n", h->distance, h->alt->distance);
+  // int relspin = h->alt->fieldval;
+
   if(h->type != h->alt->type) return;
   for(int i=0; i<h->type; i++) {
     int ir = gmod(i-relspin, h->type);
     heptagon *hm = h->alt->move(ir);
     heptagon *ho = createStep(h, i);
-//  printf("[%p:%d ~ %p:%d] %p ~ %p\n", 
-//    hr::voidp(h), i, hr::voidp(h->alt), ir, 
-//    hr::voidp(ho), hr::voidp(hm));
     if(ho->alt && ho->alt != hm) {
       if(ho->alt->alt == hm->alt && !quotient) {
-        printf("ERROR: alt cross! [%d -> %d]\n", ho->alt->distance, hm->distance);
+        // printf("ERROR: alt cross! [%d -> %d]\n", ho->alt->distance, hm->distance);
+        println(hlog, "alt error from ", h->c7, " to ", ho->c7);
         // exit(1);
         }
       continue;
       }
     ho->alt = hm;
+    altmap::relspin(hm) = gmod(h->c.spin(i) - h->alt->c.spin(ir), hm->type);
     if(link_cdata) hm->cdata = (cdata*) ho;
-    if(levs) currentmap->generateAlts(ho, levs-1, link_cdata);
+    if(levs) currentmap->extend_altmap(ho, levs-1, link_cdata);
     if(S3 >= OINF) preventbarriers(ho->c7);
     }
   }
 
 #if MAXMDIM >= 4
-EX int hrandom_adjacent(int d) {
-  vector<int> choices = {d};
-  for(int a=0; a<S7; a++) if(cgi.dirs_adjacent[d][a]) choices.push_back(a);
-  return hrand_elt(choices, d);
+EX int hrandom_adjacent(cellwalker cw) {
+  auto& da = currentmap->dirdist(cw);
+  vector<int> choices = {cw.spin};
+  for(int a=0; a<cw.at->type; a++) if(da[a] == 1) choices.push_back(a);
+  return hrand_elt(choices, cw.spin);
   }
 #endif
 
-EX heptagon *createAlternateMap(cell *c, int rad, hstate firststate, int special IS(0)) {
+EX heptagon *create_altmap(cell *c, int rad, hstate firststate, int special IS(0)) {
 
   if(hybri) {
     if(hybrid::under_class() == gcSphere) return NULL;
     c = hybrid::get_where(c).first;
-    return PIU ( createAlternateMap(c, rad, firststate, special) );
+    return PIU ( create_altmap(c, rad, firststate, special) );
     }
 
   // check for direction
@@ -230,6 +232,9 @@ EX heptagon *createAlternateMap(cell *c, int rad, hstate firststate, int special
       if(c->move(i) && c->move(i)->master->distance < c->master->distance) gdir = i;
       }
     }
+  #if MAXMDIM >= 4
+  if(reg3::in_rule() && c->master->distance == 0) gdir = 0;
+  #endif
   if(gdir < 0) return NULL;
   
   // non-crossing in weird hyperbolic
@@ -248,72 +253,43 @@ EX heptagon *createAlternateMap(cell *c, int rad, hstate firststate, int special
   if(!weirdhyperbolic && !(checkBarriersFront(bb) && checkBarriersBack(bb))) {
     return NULL;
     }
+
+  cellwalker bf(c, gdir); bf += rev;
+  auto p = generate_random_path(bf, rad, false, false);
+
+  for(auto c: p.path) if(c->bardir != NODIR) return nullptr;
   
-  // if we always go to the opposite tile on a {even,x} tiling,
-  // it will be too easy
-  int flip = 0;
-  if(WDIM == 2 && S7 % 2 == 0) flip = hrand(2) ? 1 : -1;
-
-  // okay, let's go then!
-  cellwalker bf(c, gdir);
-  std::vector<cell *> cx(rad+1);
-  for(int i=0; i<rad; i++) {
-    cx[i] = bf.at;
-    bf += revstep;
-    if(flip && hrand(2) == 0) { bf += flip; flip *= -1; }
-
-    #if MAXMDIM >= 4
-    // in 3D honeycombs we vary the direction, but never for three successive i's
-    if(WDIM == 3 && firststate == hsOrigin && (i%3))
-      bf.spin = hrandom_adjacent(bf.spin);
-    #endif
-    }
-  cx[rad] = bf.at;
-  heptagon *h = bf.at->master;
+  heptagon *h = p.last.at->master;
 
   if(h->alt) {
     printf("Error: creatingAlternateMap while one already exists\n");
     return NULL;
     }
   
-  if(special == waPalace) {  
-  
-    // type 7 is ensured
-    cell *c = bf.at;
-    
-    if(cdist50(c) != 0) return NULL;
-    if(!polarb50(c)) return NULL;
+  if(special == waPalace) {    
+    cell *c = p.last.at;
+    if(!ctof(c) || cdist50(c) != 0 || !polarb50(c)) return nullptr;
     }
   
-  heptagon *alt = tailored_alloc<heptagon> (h->type);
+  heptagon *alt = init_heptagon(h->type);
   allmaps.push_back(newAltMap(alt));
-//printf("new alt {%p}\n", hr::voidp(alt));
   alt->s = firststate;
-  alt->emeraldval = 0;
-  alt->zebraval = 0;
-  alt->distance = 0;
-  alt->fieldval = 0;
-  if(hybri) alt->fieldval = hybrid::get_where(centerover).second;
-  alt->c7 = NULL;
-  alt->alt = alt;
-  #if MAXMDIM >= 4
-  if(reg3::in_rule()) {
-    reg3::link_structures(h, alt, firststate);
-    if(alt->fiftyval == -1) return nullptr; /* unlinked */
+  if(!currentmap->link_alt(h, alt, firststate, p.last.spin)) {
+    return nullptr;
     }
-  #endif
+  if(hybri) hybrid::altmap_heights[alt] = hybrid::get_where(centerover).second;
+  alt->alt = alt;
   h->alt = alt;
   alt->cdata = (cdata*) h;
-  currentmap->link_alt(bf);
 
   for(int d=rad; d>=0; d--) {
-    currentmap->generateAlts(cx[d]->master);  
-    preventbarriers(cx[d]);
+    currentmap->extend_altmap(p.path[d]->master);  
+    preventbarriers(p.path[d]);
     }
 
   if(special == waPalace) {
 
-    cell *c = bf.at;
+    cell *c = p.last.at;
 
     princess::generating = true;
     c->land = laPalace;
@@ -340,7 +316,7 @@ EX void beCIsland(cell *c) {
   }
 
 EX void generateTreasureIsland(cell *c) {
-  if(!eubinary) currentmap->generateAlts(c->master);
+  gen_alt(c);
   if(isOnCIsland(c)) return;
   
   bool src = hrand(100) < 10;
@@ -352,21 +328,21 @@ EX void generateTreasureIsland(cell *c) {
   int qlo, qhi;
   for(int i=0; i<c->type; i++) {
     cell *c2 = createMov(c, i);
-    if(!eubinary) currentmap->generateAlts(c2->master);
-    if((eubinary || (c->master->alt && c2->master->alt)) && celldistAlt(c2) < celldistAlt(c)) {
+    if(!eubinary) currentmap->extend_altmap(c2->master);
+    if(greater_alt(c, c2)) {
       ctab.push_back(c2);
       qlo = i; qhi = i;
       while(true && isize(ctab) < c->type) {
         qlo--;
         c2 = c->cmodmove(qlo);
-        if(!eubinary && !c2->master->alt) break;
+        if(!have_alt(c2)) break;
         if(celldistAlt(c2) >= celldistAlt(c)) break;
         ctab.push_back(c2);
         }
       while(true && isize(ctab) < c->type) {
         qhi++;
         c2 = c->cmodmove(qhi);
-        if(!eubinary && !c2->master->alt) break;
+        if(!have_alt(c2)) break;
         if(celldistAlt(c2) >= celldistAlt(c)) break;
         ctab.push_back(c2);
         }
@@ -386,7 +362,7 @@ EX void generateTreasureIsland(cell *c) {
     if(c->wall != waCTree && hrand(100) < 15)
       c->wall = (c->wall == waCIsland ? waCIsland2 : waCIsland);
     }
-  if(src && c2->wall == waCTree && (eubinary||c->master->alt) && celldistAlt(c) <= -10 && geometry != gRhombic3) {
+  if(src && c2->wall == waCTree && have_alt(c) && celldistAlt(c) <= -10 && geometry != gRhombic3) {
     bool end = true;
     for(cell *cc: ctab) {
       generateTreasureIsland(cc);
@@ -458,7 +434,6 @@ EX cell *buildAnotherEquidistant(cell *c, int radius) {
   
   //printf("building barrier\n");
   cell *c2 = coastpath[coastpath.size() - 1];
-  int bd = 2 + (hrand(2)) * 3;
   
   bool nowall = false;
   
@@ -474,7 +449,7 @@ EX cell *buildAnotherEquidistant(cell *c, int radius) {
   bool oc = c->land == laOcean;
   
   // else if(ctof(c) && hrand(10000) < 20 && !isCrossroads(c->land) && gold() >= 200)
-  if(oc && weirdhyperbolic && specialland == laCrossroads4 && buildBarrierNowall(c2, getNewLand(laOcean))) {
+  if(oc && ls::no_walls() && buildBarrierNowall(c2, getNewLand(laOcean))) {
     nowall = true;
     }
   else if(oc && pseudohept(c2) && gold() >= R200 && hrand(10) < 2 && buildBarrierNowall(c2, laCrossroads4)) {
@@ -482,7 +457,7 @@ EX cell *buildAnotherEquidistant(cell *c, int radius) {
     // raiseBuggyGeneration(c2, "check");
     // return;
     }
-  else if(!weirdhyperbolic) buildBarrier(c2, bd);
+  else if(ls::nice_walls()) build_barrier_good(c2);
   //printf("building barrier II\n");
   if(hasbardir(c2)) extendBarrier(c2);
 
@@ -565,7 +540,7 @@ EX void buildEquidistant(cell *c) {
     } */
   if(sphere || euclid) return;
   eLand b = c->land;
-  if(chaosmode && !inmirror(b)) return;
+  if(ls::any_chaos() && !inmirror(b)) return;
   if(!b) { 
     printf("land missing at %p\n", hr::voidp(c)); 
     describeCell(c);
@@ -693,13 +668,16 @@ EX void buildEquidistant(cell *c) {
           if(cw.at->landparam != c->landparam-1) continue;
           if(!cw.at->landflags) continue;
           if(S7 == 6) c->landflags = 1;
-          else for(int j=0; j<S7; j++) if(cw.at->move(j) && cw.at->move(j)->landparam == c->landparam - 2 && !cgi.dirs_adjacent[j][cw.spin])
-            if(c->landparam == 2 ? cw.at->move(j)->land != laEndorian : cw.at->move(j)->landparam)
-              c->landflags = 1;
+          else {
+            auto& da = currentmap->dirdist(cw);
+            for(int j=0; j<S7; j++) if(cw.at->move(j) && cw.at->move(j)->landparam == c->landparam - 2 && da[j] != 1)
+              if(c->landparam == 2 ? cw.at->move(j)->land != laEndorian : cw.at->move(j)->landparam)
+                c->landflags = 1;
+            }
           }
         }
       else if(c->landparam == 2) {
-        for(int i=0; i<S7; i++) {
+        for(int i=0; i<c->type; i++) {
           cellwalker cw(c, i);
           if(!cw.peek()) continue;
           cw += wstep;
@@ -710,19 +688,22 @@ EX void buildEquidistant(cell *c) {
           }
         }
       else if(c->landparam % 2 == 1) {
-        for(int i=0; i<S7; i++) {
+        for(int i=0; i<c->type; i++) {
           cellwalker cw(c, i);
           if(!cw.peek()) continue;
           cw += wstep;
           if(cw.at->landparam != c->landparam-1) continue;
           if(!cw.at->landflags) continue;
           if(S7 == 6) c->landflags = 1;
-          else for(int j=0; j<S7; j++) if(cw.at->move(j) && cw.at->move(j)->landparam == c->landparam - 2 && !cgi.dirs_adjacent[j][cw.spin] && cw.at->move(j)->landflags)
-            c->landflags = 1;
+          else {
+            auto& da = currentmap->dirdist(cw);
+            for(int j=0; j<S7; j++) if(cw.at->move(j) && cw.at->move(j)->landparam == c->landparam - 2 && da[j] != 1 && cw.at->move(j)->landflags)
+              c->landflags = 1;
+            }
           }
         }
       else {
-        for(int i=0; i<S7; i++) {
+        for(int i=0; i<c->type; i++) {
           cellwalker cw(c, i);
           if(!cw.peek()) continue;
           cw += wstep;
@@ -809,12 +790,10 @@ EX void buildEquidistant(cell *c) {
       }
     }
   
-  bool chance = true;
-  if(weirdhyperbolic) {
-    chance = false;
-    if(specialland == laCrossroads4)
-      chance = hrand(100) < 10;
-    }
+  bool chance = 
+    ls::no_walls() ? (hrand(100) < 10) :
+    ls::nice_walls() ? true :
+    false;
   
   if(c->landparam > 30 && b == laOcean && !generatingEquidistant && !hybri && hrand(10) < 5 && chance) 
     buildAnotherEquidistant(c);
@@ -843,7 +822,7 @@ EX int edgeDepth(cell *c) {
   }
 
 EX int getHauntedDepth(cell *c) {
-  if((tactic::on || euclid) && c->land == laHaunted) return celldist(c);
+  if((ls::single() || euclid) && c->land == laHaunted) return celldist(c);
   if(c->land == laHaunted) return c->landparam;
   if(c->land == laHauntedWall) return 0;
   if(c->land == laHauntedBorder || c->land == laGraveyard) return -c->landparam;
@@ -955,9 +934,9 @@ EX eLand& get_euland(int c) {
 EX void clear_euland(eLand first) {
   euland.resize(max_vec);
   for(int i=0; i<max_vec; i++) euland[i] = laNone;
-  if(!nonisotropic && !hybri) euland[0] = euland[1] = euland[max_vec-1] = first;
+  if(!nonisotropic) euland[0] = euland[1] = euland[max_vec-1] = first;
   euland3.clear();
-  euland3[0] = laCrossroads;
+  euland3[0] = first;
   }
 
 bool valid_wall_at(int c) {
@@ -966,12 +945,12 @@ bool valid_wall_at(int c) {
   }
   
 EX eLand switchable(eLand nearland, eLand farland, int c) {
-  if(chaosmode) {
+  if(ls::std_chaos()) {
     if(hrand(6) == 0)
       return getNewLand(nearland);
     return nearland;
     }
-  else if(specialland == laCrossroads4) {
+  else if(ls::no_walls()) {
     if((dual::state && nearland == laCrossroads4) || hrand(15) == 0)
       return getNewLand(nearland);
     if(nearland == laCrossroads4 && (nonisotropic || hybri))
@@ -1011,15 +990,15 @@ EX eLand getEuclidLand(int c) {
 
 EX void setLandSol(cell *c) {
   setland(c, specialland);
-  if(chaosmode) {
+  if(ls::std_chaos()) {
     setland(c, getEuclidLand(c->master->distance));
     return;
     }
-  switch(specialland) {
-    case laCrossroads4: case laCrossroads: case laCrossroads2:
-      setland(c, getEuclidLand(c->master->distance));
-      if(c->land == laBarrier && c->master->emeraldval % 3) c->wall = waBarrier;
-      break;
+  else if(ls::nice_walls()) {
+    setland(c, getEuclidLand(c->master->distance));
+    if(c->land == laBarrier && c->master->emeraldval % 3) c->wall = waBarrier;
+    }
+  switch(c->land) {
     case laTerracotta:
       if((c->master->distance & 15) == 1) {
         setland(c, laMercuryRiver);
@@ -1039,17 +1018,17 @@ EX void setLandHybrid(cell *c) {
     auto w = hybrid::get_where(c);
     auto d = w.second;
     
+    bool ps = PIU(pseudohept(w.first));
     setland(c, specialland);
-    if(chaosmode) {
-      setland(c, getEuclidLand(c->master->distance));
+    if(ls::any_nowall()) {
+      setland(c, getEuclidLand(d));
       return;
       }
-    bool ps = PIU(pseudohept(w.first));
-    switch(specialland) {
-      case laCrossroads4: case laCrossroads: case laCrossroads2:
-        setland(c, getEuclidLand(d));
-        if(c->land == laBarrier) c->wall = ps ? waNone : waBarrier;
-        break;
+    else if(ls::any_wall()) {
+      setland(c, getEuclidLand(d));
+      if(c->land == laBarrier) c->wall = ps ? waNone : waBarrier;
+      }
+    switch(c->land) {
       case laTerracotta:
         if((d & 15) == 1) {
           setland(c, laMercuryRiver);
@@ -1079,23 +1058,23 @@ EX void setLandHybrid(cell *c) {
 EX void setLandNil(cell *c) {
   setland(c, specialland);
   
-  if(chaosmode) {
+  if(ls::patched_chaos()) {
     int hash = (((c->master->zebraval + 4) >> 3) << 16) + ((c->master->emeraldval + 4) >> 3);
     auto& l = euland3_hash[hash];
     if(l == laNone) l = getNewLand(laNone);
     setland(c, l);
     return;
     }
-  
-  switch(specialland) {
-    case laCrossroads: case laCrossroads4:
-      setland(c, getEuclidLand(c->master->zebraval));
-      if(c->land == laBarrier && c->master->emeraldval % 3) c->wall = waBarrier;
-      break;
-    case laCrossroads2: 
-      setland(c, getEuclidLand(c->master->emeraldval));
-      if(c->land == laBarrier && c->master->zebraval % 3) c->wall = waBarrier;
-      break;
+  else if(ls::nice_walls()) {
+    setland(c, getEuclidLand(c->master->zebraval));
+    if(c->land == laBarrier && c->master->emeraldval % 3) c->wall = waBarrier;
+    }
+  else if(ls::no_walls()) {
+    setland(c, getEuclidLand(c->master->emeraldval));
+    if(c->land == laBarrier && c->master->zebraval % 3) c->wall = waBarrier;
+    }
+    
+  switch(c->land) {
     case laCrossroads3: {
       int ox = c->master->zebraval - 8;
       int oy = c->master->emeraldval - 8;
@@ -1138,17 +1117,17 @@ EX void setLandEuclid(cell *c) {
     }
   #endif
   setland(c, specialland);
-  if(specialland == laCrossroads4 || chaosmode) {
+  if(ls::any_nowall()) {
     auto co = euc2_coordinates(c);
     int y = co.second;
     c->land = getEuclidLand(y);
     }
-  if(specialland == laCrossroads) {
+  if(ls::any_wall()) {
     auto co = euc2_coordinates(c);
     int x = co.first, y = co.second;
     setland(c, getEuclidLand(y+2*x));
     }
-  if(specialland == laTerracotta) {
+  if(c->land == laTerracotta) {
     auto co = euc2_coordinates(c);
     int x = co.first, y = co.second;
     if(((y+2*x) & 15) == 1) {
@@ -1222,7 +1201,7 @@ EX void setLandEuclid(cell *c) {
       setland(c, laElementalWall);
       }
     }
-  if(specialland == laCrossroads3) {
+  if(c->land == laCrossroads3) {
     auto co = euc2_coordinates(c);
     int x = co.first, y = co.second;
     int y0 = euc::in(2,4) ? 2 * y - x : y; 
@@ -1263,46 +1242,42 @@ EX eLand get_euland3(int x) {
 
 EX void set_euland3(cell *c, int co10, int co11, int alt, int hash) {
 
-  if(chaosmode) {
+  if(ls::std_chaos()) {
     setland(c, get_euland3(gdiv(co10, 60)));
     }
   
-  else if(specialland == laCrossroads) {
+  else if(ls::nice_walls()) {
     eLand l1 = get_euland3(gdiv(co10, 360));
     eLand l2 = get_euland3(gdiv(co10+59, 360));
     if(l1 != l2 && hrand(100) < 75) setland(c, laBarrier);
     else setland(c, l1);
     }
 
-  else if(specialland == laCrossroads2) {
+  else if(ls::no_walls()) {
     setland(c, get_euland3(alt/4));
     }
 
-  else if(specialland == laCrossroads3) {
+  else if(ls::patched_chaos()) {
     auto& l = euland3_hash[hash];
     if(l == laNone) l = getNewLand(laBarrier);
     setland(c, l);
     }
 
-  else if(specialland == laCrossroads4) {
-    setland(c, get_euland3(gdiv(co10, 360)));
-    }
-  
-  else if(specialland == laElementalWall) {
+  if(c->land == laElementalWall) {
     setland(c, eLand(laEFire + ((co10 / 240)&1?0:2) + ((co11 / 240)&1?0:1)));
     }
   
-  if(specialland == laCamelot) {
+  if(c->land == laCamelot) {
     setland(c, laCrossroads);
     buildCamelot(c);
     }
 
-  if(specialland == laTerracotta) {
+  if(c->land == laTerracotta) {
     if(((alt&15) == 8) && hrand(100) < 90)
        c->wall = waMercury;
     }
 
-  if(among(specialland, laOcean, laIvoryTower, laDungeon, laEndorian)) {
+  if(among(c->land, laOcean, laIvoryTower, laDungeon, laEndorian)) {
     if(alt == 0)
       c->land = laCrossroads4;
     else if(alt > 0)
@@ -1311,7 +1286,7 @@ EX void set_euland3(cell *c, int co10, int co11, int alt, int hash) {
       c->landparam = -alt;
     }
   
-  if(specialland == laWarpCoast) {
+  if(c->land == laWarpCoast) {
     if(gmod(co10, 240) >= 120)
       c->land = laWarpSea;
     }
@@ -1319,9 +1294,11 @@ EX void set_euland3(cell *c, int co10, int co11, int alt, int hash) {
 
 // the main big stuff function
 
+EX bool easy_to_find_specialland = false;
+
 EX bool quickfind(eLand l) {
   if(l == cheatdest) return true;
-  if(l == specialland && (weirdhyperbolic || specialland != laIce || cheater)) return true;
+  if(l == specialland && easy_to_find_specialland) return true;
 #if CAP_TOUR
   if(tour::on && tour::quickfind(l)) return true;
 #endif
@@ -1356,15 +1333,13 @@ EX int wallchance(cell *c, bool deepOcean) {
     l == laCrossroads ? 5000 : 
     l == laCrossroads2 ? 10000 : 
     l == laCrossroads5 ? 10000 : 
-    l == laCrossroads4 ? (weirdhyperbolic ? 5000 : 0) :
-    (l == laMirror && !yendor::generating) ? 6000 :
-    l == laTerracotta ? 250 :
+    l == laCrossroads4 ? 5000 :
+    (l == laMirror && !yendor::generating) ? 2500 :
     tactic::on ? 0 :
     racing::on ? 0 :
     l == laCaribbean ? 500 :
     (l == laWarpSea || l == laWarpCoast) ? 500 :
     l == laStorms ? 250 :
-    l == laCanvas ? 0 :
     l == laHaunted ? 0 :
     (l == laGraveyard && !deepOcean) ? 0 :
     // (l == laGraveyard && items[itBone] >= 10) ? 120 :
@@ -1373,10 +1348,73 @@ EX int wallchance(cell *c, bool deepOcean) {
     50;
   }
 
-/** should we generate the horocycles in the current geometry? */
+/** \brief should we generate the horocycles in the current geometry? */
 EX bool horo_ok() {  
   if(INVERSE) return false;
-  return hyperbolic && !bt::in() && !arcm::in() && !kite::in() && !experimental && !hybri;
+  if(currentmap->strict_tree_rules()) return true;
+  return hyperbolic && !bt::in() && !arcm::in() && !kite::in() && !experimental && !hybri && !arb::in() && !quotient;
+  }
+
+/** \brief should we either generate the horocycles in the current geometry, or have them exist via eubinary? */
+EX bool horo_or_eubinary() {  
+  return horo_ok() || eubinary;
+  }
+
+/** \brief is celldistAlt defined for c? */
+EX bool have_alt(cell *c) {
+  return eubinary || c->master->alt;
+  }
+
+/** \brief generate alts around c if necessary */
+EX void gen_alt(cell *c) {
+  if(!eubinary) currentmap->extend_altmap(c->master);
+  }
+
+/** \brief generate alts around c and further if necessary */
+EX void gen_alt_around(cell *c) {
+  if(!eubinary) {
+    currentmap->extend_altmap(c->master);
+    for(int i=0; i<c->master->type; i++)
+      currentmap->extend_altmap(c->master->move(i));
+    }
+  }
+
+/** \brief is celldistAlt defined for c and c2, and greater for c? */
+EX bool greater_alt(cell *c, cell *c2) {
+  return have_alt(c) && have_alt(c2) && celldistAlt(c) > celldistAlt(c2);
+  }
+
+EX int horo_gen_distance() {
+  return  (WDIM == 3 && hyperbolic) ? 1 : 2;
+  }
+
+EX bool single_horo(eLand horoland) {
+  return specialland == horoland && ls::single();
+  }
+
+EX bool in_single_horo(cell *c, eLand horoland) {
+  return single_horo(horoland) || celldistAlt(c) <= 0;
+  }
+
+EX bool inside_starting_horo(cell *c, eLand horoland) {
+  return specialland == horoland && celldistAlt(c) <= 0;
+  }
+
+EX bool extend_alt(cell *c, eLand horoland, eLand overland, bool extend_in_single IS(true), int dist IS(horo_gen_distance())) {
+  if(c->land != horoland && c->land != overland && !(c->land == laBrownian && overland == laOcean)) return false;
+  if(bt::in() && !single_horo(horoland) && !inside_starting_horo(c, horoland)) return false;
+  if(have_alt(c) && ((ls::single() && extend_in_single) || masterAlt(c) <= dist) && !(euclid && !ls::single())) {
+    gen_alt(c);
+    preventbarriers(c);
+    return true;
+    }
+  return false;
+  }
+
+EX bool can_start_horo(cell *c) {
+  if(yendor::on && !among(c->land, laCaribbean, laStorms))
+    return false;
+  return ctof(c) && !have_alt(c) && horo_ok() && !randomPatternsMode && !racing::on;
   }
 
 EX bool gp_wall_test() {
@@ -1423,49 +1461,126 @@ EX bool good_for_wall(cell *c) {
   if(arcm::in()) return true;
   if(WDIM == 3) return true;
   if(INVERSE) return true;
+  if(!old_nice_walls()) return true;
   return pseudohept(c);
   }
 
 EX bool walls_not_implemented() {
+  // if(WDIM == 3 && !PURE) return true;
+  if(sphere || quotient || nonisotropic || (kite::in() && !bt::in()) || experimental) return true;
   return WDIM == 3 && (cgflags & qIDEAL);
   }
+
+EX bool old_nice_walls() {
+  return (geometry == gNormal && (PURE || BITRUNCATED)) || (geometry == gEuclid && !(INVERSE | IRREGULAR));
+  }
+
+EX bool nice_walls_available() {
+  if(hybri) return PIU(nice_walls_available());
+  if(fake::in()) return FPIU(nice_walls_available());
+  return WDIM == 2;
+  }
+
+EX void build_barrier_good(cell *c, eLand l IS(laNone)) {
+
+  if(!old_nice_walls()) {
+    general_barrier_build(NOWALLSEP_WALL, c, l ? l : getNewLand(c->land), NODIR);
+    }
   
-EX void buildBigStuff(cell *c, cell *from) {
-  if(sphere || quotient || nonisotropic || (kite::in() && !bt::in()) || experimental) return;
-  if(chaosmode > 1) return;
+  else {
+    int bd = 2 + hrand(2) * 3;    
+    buildBarrier(c, bd, l); 
+    }
+  }
+
+EX void build_walls(cell *c, cell *from) {
   bool deepOcean = deep_ocean_at(c, from);
   
   // if(weirdhyperbolic && c->land == laOcean) deepOcean = c->landparam >= 30;
   
   // buildgreatwalls
   
-  if(hybri) ;  /* Great Walls generated via the underlying geometry */
+  if(hybri) return;  /* Great Walls generated via the underlying geometry */
   
-  else if(walls_not_implemented()); // walls not implemented here
+  if(walls_not_implemented()) return; // walls not implemented here  
+
+  if(ls::chaoticity() >= 60) return;
   
+  if(nice_walls_available()) {
+    if(ctof(c) && c->land == laMirror && !yendor::generating && hrand(I10000) < 6000) {
+      build_barrier_good(c, laMirrored); 
+      return;
+      }
+  
+    if(ctof(c) && c->land == laTerracotta && hrand(I10000) < 200) {
+      build_barrier_good(c, laTerracotta); 
+      return;
+      }
+
+    if(ctof(c) && ls::single()) {
+      if(specialland == laCrossroads && hrand(I10000) < 5000) {
+        build_barrier_good(c, laCrossroads);
+        return;
+        }
+
+      if(specialland == laCrossroads3) {
+        build_barrier_good(c, laCrossroads3);
+        return;
+        }
+
+      if(specialland == laCrossroads5) {
+        build_barrier_good(c, laCrossroads5);
+        return;
+        }
+
+      if(c->land == laCrossroads && isEquidLand(specialland)) {
+        build_barrier_good(c, specialland);
+        return;
+        }
+
+      if(specialland == laElementalWall && hrand(I10000) < 4000) {
+        build_barrier_good(c); 
+        return;
+        }
+      }
+    }
+  else if(good_for_wall(c) && ls::single() && specialland == laElementalWall && hrand(I10000) < 4000) {
+    buildBarrierNowall(c, getNewLand(c->land));
+    }
+  
+  if(c->land == laCrossroads2 && BITRUNCATED) {
+    buildCrossroads2(c);
+    return;
+    }
+  
+  else if(good_for_wall(c) && isWarpedType(c->land) && hrand(10000) < 3000 && c->land && 
+    buildBarrierNowall(c, eLand(c->land ^ laWarpSea ^ laWarpCoast))) { }
+  
+  else if(ls::single()) return;
+    
   else if(geometry == gNormal && celldist(c) < 3 && !GOLDBERG) {
     if(top_land && c == cwt.at->master->move(3)->c7) {
       buildBarrierStrong(c, 6, true, top_land);
       }
     }
   
-  else if(chaosmode) {
-    if(good_for_wall(c) && hrand(10000) < 9000 && c->land && !inmirror(c) && buildBarrierNowall(c, getNewLand(c->land))) 
-      {}
-    else if(ctof(c) && c->land == laMirror && hrand(10000) < 2000 && !weirdhyperbolic) {
-      int bd = 2 + hrand(2) * 3;
-      buildBarrier(c, bd, laMirrored); 
+  else if(ls::wall_chaos()) {
+    if(good_for_wall(c) && hrand(10000) < 9000 && c->land && !inmirror(c) && c->bardir != NOBARRIERS && !c->master->alt) {
+      build_barrier_good(c); 
+      return;
       }
     }
-  
-  else if(good_for_wall(c) && isWarpedType(c->land) && hrand(10000) < 3000 && c->land && 
-    buildBarrierNowall(c, eLand(c->land ^ laWarpSea ^ laWarpCoast))) ;
+
+  else if(ls::std_chaos()) {
+    if(good_for_wall(c) && hrand(10000) < 9000 && c->land && !inmirror(c) && c->bardir != NOBARRIERS && !c->master->alt && buildBarrierNowall(c, getNewLand(c->land))) 
+      return;
+    }
   
   else if(good_for_wall(c) && c->land == laCrossroads4 && hrand(10000) < 7000 && c->land && !c->master->alt && !tactic::on && !racing::on &&
     buildBarrierNowall(c, getNewLand(laCrossroads4))) ;
   
   else if(good_for_wall(c) && hrand(I10000) < 20 && !generatingEquidistant && !yendor::on && !tactic::on && !racing::on && !isCrossroads(c->land) && 
-    gold() >= R200 && !weirdhyperbolic && !c->master->alt &&
+    gold() >= R200 && !weirdhyperbolic && !c->master->alt && c->bardir != NOBARRIERS &&
     !inmirror(c) && !isSealand(c->land) && !isHaunted(c->land) && !isGravityLand(c->land) && 
     (c->land != laRlyeh || rlyehComplete()) &&
     c->land != laTortoise && c->land != laPrairie && c->land && 
@@ -1475,7 +1590,7 @@ EX void buildBigStuff(cell *c, cell *from) {
     buildBarrierNowall(c, laCrossroads4) ;
     }
   
-  else if(weirdhyperbolic && specialland == laCrossroads4 && /*pseudohept(c) &&*/ hrand(I10000 /4) < wallchance(c, deepOcean) && gp_wall_test()) {
+  else if(ls::no_walls() && hrand(I10000 /4) < wallchance(c, deepOcean) && gp_wall_test() && c->bardir != NOBARRIERS && !c->master->alt) {
     buildBarrierNowall(c, getNewLand(c->land));
     }
   
@@ -1490,14 +1605,12 @@ EX void buildBigStuff(cell *c, cell *from) {
   else if(S3 >= OINF && c->land && hrand(I10000) < wallchance(c, deepOcean) && c->bardir != NOBARRIERS)
     buildBarrierNowall(c, getNewLand(c->land));
   
-  else if(weirdhyperbolic) ; // non-Nowall barriers not implemented yet in weird hyperbolic
-  
-  else if(c->land == laCrossroads2 && BITRUNCATED)
-    buildCrossroads2(c);
+  else if(!nice_walls_available()) ; // non-Nowall barriers not implemented yet in weird hyperbolic
   
   #if CAP_FIELD
   else if(c->land == laPrairie && c->LHU.fi.walldist == 0 && !euclid) {
-    for(int bd=0; bd<7; bd++) {
+    if(ls::nice_walls())
+    for(int bd=0; bd<c->master->type; bd++) {
       int fval2 = createStep(c->master, bd)->fieldval;
       int wd = currfp_gmul(fval2, currfp_inverses(c->fval-1));
       if(currfp_distwall(wd) == 0) {
@@ -1505,95 +1618,96 @@ EX void buildBigStuff(cell *c, cell *from) {
         break;
         }
       }
+    if(ls::no_walls()) {
+      buildBarrierNowall(c, getNewLand(c->land));
+      }
     }
   #endif
 
-  else if(ctof(c) && c->land && hrand(I10000) < wallchance(c, deepOcean))
-  {
-    
-    int bd = 2 + hrand(2) * 3;
-    
-    buildBarrier(c, bd); 
+  else if(good_for_wall(c) && c->land && ls::nice_walls() && c->land != laCrossroads4 && hrand(I10000) < wallchance(c, deepOcean))
+    build_barrier_good(c);
+  }
 
-    /* int bd = 2;      
-    buildBarrier4(c, bd, 0, getNewLand(c->land), c->land); */
+EX void start_camelot(cell *c) {
+  int rtr = newRoundTableRadius();
+  heptagon *alt = create_altmap(c, ls::single() ? 2 : rtr+(hyperbolic && WDIM == 3 ? 11 : 14), ls::single() ? hsA : hsOrigin);
+  if(alt) {
+    altmap::radius(alt) = rtr;
+    altmap::orig_land(alt) = c->land;
     }
-      
-  if((!chaosmode) && bearsCamelot(c->land) && is_master(c) && !bt::in() && 
+  }
+
+EX void build_horocycles(cell *c, cell *from) {
+
+  bool deepOcean = deep_ocean_at(c, from);
+
+  if(!ls::any_order() && !ls::single()) return;
+  
+  if(ls::single() && !among(specialland, laTemple, laMountain, laClearing, laStorms, laWhirlpool, laCaribbean, laCanvas, laPalace, laPrincessQuest, laCamelot))
+    return;
+  
+  // buildbigstuff
+
+  if(ls::any_order() && bearsCamelot(c->land) && can_start_horo(c) && !bt::in() && 
     #if MAXMDIM >= 4
     !(hyperbolic && WDIM == 3 && !reg3::in_rule()) && 
     #endif
-    (quickfind(laCamelot) || peace::on || (hrand(I2000) < (c->land == laCrossroads4 ? 800 : 200) && horo_ok() && 
-    items[itEmerald] >= U5 && !tactic::on && !racing::on))) {
-    int rtr = newRoundTableRadius();
-    heptagon *alt = createAlternateMap(c, rtr+(hyperbolic && WDIM == 3 ? 11 : 14), hsOrigin);
-    if(alt) {
-      alt->emeraldval = rtr;
-      alt->fiftyval = c->land;
-      }
+    (quickfind(laCamelot) || peace::on || (hrand(I2000) < (c->land == laCrossroads4 || ls::no_walls() ? 800 : 200) && horo_ok() &&
+    items[itEmerald] >= U5))) 
+    start_camelot(c);
+
+  if(c->land == laRlyeh && can_start_horo(c) && (quickfind(laTemple) || peace::on || (hrand(I2000) < 100 && items[itStatue] >= U5)))
+    create_altmap(c, horo_gen_distance(), hsA);
+
+  if(c->land == laJungle && can_start_horo(c) && (quickfind(laMountain) || (hrand(I2000) < 100 && landUnlocked(laMountain))))
+    create_altmap(c, horo_gen_distance(), hsA);
+
+  if(c->land == laOvergrown && can_start_horo(c) && (quickfind(laClearing) || (hrand(I2000) < 25 && items[itMutant] >= U5 && isLandIngame(laClearing)))) {
+    heptagon *h = create_altmap(c, horo_gen_distance(), hsA);
+    if(h) clearing::bpdata[h].root = NULL;
+    }
+    
+  if(stdhyperbolic && c->land == laStorms && can_start_horo(c) && hrand(2000) < 1000) {
+    heptagon *h = create_altmap(c, horo_gen_distance(), hsA);
+    if(h) altmap::which(h->alt) = hrand(2);
     }
 
-  if(!chaosmode) {
-  
-    // buildbigstuff
-
-    if(c->land == laRlyeh && ctof(c) && horo_ok() && 
-      (quickfind(laTemple) || peace::on || (hrand(I2000) < 100 && 
-      items[itStatue] >= U5 && !randomPatternsMode && 
-      !tactic::on && !yendor::on && !racing::on)))
-      createAlternateMap(c, horo_gen_distance(), hsA);
-
-    if(c->land == laJungle && ctof(c) && 
-      (quickfind(laMountain) || (hrand(I2000) < 100 && horo_ok() && 
-      !randomPatternsMode && !tactic::on && !yendor::on && !racing::on && landUnlocked(laMountain))))
-      createAlternateMap(c, horo_gen_distance(), hsA);
-
-    if(c->land == laOvergrown && ctof(c) && horo_ok() &&
-      (quickfind(laClearing) || (hrand(I2000) < 25 && 
-      !randomPatternsMode && items[itMutant] >= U5 &&
-      isLandIngame(laClearing) &&
-      !tactic::on && !yendor::on && !racing::on))) {
-      heptagon *h = createAlternateMap(c, horo_gen_distance(), hsA);
-      if(h) clearing::bpdata[h].root = NULL;
-      }
+  if(c->land == laOcean && deepOcean && !generatingEquidistant && !peace::on && can_start_horo(c) && 
+    (quickfind(laWhirlpool) || (
+      hrand(2000) < (PURE ? 500 : 1000))))
+    create_altmap(c, horo_gen_distance(), hsA);
     
-    if(stdhyperbolic && c->land == laStorms && ctof(c) && hrand(2000) < 1000 && horo_ok() && !randomPatternsMode) {
-      heptagon *h = createAlternateMap(c, horo_gen_distance(), hsA);
-      if(h) h->alt->emeraldval = hrand(2);
-      }
+  #if CAP_COMPLEX2
+  if(c->land == laOcean && deepOcean && !generatingEquidistant && hrand(10000) < 20 && no_barriers_in_radius(c, 2) && hyperbolic && !quotient && !tactic::on && !safety) 
+    brownian::init_further(c);
+  #endif
 
-    if(c->land == laOcean && ctof(c) && deepOcean && !generatingEquidistant && !peace::on && horo_ok() && 
-      (quickfind(laWhirlpool) || (
-        hrand(2000) < (PURE ? 500 : 1000) && !tactic::on && !racing::on && !yendor::on)))
-      createAlternateMap(c, horo_gen_distance(), hsA);
-    
-    #if CAP_COMPLEX2
-    if(c->land == laOcean && deepOcean && !generatingEquidistant && hrand(10000) < 20 && no_barriers_in_radius(c, 2) && hyperbolic && !quotient && !tactic::on && !safety) 
-      brownian::init_further(c);
-    #endif
+  if(c->land == laCaribbean && can_start_horo(c))
+    create_altmap(c, horo_gen_distance(), hsA);
 
-    if(c->land == laCaribbean && horo_ok() && ctof(c) && !c->master->alt)
-      createAlternateMap(c, horo_gen_distance(), hsA);
+  if(c->land == laCanvas && can_start_horo(c) && ls::any_order())
+    create_altmap(c, horo_gen_distance(), hsA);
 
-    if(c->land == laCanvas && horo_ok() && ctof(c) && !c->master->alt)
-      createAlternateMap(c, horo_gen_distance(), hsA);
-
-    if(c->land == laPalace && ctof(c) && !princess::generating && !shmup::on && multi::players == 1 && horo_ok() && !weirdhyperbolic &&
-      (princess::forceMouse ? canReachPlayer(from, moMouse) :
-        (hrand(2000) < (peace::on ? 100 : 20))) && 
-      !c->master->alt && 
-      (princess::challenge || kills[moVizier] || peace::on) && !tactic::on && !yendor::on && !racing::on) {
-      createAlternateMap(c, PRADIUS0, hsOrigin, waPalace);
-      celllister cl(c, 5, 1000000, NULL);
-      for(cell *c: cl.lst) if(c->master->alt) currentmap->generateAlts(c->master);
-      }
+  if(c->land == laPalace && can_start_horo(c) && !princess::generating && !shmup::on && multi::players == 1 && !weirdhyperbolic &&
+    (princess::forceMouse ? canReachPlayer(from, moMouse) :
+      (hrand(2000) < (peace::on ? 100 : 20))) && 
+    (princess::challenge || kills[moVizier] || peace::on)) {
+    create_altmap(c, PRADIUS0, hsOrigin, waPalace);
+    celllister cl(c, 5, 1000000, NULL);
+    for(cell *c: cl.lst) if(c->master->alt) currentmap->extend_altmap(c->master);
     }
+  }
   
-  if(hasbardir(c)) extendBarrier(c);
+EX void buildBigStuff(cell *c, cell *from) {
+  build_walls(c, from);
+  
+  build_horocycles(c, from);
+
+  if(hasbardir(c)) extendBarrier(c);  
   }
 
 EX bool openplains(cell *c) {
-  if(chaosmode) {
+  if(ls::any_chaos()) {
     forCellEx(c2, c) if(c2->land != laHunting) return false;
     return true;
     }
@@ -1625,7 +1739,7 @@ EX void buildCamelotWall(cell *c) {
   if(WDIM == 3 && hyperbolic) return;
   for(int i=0; i<c->type; i++) {
     cell *c2 = createMov(c, i);
-    if(c2->wall == waNone && (eubinary || (c2->master->alt && c->master->alt)) && celldistAlt(c2) > celldistAlt(c) && c2->monst == moNone)
+    if(c2->wall == waNone && greater_alt(c2, c) && c2->monst == moNone)
       c2->wall = waCamelotMoat;
     }
   }
@@ -1648,13 +1762,13 @@ EX eMonster camelot_monster() {
 
 EX void buildCamelot(cell *c) {
   int d = celldistAltRelative(c);
-  if(tactic::on || (d <= 14 && roundTableRadius(c) > 20)) {
-    if(!eubinary) currentmap->generateAlts(c->master);
+  if(ls::single() || (d <= 14 && roundTableRadius(c) > 20)) {
+    gen_alt(c);
     preventbarriers(c);
     if(d == 10) {
       if(weirdhyperbolic ? hrand(100) < 50 : pseudohept(c)) buildCamelotWall(c);
       else {
-        if(!eubinary) for(int i=0; i<S7; i++) currentmap->generateAlts(c->master->move(i));
+        if(!eubinary) for(int i=0; i<c->master->type; i++) currentmap->extend_altmap(c->master->move(i));
         int q = 0;
         if(weirdhyperbolic) {
           for(int t=0; t<c->type; t++) createMov(c, t);
@@ -1688,31 +1802,32 @@ EX void buildCamelot(cell *c) {
         }
       }
     if(d == 0) c->wall = waRoundTable;
-    if(celldistAlt(c) == 0 && !tactic::on) c->item = itHolyGrail;
+    if(celldistAlt(c) == 0 && !ls::single()) c->item = itHolyGrail;
     if(d < 0 && hrand(7000) <= 10 + items[itHolyGrail] * 5)
       c->monst = camelot_monster();
     if(d == 1) {
       // roughly as many knights as table cells
       if(hrand(1000000) < 1000000 / expansion.get_growth() && !reptilecheat)
         c->monst = moKnight;
-      if(!eubinary) for(int i=0; i<S7; i++) currentmap->generateAlts(c->master->move(i));
+      if(!eubinary) for(int i=0; i<c->master->type; i++) currentmap->extend_altmap(c->master->move(i));
       for(int i=0; i<c->type; i++) 
         if(c->move(i) && celldistAltRelative(c->move(i)) < d)
           c->mondir = (i+3) % 6;
       }
-    if(tactic::on && d >= 2 && d <= 8 && hrand(1000) < 10)
+    if(ls::single() && d >= 2 && d <= 8 && hrand(1000) < 10)
       c->item = itOrbSafety;
-    if(d == 5 && tactic::on)
+    if(d == 5 && ls::single())
       c->item = itGreenStone;
     if(d <= 10) c->land = laCamelot;
-    if(d > 10 && !eubinary && !tactic::on) {
-      setland(c, eLand(c->master->alt->alt->fiftyval));
+    if(d > 10 && !eubinary && !ls::single()) {
+      setland(c, eLand(altmap::orig_land(c->master->alt->alt)));
       if(c->land == laNone) printf("Camelot\n"); // NONEDEBUG
       }
     }
   }
 
 EX int masterAlt(cell *c) {
+  if(eubinary) return celldistAlt(c);
   #if MAXMDIM >= 4
   if(WDIM == 3 && hyperbolic && !reg3::in_rule()) return reg3::altdist(c->master);
   #endif
@@ -1730,158 +1845,132 @@ EX int temple_layer_size() {
   return 6;
   }
 
-EX int horo_gen_distance() {
-  return  (WDIM == 3 && hyperbolic) ? 1 : 2;
+/** generate the (non-chaotic) Temple of Cthulhu */
+EX void gen_temple(cell *c) {
+  int d = celldistAlt(c);
+  if(d <= 0) {
+    c->land = laTemple, c->wall = waNone, c->monst = moNone, c->item = itNone;
+    }
+  if(d % temple_layer_size()==0) {
+    c->landparam = 0;
+    if(geometry == gSpace534) {
+      int i = 0;
+      forCellCM(c2, c) if(greater_alt(c, c2)) i++;
+      if(i > 1) c->wall = waColumn;
+      }
+    else if(geometry == gSpace535) {
+      c->wall = (c->master->fieldval % 5) ? waRubble : waColumn;
+      }
+    else if(geometry == gSpace435) {
+      c->wall = waRubble;
+      if(c->master->fieldval == 0) c->wall = waColumn;
+      forCellCM(c1, c) if(c1->master->fieldval == 0) c->wall = waColumn;
+      }
+    else if(sol) {
+      if(c->master->emeraldval % 3 || c->master->zebraval % 3)
+        c->wall = waColumn;
+      }
+    else if(nih) {
+      if(c->master->emeraldval % 2)
+        c->wall = waColumn;
+      }
+    #if CAP_BT
+    else if(geometry == gBinary3) {
+      if(c->master->zebraval % 5 != 1) c->wall = waColumn;
+      }
+    else if(geometry == gHoroTris || geometry == gHoroRec) {
+      if(c->c.spin(bt::updir()) != 0) c->wall = waColumn;
+      }
+    else if(geometry == gKiteDart3) {
+      if(kite::getshape(c->master) == kite::pKite) c->wall = waColumn;
+      }
+    #endif
+    else if(in_s2xe()) {
+      auto d = hybrid::get_where(c);
+      if(!PIU(pseudohept(d.first))) c->wall = waColumn;
+      }
+    else if(hybri) {
+      auto d = hybrid::get_where(c);
+      if(d.first->wall == waColumn || (d.second&1)) c->wall = waColumn;
+      }
+    else if(WDIM == 3) {
+      c->wall = hrand(100) < 10 ? waColumn : waRubble;
+      }
+    else if(S3 >= OINF) { }
+    else if(weirdhyperbolic && !BITRUNCATED) {
+      if(hrand(100) < 50) c->wall = waColumn;
+      }
+    else if(pseudohept(c)) 
+      c->wall = waColumn;
+    else {
+      gen_alt_around(c);
+      int q = 0;
+      for(int t=0; t<c->type; t++) {
+        createMov(c, t);
+        if(have_alt(c->move(t)) && celldistAlt(c->move(t)) % temple_layer_size() == 0 && !ishept(c->move(t))) q++;
+        }
+      if(q == 2) c->wall = waColumn;
+      }
+    c->landparam = 1;
+    }
+  else c->landparam = 2;
   }
 
 EX void moreBigStuff(cell *c) {
 
   if((bearsCamelot(c->land) && !euclid && !quotient && !nil) || c->land == laCamelot) 
-  if(eubinary || bt::in() || c->master->alt) if(!(bt::in() && specialland != laCamelot)) 
+  if(have_alt(c)) if(!(bt::in() && specialland != laCamelot)) 
     buildCamelot(c);
   
   if(quotient) return;
+
+  extend_alt(c, laCaribbean, laCaribbean, false);
+  if(c->land == laCaribbean) {
+    if(have_alt(c) && celldistAlt(c) <= 0)
+      generateTreasureIsland(c);
+    else
+      c->wall = waSea;
+    }
   
-  if(c->land == laPalace && !eubinary && c->master->alt) {
+  extend_alt(c, laPalace, laPalace, false, PRADIUS1);
+
+  extend_alt(c, laCanvas, laCanvas);
+
+  if(extend_alt(c, laStorms, laStorms, false)) {
     int d = celldistAlt(c);
-    if(d <= PRADIUS1) currentmap->generateAlts(c->master);
+    if(d <= -2) {
+      c->wall = eubinary ? waCharged : (altmap::which(c->master->alt->alt) & 1) ? waCharged : waGrounded;
+      c->item = itNone;
+      c->monst = moNone;
+      }
+    else if(d <= -1)
+      c->wall = (hrand(100) < 20) ? waSandstone : waNone;
+    else if(d <= 0)
+      c->wall = waNone;
     }
 
-  if(c->land == laCanvas && !eubinary && c->master->alt && !quotient) 
-    currentmap->generateAlts(c->master);
-
-  if(c->land == laStorms)
-    if(!eubinary && !quotient && !sphere) {
-      if(c->master->alt && masterAlt(c) <= horo_gen_distance()) {
-        currentmap->generateAlts(c->master);
-        preventbarriers(c);
-        int d = celldistAlt(c);
-        if(d <= -2) {
-          c->wall = (c->master->alt->alt->emeraldval & 1) ? waCharged : waGrounded;
-          c->item = itNone;
-          c->monst = moNone;
-          }
-        else if(d <= -1)
-          c->wall = (hrand(100) < 20) ? waSandstone : waNone;
-        else if(d <= 0)
-          c->wall = waNone;
-        }
-      }        
-
-  if(chaosmode && c->land == laTemple) {
+  if(ls::any_chaos() && c->land == laTemple) {
     for(int i=0; i<c->type; i++)
       if(pseudohept(c) && c->move(i) && c->move(i)->land != laTemple)
         c->wall = waColumn;
     }
-  
-  else if((c->land == laRlyeh && !euclid) || c->land == laTemple) if(!(bt::in() && specialland != laTemple && c->land == laRlyeh)) {
-    if(eubinary || in_s2xe() || (c->master->alt && (tactic::on || masterAlt(c) <= horo_gen_distance()))) {
-      if(!eubinary && !chaosmode) currentmap->generateAlts(c->master);
-      preventbarriers(c);
-      int d = celldistAlt(c);
-      if(d <= 0) {
-        c->land = laTemple, c->wall = waNone, c->monst = moNone, c->item = itNone;
-        }
-      if(d % temple_layer_size()==0) {
-        c->landparam = 0;
-        if(geometry == gSpace534) {
-          int i = 0;
-          forCellCM(c2, c) if(celldistAlt(c2) < celldistAlt(c)) i++;
-          if(i > 1) c->wall = waColumn;
-          }
-        else if(geometry == gSpace535) {
-          c->wall = (c->master->fieldval % 5) ? waRubble : waColumn;
-          }
-        else if(geometry == gSpace435) {
-          c->wall = waRubble;
-          if(c->master->fieldval == 0) c->wall = waColumn;
-          forCellCM(c1, c) if(c1->master->fieldval == 0) c->wall = waColumn;
-          }
-        else if(sol) {
-          if(c->master->emeraldval % 3 || c->master->zebraval % 3)
-            c->wall = waColumn;
-          }
-        else if(nih) {
-          if(c->master->emeraldval % 2)
-            c->wall = waColumn;
-          }
-        else if(geometry == gHoroTris || geometry == gHoroRec) {
-          if(c->c.spin(bt::updir()) != 0) c->wall = waColumn;
-          }
-        else if(geometry == gKiteDart3) {
-          if(kite::getshape(c->master) == kite::pKite) c->wall = waColumn;
-          }
-        else if(in_s2xe()) {
-          auto d = hybrid::get_where(c);
-          if(!PIU(pseudohept(d.first))) c->wall = waColumn;
-          }
-        else if(hybri) {
-          auto d = hybrid::get_where(c);
-          if(d.first->wall == waColumn || (d.second&1)) c->wall = waColumn;
-          }
-        else if(WDIM == 3) {
-          c->wall = hrand(100) < 10 ? waColumn : waRubble;
-          }
-        else if(S3 >= OINF) { }
-        else if(weirdhyperbolic && !BITRUNCATED) {
-          if(hrand(100) < 50) c->wall = waColumn;
-          }
-        else if(pseudohept(c)) 
-          c->wall = waColumn;
-        else {
-          if(!eubinary) for(int i=0; i<S7; i++) currentmap->generateAlts(c->master->move(i));
-          int q = 0;
-          for(int t=0; t<c->type; t++) {
-            createMov(c, t);
-            if(celldistAlt(c->move(t)) % temple_layer_size() == 0 && !ishept(c->move(t))) q++;
-            }
-          if(q == 2) c->wall = waColumn;
-          }
-        c->landparam = 1;
-        }
-      else c->landparam = 2;
+  else if(extend_alt(c, laTemple, laRlyeh)) 
+    gen_temple(c);
+
+  if(extend_alt(c, laClearing, laOvergrown)) {
+    if(in_single_horo(c, laClearing)) {
+      c->land = laClearing, c->wall = waNone;
       }
+    else if(celldistAlt(c) == 1)
+      c->wall = waSmallTree, c->monst = moNone, c->item = itNone, c->landparam = 1;
     }
 
-  if((c->land == laOvergrown && !euclid) || c->land == laClearing) if(!(bt::in() && specialland != laClearing)) {
-    if(eubinary || (c->master->alt && (tactic::on || masterAlt(c) <= horo_gen_distance()))) {
-      if(!eubinary) currentmap->generateAlts(c->master);
-      preventbarriers(c);
-      int d = celldistAlt(c);
-      if(d <= 0) {
-        c->land = laClearing, c->wall = waNone; // , c->monst = moNone, c->item = itNone;
-        }
-      else if(d == 1 && !tactic::on && !eubinary)
-        c->wall = waSmallTree, c->monst = moNone, c->item = itNone, c->landparam = 1;
-      }
+  if(extend_alt(c, laMountain, laJungle) && in_single_horo(c, laMountain)) {
+    c->land = laMountain, c->wall = waNone;
     }
 
-  if((c->land == laJungle && !euclid) || c->land == laMountain) if(!(bt::in() && specialland != laMountain)) {
-    if(eubinary || (c->master->alt && (tactic::on || masterAlt(c) <= horo_gen_distance()))) {
-      if(!eubinary) currentmap->generateAlts(c->master);
-      preventbarriers(c);
-      int d = celldistAlt(c);
-      if(d <= 0 || (firstland == laMountain && tactic::on)) {
-        c->land = laMountain, c->wall = waNone; // , c->monst = moNone, c->item = itNone;
-        }
-      }
-    }
-
-  if(among(c->land, laOcean, laWhirlpool, laBrownian)) if(!(bt::in() && specialland != laWhirlpool)) {
-    bool fullwhirlpool = false;
-    if(tactic::on && specialland == laWhirlpool)
-      fullwhirlpool = true;
-    if(yendor::on && yendor::clev().l == laWhirlpool)
-      fullwhirlpool = true;
-    if(eubinary || (c->master->alt && (fullwhirlpool || masterAlt(c) <= 2))) {
-      if(!eubinary) currentmap->generateAlts(c->master);
-      preventbarriers(c);
-      int dd = celldistAlt(c);
-      if(dd <= 0 || fullwhirlpool) {
-        c->land = laWhirlpool, c->wall = waSea, c->monst = moNone, c->item = itNone;
-        }
-      }
-    }      
+  if(extend_alt(c, laWhirlpool, laOcean) && in_single_horo(c, laWhirlpool))
+    c->land = laWhirlpool, c->wall = waSea, c->monst = moNone, c->item = itNone;
   }
 
 EX void generate_mines() {
@@ -1889,8 +1978,8 @@ EX void generate_mines() {
   for(cell *c: currentmap->allcells())
     if(c->wall == waMineUnknown) 
       candidates.push_back(c);
+  hrandom_shuffle(candidates);
   bounded_mine_max = isize(candidates);
-  hrandom_shuffle(&candidates[0], bounded_mine_max);
   bounded_mine_quantity = int(bounded_mine_max * bounded_mine_percentage + 0.5);
   for(int i=0; i<bounded_mine_quantity; i++) candidates[i]->wall = waMineMine;
   }
@@ -1899,7 +1988,7 @@ EX vector<eLand> currentlands;
 
 EX void pregen() {
   currentlands.clear();
-  if(chaosmode > 1)
+  if(ls::any_chaos() && !ls::std_chaos())
     for(eLand l: land_over)
       if(landUnlocked(l) && isLandIngame(l)) 
         currentlands.push_back(l);

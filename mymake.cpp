@@ -27,30 +27,103 @@ string compiler;
 string linker;
 string libs;
 
+bool verbose = false;
+
+int batch_size = thread::hardware_concurrency() + 1;
+bool mingw64 = false;
+
+int sdlver = 1;
+
+int mysystem(string cmdline) {
+  if(verbose) {
+    printf("%s\n", cmdline.c_str());
+    }
+  if (mingw64)
+    cmdline = "sh -c '" + cmdline + "'"; // because system(arg) passes arg to cmd.exe on MinGW
+  return system(cmdline.c_str());
+  }
+
+bool file_exists(string fname) {
+  return access(fname.c_str(), F_OK) != -1;
+  }
+
+#if defined(MAC)
+string os = "mac";
+#elif defined(WINDOWS)
+string os = "mingw64";
+#else
+string os = "linux";
+#endif
+
 void set_linux() {
   preprocessor = "g++ -E";
-  compiler = "g++ -Wall -Wextra -Wno-maybe-uninitialized -Wno-unused-parameter -Wno-implicit-fallthrough -rdynamic -fdiagnostics-color=always -c";
+  compiler = "g++ -Wall -Wextra -Wno-maybe-uninitialized -Wno-unused-parameter -Wno-implicit-fallthrough -Wno-invalid-offsetof -rdynamic -fdiagnostics-color=always -c";
   linker = "g++ -rdynamic -o hyper";
-  opts = "-DFHS -DLINUX -I/usr/include/SDL";
-  libs = " savepng.o -lSDL -lSDL_ttf -lSDL_mixer -lSDL_gfx -lGLEW -lGL -lpng -rdynamic -lpthread -lz";
+  if(sdlver == 2) {
+    opts = "-DFHS -DLINUX -I/usr/include/SDL2";
+    libs = " -lSDL2 -lSDL2_ttf -lSDL2_mixer -lSDL2_gfx -lGLEW -lGL -lpng -rdynamic -lpthread -lz";
+    }
+  else {
+    opts = "-DFHS -DLINUX -I/usr/include/SDL";
+    libs = " -lSDL -lSDL_ttf -lSDL_mixer -lSDL_gfx -lGLEW -lGL -lpng -rdynamic -lpthread -lz";
+    }
   }
 
 void set_mac() {
   preprocessor = "g++ -E";
-  compiler = "g++ -march=native -W -Wall -Wextra -pedantic -Wno-unused-parameter -Wno-implicit-fallthrough -c";
+  compiler = "g++ -march=native -W -Wall -Wextra -Wsuggest-override -pedantic -Wno-unused-parameter -Wno-implicit-fallthrough -Wno-invalid-offsetof -c";
   linker = "g++ -o hyper";
   opts = "-DMAC -I/usr/local/include";
-  libs = " savepng.o -L/usr/local/lib -framework AppKit -framework OpenGL -lSDL -lSDLMain -lSDL_gfx -lSDL_mixer -lSDL_ttf -lpng -lpthread -lz";
+  libs = " -L/usr/local/lib -framework AppKit -framework OpenGL -lSDL -lSDLMain -lSDL_gfx -lSDL_mixer -lSDL_ttf -lpng -lpthread -lz";
   }
 
 void set_win() {
   preprocessor = "g++ -E";
-  compiler = "runbat bwin-g.bat -c";
-  linker = "runbat bwin-linker.bat";
-  opts = "-DFHS -DLINUX -I/usr/include/SDL";
+  compiler = "g++ -mwindows -march=native -W -Wall -Wextra -Werror -Wno-unused-parameter -Wno-invalid-offsetof -Wno-implicit-fallthrough -Wno-maybe-uninitialized -c";
+  linker = "g++ -o hyper";
+  opts = "-DWINDOWS -DCAP_GLEW=1 -DCAP_PNG=1";
+  libs = " hyper.res -lopengl32 -lSDL -lSDL_gfx -lSDL_mixer -lSDL_ttf -lpthread -lz -lglew32 -lpng";
+  setvbuf(stdout, NULL, _IONBF, 0); // MinGW is quirky with output buffering
+  }
+
+/* cross-compile Linux to Windows (tested on Archlinux) */
+void set_mingw64_cross() {
+  preprocessor = "x86_64-w64-mingw32-g++ -E";
+  compiler = "x86_64-w64-mingw32-g++ -mwindows -march=native -W -Wall -Wextra -Werror -Wno-unused-parameter -Wno-invalid-offsetof -Wno-implicit-fallthrough -Wno-maybe-uninitialized -c";
+  linker = "x86_64-w64-mingw32-g++ -o hyper.exe";
+  opts = "-DWINDOWS -DGLEW_STATIC -DUSE_STDFUNCTION=1 -DCAP_PNG=1 -I /usr/x86_64-w64-mingw32/include/SDL/";
+  libs = " hyper64.res -static-libgcc -lopengl32 -lSDL -lSDL_gfx -lSDL_mixer -lSDL_ttf -lpthread -lz -lglew32 -lpng";
+  setvbuf(stdout, NULL, _IONBF, 0); // MinGW is quirky with output buffering
+  if(!file_exists("hyper64.res"))
+    mysystem("x86_64-w64-mingw32-windres hyper.rc -O coff -o hyper64.res");
+  }
+
+void set_web() {
+  preprocessor = "/usr/lib/emscripten/em++ -E";
+  compiler = "/usr/lib/emscripten/em++ -c";
+  default_standard = standard = " -std=c++17";
+  opts = "-DISWEB=1";
+  linker = 
+    "/usr/lib/emscripten/em++ -s USE_ZLIB=1 -s DISABLE_DEPRECATED_FIND_EVENT_TARGET_BEHAVIOR=0 -s TOTAL_MEMORY=512MB "
+    "-s EXTRA_EXPORTED_RUNTIME_METHODS='[\"FS\",\"ccall\"]' "
+    "-s EXPORTED_FUNCTIONS=\"['_main', '_use_file']\" "
+    "-s DISABLE_EXCEPTION_CATCHING=0 -o mhyper.html";
   libs = "";
 
   standard = "";
+  }
+
+void set_os(string o) {
+  os = o;
+  if(os == "linux") set_linux();
+  else if(os == "mac") set_mac();
+  else if(os == "mingw64") set_mingw64();
+  else if(os == "mingw64-cross") set_mingw64_cross();
+  else if(os == "web") set_web();
+  else {
+    fprintf(stderr, "unknown OS");
+    exit(1);
+    }
   }
 
 vector<string> modules;
@@ -66,25 +139,13 @@ int optimized = 0;
 string obj_dir = "mymake_files";
 string setdir = "../";
 
-int system(string cmdline) {
-  return system(cmdline.c_str());
-  }
-
-bool file_exists(string fname) {
-  return access(fname.c_str(), F_OK) != -1;
-  }
-  
 int main(int argc, char **argv) {
-#if defined(MAC)
-  set_mac();
-#elif defined(WINDOWS)
-  set_win();
-#else
-  set_linux();
-#endif
-  for(string fname: {"Makefile.loc", "Makefile.simple", "Makefile"})
+  set_os(os);
+  int retval = 0; // for storing return values of some function calls
+  for(string fname: {"Makefile.loc", "Makefile"})
     if(file_exists(fname)) {
-      system("make -f " + fname + " language-data.cpp autohdr.h savepng.o");
+      retval = mysystem("make -f " + fname + " language-data.cpp autohdr.h");
+      if (retval) { printf("error during preparation!\n"); exit(retval); }
       break;
       }
   for(int i=1; i<argc; i++) {
@@ -97,20 +158,48 @@ int main(int argc, char **argv) {
         if(!isalnum(c)) obj_dir += "_"; 
         else obj_dir += c;      
       }
-    else if(s == "-win") {
-      set_win();
-      obj_dir += "/win";
+    else if(s == "-v") {
+      verbose = true;
+      }
+    else if(s == "-mingw64") {
+      set_os("mingw64");
+      obj_dir += "/mingw64";
+      setdir += "../";
+      }
+    else if(s == "-mingw64-cross") {
+      set_os("mingw64-cross");
+      obj_dir += "/mingw64";
       setdir += "../";
       }
     else if(s == "-mac") {
-      set_mac();
+      set_os("mac");
       obj_dir += "/mac";
       setdir += "../";
       }
     else if(s == "-linux") {
-      set_linux();
+      set_os("linux");
       obj_dir += "/linux";
       setdir += "../";
+      }
+    else if(s == "-web") {
+      set_os("web");
+      modules.push_back("hyperweb");
+      obj_dir += "/web";
+      setdir += "../";
+      }
+    else if(s == "-sdl1") {
+      sdlver = 1;
+      set_os(os);
+      obj_dir += "/sdl1";
+      setdir += "../";
+      opts += " -DCAP_SDL2=0";
+      }
+    else if(s == "-sdl2") {
+      sdlver = 2;
+      set_os(os);
+      obj_dir += "/sdl2";
+      setdir += "../";
+      opts += " -DCAP_SDL2=1";
       }
     else if(s.substr(0, 2) == "-f") {
       opts += " " + s;
@@ -135,6 +224,12 @@ int main(int argc, char **argv) {
       }
     else if(s.substr(0, 2) == "-I")
       opts += " " + s;
+    else if(s == "-vr") {
+      obj_dir += "/vr";
+      setdir += "../";
+      linker += " -lopenvr_api";
+      opts += " -DCAP_VR=1 -I/usr/include/openvr/";
+      }
     else if(s == "-rv") {
       
       if(standard == default_standard) {
@@ -162,7 +257,8 @@ int main(int argc, char **argv) {
   compiler += " " + standard;
   ifstream fs("hyper.cpp");
 
-  system("mkdir -p " + obj_dir);
+  retval = mysystem("mkdir -p " + obj_dir);
+  if (retval) { printf("unable to create output directory!\n"); exit(retval); }
 
   ofstream fsm(obj_dir + "/hyper.cpp");
   fsm << "#if REM\n#define INCLUDE(x)\n#endif\n";
@@ -184,7 +280,7 @@ int main(int argc, char **argv) {
   fsm.close();
   
   printf("preprocessing...\n");
-  if(system(preprocessor + " " + opts + " "+obj_dir+"/hyper.cpp -o "+obj_dir+"/hyper.E")) { printf("preprocessing error\n"); exit(1); }
+  if(mysystem(preprocessor + " " + opts + " "+obj_dir+"/hyper.cpp -o "+obj_dir+"/hyper.E")) { printf("preprocessing error\n"); exit(1); }
   
   if(true) {
     ifstream fs2(obj_dir+"/hyper.E");
@@ -196,10 +292,12 @@ int main(int argc, char **argv) {
         }
       }
     }
+  
+  modules.push_back("savepng");
 
   if(get_file_time(obj_dir + "/hyper.o") < get_file_time("hyper.cpp")) {
     printf("compiling hyper...\n");
-    if(system(compiler + " -DREM " + opts + " " + obj_dir + "/hyper.cpp -c -o " + obj_dir + "/hyper.o")) { printf("error\n"); exit(1); }
+    if(mysystem(compiler + " -DREM " + opts + " " + obj_dir + "/hyper.cpp -c -o " + obj_dir + "/hyper.o")) { printf("error\n"); exit(1); }
     }
   
   string allobj = " " + obj_dir + "/hyper.o";
@@ -217,9 +315,13 @@ int main(int argc, char **argv) {
       exit(1);
       }
     time_t obj_time = get_file_time(obj);
+    if(src == "language.cpp") {
+      src_time = max(src_time, get_file_time("language-data.cpp"));
+      }
     if(src_time > obj_time) {
-      printf("compiling %s... [%d/%d]\n", m.c_str(), id, int(modules.size()));
-      if(system(compiler + " " + opts + " " + src + " -o " + obj)) { printf("error\n"); exit(1); }
+      string cmdline = compiler + " " + opts + " " + src + " -o " + obj;
+      pair<int, function<int(void)>> task(id, [cmdline]() { return mysystem(cmdline); });
+      tasks.push_back(task);
       }
     else {
       printf("ok: %s\n", m.c_str());
@@ -227,8 +329,42 @@ int main(int argc, char **argv) {
     allobj += " ";
     allobj += obj;
     }
-  
+
+  chrono::milliseconds quantum(40);
+  vector<future<int>> workers(batch_size);
+
+  int tasks_amt = tasks.size();
+  int tasks_taken = 0, tasks_done = 0;
+  bool finished = tasks.empty();
+
+  while (!finished) {
+  for (auto & worker : workers) {
+    if (worker.valid()) {
+      if (worker.wait_for(chrono::seconds(0)) != future_status::ready) continue;
+      else {
+        int res = worker.get();
+        if (res) { printf("compilation error!\n"); exit(1); }
+        ++tasks_done;
+        }
+      }
+    if (tasks_taken < tasks_amt) {
+      auto task = tasks[tasks_taken];
+      int mid = task.first;
+      function<int(void)> do_work = task.second;
+      printf("compiling %s... [%d/%d]\n", modules[mid].c_str(), tasks_taken+1, tasks_amt);
+      worker = async(launch::async, do_work);
+      ++tasks_taken;
+      }
+    else if (tasks_done == tasks_amt) { finished = true; break; }
+    } this_thread::sleep_for(quantum); }
+
+  if (mingw64) {
+    retval = mysystem("windres hyper.rc -O coff -o hyper.res");
+    if (retval) { printf("windres error!\n"); exit(retval); }
+    }
+
   printf("linking...\n");
-  system(linker + allobj + libs);
+  retval = mysystem(linker + allobj + libs);
+  if (retval) { printf("linking error!\n"); exit(retval); }
   return 0;
   }

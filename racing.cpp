@@ -301,6 +301,7 @@ void find_track(cell *start, int sign, int len) {
           case 4: id = start->master->emeraldval - c1->master->emeraldval; break;
           }
         }
+      #if CAP_SOLV
       else if(asonov::in() && asonov::period_z) {
         auto co = asonov::get_coord(c->master);
         ld x = szgmod(co[0], asonov::period_xy);
@@ -311,6 +312,7 @@ void find_track(cell *start, int sign, int len) {
         }
       else if(sn::in())
         id = (start->master->distance - c1->master->distance) * sign;
+      #endif
       else
         id = trackval(c1);
       cellbydist[id].push_back(c1);
@@ -329,7 +331,7 @@ void find_track(cell *start, int sign, int len) {
   }
 
 EX void block_cells(vector<cell*> to_block, function<bool(cell*)> blockbound) {
-  hrandom_shuffle(&to_block[0], isize(to_block));
+  hrandom_shuffle(to_block);
   
   for(cell *c: to_block) switch(specialland) {
     case laIce:
@@ -456,7 +458,7 @@ EX void generate_track() {
   makeEmpty(s);
   cview(); // needed for some virtualRebases
   
-  use_exhaustive_distance = yendor::exhaustive_distance_appropriate();
+  use_exhaustive_distance = exhaustive_distance_appropriate();
     
   if(use_exhaustive_distance) 
     permanent_long_distances(s);
@@ -503,12 +505,12 @@ EX void generate_track() {
     }
   else find_track(s, 0, length);    
     }
-  catch(hr_track_failure&) {
+  catch(const hr_track_failure&) {
     race_try++;
     gamegen_failure = true;
     return;
     }
-  catch(hr_shortest_path_exception&) {
+  catch(const hr_shortest_path_exception&) {
     addMessage("error: could not build path");
     gamegen_failure = true;
     racing::on = false;
@@ -832,9 +834,10 @@ int readArgs() {
 int tstart, tstop;
 heptspin sview;
 
-#if CAP_COMMANDLINE
 auto hook = 
+#if CAP_COMMANDLINE
   addHook(hooks_args, 100, readArgs)
+#endif
 + addHook(hooks_clearmemory, 0, []() {
     track_ready = false;
     track.clear();
@@ -842,9 +845,17 @@ auto hook =
     rti_id.clear();
     for(auto &ch: current_history) ch.clear();
     })
++ addHook(hooks_configfile, 100, [] {
+    addsaver(racing::race_advance, "race_advance");
+    addsaver(racing::race_angle, "race_angle");
+    addsaver(racing::ghosts_to_show, "race_ghosts_to_show");
+    addsaver(racing::ghosts_to_save, "race_ghosts_to_save");
+    addsaver(racing::guiding, "race_guiding");
+    addsaver(racing::player_relative, "race_player_relative");
+    addsaver(racing::standard_centering, "race_standard_centering");
+    })
 // + addHook(hooks_handleKey, 120, akh);
   ;
-#endif
 
 EX vector<eLand> race_lands = {
   laHunting,
@@ -994,7 +1005,7 @@ void race_projection() {
     });
   
   if(true) {    
-    dialog::addSelItem(XLAT("point of view"), XLAT(player_relative ? "player" : "track"), 'p');
+    dialog::addSelItem(XLAT("point of view"), player_relative ? XLAT("player") : XLAT("track"), 'p');
     if(racing::use_standard_centering())
       dialog::lastItem().value = XLAT("N/A");
     dialog::add_action([] () { 
@@ -1458,6 +1469,16 @@ EX void add_debug(cell *c) {
     dialog::addSelItem("completion", its(r.completion), 0);
     }
   }
+
+#if MAXMDIM >= 4
+EX void start_thurston() {
+  stop_game();
+  resetModes();
+  start_game();
+  pushScreen(showStartMenu);
+  pushScreen(racing::thurston_racing);
+  }
+#endif
 #endif
 
 #if !CAP_RACING

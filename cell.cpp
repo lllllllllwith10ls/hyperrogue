@@ -16,41 +16,34 @@ extern int default_levs();
 struct hrmap {
   virtual heptagon *getOrigin() { return NULL; }
   virtual cell *gamestart() { return getOrigin()->c7; }
-  virtual ~hrmap() { };
+  virtual ~hrmap() { }
   virtual vector<cell*>& allcells();
   virtual void verify() { }
-  virtual void link_alt(const cellwalker& hs) { }
-  virtual void generateAlts(heptagon *h, int levs = default_levs(), bool link_cdata = true);
+  virtual void on_dim_change() { }
+  virtual bool link_alt(heptagon *h, heptagon *alt, hstate firststate, int dir);
+  virtual void extend_altmap(heptagon *h, int levs = default_levs(), bool link_cdata = true);
   heptagon *may_create_step(heptagon *h, int direction) {
     if(h->move(direction)) return h->move(direction);
     return create_step(h, direction);
     }
-  virtual heptagon *create_step(heptagon *h, int direction) {
-    printf("create_step called unexpectedly\n"); exit(1);
-    return NULL;
-    }
-  virtual struct transmatrix relative_matrix(heptagon *h2, heptagon *h1, const hyperpoint& hint) {
-    printf("relative_matrix called unexpectedly\n"); 
-    return Id;
-    }
-  virtual struct transmatrix relative_matrix(cell *c2, cell *c1, const hyperpoint& hint) {
-    return relative_matrix(c2->master, c1->master, hint);
-    }
-  virtual struct transmatrix adj(cell *c, int i) { return adj(c->master, i); }
-  virtual struct transmatrix adj(heptagon *h, int i);
-  struct transmatrix iadj(cell *c, int i) { cell *c1 = c->cmove(i); return adj(c1, c->c.spin(i)); }
+  virtual heptagon *create_step(heptagon *h, int direction);
+private:
+  virtual transmatrix relative_matrixh(heptagon *h2, heptagon *h1, const hyperpoint& hint);
+  virtual transmatrix relative_matrixc(cell *c2, cell *c1, const hyperpoint& hint);
+public:
+  transmatrix relative_matrix(heptagon *h2, heptagon *h1, const hyperpoint& hint) { return relative_matrixh(h2, h1, hint); }
+  transmatrix relative_matrix(cell *h2, cell *h1, const hyperpoint& hint) { return relative_matrixc(h2, h1, hint); }
+  
+  virtual transmatrix adj(cell *c, int i) { return adj(c->master, i); }
+  virtual transmatrix adj(heptagon *h, int i);
+  transmatrix iadj(cell *c, int i) { cell *c1 = c->cmove(i); return adj(c1, c->c.spin(i)); }
   transmatrix iadj(heptagon *h, int d) { 
     heptagon *h1 = h->cmove(d); return adj(h1, h->c.spin(d));
     }
-  virtual void draw() {
-    printf("undrawable\n");
-    }
-  virtual vector<hyperpoint> get_vertices(cell*);
+  virtual void draw_all();
+  virtual void draw_at(cell *at, const shiftmatrix& where);
 
-  virtual void virtualRebase(heptagon*& base, transmatrix& at) {
-    printf("virtualRebase called unexpectedly\n"); 
-    return;
-    }
+  virtual void virtualRebase(heptagon*& base, transmatrix& at);
 
   static constexpr ld SPIN_NOT_AVAILABLE = 1e5;
   virtual ld spin_angle(cell *c, int d) { return SPIN_NOT_AVAILABLE; }
@@ -59,6 +52,28 @@ struct hrmap {
   virtual transmatrix spin_from(cell *c, int d, ld bonus=0);
   
   virtual double spacedist(cell *c, int i) { return hdist0(tC0(adj(c, i))); }
+  
+  virtual bool strict_tree_rules() { return false; }
+
+  virtual void find_cell_connection(cell *c, int d);
+  virtual int shvid(cell *c) { return 0; }
+  virtual int full_shvid(cell *c) { return shvid(c); }
+  virtual hyperpoint get_corner(cell *c, int cid, ld cf=3) { return C0; }
+  virtual transmatrix master_relative(cell *c, bool get_inverse = false) { return Id; }
+  virtual int wall_offset(cell *c);
+
+  virtual transmatrix ray_iadj(cell *c, int i);
+
+  virtual subcellshape& get_cellshape(cell *c);
+
+  /** \brief in 3D honeycombs, returns a cellwalker res at cw->move(j) such that the face pointed at by cw and res share an edge */
+  virtual cellwalker strafe(cellwalker cw, int j);
+
+  /** \brief in 3D honeycombs, returns a vector<bool> v, where v[j] iff faces i and j are adjacent */
+  const vector<char>& dirdist(cellwalker cw) { return get_cellshape(cw.at).dirdist[cw.spin]; }
+
+  /** \brief the sequence of heptagon movement direction to get from c->master to c->move(i)->master; implemented only for reg3 */
+  virtual const vector<int>& get_move_seq(cell *c, int i);
   };
 
 /** hrmaps which are based on regular non-Euclidean 2D tilings, possibly quotient  
@@ -67,14 +82,19 @@ struct hrmap {
  *  (e.g. Euclidean and Crystal) also inherit from hrmap_standard
  **/
 struct hrmap_standard : hrmap {
-  void draw() override;
-  transmatrix relative_matrix(heptagon *h2, heptagon *h1, const hyperpoint& hint) override;
-  transmatrix relative_matrix(cell *c2, cell *c1, const hyperpoint& hint) override;
+  void draw_at(cell *at, const shiftmatrix& where) override;
+  transmatrix relative_matrixh(heptagon *h2, heptagon *h1, const hyperpoint& hint) override;
+  transmatrix relative_matrixc(cell *c2, cell *c1, const hyperpoint& hint) override;
   heptagon *create_step(heptagon *h, int direction) override;
   transmatrix adj(cell *c, int d) override;
   transmatrix adj(heptagon *h, int d) override;
   ld spin_angle(cell *c, int d) override;
   double spacedist(cell *c, int i) override;
+  void find_cell_connection(cell *c, int d) override;
+  virtual int shvid(cell *c) override;
+  virtual hyperpoint get_corner(cell *c, int cid, ld cf) override;
+  virtual transmatrix master_relative(cell *c, bool get_inverse) override;
+  virtual bool link_alt(heptagon *h, heptagon *alt, hstate firststate, int dir) override;
   };
 
 void clearfrom(heptagon*);
@@ -94,6 +114,54 @@ struct hrmap_hyperbolic : hrmap_standard {
   void virtualRebase(heptagon*& base, transmatrix& at) override;
   };
 #endif
+
+heptagon *hrmap::create_step(heptagon *h, int direction) {
+  throw hr_exception("create_step called unexpectedly");
+  return NULL;
+  }
+
+transmatrix hrmap::relative_matrixh(heptagon *h2, heptagon *h1, const hyperpoint& hint) {
+  println(hlog, "relative_matrixh called unexpectedly\n"); 
+  return Id;
+  }
+
+transmatrix hrmap::relative_matrixc(cell *c2, cell *c1, const hyperpoint& hint) {
+  return relative_matrixh(c2->master, c1->master, hint);
+  }
+
+bool hrmap::link_alt(heptagon *h, heptagon *alt, hstate firststate, int dir) {
+  return true; 
+  }
+
+bool hrmap_standard::link_alt(heptagon *h, heptagon *alt, hstate firststate, int dir) {
+  altmap::relspin(alt) = 3;
+  return true;
+  }
+
+void hrmap::virtualRebase(heptagon*& base, transmatrix& at) {
+  printf("virtualRebase called unexpectedly\n"); 
+  return;
+  }
+
+transmatrix hrmap::ray_iadj(cell *c, int i) {
+  if(WDIM == 2) {
+    return to_other_side(get_corner(c, i), get_corner(c, (i+1)));
+    }
+  return currentmap->iadj(c, i);
+  }
+
+subcellshape& hrmap::get_cellshape(cell *c) { 
+  if(cgi.heptshape) return *cgi.heptshape;
+  throw hr_exception("get_cellshape called unexpectedly"); 
+  }
+
+cellwalker hrmap::strafe(cellwalker cw, int j) {
+  throw hr_exception("strafe called unexpectedly");
+  }
+
+const vector<int>& hrmap::get_move_seq(cell *c, int i) {
+  throw hr_exception("get_move_seq not implemented for this map class");
+  }
 
 transmatrix hrmap::spin_to(cell *c, int d, ld bonus) {
   ld sa = spin_angle(c, d);
@@ -163,23 +231,20 @@ EX hrmap *newAltMap(heptagon *o) {
   if(reg3::in_rule())
     return reg3::new_alt_map(o);
   #endif
+  if(currentmap->strict_tree_rules())
+    return rulegen::new_hrmap_rulegen_alt(o);
   return new hrmap_hyperbolic(o); 
   }
 // --- hyperbolic geometry ---
 
 EX heptagon* hyperbolic_origin() {
   int odegree = geometry == gBinaryTiling ? 6 : S7;
-  heptagon *origin = tailored_alloc<heptagon> (odegree);
+  heptagon *origin = init_heptagon(odegree);
   heptagon& h = *origin;
   h.s = hsOrigin;
   h.emeraldval = a46 ? 0 : 98;
   h.zebraval = 40;
-  h.fiftyval = 0;
-  h.fieldval = 0;
-  h.rval0 = h.rval1 = 0;
-  h.cdata = NULL;
-  h.alt = NULL;
-  h.distance = 0;
+  #if CAP_IRR
   if(IRREGULAR) irr::link_start(origin);
   else h.c7 = newCell(odegree, origin);
   return origin;
@@ -189,24 +254,15 @@ hrmap_hyperbolic::hrmap_hyperbolic(heptagon *o) { origin = o; }
 
 hrmap_hyperbolic::hrmap_hyperbolic() { origin = hyperbolic_origin(); }
 
-/** very similar to createMove in heptagon.cpp */
-EX cell *createMov(cell *c, int d) {
-  if(d<0 || d>= c->type) {
-    printf("ERROR createmov\n");
-    }
+void hrmap::find_cell_connection(cell *c, int d) {
+  heptagon *h2 = createStep(c->master, d);
+  c->c.connect(d, h2->c7,c->master->c.spin(d), c->master->c.mirror(d));
+  hybrid::link();
+  }
 
-  if(c->move(d)) return c->move(d);
-  else if(hybri)
-    hybrid::find_cell_connection(c, d);
-  #if CAP_BT
-  else if(kite::in())
-    kite::find_cell_connection(c, d);
-  #endif
-  else if(fake::in()) {
-    return FPIU(createMov(c, d));
-    }
+void hrmap_standard::find_cell_connection(cell *c, int d) {
   #if CAP_IRR
-  else if(IRREGULAR) {
+  if(IRREGULAR) {
     irr::link_cell(c, d);
     }
   #endif
@@ -219,34 +275,9 @@ EX cell *createMov(cell *c, int d) {
       }
     hybrid::link();
     }
-  else if(INVERSE) {
-    return gp::inverse_move(c, d);
-    }
   #endif
-  #if CAP_ARCM
-  else if(arcm::in() && PURE) {
-    if(arcm::id_of(c->master) < arcm::current.N * 2) {
-      heptspin hs = heptspin(c->master, d) + wstep + 2 + wstep + 1;
-      c->c.connect(d, hs.at->c7, hs.spin, hs.mirrored);
-      }
-    else c->c.connect(d, c, d, false);
-    }
-  else if(arcm::in() && DUAL) {
-    if(arcm::id_of(c->master) >= arcm::current.N * 2) {
-      heptagon *h2 = createStep(c->master, d*2);
-      int d1 = c->master->c.spin(d*2);
-      c->c.connect(d, h2->c7, d1/2, false);
-      }
-    else {
-      printf("bad connection\n");
-      c->c.connect(d,c,d,false);
-      }
-    }
-  #endif
-  else if(arcm::in() || PURE) {
-    heptagon *h2 = createStep(c->master, d);
-    c->c.connect(d, h2->c7,c->master->c.spin(d), c->master->c.mirror(d));
-    hybrid::link();
+  else if(PURE) {
+    hrmap::find_cell_connection(c, d);
     }
   else if(c == c->master->c7) {
     
@@ -273,7 +304,15 @@ EX cell *createMov(cell *c, int d) {
     cellwalker cw2 = cw - 1 + wstep - 1 + wstep - 1;
     c->c.connect(d, cw2);
     hybrid::link();
-    }
+    }    
+  }
+
+/** very similar to createMove in heptagon.cpp */
+EX cell *createMov(cell *c, int d) {
+  if(d<0 || d>= c->type)
+    throw hr_exception("ERROR createmov\n");
+  if(c->move(d)) return c->move(d);  
+  currentmap->find_cell_connection(c, d);  
   return c->move(d);
   }
 
@@ -293,6 +332,10 @@ EX void initcells() {
   
   hrmap* res = callhandlers((hrmap*)nullptr, hooks_newmap);
   if(res) currentmap = res;
+  #if CAP_SOLV
+  else if(asonov::in()) currentmap = asonov::new_map();
+  #endif
+  else if(nonisotropic || hybri) currentmap = nisot::new_map();
   else if(INVERSE) currentmap = gp::new_inverse();
   else if(fake::in()) currentmap = fake::new_map();
   else if(asonov::in()) currentmap = asonov::new_map();
@@ -300,6 +343,7 @@ EX void initcells() {
   #if CAP_CRYSTAL
   else if(cryst) currentmap = crystal::new_map();
   #endif
+  else if(arb::in() && rulegen::known()) currentmap = rulegen::new_hrmap_rulegen();
   else if(arb::in()) currentmap = arb::new_map();
   #if CAP_ARCM
   else if(arcm::in()) currentmap = arcm::new_map();
@@ -395,9 +439,9 @@ EX void clearfrom(heptagon *at) {
     q.pop();
     DEBB(DF_MEMORY, ("from %p", at));
     if(!at->c7) {
-      heptagon *h = (heptagon*) at->cdata;
+      heptagon *h = dynamic_cast<heptagon*> ((cdata_or_heptagon*) at->cdata);
       if(h) {
-        if(h->alt != at) { DEBB(DF_MEMORY | DF_ERROR, ("alt error :: h->alt = ", h->alt)); }
+        if(h->alt != at) { DEBB(DF_MEMORY | DF_ERROR, ("alt error :: h->alt = ", h->alt, " expected ", at)); }
         cell *c = h->c7;
         subcell(c, destroycellcontents);
         h->alt = NULL;
@@ -504,15 +548,15 @@ EX int celldistAlt(cell *c) {
   if(hybri) { 
     if(in_s2xe()) return hybrid::get_where(c).second;
     auto w = hybrid::get_where(c); 
-    int d = c->master->alt && c->master->alt->alt ? c->master->alt->alt->fieldval : 0;
+    int d = c->master->alt && c->master->alt->alt ? hybrid::altmap_heights[c->master->alt->alt] : 0;
     d = sl2 ? 0 : abs(w.second - d);
     PIU ( d += celldistAlt(w.first) );
     return d;
     }
   #if CAP_BT
-  if(bt::in() || sn::in()) return c->master->distance + (specialland == laCamelot && !tactic::on? 30 : 0);
+  if(bt::in() || sn::in()) return c->master->distance + (specialland == laCamelot && !ls::single() ? 30 : 0);
   #endif
-  if(nil) return c->master->zebraval + abs(c->master->emeraldval) + (specialland == laCamelot && !tactic::on? 30 : 0);;
+  if(nil) return c->master->zebraval + abs(c->master->emeraldval) + (specialland == laCamelot && !ls::single() ? 30 : 0);;
   #if CAP_CRYSTAL
   if(cryst) 
     return crystal::dist_alt(c);
@@ -530,6 +574,7 @@ EX int celldistAlt(cell *c) {
   if(IRREGULAR) return irr::celldist(c, true);
   #endif
   if(ctof(c)) return c->master->alt->distance;
+  if(reg3::in()) return c->master->alt->distance;
   #if CAP_GP
   if(GOLDBERG) return gp::compute_dist(c, celldistAlt);
   if(INVERSE) {
@@ -563,7 +608,7 @@ EX int updir(heptagon *h) {
     return -1;
     }
   #endif
-  if(h->distance == 0) return -1;
+  if(h->s == hsOrigin) return -1;
   return 0;
   }
 
@@ -577,10 +622,7 @@ EX int updir_alt(heptagon *h) {
     return -1;
     }
   #endif
-  for(int i=0; i<S7; i++)
-    if(h->move(i) && h->move(i)->alt == h->alt->move(0)) 
-      return i;
-  return -1;
+  return gmod(updir(h->alt) + altmap::relspin(h->alt), h->type);
   }
 
 
@@ -716,7 +758,7 @@ cdata orig_cdata;
 
 EX bool geometry_supports_cdata() {
   if(hybri) return PIU(geometry_supports_cdata());
-  return among(geometry, gEuclid, gEuclidSquare, gNormal, gOctagon, g45, g46, g47, gBinaryTiling) || (arcm::in() && !sphere);
+  return among(geometry, gEuclid, gEuclidSquare, gNormal, gOctagon, g45, g46, g47, gBinaryTiling) || (arcm::in() && !sphere) || currentmap->strict_tree_rules();
   }
 
 void affect(cdata& d, short rv, signed char signum) {
@@ -821,6 +863,8 @@ cdata *getHeptagonCdata(heptagon *h) {
     for(int i=0; i<h->type; i++) if(bt::mapside(h->cmove(i)) == 0) starting = true;
     }
 
+  if(currentmap->strict_tree_rules()) starting = h->distance <= 0;
+
   if(starting) {
     h->cdata = new cdata(orig_cdata);
     for(int& v: h->cdata->val) v = 0;
@@ -829,13 +873,37 @@ cdata *getHeptagonCdata(heptagon *h) {
     return h->cdata;
     }
   
-  int dir = bt::in() ? 5 : 0;
+  int dir = updir(h);
   
   cdata mydata = *getHeptagonCdata(h->cmove(dir));
 
   if(S3 >= OINF) {
     setHeptagonRval(h);
     affect(mydata, h->rval0, 1); 
+    }
+  else if(currentmap->strict_tree_rules()) {
+    for(eLand ws: {NOWALLSEP, NOWALLSEP_SWAP}) {
+      lalign(0, h->c7);
+      int dir = 1;
+      cellwalker hs(h->c7, dir, false);
+      eLand dummy = laNone;
+      vector<cell*> lpath, rpath;
+      while(true) {
+        int d = hs.at->master->distance;
+        general_barrier_advance(hs, dir, dummy, dummy, ws, false);
+        lpath.push_back(hs.at);
+        if(hs.at->master->distance > d) break;
+        }
+      dir = -dir;
+      while(true) {
+        int d = hs.at->master->distance;
+        general_barrier_advance(hs, dir, dummy, dummy, ws, false);
+        rpath.push_back(hs.at);
+        if(hs.at->master->distance > d) break;
+        }
+      setHeptagonRval(hs.at->master);
+      affect(mydata, ws == NOWALLSEP_SWAP ? hs.at->master->rval1 : hs.at->master->rval0, 1);
+      }
     }
   else if(S3 == 4) {
     heptspin hs(h, 0);
@@ -933,11 +1001,12 @@ EX cdata *arcmCdata(cell *c) {
 
 EX int getCdata(cell *c, int j) {
   if(fake::in()) return FPIU(getCdata(c, j));
+  if(experimental) return 0;
   if(hybri) { c = hybrid::get_where(c).first; return PIU(getBits(c)); }
   else if(euc::in()) return getEuclidCdata(euc2_coordinates(c))->val[j];
   else if(arcm::in() && euclid)
     return getEuclidCdata(pseudocoords(c))->val[j];
-  else if(arcm::in() && hyperbolic) 
+  else if(arcm::in() && (hyperbolic || sl2)) 
     return arcmCdata(c)->val[j]*3;
   else if(!geometry_supports_cdata()) return 0;
   else if(ctof(c)) return getHeptagonCdata(c->master)->val[j]*3;
@@ -952,6 +1021,7 @@ EX int getCdata(cell *c, int j) {
 
 EX int getBits(cell *c) {
   if(fake::in()) return FPIU(getBits(c));
+  if(experimental) return 0;
   if(hybri) { c = hybrid::get_where(c).first; return PIU(getBits(c)); }
   else if(euc::in()) return getEuclidCdata(euc2_coordinates(c))->bits;
   else if(arcm::in() && euclid)
@@ -1051,12 +1121,14 @@ EX cell *random_in_distance(cell *c, int d) {
   }
 
 EX int bounded_celldistance(cell *c1, cell *c2) {
-  int limit = 6000;
-  if(asonov::in()) { 
+  int limit = 14400;
+  #if CAP_SOLV
+  if(geometry == gArnoldCat) { 
     c2 = asonov::get_at(asonov::get_coord(c2->master) - asonov::get_coord(c1->master))->c7;
     c1 = currentmap->gamestart(); 
     limit = 100000000;
     }
+  #endif
 
   if(saved_distances.count(make_pair(c1,c2)))
     return saved_distances[make_pair(c1,c2)];
@@ -1252,28 +1324,36 @@ EX vector<cell*> adj_minefield_cells(cell *c) {
     }
   else if(adj_memo.count(c)) return adj_memo[c];
   else {
-    const vector<hyperpoint> vertices = currentmap->get_vertices(c);
+    auto& ss = currentmap->get_cellshape(c);
+    const vector<hyperpoint>& vertices = ss.vertices_only_local;
     manual_celllister cl;
     cl.add(c);
+    vector<transmatrix> M = {Id};
     for(int i=0; i<isize(cl.lst); i++) {
       cell *c1 = cl.lst[i];
       bool shares = false;
+      transmatrix T = M[i];
       if(c != c1) {
-        transmatrix T = currentmap->relative_matrix(c1->master, c->master, C0);
-        for(hyperpoint h: vertices) for(hyperpoint h2: vertices)
+        auto& ss1 = currentmap->get_cellshape(c1);
+        auto& vertices1 = ss1.vertices_only_local;
+        for(hyperpoint h: vertices) for(hyperpoint h2: vertices1)
           if(hdist(h, T * h2) < 1e-6) shares = true;
         if(shares) res.push_back(c1);
         }
-      if(shares || c == c1) forCellEx(c2, c1) cl.add(c2);
+      if(shares || c == c1) forCellIdEx(c2, i, c1) {
+        if(cl.listed(c2)) continue;
+        cl.add(c2);
+        M.push_back(T * currentmap->adj(c1, i));
+        }
       }
-    println(hlog, "adjacent to ", c, " = ", isize(res));
+    // println(hlog, "adjacent to ", c, " = ", isize(res), " of ", isize(M));
     adj_memo[c] = res;
     }
   return res;
   }
 
 EX vector<int> reverse_directions(cell *c, int dir) {
-  if(PURE) return reverse_directions(c->master, dir);
+  if(PURE && !(kite::in() && WDIM == 2)) return reverse_directions(c->master, dir);
   int d = c->degree();
   if(d & 1)
     return { gmod(dir + c->type/2, c->type), gmod(dir + (c->type+1)/2, c->type) };
@@ -1334,7 +1414,38 @@ EX int valence() {
   #if CAP_ARCM
   if(arcm::in()) return arcm::valence();
   #endif
+  if(arb::in()) return arb::current.min_valence;
   return S3;
   }
+
+/** portalspaces are not defined outside of a boundary */
+EX bool is_boundary(cell *c) {
+  if(c == &out_of_bounds) return true;
+  return (cgflags & qPORTALSPACE) && isWall(c->wall);
+  }
+
+/** compute the distlimit for a tessellation automatically */
+EX int auto_compute_range(cell *c) {  
+  if(sphere) {
+    cgi.base_distlimit = SEE_ALL;
+    return SEE_ALL;
+    }
+  cgi.base_distlimit = 0;
+  const int expected_count = 400;
+  celllister cl(c, 1000, expected_count, NULL);
+  int z = isize(cl.dists);
+  int d = cl.dists.back();
+  while(cl.dists[z-1] == d) z--;
+  if(true) { // if(cgflags & DF_GEOM) {
+    println(hlog, "last distance = ", cl.dists.back());
+    println(hlog, "ball size = ", isize(cl.dists));
+    println(hlog, "previous ball size = ", z);
+    }
+  if(isize(cl.dists) * z > expected_count * expected_count) d--;
+  return ginf[geometry].distlimit[0] = cgi.base_distlimit = d;
+  }
+
+EX cell out_of_bounds;
+EX heptagon oob;
 
 }

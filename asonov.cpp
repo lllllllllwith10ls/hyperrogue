@@ -13,19 +13,23 @@
 
 namespace hr {
 
-#if HDR
-int zgmod(int a, int b);
-#endif
-
 EX namespace asonov {
 
-EX bool in() { return geometry == gArnoldCat; }
-
-EX hyperpoint tx, ty, tz;
-EX transmatrix straighten;
+#if !CAP_SOLV
+#if HDR
+inline bool in() { return false; }
+#endif
+#endif
 
 EX int period_xy = 8;
 EX int period_z = 8;
+
+#if CAP_SOLV
+
+EX bool in() { return cgflags & qCAT; }
+
+EX hyperpoint tx, ty, tz;
+EX transmatrix straighten;
 
 #if HDR
 struct coord: public array<int,3> {
@@ -53,7 +57,7 @@ coord coord::addmove(int d) {
     case 9: return down().shift(1, 2);
     case 10: return shift(-1, 0);
     case 11: return shift(0, -1);
-    default: throw "error";
+    default: throw hr_exception("error");
     }
   }
 
@@ -104,6 +108,30 @@ EX void prepare() {
   straighten = inverse(build_matrix(asonov::tx/2, asonov::ty/2, asonov::tz/2, C0));
   }
 
+EX void prepare_walls() {
+
+  auto& hsh = get_hsh();
+  auto& cs = hsh.faces;
+  cs.clear();
+  
+  auto pt = [&] (int x, int y, int z) { return asonov::tx*x/2 + asonov::ty*y/2 + asonov::tz*z/2 + C0; };
+  
+  cs.push_back({pt(-1,-1,+1), pt(00,+1,+1), pt(+1,+1,+1)});
+  cs.push_back({pt(00,-1,+1), pt(+1,+1,+1), pt(+1,-1,+1)});
+  cs.push_back({pt(-1,+1,+1), pt(00,+1,+1), pt(-1,-1,+1)});
+  cs.push_back({pt(-1,-1,+1), pt(+1,+1,+1), pt(00,-1,+1)});
+  cs.push_back({pt(+1,-1,-1), pt(+1,00,-1), pt(+1,+1,-1), pt(+1,+1,+1), pt(+1,-1,+1)});
+  cs.push_back({pt(-1,+1,-1), pt(-1,+1,+1), pt(00,+1,+1), pt(+1,+1,+1), pt(+1,+1,-1)});
+  cs.push_back({pt(-1,-1,-1), pt(-1,00,-1), pt(+1,-1,-1)});
+  cs.push_back({pt(-1,00,-1), pt(-1,+1,-1), pt(+1,-1,-1)});
+  cs.push_back({pt(-1,+1,-1), pt(+1,00,-1), pt(+1,-1,-1)});
+  cs.push_back({pt(-1,+1,-1), pt(+1,+1,-1), pt(+1,00,-1)});
+  cs.push_back({pt(-1,+1,-1), pt(-1,00,-1), pt(-1,-1,-1), pt(-1,-1,+1), pt(-1,+1,+1)});
+  cs.push_back({pt(+1,-1,-1), pt(+1,-1,+1), pt(00,-1,+1), pt(-1,-1,+1), pt(-1,-1,-1)});
+  
+  hsh.compute_hept();
+  }
+
 transmatrix coord_to_matrix(coord c, coord zero) {
   transmatrix T = Id;
 
@@ -150,15 +178,12 @@ struct hrmap_asonov : hrmap {
   heptagon *get_at(coord c) {
     auto& h = at[c];
     if(h) return h;
-    h = tailored_alloc<heptagon> (S7);
+    h = init_heptagon(S7);
     h->c7 = newCell(S7, h);
     coords[h] = c;
-    h->dm4 = 0;
     h->distance = c[2];
     h->zebraval = c[0];
     h->emeraldval = c[1];
-    h->cdata = NULL;
-    h->alt = NULL;
     return h;      
     }
   
@@ -172,7 +197,7 @@ struct hrmap_asonov : hrmap {
   
   transmatrix adj(heptagon *h, int i) override { return adjmatrix(i); }
   
-  virtual transmatrix relative_matrix(heptagon *h2, heptagon *h1, const hyperpoint& hint) override { 
+  transmatrix relative_matrixh(heptagon *h2, heptagon *h1, const hyperpoint& hint) override { 
     for(int a=0; a<S7; a++) if(h2 == h1->move(a)) return adjmatrix(a);
     return coord_to_matrix(coords[h2], coords[h1]);
     }
@@ -257,6 +282,8 @@ EX void show_config() {
   dialog::addBack();
   dialog::display();
   }
+
+#endif
 
 }
 }

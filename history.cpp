@@ -89,8 +89,10 @@ namespace spiral {
     velx=1; vely=1;
     bool dosave = false;
 
-    bool saveGL = vid.usingGL;
-    if(saveGL) switchGL(); //  { vid.usingGL = false; setvideomode(); }
+    bool saveGL = vid.wantGL;
+    vid.wantGL = false;
+    apply_screen_settings();
+    out = s;
 
     while(true) {
 
@@ -107,38 +109,49 @@ namespace spiral {
         displaystr(SX/2, vid.fsize*2, 0, vid.fsize, "arrows = navigate, ESC = return, h = hide help", forecolor, 8);
         displaystr(SX/2, SY - vid.fsize*2, 0, vid.fsize, XLAT("s = save to " IMAGEEXT, buf), forecolor, 8);
         }
-      SDL_UpdateRect(s, 0, 0, 0, 0);  
+      present_surface();
       shiftx += velx; shifty += vely;
 
       SDL_Event event;
       while(SDL_PollEvent(&event)) switch (event.type) {
 
+        #if !CAP_SDL2
         case SDL_VIDEORESIZE: {
           resize_screen_to(event.resize.w, event.resize.h);
           precompute();
           break;
           }
+        #endif
+        #if CAP_SDL2
+        case SDL_WINDOWEVENT: {
+          if(event.window.event == SDL_WINDOWEVENT_RESIZED)
+          resize_screen_to(event.window.data1, event.window.data2);
+          precompute();
+          break;
+          }
+        #endif
         case SDL_QUIT: case SDL_MOUSEBUTTONDOWN:
           goto breakloop;
 
         case SDL_KEYDOWN: {
           int sym = event.key.keysym.sym;
-          int uni = event.key.keysym.unicode;
+          int uni = 0;
           numlock_on = event.key.keysym.mod & KMOD_NUM;
           if(DKEY == SDLK_RIGHT) velx++;
           if(DKEY == SDLK_LEFT) velx--;
           if(DKEY == SDLK_UP) vely++;
           if(DKEY == SDLK_DOWN) vely--;
           if(sym == SDLK_ESCAPE) goto breakloop;
-          if(uni == 'h') displayhelp = !displayhelp;
-          if(uni == 's') dosave = true;
+          if(sym == 'h') displayhelp = !displayhelp;
+          if(sym == 's') dosave = true;
           }
         }
       }
     
     breakloop:
     quickmap.clear();
-    if(saveGL) switchGL(); // { vid.usingGL = true; setvideomode(); }
+    vid.wantGL = saveGL;
+    apply_screen_settings();
     }
 
   }
@@ -275,7 +288,7 @@ EX namespace history {
       auto p = build_shortest_path(start, target);
       path_for_lineanimation = p;
       }
-    catch(hr_shortest_path_exception&) {
+    catch(const hr_shortest_path_exception&) {
       addMessage("Could not build a path");
       return;
       }
@@ -387,8 +400,13 @@ EX namespace history {
   void restore();
   void restoreBack();
 
+#if CAP_SHOT && CAP_SDL
+  string band_format_now = "bandmodel-$DATE-$ID" IMAGEEXT;
+  string band_format_auto = "bandmodel-$DATE-$ID" IMAGEEXT;
+#endif
+
 #if CAP_SDL
-  EX void createImage(bool dospiral) {
+  EX void createImage(const string& name_format, bool dospiral) {
     int segid = 1;
     if(includeHistory) restore();
   
@@ -420,6 +438,18 @@ EX namespace history {
       int seglen = min(int(len), bandsegment);
       
       SDL_Surface *band = SDL_CreateRGBSurface(SDL_SWSURFACE, seglen, bandfull,32,0,0,0,0);
+      
+      auto save_band_segment = [&] {
+        string fname = name_format;
+        replace_str(fname, "$DATE", timebuf);
+        replace_str(fname, "$ID", format("%03d", segid++));
+        IMAGESAVE(band, fname.c_str());
+
+        if(dospiral) 
+          bands.push_back(band);
+        else 
+          SDL_FreeSurface(band);
+        };
       
       if(!band) {
         addMessage("Could not create an image of that size.");
@@ -468,15 +498,7 @@ EX namespace history {
               xpos = bwidth * (extra_line_steps - bonus);
         
             if(xpos+bwidth > bandsegment) {
-              char buf[154];
-              sprintf(buf, "bandmodel-%s-%03d" IMAGEEXT, timebuf, segid++);
-    
-              IMAGESAVE(band, buf);
-    
-              if(dospiral) 
-                bands.push_back(band);
-              else 
-                SDL_FreeSurface(band);
+              save_band_segment();    
     
               len -= bandsegment; xpos -= bandsegment;
               seglen = min(int(len), bandsegment);
@@ -491,15 +513,7 @@ EX namespace history {
           }
         }
 
-      char buf[154];
-      sprintf(buf, "bandmodel-%s-%03d" IMAGEEXT, timebuf, segid++);
-      IMAGESAVE(band, buf);
-      addMessage(XLAT("Saved the band image as: ") + buf);
-  
-      if(dospiral) 
-        bands.push_back(band);
-      else 
-        SDL_FreeSurface(band);
+      save_band_segment();
       }
 
     rbuf.reset();
@@ -510,6 +524,15 @@ EX namespace history {
       spiral::loop(bands);
       for(int i=0; i<isize(bands); i++) SDL_FreeSurface(bands[i]);
       }
+    }
+
+  EX void open_filedialog_to_create_image(bool ds) {
+    #if CAP_SHOT && CAP_SDL
+    dialog::openFileDialog(band_format_now, XLAT("rendered band ($ID=segment, $DATE=date)"), ".png", [ds] () {
+      createImage(band_format_now, ds);
+      return true;
+      });
+    #endif
     }
 #endif
 
@@ -558,6 +581,12 @@ EX namespace history {
       if(band_renderable_now())
         dialog::addItem(XLAT("render now (length: %1)", fts(measureLength())), 'f');
       }
+    else if(!on) ;
+    else if(!hyperbolic) 
+      dialog::addInfo(XLAT("more options in hyperbolic geometry"));
+    else if(!among(pmodel, mdBand, mdBandEquiarea, mdBandEquidistant))
+      dialog::addInfo(XLAT("more options in band projections"));
+    
 #endif
       
     dialog::addBack();
@@ -582,8 +611,13 @@ EX namespace history {
         else create_playerpath();
         }
       }
-    else if(uni == 'o') 
+    else if(uni == 'o') {
       autoband = !autoband;
+      #if CAP_SHOT && CAP_SDL
+      if(autoband)
+        dialog::openFileDialog(band_format_auto, XLAT("filename format to use ($ID=segment, $DATE=date)"), ".png", [] () { return true; });
+      #endif
+      }
     else if(uni == 'm') 
       pushScreen(models::model_menu);
     else if(uni == 'a') 
@@ -611,11 +645,11 @@ EX namespace history {
       includeHistory = !includeHistory; 
       }
 #if CAP_SDL
-    else if(uni == 'f' && band_renderable_now()) createImage(dospiral);
-#endif
-    else if(uni == 'j') { 
+    else if(uni == 'f' && band_renderable_now()) 
+      open_filedialog_to_create_image(dospiral);
+    else if(uni == 'j') 
       autobandhistory = !autobandhistory; 
-      }
+#endif
     else if(doexiton(sym, uni)) popScreen();
     }
   
@@ -659,7 +693,7 @@ EX namespace history {
     }
   
   EX void renderAutoband() {
-#if CAP_SDL
+#if CAP_SDL && CAP_SHOT
     if(!cwt.at || celldist(cwt.at) <= 7) return;
     if(!autoband) return;
     eModel spm = pmodel;
@@ -667,27 +701,14 @@ EX namespace history {
     includeHistory = autobandhistory;
     pmodel = mdBand;
     create_playerpath();
-    createImage(dospiral);
+    createImage(band_format_auto, dospiral);
     clear();
     pmodel = spm;
     includeHistory = ih;
 #endif
     }
 
-  #if CAP_COMMANDLINE
-  int readArgs() {
-    using namespace arg;
-             
-    if(0) ;
-    else if(argis("-playerpath")) {
-      history::create_playerpath();
-      }
-    else return 1;
-    return 0;
-    }
-
-  auto hookArg = addHook(hooks_args, 100, readArgs);
-  #endif  
+  auto hookArg = arg::add3("-playerpath", history::create_playerpath);
 
   auto hooks = addHook(hooks_clearmemory, 0, [] () {
     history::renderAutoband();
@@ -698,6 +719,22 @@ EX namespace history {
     history::path_for_lineanimation.clear();
     history::saved_ends = 0;
     history::includeHistory = false;
+    }) + addHook(hooks_configfile, 0, [] {
+
+    addsaver(autobandhistory, "include history"); // check!
+    param_f(lvspeed, "lvspeed", "lineview speed");
+    addsaver(extra_line_steps, "lineview extension");
+      
+    addsaver(bandhalf, "band width");
+    addsaver(bandsegment, "band segment");
+    addsaver(autoband, "automatic band");
+    addsaver(autobandhistory, "automatic band history");
+    addsaver(dospiral, "do spiral");      
+
+    #if CAP_SHOT && CAP_SDL
+    addsaver(band_format_auto, "band_format_auto");
+    addsaver(band_format_now, "band_format_now");
+    #endif
     });
 
   }

@@ -5,16 +5,16 @@
 #   Run "brew install sdl_gfx".
 #   Run "brew install sdl_mixer".
 #   Run "brew install sdl_ttf".
-#   Run "make -f Makefile.simple" to build HyperRogue as ./hyperrogue.
+#   Run "make" to build HyperRogue as ./hyperrogue.
 #
 # For MSYS2 and MinGW-w64:
 #   You might need to run commands such as "pacman -S mingw-w64-x86_64-SDL"
 #   to install SDL and other required libraries.
-#   Run "make -f Makefile.simple" to build HyperRogue as ./hyperrogue.exe.
+#   Run "make" to build HyperRogue as ./hyperrogue.exe.
 #
 # For Ubuntu Linux:
 #   Run "sudo apt-get install libsdl-dev" to install SDL in /usr/local.
-#   Run "make -f Makefile.simple" to build HyperRogue as ./hyperrogue.
+#   Run "make" to build HyperRogue as ./hyperrogue.
 
 
 ifeq ($(OS),Windows_NT)
@@ -81,9 +81,10 @@ endif
 
 ifeq (${TOOLCHAIN},clang)
   CXXFLAGS_STD = -std=c++11
-  CXXFLAGS_EARLY += -march=native
-  CXXFLAGS_EARLY += -W -Wall -Wextra -Werror -pedantic
+  CXXFLAGS_EARLY += -march=native -fPIC
+  CXXFLAGS_EARLY += -W -Wall -Wextra -Wsuggest-override -Werror -pedantic
   CXXFLAGS_EARLY += -Wno-unused-parameter -Wno-implicit-fallthrough -Wno-maybe-uninitialized -Wno-unknown-warning-option
+  CXXFLAGS_EARLY += -Wno-invalid-offsetof
 endif
 
 ifeq (${TOOLCHAIN},gcc)
@@ -91,6 +92,7 @@ ifeq (${TOOLCHAIN},gcc)
   CXXFLAGS_EARLY += -march=native
   CXXFLAGS_EARLY += -W -Wall -Wextra -Werror -pedantic
   CXXFLAGS_EARLY += -Wno-unused-parameter -Wno-implicit-fallthrough -Wno-maybe-uninitialized
+  CXXFLAGS_EARLY += -Wno-invalid-offsetof
 endif
 
 ifeq (${TOOLCHAIN},mingw)
@@ -98,6 +100,7 @@ ifeq (${TOOLCHAIN},mingw)
   CXXFLAGS_EARLY += -march=native
   CXXFLAGS_EARLY += -W -Wall -Wextra -Werror
   CXXFLAGS_EARLY += -Wno-unused-parameter -Wno-implicit-fallthrough -Wno-maybe-uninitialized
+  CXXFLAGS_EARLY += -Wno-invalid-offsetof
 endif
 
 
@@ -153,7 +156,7 @@ makeh$(EXE_EXTENSION): makeh.cpp
 	$(CXX) -O2 makeh.cpp -o $@
 
 autohdr.h: makeh$(EXE_EXTENSION) language-data.cpp *.cpp
-	.\makeh classes.cpp locations.cpp hyperpoint.cpp geometry.cpp goldberg.cpp init.cpp floorshapes.cpp cell.cpp multi.cpp shmup.cpp pattern2.cpp mapeditor.cpp graph.cpp textures.cpp hprint.cpp language.cpp util.cpp complex.cpp *.cpp > autohdr.h
+	./makeh classes.cpp locations.cpp colors.cpp hyperpoint.cpp geometry.cpp goldberg.cpp init.cpp floorshapes.cpp cell.cpp multi.cpp shmup.cpp pattern2.cpp mapeditor.cpp graph.cpp textures.cpp hprint.cpp language.cpp util.cpp complex.cpp *.cpp > autohdr.h
 
 language-data.cpp: langen$(EXE_EXTENSION)
 	.\langen > language-data.cpp

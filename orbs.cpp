@@ -59,6 +59,11 @@ EX void empathyMove(const movei& mi) {
     if(makeflame(mi.s, 10, false)) markEmpathy(itOrbFire);
     }
 
+  if(items[itCurseWater]) {
+    invismove = false;
+    if(makeshallow(mi.s, 10, false)) markEmpathy(itCurseWater);
+    }
+
   if(items[itOrbDigging]) {           
    if(mi.proper() && earthMove(mi)) 
      markEmpathy(itOrbDigging), invismove = false;
@@ -76,6 +81,12 @@ EX int intensify(int val) {
   }
 
 EX bool reduceOrbPower(eItem it, int cap) {
+  if(items[it] && markOrb(itCurseDraining)) {
+    items[it] -= (markOrb(itOrbEnergy) ? 1 : 2) * multi::activePlayers();
+    if(items[it] < 0) items[it] = 0;
+    if(items[it] == 0 && it == itOrbLove) 
+      princess::bringBack();
+    }
   if(items[it] && (lastorbused[it] || (it == itOrbShield && items[it]>3) || !markOrb(itOrbTime))) {
     items[it] -= multi::activePlayers();
     if(isHaunted(cwt.at->land)) 
@@ -88,7 +99,6 @@ EX bool reduceOrbPower(eItem it, int cap) {
     return true;
     }
   if(items[it] > cap && timerghost) items[it] = cap;
-  mine::auto_teleport_charges();
   return false;
   }
 
@@ -107,11 +117,28 @@ EX void chargeOrbs() {
     items[itOrbCharge] = 0;
     }
 }
+EX void reverse_curse(eItem curse, eItem orb, bool cancel) {
+  if(items[curse] && markOrb(itOrbPurity)) {
+    items[orb] += items[curse];
+    if(curse == itCurseWater) items[itOrbWinter] += items[curse];
+    items[curse] = 0;
+    }
+  if(cancel && items[curse] && items[orb]) {
+    int m = min(items[curse], items[orb]);
+    items[curse] -= m;
+    items[orb] -= m;
+    }
+  }
 
 EX void reduceOrbPowers() {
-  if(items[itOrbCharge]) {
-    chargeOrbs();
-  }
+
+  reverse_curse(itCurseWeakness, itOrbSlaying, true);
+  reverse_curse(itCurseFatigue, itOrbSpeed, false); // OK
+  reverse_curse(itCurseRepulsion, itOrbMagnetism, true); // OK
+  reverse_curse(itCurseWater, itOrbFire, true); // OK
+  reverse_curse(itCurseDraining, itOrbTime, false); // OK
+  reverse_curse(itCurseGluttony, itOrbChoice, true); // OK
+    
   if(haveMount()) markOrb(itOrbDomination);
   for(int i=0; i<ittypes; i++) 
     lastorbused[i] = orbused[i], orbused[i] = false;
@@ -130,6 +157,7 @@ EX void reduceOrbPowers() {
   reduceOrbPower(itOrbPsi, 111);
   reduceOrbPower(itOrbInvis, 77);
   reduceOrbPower(itOrbAether, 77);
+  reduceOrbPower(itOrbWoods, 100);
   reduceOrbPower(itOrbDigging, 100);
   reduceOrbPower(itOrbTeleport, 200);
   reduceOrbPower(itOrbSpace, 150);
@@ -181,6 +209,19 @@ EX void reduceOrbPowers() {
   reduceOrbPower(itOrbSide3, 120);
   if(cwt.at->land != laWildWest)
     reduceOrbPower(itRevolver, 6);
+
+  reduceOrbPower(itOrbPurity, 30);
+  reduceOrbPower(itCurseWeakness, 199);
+  reduceOrbPower(itCurseDraining, 199);
+  reduceOrbPower(itCurseWater, 199);
+  reduceOrbPower(itCurseFatigue, 199);
+  reduceOrbPower(itCurseRepulsion, 199);
+  reduceOrbPower(itCurseGluttony, 199);
+
+  #if CAP_COMPLEX2
+  mine::auto_teleport_charges();
+  #endif
+
   whirlwind::calcdirs(cwt.at); 
   items[itStrongWind] = !items[itOrbAether] && whirlwind::qdirs == 1;
   items[itWarning] = 0;
@@ -305,8 +346,8 @@ EX void checkFreedom(cell *cf) {
     }
   addMessage(XLAT("Your %1 activates!", itOrbFreedom));
   drainOrb(itOrbFreedom);
-  for(int i=0; i<numplayers(); i++)
-    drawBigFlash(playerpos(i));
+  for(cell *pc: player_positions()) 
+    drawBigFlash(pc);
   for(int i=0; i<isize(dcal); i++) {
     cell *c = dcal[i];
     if(c == cf && !shmup::on) continue;
@@ -318,8 +359,8 @@ EX void checkFreedom(cell *cf) {
 EX void activateFlash() {
   int tk = tkills();
 
-  for(int i=0; i<numplayers(); i++) 
-    drawFlash(playerpos(i));
+  for(cell *pc: player_positions()) 
+    drawFlash(pc);
 
   addMessage(XLAT("You activate the Flash spell!"));
   playSound(cwt.at, "storm");
@@ -525,8 +566,8 @@ EX void activateLightning() {
 
   drainOrb(itOrbLightning);
 
-  for(int i=0; i<numplayers(); i++) 
-    castLightningBoltFrom(playerpos(i));
+  for(cell *pc: player_positions()) 
+    castLightningBoltFrom(pc);
     
   elec::afterOrb = true;
   elec::act();
@@ -571,6 +612,7 @@ EX void teleportTo(cell *dest) {
   playSound(dest, "other-teleport");
   if(dest->monst) {
     cwt.at->monst = dest->monst;
+    cwt.at->stuntime = dest->stuntime;
     dest->monst = moNone;
     }
     
@@ -592,8 +634,8 @@ EX void teleportTo(cell *dest) {
   killFriendlyIvy();
   cell *from = cwt.at;
   movecost(from, dest, 1);
-  playerMoveEffects(cwt.at, dest);
-  current_display->which_copy = ggmatrix(dest);
+  playerMoveEffects(movei(cwt.at, dest, TELEPORT));
+  fix_whichcopy(dest);
   cwt.at = dest; cwt.spin = hrand(dest->type); flipplayer = !!(hrand(2));
   drainOrb(itOrbTeleport);
 
@@ -680,7 +722,7 @@ EX bool jumpTo(orbAction a, cell *dest, eItem byWhat, int bonuskill IS(0), eMons
   
   changes.commit();
 
-  current_display->which_copy = ggmatrix(dest);
+  fix_whichcopy(dest);
   countLocalTreasure();
   
   for(int i=9; i>=0; i--)
@@ -775,6 +817,10 @@ EX eMonster summonedAt(cell *dest) {
     return moMiner;
   if(dest->wall == waMineOpen || dest->wall == waMineMine || dest->wall == waMineUnknown)
     return moBomberbird;
+  if(dest->wall == waRichDie)
+    return moAnimatedDie;
+  if(dest->wall == waHappyDie)
+    return moAngryDie;
   if(dest->wall == waTrapdoor)
     return dest->land == laPalace ? moFatGuard : moOrangeDog;
   if(dest->land == laFrog && dest->wall == waNone) {
@@ -874,6 +920,10 @@ void summonAt(cell *dest) {
   dest->stuntime = 3;
   if(dest->monst == moPirate || dest->monst == moViking || (dest->monst == moRatling && dest->wall == waSea))
     dest->wall = waBoat, dest->item = itNone;
+  if(dest->monst == moAnimatedDie)
+    dest->wall = waNone;
+  if(dest->monst == moAngryDie)
+    dest->wall = waNone;
   if(dest->monst == moViking && dest->land == laKraken)
     dest->item = itOrbFish;
   if(dest->wall == waStrandedBoat)
@@ -1013,11 +1063,11 @@ void poly_attack(cell *dest) {
   playSound(dest, "orb-ranged");
   eMonster orig = dest->monst;
   auto polymonsters = {
-    moYeti, moRunDog, moHunterDog, moRanger,
-    moDesertman, moMonkey, moZombie, moCultist,
+    moYeti, moRunDog, moRanger,
+    moMonkey, moCultist,
     moFallingDog, moVariantWarrior, moFamiliar, moOrangeDog,
     moRedFox, moFalsePrincess, moResearcher,
-    moNarciss, moJiangshi, 
+    moNarciss,
     };
   int ssf = 0;
   eMonster target = *(polymonsters.begin() + hrand(isize(polymonsters)));
@@ -1048,6 +1098,7 @@ void poly_attack(cell *dest) {
 
 void placeIllusion(cell *c) {
   c->monst = moIllusion;
+  c->stuntime = 0;
   useupOrb(itOrbIllusion, 5);
   addMessage(XLAT("You create an Illusion!"));
   bfs();
@@ -1057,6 +1108,7 @@ void placeIllusion(cell *c) {
 void blowoff(const movei& mi) {
   auto& cf = mi.s;
   auto& ct = mi.t;
+  bool die = cf->wall == waRichDie;
   playSound(ct, "orb-ranged");
   if(cf->monst)
   addMessage(XLAT("You blow %the1 away!", cf->monst));
@@ -1078,6 +1130,27 @@ void blowoff(const movei& mi) {
     if(ct->item) ct->item = itNone;
     moveItem(cf, ct, true);
     }
+  #if CAP_COMPLEX2
+  if(ct->monst == moAnimatedDie && dice::data[ct].happy() > 0) {
+    ct->monst = moNone;
+    ct->wall = waHappyDie;
+    if(ct->land == laDice && cf->land == laDice) {    
+      cf->item = itDice;
+      addMessage(XLAT("The die is now happy, and you are rewarded!"));
+      }
+    }
+  if(die && ct->wall == waHappyDie) {
+    /* pushMonster already awarded us -- place the reward on cf instead */
+    cf->item = itDice;
+    items[itDice]--;
+    }
+  if(ct->wall == waHappyDie && dice::data[ct].happy() <= 0) {
+    ct->monst = moAngryDie;
+    ct->wall = waNone;
+    ct->stuntime = 5;
+    addMessage(XLAT("You have made a Happy Die angry!"));
+    }
+  #endif
   items[itOrbAir]--;
   createNoise(2);
   bfs();
@@ -1112,6 +1185,10 @@ EX movei blowoff_destination(cell *c, int& di) {
   if(d<c->type) for(int e=d; e<d+c->type; e++) {
     int di = e % c->type;
     cell *c2 = c->move(di);
+    #if CAP_COMPLEX2    
+    if(dice::on(c) && !dice::can_roll(movei(c, di)))
+      continue;
+    #endif
     if(c2 && c2->cpdist > c->cpdist && passable(c2, c, P_BLOW)) return movei(c, c2, di);
     }
   return movei(c, c, NO_SPACE);
@@ -1138,7 +1215,7 @@ EX int check_phase(cell *cf, cell *ct, flagtype flags, cell*& jumpthru) {
   forCellCM(c2, cf) {
     if(isNeighbor(c2, ct) && !nonAdjacent(cf, c2) && !nonAdjacent(c2, ct)) {
       jumpthru = c2;
-      if(passable(ct, cf, P_ISPLAYER | P_PHASE)) {
+      if(passable(ct, cf, flags | P_PHASE)) {
         partial = 2;
         if(c2->monst || (isWall(c2) && c2->wall != waShrub)) {
           return 3;
@@ -1160,6 +1237,7 @@ EX void apply_impact(cell *c) {
   if(markOrb(itOrbImpact))
     forCellEx(c1, c) {
       if(!c1->monst) continue;
+      if(c1->monst == moMimic) continue;
       if(isMultitile(c1->monst)) continue;
       addMessage(XLAT("You stun %the1!", c1->monst));
       changes.ccell(c1);
@@ -1195,7 +1273,7 @@ EX eItem targetRangedOrb(cell *c, orbAction a) {
   if(rosedist(cwt.at) == 1) {
     int r = rosemap[cwt.at];
     int r2 = rosemap[c];
-    if(r2 <= r) {
+    if(r2 <= r && !markOrb(itOrbBeauty)) {
       if(a == roKeyboard || a == roMouseForce ) 
         addMessage(XLAT("Those roses smell too nicely. You can only target cells closer to them!"));
       return itNone;
@@ -1407,7 +1485,7 @@ EX eItem targetRangedOrb(cell *c, orbAction a) {
     }
 
   // (5c) stun
-  if(items[itOrbStunning] && c->monst && !isMultitile(c->monst) && c->stuntime < 3 && !shmup::on) {
+  if(items[itOrbStunning] && c->monst && !isMultitile(c->monst) && c->monst != moMimic && c->stuntime < 3 && !shmup::on) {
     if(!isCheck(a)) stun_attack(c), apply_impact(c);
     return itOrbStunning;
     }
@@ -1431,9 +1509,12 @@ EX eItem targetRangedOrb(cell *c, orbAction a) {
   
   if(isWeakCheck(a)) return itNone;
   
-  if(nowhereToBlow) {
+  if(nowhereToBlow && isBlowableMonster(c->monst)) {
     addMessage(XLAT("Nowhere to blow %the1!", c->monst));
     }  
+  else if(nowhereToBlow) {
+    addMessage(XLAT("Nowhere to blow %the1!", c->wall));
+    }
   else if(jumpstate == 1 && jumpthru && jumpthru->monst) {
     addMessage(XLAT("Cannot jump through %the1!", jumpthru->monst));
     }
@@ -1524,7 +1605,6 @@ EX int orbcharges(eItem it) {
       return inv::on ? 150 : 50;
     case itOrbWinter: // "pickup-winter"
        return inv::on ? 45 : 30;
-       break;
     case itOrbBeauty:
     case itOrbEmpathy:
     case itOrbFreedom:
@@ -1532,6 +1612,7 @@ EX int orbcharges(eItem it) {
     case itOrbFrog: 
     case itOrbDash:
     case itOrbPhasing:
+    case itOrbWoods:
       return 45;
     case itOrb37:
     case itOrbEnergy:
@@ -1606,6 +1687,28 @@ EX int orbcharges(eItem it) {
     case itOrbCharge:
       return 66; 
       
+    
+    case itOrbPurity:
+      return 15;
+       
+    case itCurseWeakness:
+      return 20;
+       
+    case itCurseDraining:
+      return 30;
+       
+    case itCurseWater:
+      return 20;
+       
+    case itCurseFatigue:
+      return 30;
+       
+    case itCurseRepulsion:
+      return 30;
+       
+    case itCurseGluttony:
+      return 30;
+       
     default:
       return 0;
     }

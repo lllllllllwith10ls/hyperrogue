@@ -505,9 +505,7 @@ struct hrmap_crystal : hrmap_standard {
   heptagon *get_heptagon_at(coord c, int deg) {
     if(heptagon_at.count(c)) return heptagon_at[c];
     heptagon*& h = heptagon_at[c];
-    h = tailored_alloc<heptagon> (deg);
-    h->alt = NULL;
-    h->cdata = NULL;
+    h = init_heptagon(deg);
     h->c7 = newCell(deg, h);
     
     /* in {6,4} we need emeraldval for some patterns, including (bitruncated) football and (bitruncated) three-color */
@@ -518,7 +516,6 @@ struct hrmap_crystal : hrmap_standard {
     h->emeraldval ^= ((c[2] & 2) << 1);    
     if(c[0] & 2) h->emeraldval ^= 1;
 
-    h->distance = 0;
     if(ginf[gCrystal].vertex == 3) 
       h->fiftyval = fiftyrule(c);    
     for(int i=0; i<cs.dim; i++) h->distance += abs(c[i]);
@@ -626,7 +623,7 @@ struct hrmap_crystal : hrmap_standard {
   map<int, transmatrix> adjs;
   
   transmatrix adj(heptagon *h, int d) override {
-    if(!crystal3()) return adj(h->c7, d);
+    if(!crystal3()) return hrmap_standard::adj(h, d);
     auto co = hcoords[h];
     int id = 0;
     for(int a=0; a<S7/2; a++) id = (2*id) + ((co[a]>>1) & 1);
@@ -649,7 +646,7 @@ struct hrmap_crystal : hrmap_standard {
       if(go > 1e-2) continue;
 
       for(int s=0; s<S7; s++) 
-        if(cgi.dirs_adjacent[d][s])
+        if(cgi.heptshape->dirdist[d][s] == 1)
           for(int t=0; t<S7; t++) 
             if(st1[t] == st[s]) {
               if(hdist(U * tC0(cgi.adjmoves[t]), tC0(cgi.adjmoves[s])) > gdist + .1)
@@ -699,7 +696,7 @@ struct hrmap_crystal : hrmap_standard {
       }
     }
 
-  virtual transmatrix relative_matrix(cell *h2, cell *h1, const hyperpoint& hint) override { 
+  transmatrix relative_matrixc(cell *h2, cell *h1, const hyperpoint& hint) override { 
     if(!crystal3()) return hrmap_standard::relative_matrix(h2, h1, hint);
     if(h2 == h1) return Id;
     for(int i=0; i<S7; i++) if(h2 == h1->move(i)) return adj(h1->master, i);
@@ -709,7 +706,7 @@ struct hrmap_crystal : hrmap_standard {
     return xpush(999);
     }
 
-  virtual transmatrix relative_matrix(heptagon *h2, heptagon *h1, const hyperpoint& hint) override { 
+  transmatrix relative_matrixh(heptagon *h2, heptagon *h1, const hyperpoint& hint) override { 
     if(!crystal3()) return hrmap::relative_matrix(h2, h1, hint);
     return relative_matrix(h2->c7, h1->c7, hint);
     }
@@ -1183,6 +1180,7 @@ EX void flip_z() {
   }
 
 #if CAP_RUG
+#if MAXMDIM >= 4
 hyperpoint coord_to_flat(ldcoord co, int dim = 3) {
   auto& cs = crystal_map()->cs;
   hyperpoint res = Hypc;
@@ -1192,6 +1190,7 @@ hyperpoint coord_to_flat(ldcoord co, int dim = 3) {
       res[b] += crug_rotation[b][a] * co[a] * rug::modelscale;
   return res;
   }
+#endif
 
 EX void switch_z_coordinate() {
   auto& cs = crystal_map()->cs;
@@ -1257,6 +1256,7 @@ void cut_triangle(const hyperpoint pa, const hyperpoint pb, const hyperpoint pc,
     cut_triangle2(pb, pc, pa, hb, hc, ha);
   }
 
+#if MAXMDIM >= 4
 EX void build_rugdata() {
   using namespace rug;
   rug::clear_model(); 
@@ -1315,6 +1315,7 @@ EX void build_rugdata() {
   
   println(hlog, "cut ", cut_level, "r ", crug_rotation);
   }
+#endif
 #endif
 
 EX void set_land(cell *c) {
@@ -1448,7 +1449,7 @@ EX string compass_help() {
 
 string make_help() {
   return XLAT(
-    "This geometry essentially lets you play in a d-dimensional grid. Pick three "
+    "This space essentially lets you play in a d-dimensional grid. Pick three "
     "dimensions and '3D display' to see how it works -- we are essentially playing on a periodic surface in "
     "three dimensions, made of hexagons; each hexagon connects to six other hexagons, in each of the 6 "
     "possible directions. Normally, the game visualizes this from the point of view of a creature living inside "
@@ -1458,8 +1459,31 @@ string make_help() {
     "the d-dimensional grid is a quotient of the hyperbolic plane). The same construction works in other dimensions. "
     "Half dimensions are interpreted in the following way: the extra dimension only has two 'levels', for example 2.5D "
     "has a top plane and a bottom plane.\n\n"
-    "You may also bitruncate this geometry -- which makes it work better with the rules of HyperRogue, but a bit harder to understand."
+    "You may also bitruncate this tessellation -- which makes it work better with the rules of HyperRogue, but a bit harder to understand."
     );
+  }
+
+EX void crystal_knight_help() {  
+  gamescreen(1);    
+  dialog::init();
+  
+  dialog::addHelp(XLAT(
+    "This is a representation of four-dimensional geometry. Can you find the Holy Grail in the center of the Round Table?\n\n"
+    "In 'Knight of the 16-Cell Table', each cell has 8 adjacent cells, "
+    "which correspond to 8 adjacent points in the four-dimensional grid. The Round Table has the shape of a 16-cell.\n\n"
+    "In 'Knight of the 3-Spherical Table', it is the same map, but double bitruncated. The Round Table has the shape of a hypersphere.\n\n"
+    ));
+
+  dialog::addItem(XLAT("let me understand how the coordinates work"), 'e');
+  dialog::add_action([] { cheater = true; view_coordinates = true; compass_probability = 1; restart_game(); popScreenAll(); });
+
+  dialog::addItem(XLAT("thanks, I need no hints (achievement)"), 't');
+  dialog::add_action([] { view_coordinates = false; compass_probability = 0; restart_game(); popScreenAll(); });
+
+  dialog::addItem(XLAT("more about this geometry..."), 'm');
+  dialog::add_action([] { popScreenAll(); pushScreen(show); });
+  
+  dialog::display();
   }
 
 EX void show() {

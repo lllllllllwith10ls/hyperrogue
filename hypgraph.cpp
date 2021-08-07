@@ -62,7 +62,7 @@ EX hyperpoint perspective_to_space(hyperpoint h, ld alpha IS(pconf.alpha), eGeom
   B /= A; C /= A;
   
   ld rootsign = 1;
-  // if(gc == gcSphere && pconf.alpha > 1) rootsign = -1;
+  if(gc == gcSphere && pconf.alpha > 1) rootsign = -1;
   
   ld hz = B / 2 + rootsign * sqrt(C + B*B/4);
   
@@ -217,7 +217,9 @@ void move_y_to_z(hyperpoint& H, pair<ld, ld> coef) {
   if(GDIM == 3) {
     H[2] = H[1] * coef.second;
     H[1] = H[1] * coef.first;
+    #if MAXMDIM >= 4
     H[3] = 1;
+    #endif
     }
   }
 
@@ -345,11 +347,79 @@ EX ld signed_sqrt(ld x) { return x > 0 ? sqrt(x) : -sqrt(-x); }
 EX void applymodel(hyperpoint H, hyperpoint& ret) {
 
   hyperpoint H_orig = H;
+    ret[0] = ax * H[0] / dd;
+    ret[1] = ax * H[1] / dd;
+    ret[2] = ay;
+    }
+  }
+
+#if MAXMDIM >= 4
+/** Compute the three-point projection. Currently only works in isotropic 3D spaces. */
+EX void threepoint_projection(const hyperpoint& H, hyperpoint& ret) {
+
+  hyperpoint H1 = H;
+  find_zlev(H1);
+  if(true) {
+    models::apply_orientation_yz(H1[1], H1[2]);
+    models::apply_orientation(H1[0], H1[1]);
+    }
+
+  auto p = pconf.twopoint_param;
+
+  ld dist[3];
+  for(int i=0; i<3; i++) {
+    hyperpoint h1 = xspinpush0(2*M_PI*i/3, p);    
+    dist[i] = geo_dist(h1, H1);
+    }
   
-  if(models::product_model(pmodel)) {
-    ld zlev = zlevel(H);
-    H /= exp(zlev);
-    hybrid::in_underlying_geometry([&] { applymodel(H, ret); });
+  /* we are looking for the points (x,y,z) such that:
+     (x-xi)^2 + (y-yi)^2 + z^2 = di^2
+
+     which is equivalent to:
+     x^2+y^2+z^2 -2xxi -2yyi = di^2-xi^2-yi^2
+     
+     After setting s = x^2+y^2+z^2, we get a system of linear equations for (x,y,s)
+  */
+    
+  dynamicval<eGeometry> g(geometry, gEuclid);
+  
+  transmatrix T = Id;
+  hyperpoint v = C0;
+  for(int i=0; i<3; i++) {
+    hyperpoint pp = xspinpush0(2*M_PI*i/3, p);
+    v[i] = dist[i]*dist[i] - p*p;
+    T[i][0] = -2 * pp[0];
+    T[i][1] = -2 * pp[1];
+    T[i][2] = 1;
+    }
+  
+  transmatrix U = inverse3(T);
+  hyperpoint sxy = U * v;
+  
+  // compute the actual z based on s
+  sxy[2] = sxy[2] - sqhypot_d(2, sxy);
+  sxy[2] = sxy[2] > 0 ? sqrt(sxy[2]) : 0;
+
+  if(H1[2] < 0) sxy[2] *= -1;
+  
+  sxy[3] = 1;
+  
+  geometry = gCubeTiling;
+  
+  ret = sxy;
+  models::apply_orientation(ret[1], ret[0]);
+  models::apply_orientation_yz(ret[2], ret[1]);
+  }
+#endif
+
+EX void apply_other_model(shiftpoint H_orig, hyperpoint& ret, eModel md) {
+
+  hyperpoint H = H_orig.h;
+  
+  if(models::product_model(md)) {
+    ld zlev = zlevel(H_orig.h);
+    H_orig.h /= exp(zlev);
+    hybrid::in_underlying_geometry([&] { applymodel(H_orig, ret); });
     ret[2] = zlev * pconf.product_z_scale;
     ret = NLP * ret;
     return;    
@@ -749,6 +819,14 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
       makeband(H, ret, make_twopoint);
       break;
     
+    case mdThreePoint: 
+    #if MAXMDIM >= 4
+      threepoint_projection(H, ret);
+    #else
+      throw hr_exception();
+    #endif
+      break;
+    
     case mdMollweide: 
       makeband(H, ret, [] (ld& x, ld& y) { 
         ld theta = 
@@ -905,6 +983,7 @@ EX void applymodel(hyperpoint H, hyperpoint& ret) {
         if(pconf.skiprope) 
           ret = mobius(ret, pconf.skiprope, 1);
         }
+      break;
       }
     
     case mdGUARD: case mdManual: break;
@@ -1133,16 +1212,18 @@ void drawrec(cell *c, const transmatrix& V) {
     }
   } */
   
-  bool drawrec(cell *c, const transmatrix& V, gp::loc at, int dir, int maindir) { 
+  bool drawrec(cell *c, const shiftmatrix& V, gp::loc at, int dir, int maindir, local_info li) { 
     bool res = false;
-    transmatrix V1 = V * cgi.gpdata->Tf[draw_li.last_dir][at.first&31][at.second&31][fixg6(dir)];
+    shiftmatrix V1 = V * cgi.gpdata->Tf[li.last_dir][at.first&GOLDBERG_MASK][at.second&GOLDBERG_MASK][fixg6(dir)];
     if(do_draw(c, V1)) {
       /* auto li = get_local_info(c);
       if((dir - li.total_dir) % S6) printf("totaldir %d/%d\n", dir, li.total_dir);
       if(at != li.relative) printf("at %s/%s\n", disp(at), disp(li.relative));
       if(maindir != li.last_dir) printf("ld %d/%d\n", maindir, li.last_dir); */
-      draw_li.relative = at;
-      draw_li.total_dir = fixg6(dir);
+      li.relative = at;
+      li.total_dir = fixg6(dir);
+      current_li = li;
+      li_for = c;
       drawcell(c, V1);
       res = true;
       }
@@ -1151,15 +1232,19 @@ void drawrec(cell *c, const transmatrix& V) {
       if(!c2) continue;
       if(c2->move(0) != c) continue;
       if(c2 == c2->master->c7) continue;
-      res |= drawrec(c2, V, at + eudir(dir+i), dir + i + SG3, maindir);
+      res |= drawrec(c2, V, at + eudir(dir+i), dir + i + SG3, maindir, li);
       }
     return res;
     }
   
-  bool drawrec(cell *c, const transmatrix& V) {
-    draw_li.relative = loc(0,0);
-    draw_li.total_dir = 0;
-    draw_li.last_dir = -1;
+  bool drawrec(cell *c, const shiftmatrix& V) {
+    local_info li;    
+    li.relative = loc(0,0);
+    li.total_dir = 0;
+    li.last_dir = -1;
+    li.first_dir = -1;
+    li_for = c;
+    current_li = li;
     bool res = false;
     if(do_draw(c, V))
       drawcell(c, V), res = true;
@@ -1168,8 +1253,8 @@ void drawrec(cell *c, const transmatrix& V) {
       if(!c2) continue;
       if(c2->move(0) != c) continue;
       if(c2 == c2->master->c7) continue;
-      draw_li.last_dir = i;
-      res |= drawrec(c2, V, gp::loc(1,0), SG3, i);
+      li.last_dir = i;
+      res |= drawrec(c2, V, gp::loc(1,0), SG3, i, li);
       }
     return res;
     }
@@ -1244,7 +1329,45 @@ void hrmap_standard::draw() {
         if(drawn == cells_drawn) break;
         }
       }
-    in_multi = false;
+    }
+  else
+    draw_at(centerover, cview());
+  }
+
+void hrmap::draw_at(cell *at, const shiftmatrix& where) {
+  dq::clear_all();
+  auto& enq = confusingGeometry() ? dq::enqueue_by_matrix_c : dq::enqueue_c;
+  
+  enq(at, where);
+      
+  while(!dq::drawqueue_c.empty()) {
+    auto& p = dq::drawqueue_c.front();
+    cell *c = p.first;
+    shiftmatrix V = p.second;
+    dq::drawqueue_c.pop();
+    
+    if(!do_draw(c, V)) continue;
+    drawcell(c, V);
+    if(in_wallopt() && isWall3(c) && isize(dq::drawqueue) > 1000) continue;
+
+    #if MAXMDIM >= 4
+    if(reg3::ultra_mirror_in())
+      for(auto& T: cgi.ultra_mirrors) 
+        enq(c, optimized_shift(V * T));
+    #endif
+    
+    for(int i=0; i<c->type; i++) {
+      // note: need do cmove before c.spin
+      cell *c1 = c->cmove(i);      
+      if(c1 == &out_of_bounds) continue;
+      enq(c1, optimized_shift(V * adj(c, i)));
+      }
+    }
+  }
+
+void hrmap_standard::draw_at(cell *at, const shiftmatrix& where) {
+  if(S3 > 4) {
+    hrmap::draw_at(at, where);
     return;
     }
   drawn_cells.clear();
@@ -1304,7 +1427,50 @@ EX hyperpoint vertical_vector() {
   return C0;
   }
 
+EX bool down_is_forward;
+
 EX void spinEdge(ld aspd) { 
+
+  #if CAP_VR
+  if(vrhr::active() && keep_vertical() && !vrhr::first) {
+    transmatrix T = vrhr::hmd_ref_at;
+    T = vrhr::sm * inverse(T);
+    vrhr::be_33(T);
+    
+    transmatrix V = T * get_view_orientation();
+    
+    hyperpoint h = inverse(V) * C0;
+    if(!prod) {
+      V = V * rgpushxto0(h);
+      }
+    
+    int dir = down_is_forward ? 0 : 1;
+
+    V = cspin(2, dir, 90 * degree) * V;
+
+    if(1) {
+      dynamicval<eGeometry> g(geometry, gSphere);
+      bool b = vid.always3;
+      vid.always3 = false;
+      geom3::apply_always3();
+      V = gpushxto0(V*C0) * V;
+      fixmatrix(V);
+      if(b) {
+        vid.always3 = b;
+        geom3::apply_always3();
+        }
+      }
+    
+    vrhr::be_33(V);
+
+    V = cspin(dir, 2, 90 * degree) * V;
+    V = inverse(T) * V;
+    if(!prod) V = V * gpushxto0(h);
+    get_view_orientation() = V;
+    return;
+    }
+  #endif
+
   ld downspin = 0;
   auto& ds = downseek;
   if(dual::state == 2 && (dual::one_euclidean ? !euclid : dual::currently_loaded != dual::main_side)) {
@@ -1344,8 +1510,29 @@ EX void spinEdge(ld aspd) {
   rotate_view(spin(downspin));
   }
 
-EX void centerpc(ld aspd) { 
-  
+/** \brief convert a shiftmatrix to the coordinate system of View 
+ *  usually used to set which_copy
+ */
+EX transmatrix back_to_view(const shiftmatrix& V) {
+  // ortho_inverse does not work in 2.5D, iso_inverse does not work in Nil. 
+  // just use inverse
+  return inverse(actual_view_transform) * unshift(V);
+  }
+
+EX void fix_whichcopy(cell *c) {
+  if(!gmatrix.count(cwt.at)) return;
+  current_display->which_copy = back_to_view(gmatrix[c]);
+  }    
+
+void fix_whichcopy_if_near() {
+  if(!gmatrix.count(cwt.at)) return;
+  transmatrix T = back_to_view(gmatrix[cwt.at]);
+  if(!eqmatrix(T, current_display->which_copy)) return;
+  current_display->which_copy = T;
+  }
+
+EX void centerpc(ld aspd) {
+
   if(subscreens::split([=] () {centerpc(aspd);})) return;
   if(dual::split([=] () { centerpc(aspd); })) return;
 
@@ -1400,7 +1587,8 @@ EX void centerpc(ld aspd) {
     if(sl || vid.eye) T = T * zpush(cgi.SLEV[sl] - cgi.FLOOR + vid.eye);
     }
   #endif
-  hyperpoint H = inverse(actual_view_transform) * tC0(T);
+  
+  hyperpoint H = tC0(T);
   ld R = (zero_d(GDIM, H) && !prod) ? 0 : hdist0(H);
   if(R < 1e-9) {
     // either already centered or direction unknown
@@ -1409,16 +1597,14 @@ EX void centerpc(ld aspd) {
       } */
     spinEdge(aspd);
     fixmatrix(View);
-    if(gmatrix.count(cwt.at))
-      current_display->which_copy = gmatrix[cwt.at];
+    fix_whichcopy(cwt.at);
+    fixmatrix(current_display->which_copy);
     }
   
   else {
     aspd *= euclid ? (2+3*R*R) : (1+R+(shmup::on?1:0));
 
-    if(R < aspd && gmatrix.count(cwt.at) && eqmatrix(gmatrix[cwt.at], current_display->which_copy)) {
-      current_display->which_copy = gmatrix[cwt.at];
-      }
+    if(R < aspd) fix_whichcopy_if_near();
     
     if(R < aspd) 
       shift_view_to(H);
@@ -1433,15 +1619,27 @@ EX void centerpc(ld aspd) {
   ors::rerotate(W); ors::rerotate(cwtV); ors::rerotate(View);
   }
 
+EX transmatrix oView;
+
+EX purehookset hooks_preoptimize, hooks_postoptimize;
+
 EX void optimizeview() {
 
   if(subscreens::split(optimizeview)) return;
   if(dual::split(optimizeview)) return;
   
-  transmatrix iView = inverse(View);
+  cell *c = centerover;
+  transmatrix iView = view_inverse(View);
+  callhooks(hooks_preoptimize);
   virtualRebase(centerover, iView);
   View = inverse(iView);
   fixmatrix(View);
+  callhooks(hooks_postoptimize);
+  
+  if(is_boundary(centerover))
+    centerover = c, View = oView;
+  else
+    oView = View;
 
   #if CAP_ANIMATIONS
   if(centerover && inmirror(centerover)) {
@@ -1555,20 +1753,47 @@ transmatrix screenpos(ld x, ld y) {
   In 2D, this does not work (as HyperRogue reduces matrices to 3x3) so we use the native disk projection
 */
 
-EX eModel flat_model() { return MDIM == 4 ? mdPixel : mdDisk; }
+EX int flat_on;
+eGeometry backup_geometry;
+eVariation backup_variation;
+videopar backup_vid;
 
 /** \brief enable the 'flat' model for drawing HUD. See hr::flat_model_enabler */
-EX void enable_flat_model() {
-  #if CAP_GL
-  glClear(GL_DEPTH_BUFFER_BIT);
-  #endif
-  pmodel = flat_model();
-  pconf.alpha = 1;
-  pconf.scale = 1;
-  pconf.camera_angle = 0;
-  pconf.stretch = 1;
-  if(prod) pconf.alpha = 30, pconf.scale = 30;
-  calcparam();
+EX void enable_flat_model(int val) {
+  if(flat_on < 1 && flat_on + val >= 1) {
+    #if CAP_GL
+    glClear(GL_DEPTH_BUFFER_BIT);
+    #endif
+    backup_geometry = geometry;
+    backup_variation = variation;
+    backup_vid = vid;
+    geometry = gNormal;
+    variation = eVariation::bitruncated;
+    pmodel = mdDisk;
+    pconf.alpha = 1;
+    pconf.scale = 1;
+    pconf.camera_angle = 0;
+    pconf.stretch = 1;
+    
+    vid.always3 = false;
+    vid.wall_height = .3;
+    vid.human_wall_ratio = .7;
+    vid.camera = 1;
+    vid.depth = 1;
+    geom3::apply_always3();
+    check_cgi();
+    cgi.require_shapes();
+    calcparam();
+    }
+  if(flat_on >= 1 && flat_on + val < 1) {
+    geometry = backup_geometry;
+    variation = backup_variation;
+    vid = backup_vid;
+    geom3::apply_always3();
+    calcparam();
+    check_cgi();
+    }
+  flat_on += val;
   }
 
 #if HDR
@@ -1659,13 +1884,27 @@ EX void draw_model_elements() {
         }
 
       queuereset(pmodel, PPR::CIRCLE);
-      /* fallthrough */
+      goto fallthrough;
       }
 
-    case mdTwoPoint: case mdSimulatedPerspective: {
+    case mdTwoPoint: case mdSimulatedPerspective: fallthrough: {
       ld a = -pconf.model_orientation * degree;
       queuestr(xspinpush0(a, +pconf.twopoint_param), vid.xres / 100, "X", ringcolor >> 8);
       queuestr(xspinpush0(a, -pconf.twopoint_param), vid.xres / 100, "X", ringcolor >> 8);
+      return;
+      }
+    
+    case mdThreePoint: {
+      vid.linewidth *= 5;
+      for(int i=0; i<=3; i++) {
+        hyperpoint h = xspinpush0(2*M_PI*i/3, pconf.twopoint_param);
+        models::apply_orientation(h[1], h[0]);
+        models::apply_orientation_yz(h[2], h[1]);
+        curvepoint(h);
+        }
+      
+      queuecurve(shiftless(Id), ringcolor, 0, PPR::SUPERLINE);
+      vid.linewidth /= 5;
       return;
       }
     
@@ -2065,6 +2304,7 @@ EX bool do_draw(cell *c, const transmatrix& T) {
 
     if(cells_drawn > vid.cells_drawn_limit) return false;
     if(cells_drawn < 50) { limited_generation(c); return true; }
+    #if MAXMDIM >= 4
     if(nil && pmodel == mdGeodesic) {
       ld dist = hypot_d(3, inverse_exp(tC0(T), pQUICK));
       if(dist > sightranges[geometry] + (vid.sloppy_3d ? 0 : 0.9)) return false;
@@ -2084,6 +2324,7 @@ EX bool do_draw(cell *c, const transmatrix& T) {
       if(hypot(tC0(T)[2], tC0(T)[3]) > cosh(slr::range_xy)) return false;
       if(!limited_generation(c)) return false;
       }
+    #endif
     else if(vid.use_smart_range) {
       if(cells_drawn >= 50 && !in_smart_range(T)) return false;
       if(!limited_generation(c)) return false;
@@ -2096,6 +2337,9 @@ EX bool do_draw(cell *c, const transmatrix& T) {
     return true;
     }
 
+  #if MAXMDIM >= 4
+  if(rots::drawing_underlying && euclid && hdist0(tC0(T)) > 6) return false;
+  #endif
   if(just_gmatrix && sphere) return true;
   if(!do_draw(c)) return false;
   if(euclid && pmodel == mdSpiral) {
@@ -2216,6 +2460,57 @@ EX void shift_view_towards(hyperpoint H, ld l) {
     if(prod) ie = lp_apply(ie);
     shift_view(tangent_length(ie, -l));
     }
+  }
+
+EX void set_view(hyperpoint camera, hyperpoint forward, hyperpoint upward) {
+  if(WDIM == 2) {
+    View = gpushxto0(camera);
+    View = spin(90*degree) * spintox(View * upward) * View;
+    return;
+    }
+  
+  transmatrix V = gpushxto0(camera);
+  forward = V * forward;
+  upward = V * upward;
+  
+  if(pmodel == mdGeodesic || hyperbolic || sphere) {
+    forward = inverse_exp(shiftless(forward));
+    }
+  else {
+    // apply_nil_rotation(forward);
+    forward -= C0;
+    }
+  
+  if(hypot_d(3, forward) == 0) forward[0] = 1;
+  
+  forward /= hypot_d(3, forward);
+
+  if(pmodel == mdGeodesic || hyperbolic || sphere)
+    upward = inverse_exp(shiftless(upward));
+  else {
+    // apply_nil_rotation(upward);
+    upward -= C0;
+    }
+
+  upward -= (forward|upward) * forward;
+  if(hypot_d(3, upward) == 0) return;
+
+  upward /= hypot_d(3, upward);
+
+  hyperpoint rightward = (forward ^ upward);
+  
+  transmatrix rotator = Id;
+  rotator[2] = forward;
+  rotator[1] = -upward;
+  rotator[0] = -rightward;
+  
+  if(det(rotator) < 0) rotator[0] = -rotator[0];
+  
+  View = iso_inverse(rgpushxto0(camera));
+  if(prod)
+    NLP = rotator;
+  else
+    View = rotator * View;
   }
 
 }

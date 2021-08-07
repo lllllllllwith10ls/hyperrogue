@@ -39,7 +39,12 @@ EX namespace euc {
     static const coord D1 = main_axes[1];
     static const coord D2 = main_axes[2];
     vector<coord> shifttable;
-    switch(geometry) {
+        
+    /* for portal spaces... */
+    auto g = geometry;
+    if(S7 == 6 && WDIM == 3) g = gCubeTiling;
+
+    switch(g) {
       case gCubeTiling:
         shifttable = { +D0, +D1, +D2 };
         break;
@@ -130,6 +135,17 @@ EX namespace euc {
     cell *camelot_center;
 
     map<gp::loc, struct cdata> eucdata;
+    
+    void compute_tmatrix() {
+      shifttable = get_shifttable();
+      tmatrix.resize(S7);
+      for(int i=0; i<S7; i++) 
+        tmatrix[i] = eumove(shifttable[i]);
+      }
+    
+    void on_dim_change() override {
+      compute_tmatrix();
+      }
 
     vector<cell*> toruscells;  
     vector<cell*>& allcells() override { 
@@ -144,10 +160,7 @@ EX namespace euc {
       }
 
     hrmap_euclidean() {
-      shifttable = get_shifttable();
-      tmatrix.resize(S7);
-      for(int i=0; i<S7; i++) 
-        tmatrix[i] = eumove(shifttable[i]);
+      compute_tmatrix();
       camelot_center = NULL;
       build_torus3(geometry);    
       if(!valid_irr_torus()) { 
@@ -165,7 +178,7 @@ EX namespace euc {
       if(spacemap.count(at)) 
         return spacemap[at];
       else {
-        auto h = tailored_alloc<heptagon> (S7);
+        auto h = init_heptagon(S7);
         if(!IRREGULAR) 
           h->c7 = newCell(S7, h);
         else {
@@ -180,9 +193,7 @@ EX namespace euc {
             break;
             }
           }
-        h->distance = 0;
-        h->cdata = NULL;
-        h->alt = NULL;
+        #endif
         if(S7 != 14)
           h->zebraval = gmod(at[0] + at[1] * 2 + at[2] * 4, 5);
         else 
@@ -248,7 +259,7 @@ EX namespace euc {
         }
       }
     
-    transmatrix relative_matrix(heptagon *h2, heptagon *h1, const hyperpoint& hint) override {
+    transmatrix relative_matrixh(heptagon *h2, heptagon *h1, const hyperpoint& hint) override {
       if(eu.twisted) {
         if(h1 == h2) return Id;
         for(int s=0; s<S7; s++) if(h2 == h1->move(s)) return adj(h1, s);
@@ -280,28 +291,8 @@ EX namespace euc {
       return eumove(d);
       }
     
-    vector<hyperpoint> get_vertices(cell* c) override {
-      vector<hyperpoint> res;
-      if(S7 < 14)
-        for(ld a: {-.5,.5}) for(ld b: {-.5,.5}) for(ld c: {-.5, .5}) res.push_back(hpxy3(a,b,c));
-      if(S7 == 12) {
-        res.push_back(hpxy3(1,0,0));
-        res.push_back(hpxy3(-1,0,0));
-        res.push_back(hpxy3(0,1,0));
-        res.push_back(hpxy3(0,-1,0));
-        res.push_back(hpxy3(0,0,1));
-        res.push_back(hpxy3(0,0,-1));
-        }
-      if(S7 == 14) {
-        for(ld a: {-1.,-.5,0.,.5,1.})
-        for(ld b: {-1.,-.5,0.,.5,1.})
-        for(ld c: {-1.,-.5,0.,.5,1.})
-          if(a == 0 || b == 0 || c == 0)
-          if(a == .5 || a == -.5 || b == .5 || b == -.5 || c == .5 || c == -.5)
-          if(a == 1 || a == -1 || b == 1 || b == -1 || c == 1 || c == -1)
-            res.push_back(hpxy3(a,b,c));
-        }
-      return res;
+    subcellshape& get_cellshape(cell* c) override {
+      return *cgi.heptshape;
       }
     };
   
@@ -328,6 +319,7 @@ EX namespace euc {
     }
   
   EX bool pseudohept(cell *c) {
+    if(cgflags & qPORTALSPACE) return false;
     coord co = cubemap()->ispacemap[c->master];
     if(S7 == 12) {
       for(int i=0; i<3; i++) if((co[i] & 1)) return false;
@@ -403,6 +395,7 @@ EX namespace euc {
     }
 
   EX void set_land(cell *c) {
+    if(cgflags & qPORTALSPACE) return;
     setland(c, specialland); 
     auto m = cubemap();
     auto co = m->ispacemap[c->master];
@@ -714,6 +707,7 @@ EX namespace euc {
         return;
         }
       }
+    #if MAXMDIM >= 4
     if(twisted & 16) {
       int period = T0[2][2];
       transmatrix RotYZX = Zero;
@@ -746,7 +740,9 @@ EX namespace euc {
         }
       return;
       }
+    #endif
     if(WDIM == 3) {
+      #if MAXMDIM >= 4
       auto& coo = x;
       while(coo[2] >= T0[2][2]) {
         coo[2] -= T0[2][2];
@@ -763,6 +759,7 @@ EX namespace euc {
       for(int i: {0,1})
         if(T0[i][i]) coo[i] = gmod(coo[i], T0[i][i]);
       return;
+      #endif
       }
     else {
       gp::loc coo = to_loc(x);
@@ -1274,10 +1271,15 @@ EX void generate() {
 
   auto v = euc::get_shifttable();
   
-  auto& cs = cgi.cellshape;
+  auto& hsh = get_hsh();
+
+  auto& cs = hsh.faces;
 
   cgi.loop = 4;
   cgi.schmid = 3;
+
+  cs.clear();
+  cs.resize(S7);
 
   if(S7 == 6) {
     cgi.adjcheck = 1;
@@ -1291,7 +1293,7 @@ EX void generate() {
         int x = w%3;
         int y = (x+2)%3;
         int z = (y+2)%3;
-        cs.push_back(hpxy3(t[x]/2., t[y]/2., t[z]/2.));
+        cs[w].push_back(hpxy3(t[x]/2., t[y]/2., t[z]/2.));
         }
       }
     }
@@ -1306,10 +1308,10 @@ EX void generate() {
       int third = 3 - valid[1] - valid[0];
       hyperpoint v0 = cpush0(valid[0], co[valid[0]] > 0 ? 1 : -1);
       hyperpoint v1 = cpush0(valid[1], co[valid[1]] > 0 ? 1 : -1);
-      cs.push_back(v0);
-      cs.push_back(v0/2 + v1/2 + cpush0(third, .5) - C0);
-      cs.push_back(v1);
-      cs.push_back(v0/2 + v1/2 + cpush0(third, -.5) - C0);
+      cs[w].push_back(v0);
+      cs[w].push_back(v0/2 + v1/2 + cpush0(third, .5) - C0);
+      cs[w].push_back(v1);
+      cs[w].push_back(v0/2 + v1/2 + cpush0(third, -.5) - C0);
       }
     }
 
@@ -1320,10 +1322,10 @@ EX void generate() {
     for(int w=0; w<14; w++) {
       if(w%7 < 3) {
         int z = w>=7?-1:1;
-        cs.push_back(cpush0(w%7, z) + cpush0((w%7+1)%3, 1/2.) - C0);
-        cs.push_back(cpush0(w%7, z) + cpush0((w%7+2)%3, 1/2.) - C0);
-        cs.push_back(cpush0(w%7, z) + cpush0((w%7+1)%3,-1/2.) - C0);
-        cs.push_back(cpush0(w%7, z) + cpush0((w%7+2)%3,-1/2.) - C0);
+        cs[w].push_back(cpush0(w%7, z) + cpush0((w%7+1)%3, 1/2.) - C0);
+        cs[w].push_back(cpush0(w%7, z) + cpush0((w%7+2)%3, 1/2.) - C0);
+        cs[w].push_back(cpush0(w%7, z) + cpush0((w%7+1)%3,-1/2.) - C0);
+        cs[w].push_back(cpush0(w%7, z) + cpush0((w%7+2)%3,-1/2.) - C0);
         }
       else {
         auto t = v[w];
@@ -1331,14 +1333,13 @@ EX void generate() {
         for(hyperpoint h: {
           hpxy3(x, y/2, 0), hpxy3(x/2, y, 0), hpxy3(0, y, z/2),
           hpxy3(0, y/2, z), hpxy3(x/2, 0, z), hpxy3(x, 0, z/2)
-          }) cs.push_back(h);
+          }) cs[w].push_back(h);
         }
       }
     }
   
-  reg3::make_vertices_only();
+  hsh.compute_hept();
   #endif
-
   }
 
 /** @brief returns true if the current geometry is based on this module 
@@ -1354,6 +1355,10 @@ EX bool in(int dim, int s7) { return in(dim) && S7 == s7; }
 
 EX }
 
-EX gp::loc euc2_coordinates(cell *c) { return euc::full_coords2(c); }
+EX gp::loc euc2_coordinates(cell *c) { 
+  if(euc::in()) return euc::full_coords2(c); 
+  hyperpoint h = calc_relative_matrix(c, currentmap->gamestart(), C0) * C0;
+  return gp::loc(floor(h[0]), floor(h[1]));
+  }
 
 }

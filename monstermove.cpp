@@ -106,6 +106,11 @@ EX void moveEffect(const movei& mi, eMonster m) {
     tortoise::babymap[cf] = tortoise::babymap[ct];
     tortoise::babymap.erase(ct);
     }
+  
+  #if CAP_COMPLEX2
+  if(isDie(m) && mi.proper())
+    dice::roll(mi);
+  #endif
   }
 
 EX void moveMonster(const movei& mi) {
@@ -176,6 +181,7 @@ EX void moveMonster(const movei& mi) {
   if(isLeader(m)) {
     if(ct->wall == waBigStatue) {
       ct->wall = cf->wall;
+      ct->wparam = cf->wparam;
       cf->wall = waBigStatue;
       animateMovement(mi.rev(), LAYER_BOAT);
       }
@@ -322,6 +328,8 @@ EX void moveMonster(const movei& mi) {
   else if(inc == -3 && !survivesFall(ct->monst) && !passable(cf, ct, P_MONSTER)) {
     addMessage(XLAT("%The1 falls!", ct->monst));
     fallMonster(ct, AF_FALL);
+    if(isBull(m) && cf->wall == waRed3)
+      ct->wall = waRed1;
     }
   if(isThorny(ct->wall) && !survivesThorns(ct->monst)) {
     addMessage(XLAT("%The1 is killed by thorns!", ct->monst));
@@ -332,6 +340,10 @@ EX void moveMonster(const movei& mi) {
   if(sword::at(ct) && canAttack(NULL, moPlayer, ct, m, AF_SWORD_INTO)) {
     attackMonster(ct, AF_SWORD_INTO | AF_MSG, moPlayer);
     achievement_gain_once("GOSWORD");
+    }
+
+  if(ct->mpdist == 7 && cf->mpdist > 7) {
+    playSeenSound(ct);
     }
   }
 
@@ -456,7 +468,7 @@ EX int moveval(cell *c1, cell *c2, int d, flagtype mf) {
   
   if(wantsToStay(m)) return 750;
   
-  if((m == moRatling || m == moRatlingAvenger) && lastmovetype == lmSkip) return 650;
+  if((m == moRatling || m == moRatlingAvenger) && lastmovetype == lmSkip && !items[itFatigue]) return 650;
 
   if(m == moLancer) { 
     bool lancerok = true;
@@ -562,8 +574,8 @@ EX int stayval(cell *c, flagtype mf) {
 EX int totalbulldistance(cell *c, int k) {
   shpos.resize(SHSIZE);
   int tbd = 0;
-  for(int p=0; p<numplayers(); p++) {
-    cell *c2  = shpos[p][(cshpos+SHSIZE-k-1)%SHSIZE];
+  for(int p: player_indices()) {
+    cell *c2  = shpos[(cshpos+SHSIZE-k-1)%SHSIZE][p];
     if(c2) tbd += bulldistance(c, c2);
     }
   return tbd;
@@ -655,7 +667,7 @@ EX void beastAttack(cell *c, bool player, bool targetdir) {
       if(c2->monst && c2->stuntime) {
         cellwalker bull (c, d);
         int subdir = determinizeBullPush(bull);
-        auto mi = determinePush(bull, subdir, [c2] (cell *c) { return passable(c, c2, P_BLOW); });
+        auto mi = determinePush(bull, subdir, [c2] (movei mi) { return passable(mi.t, c2, P_BLOW) && !isPlayerOn(mi.t); });
         if(mi.proper())
           pushMonster(mi);
         }
@@ -672,7 +684,7 @@ EX void beastAttack(cell *c, bool player, bool targetdir) {
     if(c2->wall == waThumperOn) {
       cellwalker bull (c, d);
       int subdir = determinizeBullPush(bull);
-      auto mi = determinePush(bull, subdir, [c2] (cell *c) { return canPushThumperOn(c, c2, c); });
+      auto mi = determinePush(bull, subdir, [c] (movei mi) { return canPushThumperOn(mi, c); });
       if(mi.proper())
         pushThumper(mi);
       }
@@ -972,7 +984,8 @@ EX void removeIvy(cell *c) {
   // note that semi-vines don't count
     if(c->move(i)->wall == waVinePlant) {
       destroyHalfvine(c);
-      c->wall = waVinePlant;
+      if (!do_not_touch_this_wall(c))
+        c->wall = waVinePlant;
       }
   if(c->wall != waVinePlant) {
     if(m == moIvyDead)
@@ -1086,7 +1099,7 @@ EX void groupmove2(const movei& mi, eMonster movtype, flagtype mf) {
         }
     }
   else return;
-
+  
   if(from->monst) {
     if(mf & MF_MOUNT) {
       // don't go through friends
@@ -1149,7 +1162,15 @@ EX void groupmove2(const movei& mi, eMonster movtype, flagtype mf) {
       }
     
     moveMonster(mi);
+    
     onpath(from, 0);
+
+    if(isDie(mi.t->monst)) {
+      /* other dice will not pathfind through the original cell */
+      /* this makes it easier for the player to roll dice correctly */
+      onpath(c, 0);
+      return;
+      }
     }
   onpath(c, 0);
   // MAXGCELL
@@ -1176,11 +1197,9 @@ EX void groupmove(eMonster movtype, flagtype mf) {
   else {
     if(!peace::on) for(int i=0; i<isize(targets); i++) gendfs.push_back(targets[i]);
   
-    if(invisfish && (movtype == moSlime || movtype == moShark || movtype == moKrakenH)) for(int i=0; i<numplayers(); i++) {
-      cell *c = playerpos(i);
-      if(!c) continue;
-      gendfs.push_back(c);
-      }
+    if(invisfish && (movtype == moSlime || movtype == moShark || movtype == moKrakenH))
+      for(cell *pc: player_positions()) 
+        gendfs.push_back(pc);
     }
   
   targetcount = isize(gendfs);
@@ -1432,13 +1451,21 @@ EX void clearshadow() {
     shpos[i][p] = NULL;
   }
 
+/** \brief kill the shadow by clearing its history -- c is provided for multiplayer */
+EX void kill_shadow_at(cell *c) {
+  for(int p=0; p<MAXPLAYER; p++)
+    if(shpos[cshpos][p] == c)
+      for(int i=0; i<SHSIZE; i++)
+        changes.value_set(shpos[i][p], (cell*) nullptr);
+  }
+
 EX void moveshadow() {
 
   cell *shfrom = NULL;
 
   shpos.resize(SHSIZE);
-  for(int p=0; p<numplayers(); p++) {
-    cell *c = shpos[p][cshpos];
+  for(int p: player_indices()) {
+    cell *c = shpos[cshpos][p];
     if(c && c->monst == moShadow) {
       for(int j=0; j<c->type; j++) 
         if(c->move(j) && canAttack(c, moShadow, c->move(j), c->move(j)->monst, AF_ONLY_FBUG | AF_GETPLAYER))
@@ -1446,19 +1473,23 @@ EX void moveshadow() {
       c->monst = moNone;
       shfrom = c;
       }
-    shpos[p][cshpos] = playerpos(p);
+    shpos[cshpos][p] = playerpos(p);
     }
   cshpos = (cshpos+1) % SHSIZE;
-  for(int p=0; p<numplayers(); p++) {
-    cell* where = shpos[p][cshpos];
-    if(where && where->monst == moNone && where->cpdist && where->land == laGraveyard &&
-      !sword::at(where)) {
+  for(int p: player_indices()) {
+    cell* where = shpos[cshpos][p];
+    if(where && where->monst == moNone && where->cpdist && among(where->land, laGraveyard, laCursed)) {
+      if(sword::at(where)) {
+        kill_shadow_at(where);
+        fightmessage(moShadow, moPlayer, false, AF_SWORD_INTO);
+        continue;
+        }
       if(shfrom) animateMovement(match(shfrom, where), LAYER_SMALL);
       where->monst = moShadow;
       where->hitpoints = p;
       where->stuntime = 0;
-      // the Shadow sets off the mines
-      mayExplodeMine(where, moShadow);
+      // the Shadow sets off the mines and stuff
+      moveEffect(movei(where, where, NODIR), moShadow);
       }
     }
   }
@@ -1558,8 +1589,8 @@ EX int movevalue(eMonster m, cell *c, cell *c2, flagtype flags) {
 #endif
       val = 4000;
     }
-  else if(passable_for(m, c2, c, P_DEADLY)) val = -1100;
-  else val = -1750;
+  else if(passable_for(m, c2, c, P_DEADLY)) return -1100;
+  else return -1750;
 
   if(c->monst == moGolem )
     val -= c2->cpdist;
@@ -1859,8 +1890,13 @@ EX void specialMoves() {
     if(m == moHunterGuard && items[itHunting] >= 10)
       c->monst = moHunterChanging;
     
-    if(m == moHunterDog && (havewhat & HF_FAILED_AMBUSH) && hyperbolic && !quotient)
-      c->monst = moHunterChanging;
+    if ((havewhat & HF_FAILED_AMBUSH) && hyperbolic && !quotient) {
+      if(m == moHunterDog)
+        c->monst = moHunterChanging;
+      forCellEx(c2, c)
+        if(c2->monst == moHunterDog)
+          c2->monst = moHunterChanging;
+      }
     
     if(m == moSleepBull && !peace::on) {
       bool wakeup = false;
@@ -2018,6 +2054,32 @@ EX void specialMoves() {
           playSound(c, "necromancy");
           }
         }
+      }
+
+    else if(m == moHexer && c->item && (classflag(c->item) & IF_CURSE) && !peace::on) {
+      // bool dont_approach = false;
+      // smaller range on the sphere
+      int firerange = (sphere || getDistLimit() < 5) ? 2 : 4;
+      
+      bool dont_approach = false;
+      for(int i=0; i<isize(targets); i++) {
+        cell *t = targets[i];
+        
+        if(isPlayerOn(t)) {
+          int d = celldistance(c,t);
+          if(d <= firerange) {
+            addMessage(XLAT("%The1 curses you with %the2!", m, c->item));
+            playSound(t, "fire");
+            animate_item_throw(c, t, c->item);
+            items[c->item] += orbcharges(c->item);
+            c->item = itNone;
+            c->stuntime = 1;
+            }
+          if(d == firerange+1) dont_approach = true;
+          }
+        }
+      
+      if(dont_approach) c->stuntime = 1;
       }
 
     else if(m == moVampire) {
@@ -2188,7 +2250,9 @@ EX void movemonsters() {
   DEBB(DF_TURN, ("westwall"));
   if(havewhat & HF_WESTWALL) westwall::move();
   #endif
-  for(int i=0; i<numplayers(); i++) if(playerpos(i)->item == itOrbSafety) return;
+  for(cell *pc: player_positions())
+    if(pc->item == itOrbSafety) 
+      return;
   DEBB(DF_TURN, ("river"));
   if(havewhat & HF_RIVER) prairie::move();
   /* DEBB(DF_TURN, ("magnet"));
@@ -2197,6 +2261,7 @@ EX void movemonsters() {
     groupmove(moNorthPole, 0); */
   DEBB(DF_TURN, ("bugs"));
   if(havewhat & HF_HEXD) groupmove(moHexDemon, 0);
+  if(havewhat & HF_DICE) groupmove(moAnimatedDie, 0);    
   if(havewhat & HF_ALT) groupmove(moAltDemon, 0);
   if(havewhat & HF_MONK) groupmove(moMonk, 0);
 
@@ -2269,6 +2334,12 @@ EX void beastcrash(cell *c, cell *beast) {
   else if(c->wall == waExplosiveBarrel) {
     addMessage(XLAT("%The1 crashes into %the2!", beast->monst, c->wall));
     explodeBarrel(c);
+    }
+  else if(realred(c)) {
+    addMessage(XLAT("%The1 crashes into %the2!", beast->monst, c->wall));
+    if(c->wall == waRed1) c->wall = waNone;
+    else if(c->wall == waRed2) c->wall = waRed1;
+    else if(c->wall == waRed3) c->wall = waRed2;
     }
   else if(isBull(c->monst) || isSwitch(c->monst)) {
     addMessage(XLAT("%The1 crashes into %the2!", beast->monst, c->monst));

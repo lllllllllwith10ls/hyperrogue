@@ -8,14 +8,18 @@
 #include "hyper.h"
 namespace hr {
 
-EX bool quitsaves() { return (items[itOrbSafety] && CAP_SAVE && !arcm::in()); }
+EX bool quitsaves() { 
+  if(casual) return false;
+  return (items[itOrbSafety] && CAP_SAVE && !arcm::in()); 
+  }
 
 EX bool needConfirmationEvenIfSaved() {
   return canmove && (gold() >= 30 || tkills() >= 50) && !cheater;
   }
 
 EX bool needConfirmation() {
-  return needConfirmationEvenIfSaved() && !quitsaves();
+  if(casual) return needConfirmationEvenIfSaved() && turncount > save_turns + 10;
+  else return needConfirmationEvenIfSaved() && !quitsaves();
   }
 
 EX int getgametime() {
@@ -28,12 +32,18 @@ EX string getgametime_s(int timespent IS(getgametime())) {
   return buf;
   }
 
+EX bool display_yasc_codes;
+
 string timeline() {
-  return 
-    shmup::on ? 
-      XLAT("%1 knives (%2)", its(turncount), getgametime_s())
-    :
-      XLAT("%1 turns (%2)", its(turncount), getgametime_s());
+  string s;
+  if(shmup::on)
+    s = XLAT("%1 knives (%2)", its(turncount), getgametime_s());
+  else {
+    s = XLAT("%1 turns (%2)", its(turncount), getgametime_s());
+    if(display_yasc_codes)
+      s+= XLAT(" YASC code: ") + its(yasc_code);
+    }
+  return s;
   }
 
 EX void noaction() {}
@@ -121,13 +131,13 @@ EX hint hints[] = {
     0,
     []() { return true; },
     []() { 
-      dialog::addInfo(XLAT(
+      dialog::addInfo(
 #if ISMOBILE
-        "The 'world overview' shows all the lands in HyperRogue."
+        XLAT("The 'world overview' shows all the lands in HyperRogue.")
 #else
-        "Press 'o' to see all the lands in HyperRogue."
+        XLAT("Press 'o' to see all the lands in HyperRogue.")
 #endif
-        ));
+        );
       dialog::addBreak(50);
       dialog::addItem(XLAT("world overview"), 'z');
       },
@@ -291,7 +301,7 @@ EX hint hints[] = {
 EX int hinttoshow;
 
 string contstr() {
-  return XLAT(canmove ? "continue" : "see how it ended");
+  return canmove ? XLAT("continue") : XLAT("see how it ended");
   }
 
 eLand nextHyperstone() {
@@ -321,9 +331,9 @@ EX void showMission() {
     );
   keyhandler = handleKeyQuit;
 
-  if(!peace::on && !racing::on)
+  if(!peace::on && !racing::on && !sweeper && !in_lovasz())
     dialog::addInfo(XLAT("Your score: %1", its(gold())));
-  if(!peace::on && !racing::on)
+  if(!peace::on && !racing::on && !sweeper && !in_lovasz())
     dialog::addInfo(XLAT("Enemies killed: %1", its(tkills())));
 
 #if CAP_TOUR
@@ -333,7 +343,32 @@ EX void showMission() {
     dialog::addInfo(XLAT("Orbs of Yendor found: %1", its(items[itOrbYendor])), iinf[itOrbYendor].color);
     dialog::addInfo(XLAT("CONGRATULATIONS!"), iinf[itOrbYendor].color);
     }
-  else {
+  #if CAP_COMPLEX2
+  else if(mine::in_minesweeper()) {
+    int to_uncover = kills[moBomberbird];
+    if(to_uncover) {
+      dialog::addInfo(XLAT("Uncover all cells which do not contain mines"));
+      dialog::addInfo(XLAT("Cells to uncover: %1", its(to_uncover)));
+      }
+    else {
+      dialog::addInfo(XLAT("CONGRATULATIONS!"), iinf[itOrbYendor].color);
+      dialog::addInfo(XLAT("You won in %1", getgametime_s(mine::victory_time)));      
+      }
+    }
+  #endif
+  else if(in_lovasz()) {
+    int score = 0, all = 0;
+    for(cell *c: currentmap->allcells()) {
+      if(c->wall == waChasm || c->item == itOrbInvis)
+        score++;
+      all++;
+      }
+    dialog::addInfo(XLAT("Dropped floors: %1/%2", its(score), its(all)));
+    if(score == all) dialog::addInfo(XLAT("CONGRATULATIONS!"), iinf[itOrbYendor].color);
+    if(score == all && geometry == gKleinQuartic && variation == eVariation::untruncated && gp::param == gp::loc(1,1))
+      achievement_gain_once("LOVASZ", rg::special_geometry);      
+    }
+  else {  
     if(0)
       ;
 #if CAP_TOUR
@@ -343,12 +378,16 @@ EX void showMission() {
     else if(racing::on) ;
     else if(princess::challenge) 
       dialog::addInfo(XLAT("Follow the Mouse and escape with %the1!", moPrincess));
+    else if(!in_full_game()) ;
+    else if(casual && savecount == 0) {
+      dialog::addInfo(XLAT("Find an Orb of Safety to save your game"));
+      }
     else if(gold() < R30)
       dialog::addInfo(XLAT("Collect %1 $$$ to access more worlds", its(R30)));
     else if(gold() < R60)
       dialog::addInfo(XLAT("Collect %1 $$$ to access even more lands", its(R60)));
     else if(!landUnlocked(laHell))
-      dialog::addInfo(XLAT("Collect at least %1 treasures in each of 9 types to access Hell", its(R10)));
+      dialog::addInfo(XLAT("Collect at least %1 treasures in each of %2 types to access Hell", its(R10), its(lands_for_hell())));
     else if(items[itHell] < R10)
       dialog::addInfo(XLAT("Collect at least %1 Demon Daisies to find the Orbs of Yendor", its(R10)));
     else if(isize(yendor::yi) == 0)
@@ -376,14 +415,13 @@ EX void showMission() {
     dialog::addInfo(XLAT("Kill a Vizier in the Palace to access Emerald Mine"));
   else if(items[itEmerald] < U5)
     dialog::addInfo(XLAT("Collect 5 Emeralds to access Camelot"));
-  else if(landUnlocked(laHell) && !chaosmode) {
+  else if(landUnlocked(laHell) && ls::any_order()) {
     eLand l = nextHyperstone();
     if(l) 
-        dialog::addInfo(
-          XLAT(
-            l ? "Hyperstone Quest: collect at least %3 points in %the2" :
-            "Hyperstone Quest: collect at least %3 %1 in %the2", 
-            treasureType(l), l, its(R10)));
+        dialog::addInfo(          
+            l ? XLAT("Hyperstone Quest: collect at least %3 points in %the2", treasureType(l), l, its(R10))
+              : XLAT("Hyperstone Quest: collect at least %3 %1 in %the2", treasureType(l), l, its(R10))
+            );
     else
       dialog::addInfo(XLAT("Hyperstone Quest completed!"), iinf[itHyperstone].color);
     }
@@ -415,7 +453,7 @@ EX void showMission() {
     if(canmove) {
       if(sphere) {
         dialog::addItem(XLAT("return to your game"), '1');
-        dialog::addItem(XLAT(pconf.alpha < 2 ? "orthogonal projection" : "stereographic projection"), '3');
+        dialog::addItem(pconf.alpha < 2 ? XLAT("orthogonal projection") : XLAT("stereographic projection"), '3');
         }
       else if(euclid) {
         dialog::addItem(XLAT("return to your game"), '2');
@@ -458,8 +496,14 @@ EX void showMission() {
     if(racing::on)
       dialog::addItem(XLAT("racing menu"), 'o');
 #if !ISMOBILE
-    dialog::addItem(XLAT(quitsaves() ? "save" : "quit"), SDLK_F10);
+    dialog::addItem(quitsaves() ? XLAT("save") : XLAT("quit"), SDLK_F10);
 #endif
+    if(casual || ISMOBILE) {
+      if(savecount)
+        dialog::addItem(XLAT("load (%1 turns passed)", its(turncount - save_turns)), SDLK_F9);
+      else
+        dialog::addItem(XLAT("how to find an Orb of Safety?"), SDLK_F9);
+      }
 #if CAP_ANDROIDSHARE
     dialog::addItem(XLAT("SHARE"), 's'-96);
 #endif
@@ -468,6 +512,19 @@ EX void showMission() {
   
   dialog::display();
   }
+
+EX string safety_help() {
+  return XLAT(
+    "To save the game you need an Orb of Safety.\n\n"
+    "Orbs of Safety appear:\n\n"
+    "* in the Crossroads and the Land of Eternal Motion, after you collect %1 Phoenix Feathers in the Land of Eternal Motion\n\n"
+    "* in the Ocean after you unlock it (%2 treasures)\n\n"
+    "* in the Prairie after you unlock it (%3 treasures)\n\n",
+    its(inv::on ? 25 : 10),
+    its(R30), its(R90)
+    );
+  }
+   
 
 EX void handleKeyQuit(int sym, int uni) {
   dialog::handleNavigation(sym, uni);
@@ -482,7 +539,8 @@ EX void handleKeyQuit(int sym, int uni) {
   if(sym == SDLK_RETURN || sym == SDLK_KP_ENTER || sym == SDLK_F10) {
     if(needConfirmation()) pushScreen([] { 
       dialog::confirm_dialog(
-        XLAT("This will exit HyperRogue without saving your current game. Are you sure?"),
+        XLAT("This will exit HyperRogue without saving your current game. Are you sure?") + "\n\n" +
+        safety_help(),
         [] { 
         quitmainloop = true; 
         });
@@ -496,6 +554,17 @@ EX void handleKeyQuit(int sym, int uni) {
   else if(uni == 'v') popScreenAll(), pushScreen(showMainMenu);
   else if(uni == 'l') popScreenAll(), pushScreen(showMessageLog), messagelogpos = isize(gamelog);
   else if(uni == 'z') hints[hinttoshow].action();
+  #if CAP_SAVE
+  else if(sym == SDLK_F9) {
+    if(casual && savecount) {
+      stop_game();
+      load_last_save();
+      start_game();
+      }
+    else
+      gotoHelp(safety_help());
+    }
+  #endif
   else if(sym == SDLK_F3 || (sym == ' ' || sym == SDLK_HOME)) 
     fullcenter();
   else if(uni == 'o') get_o_key().second();

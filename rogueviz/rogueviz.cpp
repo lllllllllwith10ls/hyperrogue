@@ -161,6 +161,10 @@ vector<vertexdata> vdata;
 
 map<string, int> labeler;
 
+bool id_known(const string& s) {
+  return labeler.count(s);
+  }
+
 int getid(const string& s) {
   if(labeler.count(s)) return labeler[s];
   else {
@@ -203,7 +207,7 @@ hyperpoint where(int i, cell *base) {
     }
   else {
     // notimpl(); // actually probably that's a buug
-    return inverse(ggmatrix(currentmap->gamestart())) * (ggmatrix(m->base) * tC0(m->at));
+    return inverse_shift(ggmatrix(currentmap->gamestart()), ggmatrix(m->base) * tC0(m->at));
     }
   }
 
@@ -263,8 +267,6 @@ namespace anygraph {
   
   edgetype *any;
   
-  int vzid;
-  
   int N;
                
   void fixedges() {
@@ -280,7 +282,7 @@ namespace anygraph {
   void tst() {}
 
   void read(string fn, bool subdiv, bool doRebase, bool doStore) {
-    init(&vzid, RV_GRAPH);
+    init(RV_GRAPH);
     any = add_edgetype("embedded edges");
     fname = fn;
     fhstream f(fn + "-coordinates.txt", "rt");
@@ -486,7 +488,7 @@ color_t darken_a(color_t c) {
 #define SVG_LINK(x) 
 #endif
 
-void queuedisk(const transmatrix& V, const colorpair& cp, bool legend, const string* info, int i) {
+void queuedisk(const shiftmatrix& V, const colorpair& cp, bool legend, const string* info, int i) {
   if(legend && (int) cp.color1 == (int) 0x000000FF && backcolor == 0)
     poly_outline = 0x606060FF;
   else
@@ -494,14 +496,14 @@ void queuedisk(const transmatrix& V, const colorpair& cp, bool legend, const str
   
   if(cp.img) {
     for(hyperpoint h: cp.img->vertices)
-      curvepoint(V * h);
-    auto& qc = queuecurve(0, 0xFFFFFFFF, PPR::MONSTER_HEAD);
+      curvepoint(h);
+    auto& qc = queuecurve(V, 0, 0xFFFFFFFF, PPR::MONSTER_HEAD);
     qc.tinf = &cp.img->tinf;
     qc.flags |= POLY_TRIANGLES;
     return;
     }
     
-  transmatrix V1;
+  shiftmatrix V1;
   
   auto& sh = 
     vertex_shape == 2 ? cgi.shHeptaMarker :
@@ -546,18 +548,21 @@ void queuedisk(const transmatrix& V, const colorpair& cp, bool legend, const str
     }
   }
 
-unordered_map<pair<edgeinfo*, int>, int> drawn_edges;
+map<pair<edgeinfo*, int>, int> drawn_edges;
 
 map<pair<cell*, cell*>, transmatrix> relmatrices;
 
 transmatrix& memo_relative_matrix(cell *c1, cell *c2) {
   auto& p = relmatrices[make_pair(c1, c2)];
-  if(p[2][2] == 0)
+  if(p[2][2] == 0) {
+    forCellIdEx(c3, i, c2) if(c3 == c1)
+      return p = currentmap->adj(c2, i);
     p = calc_relative_matrix(c1, c2,  C0);
+    }
   return p;
   }
 
-void queue_prec(const transmatrix& V, edgeinfo*& ei, color_t col) {
+void queue_prec(const shiftmatrix& V, edgeinfo*& ei, color_t col) {
   if(!fat_edges)
     queuetable(V, ei->prec, isize(ei->prec), col, 0, PPR::STRUCT0);
   #if MAXMDIM >= 4
@@ -571,7 +576,12 @@ void queue_prec(const transmatrix& V, edgeinfo*& ei, color_t col) {
   #endif
   }
 
-bool drawVertex(const transmatrix &V, cell *c, shmup::monster *m) {
+int brm_limit = 1000;
+
+ld labelshift = .2;
+ld labelscale = .2; // .28 in SVG
+
+bool drawVertex(const shiftmatrix &V, cell *c, shmup::monster *m) {
   if(m->dead) return true;
   if(m->type != moRogueviz) return false;
   int i = m->pid;
@@ -585,8 +595,13 @@ bool drawVertex(const transmatrix &V, cell *c, shmup::monster *m) {
 
   int lid = shmup::lmousetarget ? shmup::lmousetarget->pid : -2;
   
+  bool multidraw = quotient;
+  
+  bool use_brm = bounded && isize(currentmap->allcells()) <= brm_limit;
+        
   if(!lshiftclick) for(int j=0; j<isize(vd.edges); j++) {
     edgeinfo *ei = vd.edges[j].second;
+    if(multidraw && ei->i != i) continue;
     vertexdata& vd1 = vdata[ei->i];
     vertexdata& vd2 = vdata[ei->j];
 
@@ -594,16 +609,14 @@ bool drawVertex(const transmatrix &V, cell *c, shmup::monster *m) {
     bool hilite = false;
     if(vdata[oi].special && vdata[oj].special && specialmark) hilite = true;
     else if(svg::in || inHighQual) hilite = false;
-    else if(vd1.m == shmup::lmousetarget) hilite = true;
-    else if(vd2.m == shmup::lmousetarget) hilite = true;
+    else if(vd1.m == shmup::mousetarget) hilite = true;
+    else if(vd2.m == shmup::mousetarget) hilite = true;
     else if(oi == lid || oj == lid) hilite = true;
 
     if(ei->weight < (hilite ? ei->type->visible_from_hi : ei->type->visible_from)) continue;
 
     // if(hilite) ghilite = true;
     
-    bool multidraw = quotient;
-        
     if(ei->lastdraw < frameid || multidraw) { 
       ei->lastdraw = frameid;
       
@@ -627,18 +640,26 @@ bool drawVertex(const transmatrix &V, cell *c, shmup::monster *m) {
       
       alpha >>= darken;
 
-      transmatrix gm1 = 
-        (multidraw || elliptic) ? V * memo_relative_matrix(vd1.m->base, c) :
-        ggmatrix(vd1.m->base);
-      transmatrix gm2 = 
-        (multidraw || elliptic) ? V * memo_relative_matrix(vd2.m->base, c) :
-        ggmatrix(vd2.m->base);
-                
-      hyperpoint h1 = gm1 * vd1.m->at * C0;
-      hyperpoint h2 = gm2 * vd2.m->at * C0;
+      shiftmatrix gm1, gm2;
       
-      if(elliptic && intval(h1, h2) > intval(h1, centralsym * h2))
-        h2 = centralsym * h2;
+      if(use_brm) {
+        gm1 = V * memo_relative_matrix(vd1.m->base, c);
+        gm2 = gm1 * brm_get(vd1.m->base, tC0(vd1.m->at), vd2.m->base, tC0(vd2.m->at));
+        }
+      else if(multidraw || elliptic) {
+        gm1 = V * memo_relative_matrix(vd1.m->base, c);
+        gm2 = V * memo_relative_matrix(vd2.m->base, c);
+        }
+      else {
+        gm1 = ggmatrix(vd1.m->base);
+        gm2 = ggmatrix(vd2.m->base);
+        }
+      
+      shiftpoint h1 = gm1 * vd1.m->at * C0;
+      shiftpoint h2 = gm2 * vd2.m->at * C0;
+      
+      if(elliptic && hdist(h1, h2) > hdist(h1.h, centralsym * h2.h))
+        h2.h = centralsym * h2.h;
       
       if(multidraw) {
         int code = int(h1[0]) + int(h1[1]) * 12789117 + int(h2[0]) * 126081253 + int(h2[1]) * 126891531;
@@ -677,14 +698,14 @@ bool drawVertex(const transmatrix &V, cell *c, shmup::monster *m) {
           ei->orig = center; // cwt.at;
           ei->prec.clear();
           
-          transmatrix T = inverse(ggmatrix(ei->orig));
+          const shiftmatrix& T = multidraw ? V : ggmatrix(ei->orig);
           
           if(callhandlers(false, hooks_alt_edges, ei, true)) ;
           else if(fat_edges) {
             ei->tinf.tvertices.clear();
-            transmatrix T1 = inverse(gm1 * vd1.m->at);
-            hyperpoint goal = T1 * h2;
-            transmatrix S = T * gm1 * vd1.m->at * rspintox(goal);
+            shiftmatrix T1 = gm1 * vd1.m->at;
+            hyperpoint goal = inverse_shift(T1, h2);
+            transmatrix S = inverse_shift(T, gm1) * vd1.m->at * rspintox(goal);
             ld d = hdist0(goal);
             for(int a=0; a<360; a+=30) {
               auto store = [&] (ld a, ld b) {
@@ -700,10 +721,13 @@ bool drawVertex(const transmatrix &V, cell *c, shmup::monster *m) {
               }
             }
           else 
-            storeline(ei->prec, T*h1, T*h2);
+            storeline(ei->prec, inverse_shift(T, h1), inverse_shift(T, h2));
           }
-        queue_prec(multidraw ? V : ggmatrix(ei->orig), ei, col);
-        if(elliptic) queue_prec(centralsym * ggmatrix(ei->orig), ei, col);
+        
+        const shiftmatrix& T = multidraw ? V : ggmatrix(ei->orig);
+
+        queue_prec(T, ei, col);
+        if(elliptic) queue_prec(ggmatrix(ei->orig) * centralsym, ei, col);
         }
       }
 /*
@@ -719,16 +743,16 @@ bool drawVertex(const transmatrix &V, cell *c, shmup::monster *m) {
     bool doshow = true;
     if((vizflags & RV_COMPRESS_LABELS) && i > 0 && !vd.virt) {
       vertexdata& vdp = vdata[vd.data];
-      hyperpoint h2 = ggmatrix(vdp.m->base) * vdp.m->at * C0;
+      shiftpoint h2 = ggmatrix(vdp.m->base) * vdp.m->at * C0;
       if(hdist(h2, V * m->at * C0) < 0.1) doshow = false;
       }
     
-    hyperpoint h = tC0(V * m->at);
-    transmatrix V2 = GDIM == 3 ? V * m->at : rgpushxto0(h) * ypush(PURE ? .3 : .2); // todo-variation
+    shiftpoint h = tC0(V * m->at);
+    shiftmatrix V2 = GDIM == 3 ? V * m->at : rgpushxto0(h) * ypush(cgi.scalefactor * labelshift); // todo-variation
     if(doshow && !behindsphere(V2)) {
       auto info = vd.info;
       if(info) queueaction(PPR::MONSTER_HEAD, [info] () { SVG_LINK(*info); });
-      queuestr(V2, (svg::in ? .28 : .2) * cgi.crossf / cgi.hcrossf, vd.name, forecolor, (svg::in || ISWEB) ? 0 : 1);
+      queuestr(V2, labelscale, vd.name, forecolor, (svg::in || ISWEB) ? 0 : 1);
       if(info) queueaction(PPR::MONSTER_HEAD, [] () { SVG_LINK(""); });
       }
     }
@@ -746,7 +770,6 @@ color_t chosen_legend_color = DEFAULT_COLOR;
 
 bool rogueviz_hud() {
   color_t legend_color = chosen_legend_color == DEFAULT_COLOR ? forecolor : chosen_legend_color;
-  if(!vizid) return false;
   if(cmode & sm::DRAW) return false;
 
   int qet = isize(edgetypes);
@@ -755,7 +778,7 @@ bool rogueviz_hud() {
   int legit = qet + isize(legend);
   
   if(legit == 0) return true;
-
+  
   initquickqueue();
   
   int rad = current_display->radius/10;
@@ -770,7 +793,7 @@ bool rogueviz_hud() {
     transmatrix V = atscreenpos(x, y, current_display->radius/4);
     
     poly_outline = OUTLINE_NONE;
-    queuedisk(V, vd.cp, true, NULL, i);
+    queuedisk(shiftless(V), vd.cp, true, NULL, i);
     poly_outline = OUTLINE_DEFAULT;
     queuestr(int(x-rad), int(y), 0, rad*(svg::in?5:3)/4, vd.name, legend_color, 0, 16);
     }
@@ -783,14 +806,22 @@ bool rogueviz_hud() {
     transmatrix V = atscreenpos(x, y, current_display->radius/8);
     
     poly_outline = t->color | 0xFF;
-    queuepolyat(V, cgi.shTriangle, 0, PPR::MONSTER_HEAD);
-    
+    queuepolyat(shiftless(V), cgi.shTriangle, 0, PPR::MONSTER_HEAD);
+        
     poly_outline = OUTLINE_DEFAULT;
     queuestr(int(x-rad), int(y), 0, rad*(svg::in?5:3)/4, t->name, legend_color, 0, 16);
     }
   
   quickqueue();
   return true;
+  }
+
+bool rv_ignore_spaces = true;
+
+bool rv_ignore(char c) {
+  if(c == 32 && !rv_ignore_spaces) return true;
+  if(c == 10 || c == 13 || c == 32 || c == 9) return true;
+  return false;
   }
 
 void readcolor(const string& cfname) {
@@ -801,8 +832,8 @@ void readcolor(const string& cfname) {
     while(true) {
       int c = fgetc(f);
       if(c == EOF) { fclose(f); return; }
-      else if(c == 10 || c == 13 || c == 32 || c == 9) ;
       else if(c == ',' || c == ';') break;
+      else if(rv_ignore(c)) ;
       else lab += c;
       }
     
@@ -820,7 +851,7 @@ void readcolor(const string& cfname) {
       string lab2 = "";
       while(true) {
         int c = fgetc(f);
-        if(c == 10 || c == 13 || c == 32 || c == 9 || c == ',' || c == ';' || c == EOF) break;
+        if(rv_ignore(c) || c == ',' || c == ';' || c == EOF) break;
         else lab2 += c;
         }
       x = vdata[getid(lab2)].cp;
@@ -868,18 +899,26 @@ void readcolor(const string& cfname) {
     }
   }
 
-void init(void *_vizid, flagtype _vizflags) {
+void graph_rv_hooks();
+
+void init(flagtype _vizflags) {
 
   autocheat = true; 
   showstartmenu = false;
+
+  if(tour::on) {
+    tour::slide_backup(mapeditor::drawplayer);
+    tour::slide_backup(timerghost);
+    }
+
 #if !ISWEB
   mapeditor::drawplayer = false;
   stop_game();
-  firstland = specialland = laCanvas;
+  enable_canvas();
   restart_game(shmup::on ? rg::shmup : rg::nothing);
 #else
   stop_game();
-  firstland = specialland = laCanvas;
+  enable_canvas();
   restart_game(rg::nothing);
 #endif
   autocheat = true;
@@ -891,11 +930,21 @@ void init(void *_vizid, flagtype _vizflags) {
   drawthemap();
   gmatrix0 = gmatrix;
 
-  vizid = _vizid;
   vizflags = _vizflags;
+  
+  graph_rv_hooks();
   }
 
 int search_for = -1;
+
+vector<reaction_t> cleanup;
+
+void do_cleanup() {
+  while(!cleanup.empty()) {
+    cleanup.back()();
+    cleanup.pop_back();
+    }
+  }
 
 void close() { 
   search_for = -1;
@@ -909,7 +958,7 @@ void close() {
   anygraph::coords.clear();
   callhooks(hooks_close);
   edgetypes.clear();
-  vizid = nullptr;
+  do_cleanup();
   relmatrices.clear();
   }
 
@@ -945,6 +994,15 @@ int readArgs() {
   else if(argis("-lab-off")) {
     showlabels = false;
     }
+  else if(argis("-rvspaces")) {
+    rv_ignore_spaces = false;
+    }
+  else if(argis("-rvlabelshift")) {
+    shift_arg_formula(labelshift);
+    }
+  else if(argis("-rvlabelscale")) {
+    shift_arg_formula(labelscale);
+    }
   else if(argis("-rog3")) {
     rog3 = true;
     }
@@ -971,11 +1029,6 @@ int readArgs() {
   else if(argis("-lq")) {
     shift_arg_formula(linequality);
     }
-#if CAP_RVSLIDES
-  else if(argis("-rvpres")) {
-    tour::slides = rvtour::gen_rvtour();
-    }
-#endif
   else if(argis("-nolegend")) {
     legend.clear();
     }
@@ -1053,7 +1106,7 @@ void search_marker() {
     auto& vd = vdata[search_for];
     auto& m = vd.m;
     if(!m) return;
-    hyperpoint H = ggmatrix(m->base) * tC0(m->at);
+    shiftpoint H = ggmatrix(m->base) * tC0(m->at);
     queuestr(H, 2*vid.fsize, "X", 0x10101 * int(128 + 100 * sin(ticks / 150.)));
     addauraspecial(H, iinf[itOrbYendor].color, 0);
     }
@@ -1109,7 +1162,9 @@ void showMenu() {
     }
   dialog::addBoolItem_action(XLAT("vertices in 3D"), rog3, 'v');
   dialog::addSelItem(XLAT("vertex shape"), its(vertex_shape), 'w');
-  dialog::add_action_push([] { vertex_shape = (1 + vertex_shape) & 3; });
+  dialog::add_action([] { 
+    vertex_shape = (1 + vertex_shape) & 3; 
+    });
 
   dialog::add_key_action('z', [] {
     for(int i=0; i<isize(named)-1; i++) if(named[i] == cwt.at)
@@ -1132,84 +1187,7 @@ void showMenu() {
   dialog::display();
   }
 
-#if CAP_RVSLIDES
-namespace rvtour {
-
-using namespace tour;
-
-vector<slide> rvslides;
-extern vector<slide> rvslides_default;
-
-slide *gen_rvtour() {
-  rvslides = rvslides_default;
-  callhooks(hooks_build_rvtour, rvslides);
-  rvslides.emplace_back(
-    slide{"THE END", 99, LEGAL::ANY | FINALSLIDE,
-    "Press '5' to leave the presentation.",
-    [] (presmode mode) {
-      firstland = specialland = laIce;
-      if(mode == 4) restart_game(rg::tour);
-      }
-    });
-  return &rvslides[0];
-  }
-
-vector<slide> rvslides_default = {
-    {"RogueViz", 999, LEGAL::ANY, 
-      "This is a presentation of RogueViz, which "
-      "is an adaptation of HyperRogue as a visualization tool "
-      "rather than a game. Hyperbolic space is great "
-      "for visualizing some kinds of data because of the vast amount "
-      "of space.\n\n"
-      "Press '5' to switch to the standard HyperRogue tutorial. "
-      "Press ESC to look at other functions of this presentation."
-      ,
-      [] (presmode mode) {
-        slidecommand = "the standard presentation";
-        if(mode == pmStartAll) firstland = specialland = laPalace;
-        if(mode == 4) {
-          tour::slides = default_slides;
-          while(tour::on) restart_game(rg::tour);
-          firstland = specialland = laIce;
-          tour::start();
-          }
-        }
-      },
-    {"straight lines in the Palace", 999, LEGAL::ANY, 
-      "One simple slide about HyperRogue. Press '5' to show some hyperbolic straight lines.",
-      [] (presmode mode) {
-       using namespace linepatterns;
-       slidecommand = "toggle the Palace lines";
-       if(mode == 4) patPalace.color = 0xFFD500FF;
-       if(mode == 3) patPalace.color = 0xFFD50000;
-        }
-      },
-  };
-
-int rvtour_hooks = 
-  addHook(hooks_slide, 100, [] (int mode) {
-    if(currentslide == 0 && slides == default_slides) {
-      slidecommand = "RogueViz presentation";
-      if(mode == 1)
-        help += 
-          "\n\nYour version of HyperRogue is compiled with RogueViz. "
-          "Press '5' to switch to the RogueViz slides. Watching the "
-          "common HyperRogue tutorial first is useful too, "
-          "as an introduction to hyperbolic geometry.";         
-      if(mode == 4) {
-        slides = gen_rvtour();
-        while(tour::on) restart_game(rg::tour);
-        tour::start();
-        }
-      }
-    }) +
-  0;
-
-}
-#endif
-
 bool default_help() {
-  if(!vizid) return false;
 
   help = 
     "This is RogueViz, a visualization engine based on HyperRogue.\n\nUse WASD to move, v for menu.\n\n"
@@ -1220,7 +1198,7 @@ bool default_help() {
   }
 
 void o_key(o_funcs& v) {
-  if(vizid) v.push_back(named_dialog(XLAT("rogueviz menu"), rogueviz::showMenu));
+  v.push_back(named_dialog(XLAT("RogueViz graph viz settings"), rogueviz::showMenu));
   }
 
 auto hooks  = 
@@ -1228,46 +1206,24 @@ auto hooks  =
   addHook(hooks_args, 100, readArgs) +
 #endif
   addHook(hooks_clearmemory, 0, close) +
-  addHook(hooks_prestats, 100, rogueviz_hud) +
-  addHook(shmup::hooks_draw, 100, drawVertex) +
-  addHook(shmup::hooks_describe, 100, describe_monster) +
-  addHook(shmup::hooks_kill, 100, activate) +
-  addHook(hooks_o_key, 100, o_key) +
-  
-#if CAP_RVSLIDES
-  addHook(tour::ss::hooks_extra_slideshows, 100, [] (bool view) {
-    if(!view) return 1;
-    dialog::addBoolItem(XLAT("RogueViz Tour"), tour::ss::wts == &rvtour::rvslides[0], 'r');
-    dialog::add_action([] { tour::ss::wts = rvtour::gen_rvtour(); popScreen(); });    
-    return 0;
-    }) +
-#endif
-  
-  addHook(dialog::hooks_display_dialog, 100, [] () {
-    if(current_screen_cfunction() == showMainMenu) {
-      dialog::addItem(XLAT("rogueviz menu"), 'u'); 
-      dialog::add_action_push(rogueviz::showMenu);
-      }
-    #if CAP_RVSLIDES
-    if(current_screen_cfunction() == showStartMenu) {
-      dialog::addBreak(100);
-      dialog::addBigItem(XLAT("RogueViz"), 'r');
-      dialog::add_action([] () {        
-        tour::slides = rogueviz::rvtour::gen_rvtour();
-        popScreenAll();
-        tour::start();
-        printf("tour start\n");
-        });
-      dialog::addInfo(XLAT("see the visualizations"));
-      }
-    #endif
-    }) +
-  addHook(hooks_welcome_message, 100, [] () {
-    if(vizid) addMessage(XLAT("Welcome to RogueViz!"));
-    return bool(vizid);
-    }) +
-  addHook(hooks_default_help, 100, default_help) +
+
   addHook(hooks_markers, 100, search_marker) +
+  addHook(hooks_configfile, 100, [] {
+    param_i(brm_limit, "brm_limit");
+    }) +
  0;
 
+void graph_rv_hooks() {
+  rv_hook(hooks_default_help, 100, default_help);
+  rv_hook(hooks_o_key, 100, o_key);
+  rv_hook(hooks_prestats, 100, rogueviz_hud);
+  rv_hook(shmup::hooks_draw, 100, drawVertex);
+  rv_hook(shmup::hooks_describe, 100, describe_monster);
+  rv_hook(shmup::hooks_kill, 100, activate);
+  rv_hook(hooks_welcome_message, 100, [] () {
+    addMessage(XLAT("Welcome to RogueViz!"));
+    return true;
+    });
+  }
+  
 }

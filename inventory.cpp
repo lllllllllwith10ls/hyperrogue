@@ -146,7 +146,7 @@ EX namespace inv {
       }
     else {
       bool nextfound = false;
-      int fst = (chaosmode ? 5 : 10);
+      int fst = (ls::any_chaos() ? 5 : 10);
       if(qty >= fst) remaining[o]++;
       else {
         if(whichorbinfo == o) {
@@ -162,7 +162,7 @@ EX namespace inv {
         }
       int last = fst;
       for(int k=0; k<30 || !nextfound; k++) {
-        int maxstep = chaosmode ? 10 + 2 * k : 15 + 5 * k;
+        int maxstep = ls::any_chaos() ? 10 + 2 * k : 15 + 5 * k;
         if(o == itOrbMirror)
           maxstep += 5 * (k-1) * (k-2);
         else
@@ -243,7 +243,7 @@ EX namespace inv {
     for(auto& oi: orbinfos) {
       if(oi.flags & orbgenflags::OSM_AT10) {
         eItem it = treasureType(oi.l);
-        int fst = chaosmode ? 5 : 10;
+        int fst = ls::any_chaos() ? 5 : 10;
         if(items[it] >= fst) {
           remaining[oi.orb]++;
           }
@@ -328,7 +328,7 @@ EX namespace inv {
     gainOrbs(itZebra, itOrbFrog);
     gainOrbs(itElemental, itOrbSummon);
     gainOrbs(itFulgurite, itOrbStunning);
-    gainOrbs(itMutant, itOrbLuck);
+    gainOrbs(itMutant, itOrbWoods);
     gainOrbs(itMutant2, itOrbFreedom);
     gainOrbs(itLotus, itOrbUndeath);
     gainOrbs(itWindstone, itOrbAir);
@@ -371,6 +371,9 @@ EX namespace inv {
     gainOrbs(itFrog, itOrbImpact);
     gainOrbs(itWet, itOrbPlague);
     gainOrbs(itEclectic, itOrbChaos);
+    
+    gainOrbs(itCursed, itOrbPurity);
+    gainOrbs(itDice, itOrbLuck);
 
 #if CAP_DAILY    
     daily::gifts();
@@ -406,7 +409,7 @@ EX namespace inv {
     }
   
   map<char, eItem> orbmap;
-  string orbkeys = "zfwplSetsTaMIYgCcPOWAFydLGRUkouE.,bVNxDjJZnrvhBm!23456789@#$%";
+  string orbkeys = "zfwplSetsTaMIYgCcPOWAFydLGRUkouE.,bVNxDjJZnrvhBm!23456789@#$%()";
   
   typedef pair<int, int> pxy;
   vector<pxy> orbcoord;
@@ -442,14 +445,12 @@ EX namespace inv {
   
   void evokeOrb(eItem it) {
     if(it == itOrbFreedom)
-      for(int i=0; i<numplayers(); i++)
-        if(multi::playerActive(i))
-          checkFreedom(playerpos(i));
+      for(cell *pc: player_positions())
+        checkFreedom(pc);
     
     if(it == itOrbBeauty) {
-      for(int i=0; i<numplayers(); i++)
-        if(multi::playerActive(i))
-          evokeBeautyAt(playerpos(i));
+      for(cell *pc: player_positions()) 
+          evokeBeautyAt(pc);
       if(items[itOrbEmpathy])
         for(cell *c: dcal) if(isFriendly(c->monst))
           evokeBeautyAt(c);
@@ -464,12 +465,11 @@ EX namespace inv {
       }
     
     if(it == itOrbSword || it == itOrbSword2) {
-      for(int i=0; i<numplayers(); i++)
-        if(multi::playerActive(i)) {
-          cwt.at = playerpos(i);
-          multi::cpid = i;
-          swordAttackStatic(it == itOrbSword2);
-          }
+      for(int i: player_indices()) {
+        cwt.at = playerpos(i);
+        multi::cpid = i;
+        swordAttackStatic(it == itOrbSword2);
+        }
       }
     }
   
@@ -496,7 +496,7 @@ EX namespace inv {
     cmode = sm::CENTER;
 
     orbcoord.clear();
-    for(int y=-3; y<=3; y++) for(int x=-5; x<=5; x++) if(x+y<=5 && x+y >= -5 && (x||y))
+    for(int y=-3; y<=3; y++) for(int x=-5; x<=5; x++) if(x+y<=6 && x+y >= -6 && (x||y))
       orbcoord.emplace_back(x,y);
     sort(orbcoord.begin(), orbcoord.end(), [](pxy p1, pxy p2) {
       return sq(p1) < sq(p2); });
@@ -508,7 +508,7 @@ EX namespace inv {
     orbmap.clear();
     which = itNone;
         
-    if(plain) dialog::init(XLAT(mirroring ? "mirror what?" : "inventory"), forecolor, 150, 100);
+    if(plain) dialog::init(mirroring ? XLAT("mirror what?") : XLAT("inventory"), forecolor, 150, 100);
     
     int j = 0, oc = 6;
 
@@ -517,7 +517,7 @@ EX namespace inv {
 
     for(int i=0; i<ittypes; i++) {
       eItem o = eItem(i);
-      if(itemclass(o) == IC_ORB) {
+      if(itemclass(o) == IC_ORB && !(classflag(o) & IF_CURSE)) {
         char c = orbkeys[j++];
         if(c == 0) println(hlog, "missing char for ", dnameof(o));
         if(remaining[i] || usedup[i]) {
@@ -525,12 +525,16 @@ EX namespace inv {
           if(plain) 
             dialog::addSelItem(XLAT1(iinf[o].name), its(remaining[i]), c);
           else {
+            if(oc >= isize(orbcoord)) {
+              println(hlog, "error: oc=", oc, " with only ", isize(orbcoord), " positions");
+              continue;
+              }
             auto pos = orbcoord[oc++];
             ld px = current_display->xcenter + 2*rad*pos.first + rad*pos.second;
             ld py = current_display->ycenter + pos.second * rad3;
             int icol = iinf[o].color;
             if(!remaining[i]) icol = gradient(icol, 0, 0, .5, 1);
-            bool gg = graphglyph();
+            bool gg = graphglyph(false);
             
             if(!hiliteclick) {
               if(gg) {
@@ -613,7 +617,7 @@ EX namespace inv {
   
         }
       }
-    dialog::displayPageButtons(3, 0);
+    dialog::displayPageButtons(7, 0);
     mouseovers = "";
     keyhandler = [] (int sym, int uni) {
       if(plain) dialog::handleNavigation(sym, uni);

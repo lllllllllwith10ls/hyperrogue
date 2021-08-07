@@ -200,6 +200,10 @@ EX bool earthFloor(cell *c) {
     c->wall = waNone;
     return true;
     }
+  if(c->land == laCursed && among(c->wall, waDeepWater, waShallow)) {
+    c->wall = waNone;
+    return true;
+    }
   return false;
   }
 
@@ -271,6 +275,10 @@ EX bool earthWall(cell *c) {
   if(c->wall == waArrowTrap && c->land == laTerracotta) {
     destroyTrapsOn(c);
     c->wall = waMercury;
+    return true;
+    }
+  if(c->land == laCursed && among(c->wall, waNone, waShallow)) {
+    c->wall = waSea;
     return true;
     }
   if(c->wall == waCIsland || c->wall == waCIsland2 || (c->wall == waNone && c->land == laOcean)) {
@@ -389,7 +397,7 @@ EX bool snakepile(cell *c, eMonster m) {
 EX bool makeflame(cell *c, int timeout, bool checkonly) {
   changes.ccell(c);
   if(!checkonly) destroyTrapsOn(c);
-  if(itemBurns(c->item)) {
+  if(itemBurns(c->item) && !isWatery(c) && c->wall != waShallow) {
     if(checkonly) return true;
     if(c->cpdist <= 7)
       addMessage(XLAT("%The1 burns!", c->item));
@@ -458,6 +466,52 @@ EX bool makeflame(cell *c, int timeout, bool checkonly) {
     c->wall = w;
     c->wparam = max(c->wparam, (char) timeout);
     if(c->land == laBrownian) c->landparam = 0;
+    }
+  return true;
+  }
+
+EX bool makeshallow(cell *c, int timeout, bool checkonly) {
+  changes.ccell(c);
+  if(!checkonly) destroyTrapsOn(c);
+  #if CAP_COMPLEX2
+  if(c->land == laBrownian) {
+    if(checkonly) return true;
+    brownian::dissolve(c, 1);
+    }
+  #endif
+  if(c->wall == waChasm || c->wall == waOpenGate || c->wall == waRed2 || c->wall == waRed3 ||
+    c->wall == waTower)
+    return false;
+  else if(c->wall == waNone && c->land == laCocytus) {
+    if(checkonly) return true;
+    c->wall = waLake;
+    }
+  else if(c->wall == waFireTrap) {
+    if(checkonly) return true;
+    c->wall = waShallow;
+    }
+  else if(c->wall == waFrozenLake) {
+    if(checkonly) return true;
+    drawParticles(c, MELTCOLOR, 8, 8);
+    c->wall = waLake;
+    }
+  else if(isFire(c)) {
+    if(checkonly) return true;
+    c->wall = waNone;
+    }
+  else if(c->wall == waMineMine) {
+    if(checkonly) return true;
+    c->wall = waShallow;
+    }
+  else if(among(c->wall, waNone, waRubble, waDeadfloor2, waCavefloor, waDeadfloor, waFloorA, waFloorB) && !cellUnstable(c) && !isGravityLand(c)) {
+    if(checkonly) return true;
+    c->wall = waShallow;
+    }
+  else if(c->wall == waDock) {
+    if(checkonly) return true;
+    c->wall = waSea;
+    c->wparam = 3;
+    return false;
     }
   return true;
   }
@@ -679,7 +733,7 @@ EX void checkTide(cell *c) {
   if(c->land == laOcean) {
     int t = c->landparam;
     
-    if(chaosmode) {
+    if(ls::any_chaos()) {
       char& csd(c->SEADIST); if(csd == 0) csd = 7;
       char& cld(c->LANDDIST); if(cld == 0) cld = 7;
       int seadist=csd, landdist=cld;
@@ -778,7 +832,7 @@ EX bool makeEmpty(cell *c) {
     c->wparam = reptilemax();
   else if(c->wall == waAncientGrave && bounded)
     ;
-  else
+  else if(c->wall != waRoundTable)
     c->wall = waNone;
   
   if(c->land == laBrownian && c->wall == waNone && c->landparam == 0)
@@ -850,6 +904,7 @@ EX void destroyTrapsOn(cell *c) {
   if(c->wall == waArrowTrap) {
     changes.ccell(c);
     c->wall = waNone;
+    drawParticles(c, 0xFF0000, 4);
     destroyTrapsAround(c);
     }
   }
@@ -929,17 +984,19 @@ movei determinePush(cellwalker who, int subdir, const T& valid) {
     auto rd = reverse_directions(push.at, push.spin);
     for(int i: rd) {
       push.spin = i;
-      if(valid(push.cpeek())) return movei(push.at, push.spin);
+      movei mi = movei(push.at, i);
+      if(valid(mi)) return mi;
       }
     return movei(c2, NO_SPACE);
     }
   int pd = push.at->type/2;
   push += pd * -subdir;
+  movei mi(push.at, push.spin);
   push += wstep;
-  if(valid(push.at)) return movei(c2, (push+wstep).spin);
+  if(valid(mi)) return mi;
   if(c2->type&1) {
     push = push + wstep - subdir + wstep;
-    if(valid(push.at)) return movei(c2, (push+wstep).spin);
+    if(valid(mi)) return mi;
     }
   if(gravityLevelDiff(push.at, c2) < 0) {
     push = push + wstep + 1 + wstep;
@@ -949,7 +1006,8 @@ movei determinePush(cellwalker who, int subdir, const T& valid) {
     if(gravityLevelDiff(push.at, c2) < 0) {
       push = push + wstep + 1 + wstep;
       }
-    if(valid(push.at)) return movei(c2, (push+wstep).spin);
+    movei mi = movei(c2, (push+wstep).spin);
+    if(valid(mi)) return mi;
     }
   return movei(c2, NO_SPACE);
   }

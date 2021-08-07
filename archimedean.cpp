@@ -14,7 +14,13 @@ EX namespace arcm {
 
 EX bool in() { return cgflags & qARCHI; }
 
+EX ld euclidean_edge_length = .5;
+
 #if HDR
+struct hr_archimedean_error : hr_exception {
+  hr_archimedean_error(string _s) : hr_exception(_s) {}
+  };
+
 struct archimedean_tiling {
 
   int coloring;
@@ -382,9 +388,8 @@ void archimedean_tiling::compute_geometry() {
   
   /* compute the geometry */
   inradius.resize(N+1); inradius[N] = 0;
-  circumradius.resize(N);
+  circumradius.resize(N+1); circumradius[N] = 0;
   alphas.resize(N);
-  ld elmin = 0, elmax = hyperbolic ? 10 : sphere ? M_PI : 1;
   
   ld total = M_PI;
 
@@ -395,6 +400,8 @@ void archimedean_tiling::compute_geometry() {
     ginf[geometry].g = get_geometry(fake::around / N);
     }
   
+  ld elmin = 0, elmax = hyperbolic ? 10 : sphere ? M_PI : 2 * euclidean_edge_length;
+
   /* inradius[N] is used in farcorner and nearcorner. Probably a bug */
   
   if(real_faces == 2) {
@@ -440,6 +447,7 @@ void archimedean_tiling::compute_geometry() {
       }
     
     if(debugflags & DF_GEOM)
+    if(p < 10 || p == 99)
       println(hlog, "edgelength = ", edgelength, " angles = ", alphas, " inradius = ", inradius, " circumradius = ", circumradius);
     
     if(isnan(alpha_total)) elmax = edgelength;
@@ -505,6 +513,15 @@ EX bool use_gmatrix = true;
  *  not used by arcm itself, but used in fake arcm
  */
 
+EX geometry_information *alt_cgip;
+
+EX geometry_information *find_alt_cgip() {
+  if(alt_cgip) return alt_cgip;
+  check_cgi();
+  cgi.require_basics();
+  return alt_cgip = cgip;
+  }
+
 struct hrmap_archimedean : hrmap {
   map<gp::loc, struct cdata> eucdata;
   heptagon *origin;
@@ -514,17 +531,8 @@ struct hrmap_archimedean : hrmap {
     dynamicval<hrmap*> curmap(currentmap, this);
     int id = DUAL ? current.N * 2 : 0;;
     int N0 = isize(current.adjacent[id]);
-    origin = tailored_alloc<heptagon> (N0);
+    origin = init_heptagon(N0);
     origin->s = hsOrigin;
-    origin->emeraldval = 0;
-    origin->zebraval = 0;
-    origin->fiftyval = 0;
-    origin->fieldval = 0;
-    origin->rval0 = origin->rval1 = 0;
-    origin->cdata = NULL;
-    origin->alt = NULL;
-    origin->c7 = NULL;
-    origin->distance = 0;
 
     parent_index_of(origin) = DUAL ? 1 : 0;
     id_of(origin) = id;
@@ -533,18 +541,15 @@ struct hrmap_archimedean : hrmap {
     heptagon *alt = NULL;
     
     if(hyperbolic) {
-      dynamicval<eGeometry> g(geometry, gNormal); 
-      alt = tailored_alloc<heptagon> (S7);
+      dynamicval<eGeometry> g(geometry, gNormal);
+      dynamicval<eVariation> gv(variation, eVariation::pure);
+      dynamicval<geometry_information*> gi(cgip, find_alt_cgip());
+      alt = init_heptagon(S7);
       alt->s = hsOrigin;
-      alt->emeraldval = 0;
-      alt->zebraval = 0;
-      alt->distance = 0;
-      alt->c7 = NULL;
       alt->alt = alt;
-      alt->cdata = NULL;
-      current_altmap = newAltMap(alt); 
+      current_altmap = newAltMap(alt);
       }
-  
+
     transmatrix T = xpush(.01241) * spin(1.4117) * xpush(0.1241) * Id;
     archimedean_gmatrix[origin] = make_pair(alt, T);
     altmap[alt].emplace_back(origin, T);
@@ -577,22 +582,17 @@ struct hrmap_archimedean : hrmap {
       origin->move(1)->c.connect(1, origin->move(0), 2*current.N-1, false);
       }
     
-    cgi.base_distlimit = 0;
-    celllister cl(origin->c7, 1000, 200, NULL);
-    ginf[geometry].distlimit[!BITRUNCATED] = cgi.base_distlimit = cl.dists.back();
-    if(sphere) cgi.base_distlimit = SEE_ALL;
+    auto_compute_range(origin->c7);
     }
 
   ~hrmap_archimedean() {
-    if(hyperbolic) for(auto& p: archimedean_gmatrix) if(p.second.first->cdata) {
-      delete p.second.first->cdata;
-      p.second.first->cdata = NULL;
-      }
     clearfrom(origin);
     altmap.clear();
     archimedean_gmatrix.clear();
     if(current_altmap) {
       dynamicval<eGeometry> g(geometry, gNormal);       
+      dynamicval<eVariation> gv(variation, eVariation::pure);
+      dynamicval<geometry_information*> gi(cgip, find_alt_cgip());
       delete current_altmap;
       current_altmap = NULL;
       }
@@ -601,7 +601,7 @@ struct hrmap_archimedean : hrmap {
 
   heptagon *create_step(heptagon *h, int d) override {
   
-    DEBB(DF_GEOM, (format("%p.%d ~ ?\n", hr::voidp(h), d)));
+    DEBB(DF_GEOM, (heptspin(h,d), " ~ ?"));
 
     dynamicval<geometryinfo1> gi(ginf[geometry].g, ginf[gArchimedean].g);
     
@@ -621,7 +621,9 @@ struct hrmap_archimedean : hrmap {
     transmatrix U = Id;
     
     if(hyperbolic) {
-      dynamicval<eGeometry> g(geometry, gNormal); 
+      dynamicval<eGeometry> g(geometry, gNormal);
+      dynamicval<eVariation> gv(variation, eVariation::pure);
+      dynamicval<geometry_information*> gi(cgip, find_alt_cgip());
       dynamicval<hrmap*> cm(currentmap, current_altmap);
       U = T;
       current_altmap->virtualRebase(alt, T);
@@ -710,7 +712,7 @@ struct hrmap_archimedean : hrmap {
     return calc_relative_matrix(c->cmove(dir), c, C0);
     }
   
-  transmatrix relative_matrix(heptagon *h2, heptagon *h1, const hyperpoint& hint) override {
+  transmatrix relative_matrixh(heptagon *h2, heptagon *h1, const hyperpoint& hint) override {
     if(use_gmatrix && gmatrix0.count(h2->c7) && gmatrix0.count(h1->c7))
       return inverse(gmatrix0[h1->c7]) * gmatrix0[h2->c7];
     transmatrix gm = Id, where = Id;
@@ -748,6 +750,61 @@ struct hrmap_archimedean : hrmap {
       return -t1.first;
       }
     }
+
+  void find_cell_connection(cell *c, int d) override {
+    if(PURE) {
+      if(arcm::id_of(c->master) < arcm::current.N * 2) {
+        heptspin hs = heptspin(c->master, d) + wstep + 2 + wstep + 1;
+        c->c.connect(d, hs.at->c7, hs.spin, hs.mirrored);
+        }
+      else c->c.connect(d, c, d, false);
+      }
+    else if(DUAL) {
+      if(arcm::id_of(c->master) >= arcm::current.N * 2) {
+        heptagon *h2 = createStep(c->master, d*2);
+        int d1 = c->master->c.spin(d*2);
+        c->c.connect(d, h2->c7, d1/2, false);
+        }
+      else {
+        printf("bad connection\n");
+        c->c.connect(d,c,d,false);
+        }
+      }
+    else hrmap::find_cell_connection(c, d);
+    }
+
+  int shvid(cell *c) override {
+    auto& ac = arcm::current;
+    int id = arcm::id_of(c->master);
+    if(ac.regular && id>=2 && id < 2*ac.N) id &= 1;    
+    return id;    
+    }  
+
+  int full_shvid(cell *c) override {
+    return id_of(c->master) + 20 * parent_index_of(c->master);
+    }
+
+  hyperpoint get_corner(cell *c, int cid, ld cf) override {
+    auto &ac = arcm::current_or_fake();
+    if(PURE) {
+      if(arcm::id_of(c->master) >= ac.N*2) return C0;
+      auto& t = ac.get_triangle(c->master, cid-1);
+      return xspinpush0(-t.first, t.second * 3 / cf * (ac.real_faces == 0 ? 0.999 : 1));
+      }
+    if(BITRUNCATED) {
+      auto& t0 = ac.get_triangle(c->master, cid-1);
+      auto& t1 = ac.get_triangle(c->master, cid);
+      hyperpoint h0 = xspinpush0(-t0.first, t0.second * 3 / cf * (ac.real_faces == 0 ? 0.999 : 1));
+      hyperpoint h1 = xspinpush0(-t1.first, t1.second * 3 / cf * (ac.real_faces == 0 ? 0.999 : 1));
+      return mid3(C0, h0, h1);
+      }
+    if(DUAL) {
+      auto& t0 = ac.get_triangle(c->master, 2*cid-1);
+      return xspinpush0(-t0.first, t0.second * 3 / cf * (ac.real_faces == 0 ? 0.999 : 1));
+      }
+    return C0;
+    }
+
   };
 
 EX hrmap *new_map() { return new hrmap_archimedean; }
@@ -755,7 +812,7 @@ EX hrmap *new_map() { return new hrmap_archimedean; }
 heptagon *build_child(heptspin p, pair<int, int> adj) {
   indenter ind;
   auto h = buildHeptagon1(tailored_alloc<heptagon> (isize(current.adjacent[adj.first])), p.at, p.spin, hstate(1), 0);
-  DEBB(DF_GEOM, (format("NEW %p.%d ~ %p.0\n", hr::voidp(p.at), p.spin, hr::voidp(h))));
+  DEBB(DF_GEOM, ("NEW ", p, " ~ ", heptspin(h, 0)));
   id_of(h) = adj.first;
   parent_index_of(h) = adj.second;
   int nei = neighbors_of(h);
@@ -805,18 +862,18 @@ void connect_digons_too(heptspin h1, heptspin h2) {
   }
 
 void connectHeptagons(heptspin hi, heptspin hs) {
-  DEBB(DF_GEOM, (format("OLD %p.%d ~ %p.%d\n", hr::voidp(hi.at), hi.spin, hr::voidp(hs.at), hs.spin)));
+  DEBB(DF_GEOM, ("OLD ", hi, " ~ ", hs));
   if(hi.at->move(hi.spin) == hs.at && hi.at->c.spin(hi.spin) == hs.spin) {
     DEBB(DF_GEOM, (format("WARNING: already connected\n")));
     return;
     }
   if(hi.peek()) {
     DEBB(DF_GEOM, (format("ERROR: already connected left\n")));
-    exit(1);
+    throw hr_archimedean_error("Archimedean error: already connected left");
     }
   if(hs.peek()) {
     DEBB(DF_GEOM, (format("ERROR: already connected right\n")));
-    exit(1);
+    throw hr_archimedean_error("Archimedean error: already connected right");
     }
   hi.at->c.connect(hi.spin, hs);
 
@@ -975,8 +1032,15 @@ auto hook =
 
 #if MAXMDIM >= 4
 auto hooksw = addHook(hooks_swapdim, 100, [] {
+
+  dynamicval<eGeometry> g(geometry, gNormal);
+  dynamicval<eVariation> gv(variation, eVariation::pure);
+  dynamicval<geometry_information*> gi(cgip, find_alt_cgip());
+
   for(auto& p: altmap) for(auto& pp: p.second) swapmatrix(pp.second);
   for(auto& p: archimedean_gmatrix) swapmatrix(p.second.second);
+
+  alt_cgip = nullptr;
   });
 #endif
 
@@ -1191,7 +1255,7 @@ EX void enable(archimedean_tiling& arct) {
 function<void()> setcanvas(char c) {
   return [c] () {
     stop_game();
-    firstland = specialland = laCanvas;
+    enable_canvas();
     patterns::whichCanvas = c;
     start_game();
     };

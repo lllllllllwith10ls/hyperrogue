@@ -217,7 +217,7 @@ const char *winddesc =
   "Cells which are blocked by walls, or at distance at most 2 from an Air Elemental, "
   "do not count for this.\n\n"
   "It is illegal to move in a direction which is closer to incoming wind than to "
-  "outcoming wind. However, you can move two cells with the wind in a single turn, "
+  "outgoing wind. However, you can move two cells with the wind in a single turn, "
   "and so can the birds.";
 
 const char *warningdesc = 
@@ -411,7 +411,7 @@ const char *twdesc = "This structure will disappear after some time.";
 const char *jellydesc = 
   "Some of the Slime Beasts have decided to revolt against the color rules in the "
   "Alchemist Lab. They have changed their shape and consistency, declared independence, and established their own Kingdom.\n\n"
-  "Jellies switch between being a wall and being a monster after every treasure you pick.";
+  "Jellies switch between being a wall and being a monster after every treasure you collect.";
 
 const char *ruindesc = 
   "Once a beautiful city... but now overrun by the mighty Raiders of unknown origin.\n\n"
@@ -477,6 +477,8 @@ static const flagtype CF_MOVED = Flag(47);
 static const flagtype CF_FACING = Flag(48);
 static const flagtype CF_FACE_UP = Flag(49);
 static const flagtype CF_FACE_SIDE = Flag(50);
+static const flagtype CF_HIGH_THREAT = Flag(51);
+static const flagtype CF_SPAM = Flag(52);
 
 enum eMonster {
   #define MONSTER(a,b,c,d,e,f,g,h) d,
@@ -532,7 +534,7 @@ EX genderswitch_t genderswitch[NUM_GS] = {
 // --- items ---
 
 #if HDR
-enum eOrbshape { osNone, osLove, osRanged, osOffensive, osFriend, osUtility, osDirectional, osWarping, osFrog };
+enum eOrbshape { osNone, osLove, osRanged, osOffensive, osFriend, osUtility, osDirectional, osWarping, osFrog, osPowerUtility, osProtective, osMovement, osTerraform };
 
 static const flagtype ZERO = 0;
 
@@ -543,6 +545,7 @@ static const flagtype IF_EMPATHY = Flag(3);
 static const flagtype IF_RANGED = Flag(4);
 static const flagtype IF_SHMUPLIFE = Flag(5);
 static const flagtype IF_REVIVAL = Flag(6);
+static const flagtype IF_CURSE = Flag(7);
 
 // 0 = basic treasure, 1 = other item, 2 = power orb, 3 = not an item
 #define IC_TREASURE 0
@@ -691,8 +694,9 @@ EX vector<landtacinfo> land_tac = {
   {laBurial, 5, 2}, 
   {laElementalWall, 10, 1}, {laTrollheim, 5, 2},
   {laPrairie, 5, 2}, {laBull, 5, 2}, {laTerracotta, 10, 1}, 
+  {laDice, 5, 2}, {laCursed, 5, 2},
   
-  {laCrossroads, 10, 1}, {laCrossroads2, 10, 1}, {laCrossroads3, 10, 1}, {laCrossroads4, 10, 1}, 
+  {laCrossroads, 10, 1}, {laCrossroads2, 10, 1}, {laCrossroads3, 10, 1}, {laCrossroads4, 10, 1}, {laCrossroads5, 5, 2},
   
   {laCamelot, 1, 100},
   {laWildWest, 10, 1},
@@ -738,7 +742,7 @@ enum eGeometry {
 
 enum eGeometryClass { gcHyperbolic, gcEuclid, gcSphere, gcSolNIH, gcNil, gcProduct, gcSL2 };
 
-enum class eVariation { bitruncated, pure, goldberg, irregular, dual, untruncated, warped, unrectified };
+enum class eVariation { bitruncated, pure, goldberg, irregular, dual, untruncated, warped, unrectified, subcubes, coxeter, dual_subcubes, bch, bch_oct };
 
 typedef flagtype modecode_t;
 
@@ -805,6 +809,12 @@ static const flagtype qAFFINE          = Flag(24);
 
 static const flagtype qULTRA           = Flag(25);
 
+static const flagtype qPORTALSPACE     = Flag(26);
+
+static const flagtype qSTRETCHABLE     = Flag(27);
+
+static const flagtype qCAT             = Flag(28);
+
 // note: dnext assumes that x&7 equals 7
 static const int SEE_ALL = 50;
 static const int OINF = 100;
@@ -845,85 +855,85 @@ EX modecode_t no_code = 0x1;
 
 /** list of available geometries */
 EX vector<geometryinfo> ginf = {
-  {"{7,3}", "none",     "{7,3} (standard HyperRogue map)",            "HR",       7, 3, 0,         giHyperb2,       0, {{7, 5}}, eVariation::bitruncated},
-  {"{6,3}", "none",     "{6,3} (euclidean Hex grid)",                 "euclid",   6, 3, qOPTQ,     giEuclid2,       0, {{7, 7}}, eVariation::bitruncated},
-  {"{5,3}", "none",     "{5,3} (dodecahedron)",                       "sphere",   5, 3, qsSMALLB,  giSphere2,       0, {{SEE_ALL, SEE_ALL}}, eVariation::bitruncated},
-  {"{5,3}", "elliptic", "elliptic geometry in {5,3}",                 "elliptic", 5, 3, qsNONORE,  giSphere2,       0, {{SEE_ALL, SEE_ALL}}, eVariation::bitruncated},
-  {"{7,3}", "Zebra",    "Zebra quotient",                             "Zebra",    7, 3, qsZEBRA,   giHyperb2, 0x00400, {{7, 5}}, eVariation::bitruncated},
-  {"{7,3}", "field",    "field quotient",                             "field",    7, 3, qsFIELD,   giHyperb2, 0x00200, {{7, 5}}, eVariation::bitruncated},
-  {"{6,3}", "torus",    "torus/Klein bottle/...",                     "torus",    6, 3, qsBQ|qDEPRECATED,      giEuclid2, 0x00600, {{7, 7}}, eVariation::bitruncated},
-  {"{8,3}", "none",     "{8,3} (like standard but with octagons)",    "oct",      8, 3, 0,         giHyperb2, 0x08000, {{6, 4}}, eVariation::bitruncated},
-  {"{5,4}", "none",     "{5,4} (four pentagons)",                     "4x5",      5, 4, 0,         giHyperb2, 0x08200, {{6, 4}}, eVariation::bitruncated},
-  {"{6,4}", "none",     "{6,4} (four hexagons)",                      "4x6",      6, 4, 0,         giHyperb2, 0x08400, {{5, 3}}, eVariation::bitruncated},
-  {"{7,4}", "none",     "{7,4} (four heptagons)",                     "4x7",      7, 4, 0,         giHyperb2, 0x08600, {{4, 3}}, eVariation::bitruncated},
-  {"{4,3}", "none",     "{4,3} (cube)",                               "3x4",      4, 3, qsSMALLB,  giSphere2, 0x10000, {{SEE_ALL, SEE_ALL}}, eVariation::bitruncated},
-  {"{3,3}", "none",     "{3,3} (tetrahedron)",                        "3x3",      3, 3, qsSMALLB,  giSphere2, 0x10200, {{SEE_ALL, SEE_ALL}}, eVariation::bitruncated},
-  {"{4,4}", "none",     "{4,4} (Euclidean square grid)",              "4x4",      4, 4, qOPTQ,     giEuclid2, 0x10400, {{7, 7}}, eVariation::bitruncated},
-  {"{4,3}", "elliptic", "elliptic geometry in {4,3}",                 "e3x4",     4, 3, qsNONORE,  giSphere2, 0x10600, {{SEE_ALL, SEE_ALL}}, eVariation::bitruncated},
-  {"{7,3}", "Klein",    "Klein Quartic",                              "Klein",    7, 3, qsSMALL,   giHyperb2, 0x18000, {{7, 5}}, eVariation::bitruncated},
-  {"{8,3}", "Bolza",    "Bolza Surface",                              "Bolza",    8, 3, qsDOCKS,   giHyperb2, 0x18200, {{6, 4}}, eVariation::bitruncated},
-  {"{8,3}", "Bolza2",   "Bolza Surface x2",                           "Bolza2",   8, 3, qsDOCKS,   giHyperb2, 0x18400, {{6, 4}}, eVariation::bitruncated},
-  {"{7,3}", "minimal",  "minimal quotient",                           "minimal",  7, 3, qsSMALLN,  giHyperb2, 0x18600, {{7, 5}}, eVariation::bitruncated},
-  {"binary","none",     "variant of the binary tiling",               "binary",   7, 3, qBINARY,   giHyperb2, 0x48400, {{7, 5}}, eVariation::pure},
-  {"Arch",  "none",     "Archimedean",                                "A",        7, 3, qARCHI,    giHyperb2,       0, {{7, 5}}, eVariation::pure},
-  {"{7,3}", "Macbeath", "Macbeath Surface",                           "Macbeath", 7, 3, qsSMALL,   giHyperb2, 0x20000, {{7, 5}}, eVariation::bitruncated},
-  {"{5,4}", "Bring",    "Bring's Surface",                            "Bring",    5, 4, qsSMALL,   giHyperb2, 0x20200, {{6, 4}}, eVariation::bitruncated},
-  {"{12,3}","M3",       "Schmutz's M(3)",                             "M3",      12, 3, qsSMALL,   giHyperb2, 0x20400, {{4, 2}}, eVariation::bitruncated},
-  {"{12,3}","M4",       "Schmutz's M(4)",                             "M4",      12, 3, qsSMALL,   giHyperb2, 0x20600, {{4, 2}}, eVariation::bitruncated},
-  {"{6,4}", "Crystal",  "dimensional crystal",                        "Crystal",  6, 4, qANYQ|qCRYSTAL, giHyperb2, 0x28000, {{5, 3}}, eVariation::pure},
-  {"{3,4}", "none",     "{3,4} (octahedron)",                         "4x3",      3, 4, qsSMALLB,  giSphere2, 0x28200, {{SEE_ALL, SEE_ALL}}, eVariation::bitruncated},
-  {"bin{4,4}",  "none", "{4,4} on horospheres",                       "bin44",    9, 3, qBINARY,   giHyperb3, 0x30000, {{7, 3}}, eVariation::pure},
-  {"{4,3,4}","none",    "{4,3,4} cube tiling",                        "434",      6, 4, qOPTQ,     giEuclid3, 0x30200, {{7, 5}}, eVariation::pure},
-  {"{5,3,3}","none",    "{5,3,3} 120-cell",                           "533",     12, 3, qsSMALLB,  giSphere3, 0x30400, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
-  {"{5,3,3}", "elliptic","{5,3,3} 120-cell (elliptic space)",         "e533",    12, 3, qsSMALLBE, giSphere3, 0x30600, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
-  {"rh{4,3,4}","none",  "rhombic dodecahedral honeycomb",             "rh434",   12, 3, qOPTQ,     giEuclid3, 0x31000, {{7, 5}}, eVariation::pure},
-  {"2t{4,3,4}","none",  "bitruncated cubic honeycomb",                "2t434",   14, 3, qOPTQ,     giEuclid3, 0x31200, {{7, 5}}, eVariation::pure},
-  {"{5,3,4}","none",    "{5,3,4} hyperbolic honeycomb",               "534",     12, 4, 0,         giHyperb3, 0x31400, {{7, 2}}, eVariation::pure},
-  {"{4,3,5}","none",    "{4,3,5} hyperbolic honeycomb",               "435",      6, 5, 0,         giHyperb3, 0x31600, {{7, 2}}, eVariation::pure},
-  {"{3,3,3}","none",    "{3,3,3} 5-cell",                             "333",      4, 3, qsSMALLB,  giSphere3, 0x38000, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
-  {"{3,3,4}","none",    "{3,3,4} 16-cell",                            "334",      4, 4, qsSMALLB,  giSphere3, 0x38200, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
-  {"{3,3,4}","elliptic","{3,3,4} 16-cell (elliptic space)",           "e334",     4, 4, qsSMALLBE, giSphere3, 0x39200, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
-  {"{4,3,3}","none",    "{4,3,3} 8-cell",                             "433",      6, 4, qsSMALLB,  giSphere3, 0x38400, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
-  {"{4,3,3}","elliptic","{4,3,3} 8-cell (elliptic space)",            "e433",     6, 4, qsSMALLBE, giSphere3, 0x39400, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
-  {"{3,4,3}","none",    "{3,4,3} 24-cell",                            "343",      8, 3, qsSMALLB,  giSphere3, 0x38600, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
-  {"{3,4,3}","elliptic","{3,4,3} 24-cell (elliptic space)",           "e343",     8, 3, qsSMALLBE, giSphere3, 0x39600, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
-  {"{3,3,5}","none",    "{3,3,5} 600-cell",                           "335",      4, 3, qsSMALLB,  giSphere3, 0x41000, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
-  {"{3,3,5}","elliptic","{3,3,5} 600-cell (elliptic space)",          "e335",     4, 3, qsSMALLBE, giSphere3, 0x41200, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
-  {"bin{3,6}", "none",  "{3,6} on horospheres",                       "bin36",    8, 3, qBINARY,   giHyperb3, 0x40000, {{7, 3}}, eVariation::pure},
-  {"bin-rect", "none",  "rectangles on horospheres",                  "bin44/2",  7, 3, qBINARY,   giHyperb3, 0x40200, {{7, 3}}, eVariation::pure},
-  {"bin{6,3}", "none",  "{6,3} on horospheres",                       "bin63",   14, 3, qBINARY,   giHyperb3, 0x40400, {{7, 3}}, eVariation::pure},
-  {"{4,3,5}","field",   "{4,3,5} field quotient space",               "f435",     6, 5, qsSMALLBF | qDEPRECATED, giHyperb3, 0x40600, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
-  {"{5,3,4}","field",   "{5,3,4} field quotient space",               "f435",    12, 4, qsSMALLBF | qDEPRECATED, giHyperb3, 0x40800, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
-  {"binary4","none",    "standard binary tiling",                     "binary4",  5, 3, qBINARY,   giHyperb2, 0x41400, {{7, 5}}, eVariation::pure},
-  {"sol",    "none",    "Solv geometry",                              "sol",      8, 3, qBINARY|qSOL,   giSolNIH,  0x41600, {{7, 5}}, eVariation::pure},
-  {"kd2",    "none",    "kite-and-dart",                              "kd2",      4, 3, qKITE,     giEuclid2, 0x48000, {{7, 7}}, eVariation::pure},
-  {"kd3",    "none",    "kite-and-dart on horospheres",               "kd3",     12, 3, qsBP,      giHyperb3, 0x48200, {{7, 3}}, eVariation::pure},
-  {"nil",    "none",    "Nil geometry",                               "nil",      6, 3, qOPTQ,     giNil,     0x48600, {{7, 5}}, eVariation::pure},
-  {"product","none",    "product space",                              "product",  7, 3, qHYBRID,   giProduct, 0x00000, {{7, 3}}, eVariation::pure},
-  {"twisted","none",    "rotation space",                             "twisted",  7, 3, qHYBRID,   giSL2,     0x00000, {{6, 4}}, eVariation::pure},
-  {"ternary","none",    "standard ternary tiling",                    "ternary",  6, 3, qBINARY,   giHyperb2, 0x48400, {{6, 4}}, eVariation::pure},
-  {"3x2",    "none",    "stretched hyperbolic",                       "3:2",     11, 3, qBINARY|qNIH,   giSolNIH,  0x49000, {{6, 3}}, eVariation::pure},
-  {"3x1/2",  "none",    "stretched Solv",                             "3:1/2",    9, 3, (qBINARY|qSOL|qNIH),   giSolNIH,  0x49200, {{7, 3}}, eVariation::pure},
-  {"{3,oo}", "none",    "{3,∞} (infinite triangles)",                 "oox3",     3, OINF, qIDEAL,  giHyperb2, 0x49400, {{7, 7}}, eVariation::pure},
-  {"{3,3,6}","none",    "{3,3,6} hyperbolic honeycomb",               "336",      4, 6, qIDEAL,    giHyperb3, 0x49600, {{7, 2}}, eVariation::pure},
-  {"{3,4,4}","none",    "{3,4,4} hyperbolic honeycomb",               "344",      8, 4, qIDEAL,    giHyperb3, 0x50000, {{7, 2}}, eVariation::pure},
-  {"{3,4,4}","Crystal", "4D crystal in H3",                           "Cryst3" ,  8, 4, qIDEAL | qANYQ | qCRYSTAL, giHyperb3, 0x52000, {{7, 3}}, eVariation::pure},
-  {"cat",    "cat",     "Arnold's cat mapping torus",                 "cat",     12, 3, qBINARY | qSOL | qsBQ | qOPTQ, giSolNIH, 0x52200, {{6, 4}}, eVariation::pure},
-  {"file",   "none",    "load from file",                             "file",     7, 3, qEXPERIMENTAL,  giEuclid2, 0, {{7, 5}}, eVariation::pure},
-  {"{4,oo}", "none",    "{4,∞} (infinite squares)",                   "oox4",     4, OINF, qIDEAL,  giHyperb2, 0x49400, {{5, 5}}, eVariation::pure},
-  {"{5,3,4}","Crystal", "6D crystal in H3",                           "Cryst6" , 12, 4, qANYQ | qCRYSTAL, giHyperb3, 0x52000, {{7, 3}}, eVariation::pure},
-  {"{5,3,5}","none",    "{5,3,5} hyperbolic honeycomb",               "535",     12, 5, 0,         giHyperb3, no_code, {{7, 2}}, eVariation::pure},
-  {"{5,3,6}","none",    "{5,3,6} hyperbolic honeycomb",               "536",     12, 6, qIDEAL,    giHyperb3, no_code, {{7, 2}}, eVariation::pure},
-  {"{5,3,5}","SWh",     "{5,3,5} quotient",                           "535c",    12, 5, qsSMALLB | qANYQ, giHyperb3, no_code, {{7, 2}}, eVariation::pure},
-  {"{5,3,5}","SW",      "Seifert-Weber space",                        "535s",    12, 5, qsSINGLE,  giHyperb3, no_code, {{7, 2}}, eVariation::pure},
-  {"{5,3,3}","SW",      "Poincaré homology sphere",                   "533s",    12, 3, qsSINGLE,  giSphere3, no_code, {{7, 2}}, eVariation::pure},
-  {"{?,oo}", "none",    "{3/4,∞} (infinite triangles and squares)",   "ooxm",     3, OINF, qIDEAL | qINFMIXED,  giHyperb2, no_code, {{6, 6}}, eVariation::pure},
-  {"{4,3,6}","none",    "{4,3,6} hyperbolic honeycomb",               "436",      6, 6, qIDEAL,    giHyperb3, no_code, {{7, 2}}, eVariation::pure},
-  {"?",      "none",    "fake",                                       "",         0, 0, qRAYONLY,  giHyperb3, no_code, {{7, 2}}, eVariation::pure},
-  {"{3,4,5}","none",    "{3,4,5} hyperbolic honeycomb",               "345",      8, 5, qIDEAL | qULTRA,    giHyperb3, no_code, {{7, 2}}, eVariation::pure},
-  {"{3,5,3}","none",    "{3,5,3} hyperbolic honeycomb",               "353",     20, 5, 0,         giHyperb3, no_code, {{7, 2}}, eVariation::pure},
-  {"{3,5,4}","none",    "{3,5,4} hyperbolic honeycomb",               "354",     20, 5, qIDEAL | qULTRA,    giHyperb3, no_code, {{7, 2}}, eVariation::pure},
-  {"{3,5,5}","none",    "{3,5,5} hyperbolic honeycomb",               "355",     20, 5, qIDEAL | qULTRA,    giHyperb3, no_code, {{7, 2}}, eVariation::pure},
+  {"{7,3}", "none",     "{7,3} (standard HyperRogue map)",            "HR",       7, 3, 0,         giHyperb2, {{7, 5}}, eVariation::bitruncated},
+  {"{6,3}", "none",     "{6,3} (euclidean Hex grid)",                 "euclid",   6, 3, qOPTQ,     giEuclid2, {{7, 7}}, eVariation::bitruncated},
+  {"{5,3}", "none",     "{5,3} (dodecahedron)",                       "sphere",   5, 3, qsSMALLB,  giSphere2, {{SEE_ALL, SEE_ALL}}, eVariation::bitruncated},
+  {"{5,3}", "elliptic", "elliptic geometry in {5,3}",                 "elliptic", 5, 3, qsNONORE,  giSphere2, {{SEE_ALL, SEE_ALL}}, eVariation::bitruncated},
+  {"{7,3}", "Zebra",    "Zebra quotient",                             "Zebra",    7, 3, qsZEBRA,   giHyperb2, {{7, 5}}, eVariation::bitruncated},
+  {"{7,3}", "field",    "field quotient",                             "field",    7, 3, qsFIELD,   giHyperb2, {{7, 5}}, eVariation::bitruncated},
+  {"{6,3}", "torus",    "torus/Klein bottle/...",                     "torus",    6, 3, qsBQ|qDEPRECATED,      giEuclid2, {{7, 7}}, eVariation::bitruncated},
+  {"{8,3}", "none",     "{8,3} (like standard but with octagons)",    "oct",      8, 3, 0,         giHyperb2, {{6, 4}}, eVariation::bitruncated},
+  {"{5,4}", "none",     "{5,4} (four pentagons)",                     "4x5",      5, 4, 0,         giHyperb2, {{6, 4}}, eVariation::bitruncated},
+  {"{6,4}", "none",     "{6,4} (four hexagons)",                      "4x6",      6, 4, 0,         giHyperb2, {{5, 3}}, eVariation::bitruncated},
+  {"{7,4}", "none",     "{7,4} (four heptagons)",                     "4x7",      7, 4, 0,         giHyperb2, {{4, 3}}, eVariation::bitruncated},
+  {"{4,3}", "none",     "{4,3} (cube)",                               "3x4",      4, 3, qsSMALLB,  giSphere2, {{SEE_ALL, SEE_ALL}}, eVariation::bitruncated},
+  {"{3,3}", "none",     "{3,3} (tetrahedron)",                        "3x3",      3, 3, qsSMALLB,  giSphere2, {{SEE_ALL, SEE_ALL}}, eVariation::bitruncated},
+  {"{4,4}", "none",     "{4,4} (Euclidean square grid)",              "4x4",      4, 4, qOPTQ,     giEuclid2, {{7, 7}}, eVariation::bitruncated},
+  {"{4,3}", "elliptic", "elliptic geometry in {4,3}",                 "e3x4",     4, 3, qsNONORE,  giSphere2, {{SEE_ALL, SEE_ALL}}, eVariation::bitruncated},
+  {"{7,3}", "Klein",    "Klein Quartic",                              "Klein",    7, 3, qsSMALL,   giHyperb2, {{7, 5}}, eVariation::bitruncated},
+  {"{8,3}", "Bolza",    "Bolza Surface",                              "Bolza",    8, 3, qsDOCKS,   giHyperb2, {{6, 4}}, eVariation::bitruncated},
+  {"{8,3}", "Bolza2",   "Bolza Surface x2",                           "Bolza2",   8, 3, qsDOCKS,   giHyperb2, {{6, 4}}, eVariation::bitruncated},
+  {"{7,3}", "minimal",  "minimal quotient",                           "minimal",  7, 3, qsSMALLN,  giHyperb2, {{7, 5}}, eVariation::bitruncated},
+  {"binary","none",     "variant of the binary tiling",               "binary",   7, 3, qBINARY,   giHyperb2, {{7, 5}}, eVariation::pure},
+  {"Arch",  "none",     "Archimedean",                                "A",        7, 3, qARCHI,    giHyperb2, {{7, 5}}, eVariation::pure},
+  {"{7,3}", "Macbeath", "Macbeath Surface",                           "Macbeath", 7, 3, qsSMALL,   giHyperb2, {{7, 5}}, eVariation::bitruncated},
+  {"{5,4}", "Bring",    "Bring's Surface",                            "Bring",    5, 4, qsSMALL,   giHyperb2, {{6, 4}}, eVariation::bitruncated},
+  {"{12,3}","M3",       "Schmutz's M(3)",                             "M3",      12, 3, qsSMALL,   giHyperb2, {{4, 2}}, eVariation::bitruncated},
+  {"{12,3}","M4",       "Schmutz's M(4)",                             "M4",      12, 3, qsSMALL,   giHyperb2, {{4, 2}}, eVariation::bitruncated},
+  {"{6,4}", "Crystal",  "dimensional crystal",                        "Crystal",  6, 4, qANYQ|qCRYSTAL, giHyperb2, {{5, 3}}, eVariation::pure},
+  {"{3,4}", "none",     "{3,4} (octahedron)",                         "4x3",      3, 4, qsSMALLB,  giSphere2, {{SEE_ALL, SEE_ALL}}, eVariation::bitruncated},
+  {"bin{4,4}",  "none", "{4,4} on horospheres",                       "bin44",    9, 3, qBINARY,   giHyperb3, {{7, 3}}, eVariation::pure},
+  {"{4,3,4}","none",    "{4,3,4} cube tiling",                        "434",      6, 4, qOPTQ,     giEuclid3, {{7, 5}}, eVariation::pure},
+  {"{5,3,3}","none",    "{5,3,3} 120-cell",                           "533",     12, 3, qsSMALLB | qSTRETCHABLE,  giSphere3, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
+  {"{5,3,3}", "elliptic","{5,3,3} 120-cell (elliptic space)",         "e533",    12, 3, qsSMALLBE | qSTRETCHABLE, giSphere3, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
+  {"rh{4,3,4}","none",  "rhombic dodecahedral honeycomb",             "rh434",   12, 3, qOPTQ,     giEuclid3, {{7, 5}}, eVariation::pure},
+  {"2t{4,3,4}","none",  "bitruncated cubic honeycomb",                "2t434",   14, 3, qOPTQ,     giEuclid3, {{7, 5}}, eVariation::pure},
+  {"{5,3,4}","none",    "{5,3,4} hyperbolic honeycomb",               "534",     12, 4, 0,         giHyperb3, {{7, 2}}, eVariation::pure},
+  {"{4,3,5}","none",    "{4,3,5} hyperbolic honeycomb",               "435",      6, 5, 0,         giHyperb3, {{7, 2}}, eVariation::pure},
+  {"{3,3,3}","none",    "{3,3,3} 5-cell",                             "333",      4, 3, qsSMALLB,  giSphere3, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
+  {"{3,3,4}","none",    "{3,3,4} 16-cell",                            "334",      4, 4, qsSMALLB,  giSphere3, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
+  {"{3,3,4}","elliptic","{3,3,4} 16-cell (elliptic space)",           "e334",     4, 4, qsSMALLBE, giSphere3, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
+  {"{4,3,3}","none",    "{4,3,3} 8-cell",                             "433",      6, 4, qsSMALLB | qSTRETCHABLE,  giSphere3, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
+  {"{4,3,3}","elliptic","{4,3,3} 8-cell (elliptic space)",            "e433",     6, 4, qsSMALLBE | qSTRETCHABLE, giSphere3, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
+  {"{3,4,3}","none",    "{3,4,3} 24-cell",                            "343",      8, 3, qsSMALLB | qSTRETCHABLE,  giSphere3, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
+  {"{3,4,3}","elliptic","{3,4,3} 24-cell (elliptic space)",           "e343",     8, 3, qsSMALLBE | qSTRETCHABLE, giSphere3, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
+  {"{3,3,5}","none",    "{3,3,5} 600-cell",                           "335",      4, 3, qsSMALLB,  giSphere3, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
+  {"{3,3,5}","elliptic","{3,3,5} 600-cell (elliptic space)",          "e335",     4, 3, qsSMALLBE, giSphere3, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
+  {"bin{3,6}", "none",  "{3,6} on horospheres",                       "bin36",    8, 3, qBINARY,   giHyperb3, {{7, 3}}, eVariation::pure},
+  {"bin-rect", "none",  "rectangles on horospheres",                  "bin44/2",  7, 3, qBINARY,   giHyperb3, {{7, 3}}, eVariation::pure},
+  {"bin{6,3}", "none",  "{6,3} on horospheres",                       "bin63",   14, 3, qBINARY,   giHyperb3, {{7, 3}}, eVariation::pure},
+  {"{4,3,5}","field",   "{4,3,5} field quotient space",               "f435",     6, 5, qsSMALLBF | qDEPRECATED, giHyperb3, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
+  {"{5,3,4}","field",   "{5,3,4} field quotient space",               "f435",    12, 4, qsSMALLBF | qDEPRECATED, giHyperb3, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
+  {"binary4","none",    "standard binary tiling",                     "binary4",  5, 3, qBINARY,   giHyperb2, {{7, 5}}, eVariation::pure},
+  {"sol",    "none",    "Solv geometry",                              "sol",      8, 3, qBINARY|qSOL,   giSolNIH, {{7, 5}}, eVariation::pure},
+  {"kd2",    "none",    "kite-and-dart",                              "kd2",      4, 3, qKITE,     giEuclid2, {{7, 7}}, eVariation::pure},
+  {"kd3",    "none",    "kite-and-dart on horospheres",               "kd3",     12, 3, qsBP,      giHyperb3, {{7, 3}}, eVariation::pure},
+  {"nil",    "none",    "Nil geometry",                               "nil",      6, 3, qOPTQ,     giNil,     {{7, 5}}, eVariation::pure},
+  {"product","none",    "product space",                              "product",  7, 3, qHYBRID,   giProduct, {{7, 3}}, eVariation::pure},
+  {"twisted","none",    "rotation space",                             "twisted",  7, 3, qHYBRID,   giSL2,     {{6, 4}}, eVariation::pure},
+  {"ternary","none",    "standard ternary tiling",                    "ternary",  6, 3, qBINARY,   giHyperb2, {{6, 4}}, eVariation::pure},
+  {"3x2",    "none",    "stretched hyperbolic",                       "3:2",     11, 3, qBINARY|qNIH,   giSolNIH,  {{6, 3}}, eVariation::pure},
+  {"3x1/2",  "none",    "stretched Solv",                             "3:1/2",    9, 3, (qBINARY|qSOL|qNIH),   giSolNIH,  {{7, 3}}, eVariation::pure},
+  {"{3,oo}", "none",    "{3,∞} (infinite triangles)",                 "oox3",     3, OINF, qIDEAL,  giHyperb2, {{7, 7}}, eVariation::pure},
+  {"{3,3,6}","none",    "{3,3,6} hyperbolic honeycomb",               "336",      4, 6, qIDEAL,    giHyperb3, {{7, 2}}, eVariation::pure},
+  {"{3,4,4}","none",    "{3,4,4} hyperbolic honeycomb",               "344",      8, 4, qIDEAL,    giHyperb3, {{7, 2}}, eVariation::pure},
+  {"{3,4,4}","Crystal", "4D crystal in H3",                           "Cryst3" ,  8, 4, qIDEAL | qANYQ | qCRYSTAL, giHyperb3, {{7, 3}}, eVariation::pure},
+  {"cat",    "cat",     "Arnold's cat mapping torus",                 "cat",     12, 3, qBINARY | qSOL | qsBQ | qOPTQ | qCAT, giSolNIH, {{6, 4}}, eVariation::pure},
+  {"file",   "none",    "load from file",                             "file",     7, 3, 0,  giEuclid2, {{7, 5}}, eVariation::pure},
+  {"{4,oo}", "none",    "{4,∞} (infinite squares)",                   "oox4",     4, OINF, qIDEAL,  giHyperb2, {{5, 5}}, eVariation::pure},
+  {"{5,3,4}","Crystal", "6D crystal in H3",                           "Cryst6" , 12, 4, qANYQ | qCRYSTAL, giHyperb3, {{7, 3}}, eVariation::pure},
+  {"{5,3,5}","none",    "{5,3,5} hyperbolic honeycomb",               "535",     12, 5, 0,         giHyperb3, {{7, 2}}, eVariation::pure},
+  {"{5,3,6}","none",    "{5,3,6} hyperbolic honeycomb",               "536",     12, 6, qIDEAL,    giHyperb3, {{7, 2}}, eVariation::pure},
+  {"{5,3,5}","SWh",     "{5,3,5} quotient",                           "535c",    12, 5, qsSMALLB | qANYQ, giHyperb3, {{7, 2}}, eVariation::pure},
+  {"{5,3,5}","SW",      "Seifert-Weber space",                        "535s",    12, 5, qsSINGLE,  giHyperb3, {{7, 2}}, eVariation::pure},
+  {"{5,3,3}","SW",      "Poincaré homology sphere",                   "533s",    12, 3, qsSINGLE,  giSphere3, {{7, 2}}, eVariation::pure},
+  {"{?,oo}", "none",    "{3/4,∞} (infinite triangles and squares)",   "ooxm",     3, OINF, qIDEAL | qINFMIXED,  giHyperb2, {{6, 6}}, eVariation::pure},
+  {"{4,3,6}","none",    "{4,3,6} hyperbolic honeycomb",               "436",      6, 6, qIDEAL,    giHyperb3, {{7, 2}}, eVariation::pure},
+  {"?",      "none",    "fake",                                       "",         0, 0, qRAYONLY,  giHyperb3, {{7, 2}}, eVariation::pure},
+  {"{3,4,5}","none",    "{3,4,5} hyperbolic honeycomb",               "345",      8, 5, qIDEAL | qULTRA,    giHyperb3, {{7, 2}}, eVariation::pure},
+  {"{3,5,3}","none",    "{3,5,3} hyperbolic honeycomb",               "353",     20, 5, 0,         giHyperb3, {{7, 2}}, eVariation::pure},
+  {"{3,5,4}","none",    "{3,5,4} hyperbolic honeycomb",               "354",     20, 5, qIDEAL | qULTRA,    giHyperb3, {{7, 2}}, eVariation::pure},
+  {"{3,5,5}","none",    "{3,5,5} hyperbolic honeycomb",               "355",     20, 5, qIDEAL | qULTRA,    giHyperb3, {{7, 2}}, eVariation::pure},
   };
   // bits: 9, 10, 15, 16, (reserved for later) 17, 18
 
@@ -974,9 +984,15 @@ enum eModel : int {
   mdRotatedHyperboles, mdSpiral, mdPerspective,
   // 20..24
   mdEquivolume, mdCentralInversion, mdSimulatedPerspective, mdTwoHybrid, mdGeodesic,
-  // 25
-  mdMollweide, mdCentralCyl, mdCollignon, mdHorocyclic,
-  // 29..
+  // 25..27
+  mdMollweide, mdCentralCyl, mdCollignon, 
+  // 28..31 
+  mdHorocyclic, mdQuadrant, mdAxial, mdAntiAxial,
+  // 32..38
+  mdWerner, mdAitoff, mdHammer, mdLoximuthal, mdMiller, mdGallStereographic, mdWinkelTripel,
+  // 39..
+  mdPoorMan, mdPanini, mdRetroCraig, mdRetroLittrow, mdRetroHammer, mdThreePoint,
+  // 45..
   mdGUARD, mdPixel, mdHyperboloidFlat, mdPolynomial, mdManual
   };
 #endif
@@ -1017,7 +1033,23 @@ EX vector<modelinfo> mdinf = {
   {X3("Mollweide"), mf::euc_boring | mf::pseudoband | mf::equiarea, DEFAULTS},
   {X3("central cylindrical"), mf::euc_boring | mf::band, DEFAULTS},
   {X3("Collignon"), mf::pseudoband | mf::equiarea, DEFAULTS},
-  {X3("horocyclic coordinates"), mf::euc_boring, DEFAULTS},
+  {X3("horocyclic coordinates"), mf::euc_boring, DEFAULTS
+  {X3("quadrant coordinates"), mf::euc_boring, DEFAULTS},
+  {X3("axial coordinates"), mf::euc_boring, DEFAULTS},
+  {X3("anti-axial coordinates"), mf::euc_boring, DEFAULTS},
+  {X3("Werner projection"), mf::euc_boring | mf::broken, DEFAULTS}, // keep distances from pole, and distances along parallels
+  {X3("Aitoff projection"), mf::euc_boring | mf::broken, DEFAULTS}, // halve longitudes, do azequid, double x
+  {X3("Hammer projection"), mf::euc_boring | mf::broken, DEFAULTS}, // halve longitudes, do azequia, double x
+  {X3("loximuthal projection"), mf::euc_boring | mf::broken, DEFAULTS}, // map loxodromes azimuthally and equidistantly
+  {X3("Miller projection"), mf::euc_boring | mf::band, DEFAULTS}, // scale latitude 4/5 -> Mercator -> 5/4
+  {X3("Gall stereographic"), mf::euc_boring | mf::band, DEFAULTS}, // like central cylindrical but stereographic
+  {X3("Winkel tripel"), mf::euc_boring | mf::broken, DEFAULTS}, // mean of equirec and Aitoff
+  {X3("Poor man's square"), mf::euc_boring, DEFAULTS}, // 
+  {X3("Panini projection"), mf::euc_boring, DEFAULTS}, // 
+  {X3("Craig retroazimuthal"), mf::euc_boring | mf::broken, DEFAULTS}, // retroazimuthal cylindrical
+  {X3("Littrow retroazimuthal"), mf::euc_boring | mf::broken, DEFAULTS}, // retroazimuthal conformal
+  {X3("Hammer retroazimuthal"), mf::euc_boring, DEFAULTS}, // retroazimuthal equidistant
+  {X3("three-point equidistant"), mf::euc_boring, DEFAULTS},
   {X3("guard"), 0, DEFAULTS},
   {X3("polynomial"), mf::conformal, DEFAULTS},
   };
@@ -1028,8 +1060,17 @@ EX vector<modelinfo> mdinf = {
 #if HDR
 static inline bool orbProtection(eItem it) { return false; } // not implemented
 
+// these markers use lands which never appear on barrier sides
+
 const eLand NOWALLSEP = laNone;
+const eLand NOWALLSEP_SWAP = laMountain;
+const eLand NOWALLSEP_WALL = laHauntedWall;
 const eLand NOWALLSEP_USED = laWhirlpool;
+const eLand NOWALLSEP_WALL_CPOS = laBarrier;
+const eLand NOWALLSEP_WALL_CNEG = laOceanWall;
+const eLand NOWALLSEP_WALL_EPOS = laClearing;
+const eLand NOWALLSEP_WALL_ENEG = laPrincessQuest;
+
 #endif
 
 }

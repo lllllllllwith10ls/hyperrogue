@@ -1,17 +1,6 @@
 /**
 
-Honeycomb data generator.
-
-Usage: 
-
-./hyper -geo 534h -gen-rule honeycomb-rules-534.dat -quit
-./hyper -geo 535h -gen-rule honeycomb-rules-535.dat -quit
-./hyper -geo 435h -gen-rule honeycomb-rules-435.dat -quit
-./hyper -geo 353h -gen-rule honeycomb-rules-353.dat -quit
-
-You need to change the value of XS7 to 6 (for 435) or 12 (for others)
-
-You also need to select 'fp used for rules' 
+Honeycomb data generator. See rulegen.sh
 
 This algorithm works as follows:
 
@@ -35,10 +24,9 @@ This algorithm works as follows:
 
 namespace hr {
 
-map<string, map<string,int> > rules;
+int exh;
 
-/** \brief S7 -- for efficiency this is a fixed constant */
-#define XS7 20
+map<string, map<string,int> > rules;
 
 /** \brief distance from the center */
 #define FV master->fiftyval
@@ -46,12 +34,25 @@ map<string, map<string,int> > rules;
 /** \brief change i into a string containing a displayable character */
 auto dis = [] (int i, char init='a') { return s0 + char(init + i); };
 
+bool optimize_344 = false;
+
 /** \brief we use a regular pattern to make sure that the directions are identified consistently.
     In {5,3,5} we can just use the Seifert-Weber space for this identification; otherwise,
     we use the field pattern. */
     
 int get_id(cell *c) { 
   if(geometry == gSpace535) return 0;
+  if(optimize_344 && geometry == gSpace344) {
+    /* we use the 'pattern from crystal' */
+    /* but it is mod 4, mod 2 is enough for us */
+    int res = 0;
+    int fv = c->master->fieldval;
+    for(int i=0; i<4; i++) {
+      res = 2 * res + (fv&1);
+      fv >>= 2;
+      }
+    return res;
+    }
   return c->master->fieldval;
   }
 
@@ -129,8 +130,6 @@ string find_path(cell *x, cell *y) {
     }
   }
 
-vector<array<string, XS7>> rule_list;
-
 /** a map of all the cells vertex-adjacent to c */
 struct ext_nei_rules_t {
   vector<int> from, dir, original;
@@ -139,8 +138,8 @@ struct ext_nei_rules_t {
 /** ext_nei_rules_t need to be created only once for each get_id */
 map<int, ext_nei_rules_t> ext_nei_rules;
 
-/** aux recursive function of construct_rules */
-void listnear(cell *c, ext_nei_rules_t& e, const transmatrix& T, int id, set<cell*>& visi) {
+/** aux recursive function of construct_rules: the compact variant */
+void listnear_compact(cell *c, ext_nei_rules_t& e, const transmatrix& T, int id, set<cell*>& visi) {
   visi.insert(c);
   int a = 0, b = 0;
   for(int i=0; i<S7; i++) {
@@ -157,7 +156,39 @@ void listnear(cell *c, ext_nei_rules_t& e, const transmatrix& T, int id, set<cel
     e.original.push_back(!visi.count(c1));
     if(e.original.back()) {
       b++;
-      listnear(c1, e, U, id1, visi);
+      listnear_compact(c1, e, U, id1, visi);
+      }
+    }
+  }
+
+/** aux recursive function of construct_rules: the maxdist variant */
+void listnear_exh(cell *c, ext_nei_rules_t& e, int maxdist) {
+  map<cell*, int> dist;
+  map<cell*, int> origdir;
+  vector<cell*> lst;
+
+  println(hlog, "called listnear_exh for: ", c);
+  
+  auto enqueue = [&] (cell *c, int d, int od) {
+    if(dist.count(c)) return;
+    dist[c] = d;
+    origdir[c] = od;
+    lst.push_back(c);
+    };
+  
+  enqueue(c, 0, -1);
+  for(int k=0; k<isize(lst); k++) {
+    cell *ca = lst[k];
+    int di = dist[ca] + 1;
+    int odi = origdir[ca];
+    for(int i=0; i<S7; i++) {
+      if(odi >= 0 && !cgi.dirs_adjacent[i][odi]) continue;
+      cell *c1 = ca->cmove(i);
+      e.from.push_back(k);
+      e.dir.push_back(i);
+      e.original.push_back(!dist.count(c1));
+      if(e.original.back() && di < maxdist) 
+        enqueue(c1, di, ca->c.spin(i));
       }
     }
   }
@@ -167,8 +198,13 @@ void construct_rules(cell *c, ext_nei_rules_t& e) {
   e.from = {-1};
   e.dir = {-1};
   e.original = {1};
-  set<cell*> visi;
-  listnear(c, e, Id, 0, visi);
+  if(!exh) {
+    set<cell*> visi;
+    listnear_compact(c, e, Id, 0, visi);
+    }
+  else {
+    listnear_exh(c, e, exh);
+    }
   int orgc = 0;
   for(auto i: e.original) orgc += i;
   println(hlog, "id ", get_id(c), " list length = ", isize(e.original), " original = ", orgc);
@@ -218,10 +254,13 @@ vector<cell*> rep_of;
 int number_states = 0;
 
 /** \brief for state s, child_rules[s][i] is -1 if i-th neighbor not a child; otherwise, the state index of that neighbor */
-vector<array<int, XS7> > child_rules;
+vector<vector<int> > child_rules;
+
+/** parent direction for every state */
+vector<int> parent_list;
 
 /** \brief if child_rules[s][i] is -1, the rules to get to that neighbor */
-vector<array<string, XS7> > side_rules;
+vector<vector<string> > side_rules;
 
 void add_candidate(cell *c) {
   if(candidates.count(c)) return;
@@ -231,14 +270,17 @@ void add_candidate(cell *c) {
 
 /** the main function */
 void test_canonical(string fname) {
-  if(S7 != XS7) { println(hlog, "fix XS7=", S7); exit(4); }
   stop_game();
   reg3::reg3_rule_available = false;
+  fieldpattern::use_rule_fp = true;
+  fieldpattern::use_quotient_fp = true;
   start_game();
 
   int qc = reg3::quotient_count();
   
   vector<cell*> c0;
+  
+  if(optimize_344 && geometry == gSpace344) qc = 16;
   
   /* we start from a 'center' in every get_id-type */
   if(geometry == gSpace535) {
@@ -256,7 +298,7 @@ void test_canonical(string fname) {
 
   for(cell* c: c0) add_candidate(c);
 
-  array<int, XS7> empty;
+  vector<int> empty(S7);
   for(auto& e: empty) e = -1;
   println(hlog, "empty = ", empty);
   
@@ -275,6 +317,8 @@ void test_canonical(string fname) {
   
   child_rules.resize(number_states, empty);
   
+  parent_list.resize(number_states);
+  
   println(hlog, "found ", its(number_states), " states");
   
   /** generate child_rules */
@@ -289,6 +333,7 @@ void test_canonical(string fname) {
 
     for(int a=0; a<S7; a++) {
       cell *c1 = c->move(a);
+      if(c1->FV < c->FV) parent_list[i] = a;
       if(c1->FV <= c->FV) continue;
       for(int b=0; b<S7; b++) {
         cell *c2 = c1->move(b);
@@ -318,12 +363,13 @@ void test_canonical(string fname) {
     int lqids = 0;
     
     for(int a=0; a<100; a++) {
-      set<array<int, XS7>> found;
-      vector<array<int, XS7>> v(number_states);
-      map<array<int, XS7>, int> ids;
+      set<vector<int>> found;
+      vector<vector<int>> v(number_states);
+      map<vector<int>, int> ids;
       for(int i=0; i<number_states; i++) {
-        array<int, XS7> res;
-        for(int d=0; d<XS7; d++) res[d] = (child_rules[i][d] != -1) ? ih[child_rules[i][d]] : -1;
+        vector<int> res(S7+1);
+        for(int d=0; d<S7; d++) res[d] = (child_rules[i][d] != -1) ? ih[child_rules[i][d]] : -1;
+        res[S7] = parent_list[i];
         v[i] = res;
         found.insert(res);
         }
@@ -337,11 +383,11 @@ void test_canonical(string fname) {
       }
     
     println(hlog, "reduced states to = ", lqids);
-    vector<array<int, XS7> > new_child_rules;
+    vector<vector<int> > new_child_rules;
     new_child_rules.resize(lqids, empty);  
     for(int i=0; i<number_states; i++) {
       int j = ih[i];
-      for(int d=0; d<XS7; d++) {
+      for(int d=0; d<S7; d++) {
         int cid = child_rules[i][d];
         new_child_rules[j][d] = cid == -1 ? -1 : ih[cid];
         }
@@ -358,6 +404,7 @@ void test_canonical(string fname) {
   
   /* generate side rules */
   side_rules.resize(number_states);
+  for(auto& s: side_rules) s.resize(S7);
 
   for(int i=0; i<isize(candidates_list); i++) {
     cell *c = candidates_list[i];
@@ -480,8 +527,21 @@ auto fqhook =
   else if(argis("-extra-verification")) {
     reg3::extra_verification++;
     }
+  else if(argis("-exh")) {
+    shift(); exh = argi();
+    }
   else if(argis("-no-rule")) {
     reg3::reg3_rule_available = false;
+    }
+  else if(argis("-other-rule")) {
+    reg3::reg3_rule_available = true;
+    shift(); reg3::other_rule = args();    
+    }
+  else if(argis("-urf")) {
+    cheat(); fieldpattern::use_rule_fp = true;
+    }
+  else if(argis("-uqf")) {
+    cheat(); fieldpattern::use_quotient_fp = true;
     }
   else if(argis("-gen-rule")) {
     shift(); test_canonical(args());

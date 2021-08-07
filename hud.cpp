@@ -141,7 +141,7 @@ int glyphflags(int gid) {
   int f = 0;
   if(gid < ittypes) {
     eItem i = eItem(gid);
-    if(itemclass(i) == IC_NAI) f |= GLYPH_NONUMBER;
+    if(itemclass(i) == IC_NAI && i != itFatigue) f |= GLYPH_NONUMBER;
     if(isElementalShard(i)) {
       f |= GLYPH_LOCAL | GLYPH_INSQUARE;
       if(i == localshardof(cwt.at->land)) f |= GLYPH_LOCAL2;
@@ -173,9 +173,10 @@ int glyphflags(int gid) {
   return f;
   }
 
-EX bool graphglyph() {
+EX bool graphglyph(bool isMonster) {
   // if(GDIM == 3) return false;
-  return vid.graphglyph == 2 || (vid.graphglyph == 1 && vid.monmode);
+  if(vrhr::active()) return false;
+  return vid.graphglyph == 2 || (vid.graphglyph == 1 && (isMonster ? mmmon : mmitem));
   }
 
 bool displayglyph(int cx, int cy, int buttonsize, char glyph, color_t color, int qty, int flags, int id) {
@@ -189,10 +190,11 @@ bool displayglyph(int cx, int cy, int buttonsize, char glyph, color_t color, int
   int d = ticks - glasttime[id];
   double zoom = (d <= 250 && d >= 0) ? 1.25 - .001 * d : 1;
   glsize = int(glsize * zoom);
+  bool isMonster = (id >= ittypes);
   
-  if(graphglyph()) {
+  if(graphglyph(isMonster)) {
     initquickqueue();
-    if(id >= ittypes) {
+    if(isMonster) {
       eMonster m = eMonster(id - ittypes);
       double bsize = buttonsize * 2/3;
       if(m == moKrakenH) bsize /= 3;
@@ -326,7 +328,7 @@ void displayglyph2(int cx, int cy, int buttonsize, int i) {
     }
   }
 
-EX bool nohud, nomenukey;
+EX bool nohud, nomenukey, nomsg;
 
 EX hookset<bool()> hooks_prestats;
 
@@ -398,7 +400,9 @@ EX void drawStats() {
 
   bool cornermode = (vid.xres > vid.yres * 85/100 && vid.yres > vid.xres * 85/100);
   
+  #if MAXMDIM >= 4
   if(geometry == gRotSpace || geometry == gProduct) rots::draw_underlying(!cornermode);
+  #endif
   
   {
   
@@ -509,7 +513,7 @@ EX void drawStats() {
     rows = 0;
     while((buttonsize = minsize - vid.killreduction)) {
       columns = colspace / buttonsize;
-      rows = rowspace / buttonsize;
+      rows = rowspace / buttonsize; if(!rows) return;
       int coltaken = 0;
       for(int z=0; z<4; z++) {
         if(z == 2 && !portrait) {
@@ -632,6 +636,29 @@ EX void drawStats() {
       }
     }
   string vers = VER;
+  if(true) {
+    if(casual) vers += " casual";
+    if(autocheat) vers += " god";
+    else if(cheater) vers += " cheat";
+    if(yendor::on) vers += " Yendor";
+    if(tactic::on) vers += " PTM";
+    if(inv::on) vers += " inv";
+    if(tour::on) vers += " tour";
+    if(shmup::on) vers += " shmup";
+    if(multi::players > 1) vers += " P" + its(multi::players);
+    if(pureHardcore()) vers += " hardcore";
+    else if(hardcore) vers += " partial hardcore";
+    if(peace::on) vers += " peace";
+    if(racing::on) vers += " racing";
+    if(daily::on) vers += " strange";
+    if(land_structure != default_land_structure())
+      vers += land_structure_name(true);
+    if(princess::challenge) vers += " Princess";
+    if(randomPatternsMode) vers += " RPM";
+    
+    if(geometry != gNormal || !BITRUNCATED) 
+      vers = vers + " " + full_geometry_name();
+    }
   if(!nofps) vers += XLAT(" fps: ") + its(calcfps());
   
   #if CAP_MEMORY_RESERVE

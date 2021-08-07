@@ -4,20 +4,11 @@
 // Kohonen's self-organizing maps. 
 // This is a part of RogueViz, not a part of HyperRogue.
 
-#include "rogueviz.h"
+#include "kohonen.h"
 
 namespace rogueviz { namespace kohonen {
 
-int kohonen_id;
-
 int columns;
-
-typedef vector<double> kohvec;
-
-struct sample {
-  kohvec val;
-  string name;
-  };
 
 vector<sample> data;
 
@@ -27,16 +18,6 @@ int whattodraw[3] = {-2,-2,-2};
 
 int min_group = 10, max_group = 10;
 
-struct neuron {
-  kohvec net;
-  cell *where;
-  double udist;
-  int lpbak;
-  color_t col;
-  int allsamples, drawn_samples, csample, bestsample, max_group_here;
-  neuron() { drawn_samples = allsamples = bestsample = 0; max_group_here = max_group; }
-  };
-
 vector<string> colnames;
 
 kohvec weights;
@@ -44,8 +25,6 @@ kohvec weights;
 vector<neuron> net;
 
 int neuronId(neuron& n) { return &n - &(net[0]); }
-
-void alloc(kohvec& k) { k.resize(columns); }
 
 bool neurons_indexed = false;
 
@@ -67,20 +46,30 @@ void normalize() {
     }
   }
 
+double vdot(const kohvec& a, const kohvec& b) {
+  double diff = 0;
+  for(int k=0; k<columns; k++) diff += a[k] * b[k] * weights[k];
+  return diff;
+  }
+
+void vshift(kohvec& a, const kohvec& b, ld i) {
+  for(int k=0; k<columns; k++) a[k] += b[k] * i;
+  }
+
 double vnorm(kohvec& a, kohvec& b) {
   double diff = 0;
   for(int k=0; k<columns; k++) diff += sqr((a[k]-b[k]) * weights[k]);
   return diff;
   }
 
-void sominit(int, bool load_compressed = false);
-void uninit(int);
-
 bool noshow = false;
 
 vector<int> samples_to_show;
 
 void loadsamples(const string& fname) {
+  data.clear();
+  samples_to_show.clear();
+  clear();
   fhstream f(fname, "rt");
   if(!f.f) {
     fprintf(stderr, "Could not load samples: %s\n", fname.c_str());
@@ -103,7 +92,7 @@ void loadsamples(const string& fname) {
       int c = fgetc(f.f);
       if(c == -1 || c == 10 || c == 13) break;
       if(c == '!' && s.name == "") shown = true;
-      else if(c != 32 && c != 9) s.name += c;
+      else if(!rv_ignore(c)) s.name += c;
       }
     data.push_back(move(s));
     if(shown) 
@@ -114,7 +103,6 @@ void loadsamples(const string& fname) {
   normalize();
   colnames.resize(columns);
   for(int i=0; i<columns; i++) colnames[i] = "Column " + its(i);
-  uninit(0); sominit(1);
   }
                   
 int tmax = 30000;
@@ -180,6 +168,7 @@ void coloring() {
         besttofind = false;
         for(neuron& n: net) {
           double bdiff = 1e20;
+          n.bestsample = -1;
           for(auto p: sample_vdata_id) {
             double diff = vnorm(n.net, data[p.first].val);
             if(diff < bdiff) bdiff = diff, n.bestsample = p.second;
@@ -188,7 +177,10 @@ void coloring() {
         }
 
       for(int i=0; i<cells; i++) {
-        part(net[i].where->landparam_color, pid) = part(vdata[net[i].bestsample].cp.color1, pid+1);
+        if(net[i].bestsample >= 0)
+          part(net[i].where->landparam_color, pid) = part(vdata[net[i].bestsample].cp.color1, pid+1);
+        else
+          part(net[i].where->landparam_color, pid) = 128;
         }
       }
 
@@ -224,9 +216,122 @@ void coloring() {
       if(maxl-minl < 1e-3) maxl = minl+1e-3;
       
       for(int i=0; i<cells; i++) 
-        part(net[i].where->landparam_color, pid) = (255 * (listing[i] - minl)) / (maxl - minl);
+        part(net[i].where->landparam_color, pid) = 32 + (191 * (listing[i] - minl)) / (maxl - minl);
+
+      for(int i=0; i<cells; i++) 
+        net[i].where->wall = waNone;
+      
+      vid.wallmode = 2;
       }
     }
+  }
+
+ld precise_placement = 1.6;
+
+bool neighbor_dir(cell *c, int a, int b) {
+  if(a == b) return false;
+  if(WDIM == 2)
+    return (a+1 == b) || (a-1 == b) || (a == 0 && b == c->type-1) || (b == 0 && a == c->type-1);
+  return currentmap->get_cellshape(c).dirdist[a][b] == 1;
+  }
+
+bool triangulate(kohvec d, neuron& w, map<cell*, neuron*>& find, transmatrix& res) {
+
+  if(precise_placement < 1) return false;
+  
+  vector<int> dirs;
+  vector<neuron*> other;
+  vector<kohvec> kv;
+  
+  for(int i=0; i<WDIM; i++) {
+
+    ld bdiff = HUGE_VAL;
+
+    /* find the second neuron */
+    neuron *candidate = nullptr;
+    int cdir = -1;
+
+    forCellIdEx(c2, i, w.where) {
+      if(!find.count(c2)) continue;
+      auto w2 = find[c2];
+      double diff = vnorm(w2->net, d);
+      if(1) {
+        bool valid = true;
+        for(int d: dirs)
+          if(!neighbor_dir(w.where, d, i))
+            valid = false;
+        if(!valid) continue;
+        }
+      if(diff < bdiff) bdiff = diff, candidate = w2, cdir = i;      
+      }
+    if(cdir == -1) {
+      println(hlog, "not enough directions");
+      return false;
+      }
+    dirs.push_back(cdir);
+    other.push_back(candidate);
+    kv.push_back(candidate->net);
+    }
+  
+  int q = isize(dirs);
+  const kohvec& a = w.net;
+  
+  auto orig_d = d;
+  
+  /* center at a */  
+  for(int i=0; i<q; i++)
+    vshift(kv[i], a, -1);
+  vshift(d, a, -1);  
+  
+  transmatrix R;
+  
+  hyperpoint coeff;
+  
+  /* orthonormalize */
+  for(int i=0; i<q; i++) {
+    R[i][i] = vdot(kv[i], kv[i]);
+    if(R[i][i] < 1e-12) {
+      auto head = [] (const vector<ld>& v) { vector<ld> res; for(int i=0; i<10; i++) res.push_back(v[i]); return res; };
+      println(hlog, "dot too small, i=", i,", dirs=", dirs);
+      println(hlog, "a = ", head(a));
+      println(hlog, "orig d = ", head(d));
+      for(auto z: other)
+        println(hlog, "orig kv: ", head(z->net), " @ ", z->where);
+      for(auto z: kv)
+        println(hlog, "curr kv: ", head(z));
+      return false;
+      }
+    for(int j=i+1; j<q; j++) {
+      R[i][j] = vdot(kv[i], kv[j]) / R[i][i];
+      vshift(kv[j], kv[i], -R[i][j]);
+      }
+    coeff[i] = vdot(d, kv[i]) / R[i][i];
+    }
+  
+  for(int i=q-1; i>=0; i--) {
+    for(int j=0; j<i; j++)
+      coeff[j] -= coeff[i] * R[j][i];
+    }
+
+  /* rescale if out of the simplex */
+  for(int i=0; i<q; i++)
+    if(coeff[i] < 0) {
+      coeff /= (1-coeff[i]);
+      coeff[i] = 0;
+      }
+      
+  ld total = 0;
+  for(int i=0; i<q; i++) total += coeff[i];
+  if(total > 1) coeff /= total, total = 1;
+  
+  coeff /= precise_placement;
+
+  hyperpoint h = (1-total) * C0;
+  for(int i=0; i<q; i++) h += coeff[i] * tC0(currentmap->adj(w.where, dirs[i]));
+  h = normalize(h);
+  
+  res = rgpushxto0(h);  
+  return true;  
   }
 
 void distribute_neurons() {
@@ -240,7 +345,11 @@ void distribute_neurons() {
     whowon[s] = &w;
     w.drawn_samples++;
     }
-  
+    
+  map<cell*, neuron*> find;
+  if(precise_placement >= 1)
+    for(auto& w: net) find[w.where] = &w;
+
   ld rad = .25 * cgi.scalefactor;
   
   for(auto p: sample_vdata_id) {
@@ -248,9 +357,12 @@ void distribute_neurons() {
     int s = p.first;
     auto& w = *whowon[s];
     vdata[id].m->base = w.where;
-    vdata[id].m->at = 
-      spin(2*M_PI*w.csample / w.drawn_samples) * xpush(rad * (w.drawn_samples-1) / w.drawn_samples);
+    
+    if(!triangulate(data[s].val, w, find, vdata[id].m->at))
+      vdata[id].m->at = 
+        spin(2*M_PI*w.csample / w.drawn_samples) * xpush(rad * (w.drawn_samples-1) / w.drawn_samples);
     w.csample++;
+    for(auto& e: vdata[id].edges) e.second->orig = nullptr;
     }
   
   shmup::fixStorage();  
@@ -258,6 +370,9 @@ void distribute_neurons() {
   }
 
 void analyze() {
+
+  initialize_neurons();
+  initialize_samples_to_show();
 
   setindex(true);
   
@@ -280,13 +395,13 @@ void analyze() {
   coloring();
   }
 
-bool coloring_3d(cell *c, const transmatrix& V) {
-  if(WDIM == 3 && vizid == &kohonen_id) 
+bool show_rings = true;
+
+bool coloring_3d(cell *c, const shiftmatrix& V) {
+  if(WDIM == 3 && show_rings) 
     queuepoly(face_the_player(V), cgi.shRing, darkena(c->landparam_color, 0, 0xFF));
   return false;
   }
-
-int khd = addHook(hooks_drawcell, 100, coloring_3d);
 
 // traditionally Gaussian blur is used in the Kohonen algoritm
 // but it does not seem to make much sense in hyperbolic geometry
@@ -350,7 +465,7 @@ struct cellcrawler {
   vector<vector<ld>> dispersion;
   };
 
-double dispersion_end_at = 1.5;
+double dispersion_end_at = 1.6;
 
 double dispersion_precision = .0001;
 int dispersion_each = 1;
@@ -389,7 +504,7 @@ void buildcellcrawler(cell *c, cellcrawler& cr, int dir) {
     
     d.clear();
   
-    printf("Building dispersion...\n");
+    DEBBI(DF_LOG, ("Building dispersion, precision = ", dispersion_precision, " end_at = ", dispersion_end_at, "...\n"));
     
     for(iter=0; dispersion_count ? true : vmax > vmin * dispersion_end_at; iter++) {
       if(iter % dispersion_each == 0) {
@@ -415,14 +530,20 @@ void buildcellcrawler(cell *c, cellcrawler& cr, int dir) {
       }
   
     dispersion_count = isize(d);
-    printf("Dispersion count = %d\n", dispersion_count);
+    DEBB(DF_LOG, ("Dispersion count = ", dispersion_count));
+    /*
+    println(hlog, "dlast = ", d.back());
+    println(hlog, "dlast2 = ", d[d.size()-2]);
+    println(hlog, "vmin=", vmin, " vmax=",vmax, " end_at=", dispersion_end_at);
+    */
     }
   }
 
 map<int, cellcrawler> scc;
 
 pair<int, int> get_cellcrawler_id(cell *c) {
-  if(among(geometry, gZebraQuotient, gMinimal, gField435, gField534) || (euclid && quotient && !bounded) || IRREGULAR || (GDIM == 3 && sphere)) {
+  if(among(geometry, gZebraQuotient, gMinimal, gArnoldCat, gField435, gField534) || (euclid && quotient && !bounded) || IRREGULAR || (GDIM == 3 && sphere) || (hyperbolic && GDIM == 3 && quotient)
+    || (euclid && nonorientable)) {
     // Zebra Quotient does exhibit some symmetries,
     // but these are so small anyway that it is safer to just build
     // a crawler for every neuron
@@ -509,16 +630,17 @@ void verify_crawlers() {
   
 bool finished() { return t == 0; }
 
-int krad;
+int krad, kqty;
 
 double ttpower = 1;
 
 void step() {
 
   if(t == 0) return;
-  sominit(2);
+  initialize_dispersion();
+  initialize_neurons_initial();
   
-  double tt = (t-1.) / tmax;
+  double tt = (t-.5) / tmax;
   tt = pow(tt, ttpower);
 
   double sigma = maxdist * tt;
@@ -527,14 +649,13 @@ void step() {
   if(qpct) {
     int pct = (int) ((qpct * (t+.0)) / tmax);
     if(pct != lpct) {
-      printf("pct %d lpct %d\n", pct, lpct);
       lpct = pct;
       analyze();
       
       if(gaussian)
-        printf("t = %6d/%6d %3d%% sigma=%10.7lf maxudist=%10.7lf\n", t, tmax, pct, sigma, maxudist);
+        println(hlog, format("t = %6d/%6d %3d%% sigma=%10.7lf maxudist=%10.7lf\n", t, tmax, pct, sigma, maxudist));
       else
-        printf("t = %6d/%6d %3d%% dispid=%5d maxudist=%10.7lf\n", t, tmax, pct, dispid, maxudist);
+        println(hlog, format("t = %6d/%6d %3d%% dispid=%5d maxudist=%10.7lf\n", t, tmax, pct, dispid, maxudist));
       }
     }
   int id = hrand(samples);
@@ -563,15 +684,27 @@ void step() {
   for(auto& sd: s.data) {
     neuron *n2 = getNeuron(sd.target.at);
     if(!n2) continue;
+    n2->debug++;
     double nu = learning_factor;
     
-    if(gaussian)
+    if(gaussian) {
       nu *= exp(-sqr(sd.dist/sigma));
+      if(isnan(nu)) 
+        throw hr_exception(lalign(0, "obtained nan, ", sd.dist, " / ", sigma));
+      }
     else
       nu *= *(it++);
-
-    for(int k=0; k<columns; k++)
+    
+    for(int k=0; k<columns; k++) {
       n2->net[k] += nu * (data[id].val[k] - n2->net[k]);
+      if(isnan(n2->net[k])) 
+        throw hr_exception("obtained nan somehow, nu = " + lalign(0, nu));
+      }
+    }
+
+  for(auto& n2: net) {
+    if(n2.debug > 1) throw hr_exception("sprawler error");
+    n2.debug = 0;
     }
   
   t--;
@@ -580,11 +713,7 @@ void step() {
 
 int initdiv = 1;
 
-int inited = 0;
-
-void uninit(int initto) {
-  if(inited > initto) inited = initto;
-  }
+flagtype state = 0;
 
 vector<double> bdiffs;
 vector<unsigned short> bids;
@@ -640,112 +769,158 @@ void showbestsamples() {
   }
 
 int kohrestrict = 1000000;
-  
-void sominit(int initto, bool load_compressed) {
 
-  if(inited < 1 && initto >= 1) {
-    inited = 1;
-    if(!samples && !load_compressed) {
-      fprintf(stderr, "Error: SOM without samples\n");
-      exit(1);
-      }
-    
-    init(&kohonen_id, RV_GRAPH | RV_HAVE_WEIGHT);
-    weight_label = "quantity";
-    
-    printf("Initializing SOM (1)\n");
-  
-    vector<cell*> allcells;
-    
-    if(krad) {
-      celllister cl(cwt.at, krad, 1000000, NULL);
-      allcells = cl.lst;
-      }
-    else allcells = currentmap->allcells();
-        
-    if(isize(allcells) > kohrestrict) {
-      map<cell*, int> clindex;
-      for(int i=0; i<isize(allcells); i++) clindex[allcells[i]] = i;
-      sort(allcells.begin(), allcells.end(), [&clindex] (cell *c1, cell *c2) { 
-        return make_pair(hdist0(tC0(ggmatrix(c1))), clindex[c1]) < 
-               make_pair(hdist0(tC0(ggmatrix(c2))), clindex[c2]); 
-        });
-      int at = kohrestrict;
-      ld dist = hdist0(tC0(ggmatrix(allcells[at-1])));
-      while(at < isize(allcells) && hdist0(tC0(ggmatrix(allcells[at]))) < dist + 1e-6) at++;
-      int at1 = kohrestrict;
-      while(at1 > 0 && hdist0(tC0(ggmatrix(allcells[at1-1]))) > dist - 1e-6) at1--;
-      printf("Cells numbered [%d,%d) are in the same distance\n", at1, at);
-      allcells.resize(kohrestrict);
-      }
-  
-    cells = isize(allcells);
-    net.resize(cells);
-    for(int i=0; i<cells; i++) net[i].where = allcells[i], allcells[i]->landparam = i;
-    for(int i=0; i<cells; i++) {
-      net[i].where->land = laCanvas;
-      alloc(net[i].net);
-  
-      if(samples)
-      for(int k=0; k<columns; k++)
-      for(int z=0; z<initdiv; z++)
-        net[i].net[k] += data[hrand(samples)].val[k] / initdiv;
-      }
-      
-    for(neuron& n: net) for(int d=BARLEV; d>=7; d--) setdist(n.where, d, NULL);
-  
-    printf("samples = %d (%d) cells = %d\n", samples, isize(sample_vdata_id), cells);
+void initialize_rv();
 
-    if(!noshow) for(int s: samples_to_show) {
-      int vdid = isize(vdata);
-      sample_vdata_id[s] = vdid;
-      vdata.emplace_back();
-      auto &vd = vdata.back();
-      vd.name = data[s].name;
-      vd.cp = dftcolor;
-      createViz(vdid, cwt.at, Id);
-      storeall(vdid);
-      }
-    
-    samples_to_show.clear();
+void initialize_neurons() {
+  if(state & KS_NEURONS) return;
+  create_neurons();
+  state |= KS_NEURONS;
+  }
 
-    analyze();
+vector<cell*> gen_neuron_cells() {
+  vector<cell*> allcells;
+  
+  if(krad) {
+    celllister cl(cwt.at, krad, 1000000, NULL);
+    allcells = cl.lst;
+    }
+  else if(kqty) {
+    celllister cl(cwt.at, 999, kqty, NULL);
+    allcells = cl.lst;
+    allcells.resize(kqty);
+    }
+  else allcells = currentmap->allcells();
+  
+  if(isize(allcells) > kohrestrict) {
+    map<cell*, int> clindex;
+    for(int i=0; i<isize(allcells); i++) clindex[allcells[i]] = i;
+    sort(allcells.begin(), allcells.end(), [&clindex] (cell *c1, cell *c2) { 
+      ld d1 = hdist0(tC0(ggmatrix(c1)));
+      ld d2 = hdist0(tC0(ggmatrix(c2)));
+      if(d1 < d2 - 1e-6)
+        return true;
+      if(d2 < d1 - 1e-6)
+        return false;
+      return clindex[c1] < clindex[c2];
+      });
+    int at = kohrestrict;
+    ld dist = hdist0(tC0(ggmatrix(allcells[at-1])));
+    while(at < isize(allcells) && hdist0(tC0(ggmatrix(allcells[at]))) < dist + 1e-6) at++;
+    int at1 = kohrestrict;
+    while(at1 > 0 && hdist0(tC0(ggmatrix(allcells[at1-1]))) > dist - 1e-6) at1--;
+    printf("Cells numbered [%d,%d) are in the same distance\n", at1, at);
+    allcells.resize(kohrestrict);
+    for(int i=kohrestrict; i<isize(allcells); i++) {
+      setdist(allcells[i], 0, nullptr);
+      allcells[i]->wall = waInvisibleFloor;
+      }
     }
   
-  if(inited < 2 && initto >= 2) {
-    inited = 2;
+  return allcells;
+  }
 
-    DEBB(DF_LOG, ("Initializing SOM (2)"));
-
-    if(gaussian) {
-      DEBB(DF_LOG, ("dist = ", fts(mydistance(net[0].where, net[1].where))));
-      cell *c1 = net[cells/2].where;
-      vector<double> mapdist;
-      for(neuron &n2: net) mapdist.push_back(mydistance(c1,n2.where));
-      sort(mapdist.begin(), mapdist.end());
-      maxdist = mapdist[isize(mapdist)*5/6] * distmul;
-      DEBB(DF_LOG, ("maxdist = ", fts(maxdist)));
-      }
-      
-    dispersion_count = 0;  
-    
-    scc.clear();
-    for(int i=0; i<cells; i++) {
-      cell *c = net[i].where;
-      auto cid = get_cellcrawler_id(c);
-      if(!scc.count(cid.first)) {
-        DEBB(DF_LOG, ("Building cellcrawler id = ", itsh(cid.first)));
-        buildcellcrawler(c, scc[cid.first], cid.second);
-        }
-      }
+void create_neurons() {
+  initialize_rv();
   
-    lpct = -46130;
+  if(!samples) {
+    fprintf(stderr, "Error: SOM without samples\n");
+    exit(1);
+    }
+  
+  weight_label = "quantity";
+  
+  DEBBI(DF_LOG, ("Creating neurons"));
+  
+  auto allcells = gen_neuron_cells();
+
+
+  cells = isize(allcells);
+  net.resize(cells);
+  for(int i=0; i<cells; i++) {
+    net[i].where = allcells[i];
+    allcells[i]->landparam = i;
+    net[i].where->land = laCanvas;
+    }
+    
+  for(neuron& n: net) for(int d=BARLEV; d>=7; d--) setdist(n.where, d, NULL);
+  DEBB(DF_LOG, ("number of neurons = ", cells));
+  }
+
+void set_neuron_initial() {
+  initialize_neurons();
+  DEBBI(DF_LOG, ("Setting initial neuron values"));
+  for(int i=0; i<cells; i++) {
+    alloc(net[i].net);
+    for(int k=0; k<columns; k++)
+      net[i].net[k] = 0;
+    for(int k=0; k<columns; k++)
+    for(int z=0; z<initdiv; z++)
+      net[i].net[k] += data[hrand(samples)].val[k] / initdiv;
     }
   }
 
+void initialize_neurons_initial() {
+  if(state & KS_NEURONS_INI) return;
+  set_neuron_initial();
+  state |= KS_NEURONS_INI;
+  }
+
+void initialize_samples_to_show() {
+  if(state & KS_SAMPLES) return;
+  if(noshow) return;
+
+  DEBBI(DF_LOG, ("Initializing samples-to-show (", isize(samples_to_show), " samples", ")"));
+  if(!noshow) for(int s: samples_to_show) {
+    int vdid = isize(vdata);
+    sample_vdata_id[s] = vdid;
+    vdata.emplace_back();
+    auto &vd = vdata.back();
+    vd.name = data[s].name;
+    vd.cp = dftcolor;
+    createViz(vdid, cwt.at, Id);
+    storeall(vdid);
+    }
+  
+  samples_to_show.clear();
+  state |= KS_SAMPLES;
+  }
+  
+void initialize_dispersion() {
+  if(state & KS_DISPERSION) return;
+  
+  initialize_neurons();
+
+  DEBBI(DF_LOG, ("Initializing dispersion"));
+
+  if(gaussian) {
+    DEBB(DF_LOG, ("dist = ", fts(mydistance(net[0].where, net[1].where))));
+    cell *c1 = net[cells/2].where;
+    vector<double> mapdist;
+    for(neuron &n2: net) mapdist.push_back(mydistance(c1,n2.where));
+    sort(mapdist.begin(), mapdist.end());
+    maxdist = mapdist[isize(mapdist)*5/6] * distmul;
+    DEBB(DF_LOG, ("maxdist = ", fts(maxdist)));
+    }
+    
+  dispersion_count = 0;  
+  
+  scc.clear();
+  for(int i=0; i<cells; i++) {
+    cell *c = net[i].where;
+    auto cid = get_cellcrawler_id(c);
+    if(!scc.count(cid.first)) {
+      DEBB(DF_LOG, ("Building cellcrawler id = ", itsh(cid.first)));
+      buildcellcrawler(c, scc[cid.first], cid.second);
+      }
+    }
+
+  lpct = -46130;
+  state |= KS_DISPERSION;
+  }
+  
 void describe_cell(cell *c) {
   if(cmode & sm::HELP) return;
-  if(vizid != &kohonen_id) return;
   neuron *n = getNeuronSlow(c);
   if(!n) return;
   string h;
@@ -795,7 +970,7 @@ namespace levelline {
     if(levellines.size() == 0) create();
     on = false;
     for(auto& lv: levellines) {
-      if(!lv.qty) { lv.values.clear(); continue; }
+      if(!lv.qty || lv.qty < 0) { lv.values.clear(); continue; }
       on = true;
       if(!lv.modified) continue;
       lv.modified = false;
@@ -813,7 +988,7 @@ namespace levelline {
     if(!on) return;
     for(auto& g: gmatrix) {
       cell *c1 = g.first;
-      transmatrix T = g.second;
+      shiftmatrix T = g.second;
       neuron *n1 = getNeuron(c1);
       if(!n1) continue;
       for(int i=0; i<c1->type; i++) {
@@ -897,7 +1072,7 @@ namespace levelline {
   }
 
 void ksave(const string& fname) {
-  sominit(1);
+  initialize_neurons_initial();
   FILE *f = fopen(fname.c_str(), "wt");
   if(!f) {
     fprintf(stderr, "Could not save the network\n");
@@ -913,7 +1088,7 @@ void ksave(const string& fname) {
   }
 
 void kload(const string& fname) {
-  sominit(1);
+  initialize_neurons();
   int xcells;
   fhstream f(fname.c_str(), "rt");
   if(!f.f) {
@@ -936,7 +1111,6 @@ void kload(const string& fname) {
   }
 
 void ksavew(const string& fname) {
-  sominit(1);
   FILE *f = fopen(fname.c_str(), "wt");
   if(!f) {
     fprintf(stderr, "Could not save the weights: %s\n", fname.c_str());
@@ -949,7 +1123,6 @@ void ksavew(const string& fname) {
   }
 
 void kloadw(const string& fname) {
-  sominit(1);
   FILE *f = fopen(fname.c_str(), "rt");
   if(!f) {
     fprintf(stderr, "Could not load the weights\n");
@@ -970,6 +1143,7 @@ void kloadw(const string& fname) {
         goto nexti;
         }
       else if(c == '=' || c == '/' || c == '*') kind = c;
+      else if(rv_ignore(c)) ;
       else (kind?s2:s1) += c;
       }
     nexti: ;
@@ -1013,7 +1187,7 @@ template<class T> void load_raw(string fname, vector<T>& v) {
 bool groupsizes_known = false;
 
 void do_classify() {
-  sominit(1);
+  initialize_neurons_initial();
   if(bids.empty()) {
     printf("Classifying...\n");
     bids.resize(samples, 0);
@@ -1036,6 +1210,7 @@ void do_classify() {
   if(bdiffn.empty()) {
     printf("Finding samples...\n");
     bdiffn.resize(cells, 1e20);
+    for(int i=0; i<cells; i++) net[i].bestsample = -1;
     for(int s=0; s<samples; s++) {
       int n = bids[s];
       double diff = bdiffs[s];
@@ -1075,7 +1250,7 @@ void fillgroups() {
   do_classify();
   vector<int> samples_to_sort;
   for(int i=0; i<samples; i++) samples_to_sort.push_back(i);
-  hrandom_shuffle(&samples_to_sort[0], samples);
+  hrandom_shuffle(samples_to_sort);
   for(int i=0; i<samples; i++) if(net[bids[i]].drawn_samples < net[bids[i]].max_group_here)
     showsample(i);
   distribute_neurons();
@@ -1166,7 +1341,8 @@ void klistsamples(const string& fname_samples, bool best, bool colorformat) {
       if(best)
         for(int n=0; n<cells; n++) {
           if(!net[n].allsamples && !net[n].drawn_samples) { if(!colorformat) fprintf(f, "\n"); continue; }
-          klistsample(net[n].bestsample, n);
+          if(net[n].bestsample >= 0)
+            klistsample(net[n].bestsample, n);
           }
       else
         for(auto p: sample_vdata_id) {
@@ -1194,8 +1370,10 @@ void neurondisttable(const string &name) {
   fclose(f);
   }
 
+bool animate = true;
+
 void steps() {
-  if(!kohonen::finished()) {
+  if(kohonen::animate && !kohonen::finished()) {
     unsigned int t = SDL_GetTicks();
     while(SDL_GetTicks() < t+20) kohonen::step();
     setindex(false);
@@ -1209,7 +1387,6 @@ void shift_color(int i) {
   }
 
 void showMenu() {
-  if(vizid != &kohonen_id) return;
   string parts[3] = {"red", "green", "blue"};
   for(int i=0; i<3; i++) {
     string c;
@@ -1230,6 +1407,8 @@ void showMenu() {
     
   dialog::addItem("level lines", '4');
   dialog::add_action_push(levelline::show);
+  
+  add_edit(precise_placement);
   }
 
 void save_compressed(string name) {
@@ -1295,7 +1474,8 @@ void load_compressed(string name) {
   for(int i=0; i<columns; i++) f.read(colnames[i]);
   alloc(weights);
   for(int i=0; i<columns; i++) weights[i] = f.get_raw<float>();
-  samples = 0; sominit(1, true);
+  samples = 0; 
+  initialize_neurons_initial();
   // load neurons
   int N = f.get<int>();
   if(cells != N) {
@@ -1360,20 +1540,25 @@ int readArgs() {
 
   // #2: set parameters
 
-  else if(argis("-somkrad")) {
-    gaussian = 0; uninit(0);
-    }
   else if(argis("-somskrad")) {
     shift(); krad = argi();
+    state &=~ (KS_NEURONS | KS_NEURONS_INI | KS_DISPERSION);
+    }
+  else if(argis("-somskqty")) {
+    shift(); kqty = argi();
+    state &=~ (KS_NEURONS | KS_NEURONS_INI | KS_DISPERSION);
     }
   else if(argis("-somsim")) {
-    gaussian = 0; uninit(1);
+    gaussian = 0; 
+    state &=~ KS_DISPERSION;
     }
   else if(argis("-somcgauss")) {
-    gaussian = 1; uninit(1);
+    gaussian = 1;
+    state &=~ KS_DISPERSION;
     }
   else if(argis("-somggauss")) {
-    gaussian = 2; uninit(1);
+    gaussian = 2; 
+    state &=~ KS_DISPERSION;
     }
   else if(argis("-sompct")) {
     shift(); qpct = argi();
@@ -1387,10 +1572,11 @@ int readArgs() {
       fprintf(stderr, "Dispersion parameter illegal\n");
       dispersion_end_at = 1.5;
       }
-    uninit(1);
+    state &=~ KS_DISPERSION;
     }
   else if(argis("-sominitdiv")) {
-    shift(); initdiv = argi(); uninit(0);
+    shift(); initdiv = argi();
+    state &=~ KS_NEURONS_INI;
     }
   else if(argis("-somtmax")) {
     shift(); t = (t*1./tmax) * argi();
@@ -1402,7 +1588,9 @@ int readArgs() {
     }
 
   else if(argis("-somrun")) {
-    t = tmax; sominit(1);
+    initialize_rv(); 
+    set_neuron_initial();
+    t = tmax;
     }
 
   // #3: load the neuron data (usually without #2)
@@ -1504,6 +1692,13 @@ int readArgs() {
     shift();
     random_edges(argi());
     }
+  else if(argis("-som-wtd")) {
+    for(int i=0; i<3; i++) {
+      shift();
+      whattodraw[i] = argi();
+      }
+    coloring();
+    }
   else if(argis("-som-load-n-edges")) {
     shift(); string edgename = args();
     shift(); int n = argi();
@@ -1530,7 +1725,7 @@ auto hooks = addHook(hooks_args, 100, readArgs);
 #endif
 
 bool turn(int delta) {
-  if(vizid == &kohonen_id) kohonen::steps(), timetowait = 0;
+  kohonen::steps(), timetowait = 0;
   return false;
   // shmup::pc[0]->rebase();
   }
@@ -1547,35 +1742,51 @@ bool kohonen_color(int& c2, string& lab, FILE *f) {
   return false;
   }
 
-auto hooks2 = addHook(hooks_frame, 50, levelline::draw)
-  + addHook(hooks_mouseover, 100, describe_cell)
-  + addHook(shmup::hooks_turn, 100, turn)
-  + addHook(rogueviz::hooks_rvmenu, 100, showMenu)
-  + addHook(hooks_readcolor, 100, kohonen_color);
-
 void clear() {
+  if(data.empty()) return;
   printf("clearing Kohonen...\n");
-  data.clear();
   sample_vdata_id.clear();
   colnames.clear();
   weights.clear();
   net.clear();
   whowon.clear();
-  samples_to_show.clear();
   scc.clear();
   bdiffs.clear();
   bids.clear();
   bdiffn.clear();
+  state = 0;
   }
 
-}}
+auto hooks4 = addHook(hooks_clearmemory, 100, clear)
+  + addHook(hooks_configfile, 100, [] {
+    param_f(precise_placement, "koh_placement")
+    -> editable(0, 2, .2, "precise placement", "0 = make all visible, 1 = place ideally, n = place 1/n of the distance from center to ideal placement", 'p')
+    -> set_reaction([] { if((state & KS_NEURONS) && (state & KS_SAMPLES)) distribute_neurons(); });
+    param_b(show_rings, "som_show_rings");
+    param_b(animate, "animate");
+    param_f(dispersion_precision, "som_dispersion")
+    -> set_reaction([] { state &=~ KS_DISPERSION; });
+    });
 
-namespace rogueviz {
-  void mark(cell *c) {
-    using namespace kohonen;
-    if(vizid == &kohonen_id && inited >= 1) {
-      distfrom = getNeuronSlow(c);
-      coloring();
-      }
-    }}
+bool mark(cell *c) {
+  initialize_neurons();
+  distfrom = getNeuronSlow(c);
+  coloring();
+  return true;
+  }
 
+void initialize_rv() {
+  if(state & KS_ROGUEVIZ) return;
+  init(RV_GRAPH | RV_HAVE_WEIGHT);
+  state |= KS_ROGUEVIZ;
+
+  rv_hook(hooks_frame, 50, levelline::draw);
+  rv_hook(hooks_mouseover, 100, describe_cell);
+  rv_hook(shmup::hooks_turn, 100, turn);
+  rv_hook(rogueviz::hooks_rvmenu, 100, showMenu);
+  rv_hook(hooks_readcolor, 100, kohonen_color);
+  rv_hook(hooks_drawcell, 100, coloring_3d);
+  }
+
+}
+}

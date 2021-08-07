@@ -46,14 +46,16 @@ namespace rogueviz {
 
 namespace flocking {
 
-  int flock_id;
+  void init();
 
   int N;
   
-  bool draw_lines = false;
+  bool draw_lines = false, draw_tails = false;
   
   int follow = 0;
   string follow_names[3] = {"nothing", "specific boid", "center of mass"};
+  
+  ld follow_dist = 0;
   
   map<cell*, map<cell*, transmatrix>> relmatrices;
 
@@ -71,9 +73,11 @@ namespace flocking {
   
   ld check_range = 2.5;
   
+  bool swarm;
+  
   char shape = 'b';
   
-  vector<tuple<hyperpoint, hyperpoint, color_t> > lines;
+  vector<tuple<shiftpoint, shiftpoint, color_t> > lines;
   
   // parameters of each boid
   // m->base: the cell it is currently on
@@ -83,57 +87,11 @@ namespace flocking {
   //        m->at * (m->vel, 0, 0) is the current velocity vector (tangent to the Minkowski hyperboloid)
   // m->pat: like m->at but relative to the screen
 
-  void init() {
-    if(!bounded) {
-      addMessage("Flocking simulation needs a bounded space.");
-      return;
-      }
-    stop_game();
-    rogueviz::init(&flock_id, RV_GRAPH);
-    vdata.resize(N);
-    
-    const auto v = currentmap->allcells();
-    
-    printf("computing relmatrices...\n");
-    // relmatrices[c1][c2] is the matrix we have to multiply by to 
-    // change from c1-relative coordinates to c2-relative coordinates
-    for(cell* c1: v) {
-      manual_celllister cl;
-      cl.add(c1);
-      for(int i=0; i<isize(cl.lst); i++) {
-        cell *c2 = cl.lst[i];
-        transmatrix T = calc_relative_matrix(c2, c1, C0);
-        if(hypot_d(WDIM, inverse_exp(tC0(T))) <= check_range) {
-          relmatrices[c1][c2] = T;
-          forCellEx(c3, c2) cl.add(c3);
-          }
-        }
-      }
-
-    printf("setting up...\n");
-    for(int i=0; i<N; i++) {
-      vertexdata& vd = vdata[i];
-      // set initial base and at to random cell and random position there 
-      createViz(i, v[hrand(isize(v))], Id);
-      rotate_object(vd.m->pat, vd.m->ori, random_spin());
-      apply_parallel_transport(vd.m->pat, vd.m->ori, xtangent(hrand(100) / 200.));
-      
-      vd.name = its(i+1);
-      vd.cp = dftcolor;
-      vd.cp.color2 = ((hrand(0x1000000) << 8) + 0xFF) | 0x808080FF;
-      vd.cp.shade = shape;
-      vd.m->vel = ini_speed;
-      }
-  
-    storeall();
-    printf("done\n");
-    }
-  
   int precision = 10;
   
   void simulate(int delta) {
     int iter = 0;
-    while(delta > precision && iter < 100) { 
+    while(delta > precision && iter < (swarm ? 10000 : 100)) { 
       simulate(precision); delta -= precision; 
       iter++;
       }      
@@ -153,8 +111,19 @@ namespace flocking {
       }
     
     lines.clear();
+    
+    if(swarm) for(int i=0; i<N; i++) {
+      vertexdata& vd = vdata[i];
+      auto m = vd.m;
+      
+      apply_parallel_transport(m->at, m->ori, xtangent(0.01)); // max_speed * d));
+      
+      fixmatrix(m->at);
 
-    parallelize(N, [&monsat, &d, &vels, &pats, &oris] (int a, int b) { for(int i=a; i<b; i++) {
+      virtualRebase(m);
+      }
+    
+    if(!swarm) parallelize(N, [&monsat, &d, &vels, &pats, &oris] (int a, int b) { for(int i=a; i<b; i++) {
       vertexdata& vd = vdata[i];
       auto m = vd.m;
       
@@ -198,7 +167,7 @@ namespace flocking {
           // at2 is like m2->at but relative to m->at
           
           // m2's position relative to m (tC0 means *(0,0,1))
-          hyperpoint ac = inverse_exp(tC0(at2));
+          hyperpoint ac = inverse_exp(shiftless(tC0(at2)));
           if(use_rot) ac = Rot * ac;
           
           // distance and azimuth to m2
@@ -267,7 +236,7 @@ namespace flocking {
       
       } return 0; });
       
-    for(int i=0; i<N; i++) {
+    if(!swarm) for(int i=0; i<N; i++) {
       vertexdata& vd = vdata[i];
       auto m = vd.m;
       // these two functions compute new base and at, based on pats[i]
@@ -281,15 +250,14 @@ namespace flocking {
     }
 
   bool turn(int delta) {
-    if(vizid != &flock_id) return false;
     simulate(delta), timetowait = 0;
     
     if(follow) {
 
       if(follow == 1) {
         gmatrix.clear();
-        vdata[0].m->pat = View * calc_relative_matrix(vdata[0].m->base, centerover, C0) * vdata[0].m->at;
-        View = inverse(vdata[0].m->pat) * View;
+        vdata[0].m->pat = shiftless(View * calc_relative_matrix(vdata[0].m->base, centerover, C0) * vdata[0].m->at);
+        View = inverse(vdata[0].m->pat.T) * View;
         if(prod) {
           NLP = inverse(vdata[0].m->ori);
           
@@ -305,6 +273,7 @@ namespace flocking {
           if(GDIM == 3) {
             View = hr::cspin(1, 2, 90 * degree) * View;
             }
+          shift_view(ztangent(follow_dist));
           }        
         }
 
@@ -318,7 +287,7 @@ namespace flocking {
         ld lev = 0;
         for(int i=0; i<N; i++) if(gmatrix.count(vdata[i].m->base)) {
           vdata[i].m->pat = gmatrix[vdata[i].m->base] * vdata[i].m->at;
-          auto h1 = tC0(vdata[i].m->pat);
+          auto h1 = unshift(tC0(vdata[i].m->pat));
           cnt++;          
           if(prod) {
             auto d1 = product_decompose(h1);
@@ -332,6 +301,7 @@ namespace flocking {
           h = normalize_flat(h);
           if(prod) h = zshift(h, lev / cnt);
           View = inverse(actual_view_transform) * gpushxto0(h) * actual_view_transform * View;
+          shift_view(ztangent(follow_dist));
           }
         }
 
@@ -353,7 +323,17 @@ namespace flocking {
     if(0) ;
     else if(argis("-flocking")) {
       PHASEFROM(2);
-      shift(); N = argi();
+      shift(); N = argi(); swarm = false;
+      init();
+      }
+    else if(argis("-swarming")) {
+      PHASEFROM(2);
+      shift(); N = argi(); swarm = true;
+      init();
+      }
+    else if(argis("-flocktails")) {
+      PHASEFROM(2);
+      draw_tails = true;
       init();
       }
     else if(argis("-cohf")) {
@@ -486,9 +466,17 @@ namespace flocking {
     dialog::add_action(runGeometryExperiments);
 
     dialog::addBoolItem_action("draw forces", draw_lines, 'l');
+
+    dialog::addBoolItem_action("draw tails", draw_tails, 't');
   
     dialog::addSelItem("follow", follow_names[follow], 'f');
     dialog::add_action([] () { follow++; follow %= 3; });
+
+    dialog::addSelItem("follow distance", fts(follow_dist), 'd');
+    dialog::add_action([] () { 
+      dialog::editNumber(follow_dist, -1, 1, 0.1, 0, "follow distance", "");
+      follow++; follow %= 3; 
+      });
   
     dialog::addBreak(100);
 
@@ -500,15 +488,198 @@ namespace flocking {
     }
     
   void o_key(o_funcs& v) {
-    if(vizid == &flock_id) v.push_back(named_dialog("flocking", show));
+    v.push_back(named_dialog("flocking", show));
     }
 
-  auto hooks  = 
-    addHook(hooks_args, 100, readArgs) +
-    addHook(shmup::hooks_turn, 100, turn) + 
-    addHook(hooks_frame, 100, flock_marker) +
-    addHook(hooks_o_key, 80, o_key) +
-    0;
+bool drawVertex(const shiftmatrix &V, cell *c, shmup::monster *m) {
+  if(draw_tails) {
+    int i = m->pid;
+    vertexdata& vd = vdata[i];
+    vid.linewidth *= 3;
+    queueline(V * m->at * C0, V * m->at * xpush0(-3), vd.cp.color2 & 0xFFFFFFF3F, 6);
+    vid.linewidth /= 3;
+    }
+  return false;
+  }
+  
+  void init() {
+    if(!bounded) {
+      addMessage("Flocking simulation needs a bounded space.");
+      return;
+      }
+    stop_game();
+    rogueviz::init(RV_GRAPH);
+    rv_hook(shmup::hooks_turn, 100, turn);
+    rv_hook(hooks_frame, 100, flock_marker);
+    rv_hook(hooks_o_key, 80, o_key);
+    rv_hook(shmup::hooks_draw, 90, drawVertex);
+    
+    vdata.resize(N);
+    
+    const auto v = currentmap->allcells();
+    
+    printf("computing relmatrices...\n");
+    // relmatrices[c1][c2] is the matrix we have to multiply by to 
+    // change from c1-relative coordinates to c2-relative coordinates
+    for(cell* c1: v) {
+      manual_celllister cl;
+      cl.add(c1);
+      for(int i=0; i<isize(cl.lst); i++) {
+        cell *c2 = cl.lst[i];
+        transmatrix T = calc_relative_matrix(c2, c1, C0);
+        if(hypot_d(WDIM, inverse_exp(shiftless(tC0(T)))) <= check_range) {
+          relmatrices[c1][c2] = T;
+          forCellEx(c3, c2) cl.add(c3);
+          }
+        }
+      }
+    
+    ld angle;
+    if(swarm) angle = hrand(1000);
+
+    printf("setting up...\n");
+    for(int i=0; i<N; i++) {
+      vertexdata& vd = vdata[i];
+      // set initial base and at to random cell and random position there 
+      
+      
+      createViz(i, v[swarm ? 0 : hrand(isize(v))], Id);
+      vd.m->pat.T = Id;
+      
+      if(swarm) {
+        rotate_object(vd.m->pat.T, vd.m->ori, spin(angle));
+        apply_parallel_transport(vd.m->pat.T, vd.m->ori, xtangent(i * -0.015));
+        }
+      else {
+        rotate_object(vd.m->pat.T, vd.m->ori, random_spin());
+        apply_parallel_transport(vd.m->pat.T, vd.m->ori, xtangent(hrandf() / 2));
+        rotate_object(vd.m->pat.T, vd.m->ori, random_spin());
+        }
+      
+      vd.name = its(i+1);
+      vd.cp = dftcolor;
+      
+      if(swarm)
+        vd.cp.color2 = 
+          (rainbow_color(0.5, i * 1. / N) << 8) | 0xFF;
+      else
+        vd.cp.color2 = 
+          ((hrand(0x1000000) << 8) + 0xFF) | 0x808080FF;
+
+      vd.cp.shade = shape;
+      vd.m->vel = ini_speed;
+      vd.m->at = vd.m->pat.T;
+      }
+  
+    storeall();
+    printf("done\n");
+    }  
+
+  void set_follow() { 
+    follow = (1+follow) % 3;
+    addMessage("following: " + follow_names[follow]);
+    }
+  
+  void flock_slide(tour::presmode mode, int _N, reaction_t t) {
+    using namespace tour;
+    setCanvas(mode, '0');
+    if(mode == pmStart) {
+      slide_backup(mapeditor::drawplayer);
+      t();
+      slide_backup(rogueviz::vertex_shape, 3);
+      N = _N; start_game(); init();
+      }
+    if(mode == pmKey) set_follow();
+    }
+
+  auto hooks = addHook(hooks_args, 100, readArgs)
+  + addHook_rvslides(187, [] (string s, vector<tour::slide>& v) {
+      if(s != "mixed") return;
+      using namespace tour;
+      string cap = "flocking simulation/";
+      string help = "\n\nPress '5' to make the camera follow boids, or 'o' to change more parameters.";
+
+      v.push_back(slide{
+        cap+"Euclidean flocking", 10, LEGAL::NONE | QUICKGEO,
+        "This is an Euclidean flocking simulation. Boids move according to the following rules:\n\n"
+        "- separation: they avoid running into other boids\n"
+        "- alignment: steer toward the average heading of local flockmates\n"
+        "- cohesion: steer toward the average position of local flockmates\n\n"
+        "In the Euclidean space, these rules will cause all the boids to align, and fly in the same direction in a nice flock."+help
+        ,
+        [] (presmode mode) {
+          slide_url(mode, 'w', "Wikipedia link", "https://en.wikipedia.org/wiki/Boids");
+          flock_slide(mode, 50, [] {
+            set_geometry(gEuclid);
+            set_variation(eVariation::bitruncated);
+            auto& T0 = euc::eu_input.user_axes;
+            restorers.push_back([] { euc::build_torus3(); });
+            slide_backup(euc::eu_input);
+            T0[0][0] = T0[1][1] = 3;
+            T0[1][0] = T0[0][1] = 0;
+            euc::eu_input.twisted = 0;
+            euc::build_torus3();
+            });
+          }});
+
+      v.push_back(slide{
+        cap+"spherical flocking", 10, LEGAL::NONE | QUICKGEO,
+        "Same parameters, but in spherical geometry.\n\n"
+        "Since parallel lines work differently, the boids do not align that nicely. "
+        "However, the curvature helps them to maintain a coherent flock."
+        +help
+        ,
+        [] (presmode mode) {
+          flock_slide(mode, 50, [] {
+            set_geometry(gSphere);
+            set_variation(eVariation::bitruncated);
+            });
+          }});
+      v.push_back(slide{
+        cap+"Hyperbolic flocking", 10, LEGAL::NONE | QUICKGEO,
+        "Same parameters, but the geometry is hyperbolic. Our boids fly in the Klein quartic.\n"
+        "This time, negative curvature prevents our boids from maintaining a coherent flock."
+        +help
+        ,
+        [] (presmode mode) {
+          flock_slide(mode, 50, [] {
+            set_geometry(gKleinQuartic);
+            set_variation(eVariation::bitruncated);
+            });
+          }});
+      v.push_back(slide{
+        cap+"Hyperbolic flocking again", 10, LEGAL::NONE | QUICKGEO,
+        "Our boids still fly in the Klein quartic, but now the parameters are changed to "
+        "make the alignment and cohesion stronger."
+        ,
+        [] (presmode mode) {
+          slide_url(mode, 't', "Twitter link", "https://twitter.com/ZenoRogue/status/1064660283581505536");
+          flock_slide(mode, 50, [] {
+            set_geometry(gKleinQuartic);
+            set_variation(eVariation::bitruncated);
+            slide_backup(align_factor, 2);
+            slide_backup(align_range, 2);
+            slide_backup(coh_factor, 2);
+            });
+          }});
+      v.push_back(slide{
+        cap+"Hyperbolic flocking in 3D", 10, LEGAL::NONE | QUICKGEO,
+        "Let's try a three-dimensional hyperbolic manifold. Alignment and cohesion are strong again."
+        ,
+        [] (presmode mode) {
+          slide_url(mode, 'y', "YouTube link", "https://www.youtube.com/watch?v=kng_4lE0uzo");
+          flock_slide(mode, 50, [] {
+            set_geometry(gSpace534);
+            field_quotient_3d(5, 0x72414D0C);
+            slide_backup(align_factor, 2);
+            slide_backup(align_range, 2);
+            slide_backup(coh_factor, 2);
+            slide_backup(vid.grid, true);
+            slide_backup(follow_dist, 1);
+            });
+          }});
+
+      });
   #endif
 
   }

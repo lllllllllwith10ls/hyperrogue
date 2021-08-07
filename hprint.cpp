@@ -48,15 +48,32 @@ EX map<void*, int> pointer_indices;
 
 EX string index_pointer(void *v) {
   if(v == nullptr) return "0";
-  if(!pointer_indices.count(v)) pointer_indices[v] = isize(pointer_indices);
+  if(!pointer_indices.count(v)) {
+    int s = isize(pointer_indices);
+    pointer_indices[v] = s;
+    }
+  int i = pointer_indices[v];
   string res;
-  int i = pointer_indices[v] + 1;
-  while(i) { res += ('A' + (i % 26)); i /= 26; }
+  while(true) { res += ('A' + (i % 26)); i /= 26; if(!i) break; i--; }
   return res;
   }
 
+EX int stamplen = 6;
+
+EX string get_stamp() {
+  if(stamplen == 0) return "";
+  int t = SDL_GetTicks();
+  int pow10 = 1;
+  for(int i=0; i<stamplen; i++) pow10 *= 10;
+  if(t < 0) t = pow10 - 1;
+  t %= pow10;
+  string s = its(t);
+  while(isize(s) < stamplen) s = "0" + s;
+  return s;
+  }
+
 #if HDR
-inline string ONOFF(bool b) { return XLAT(b ? "ON" : "OFF"); }
+inline string ONOFF(bool b) { return b ? XLAT("ON") : XLAT("OFF"); }
 
 struct hstream {
   virtual void write_char(char c) = 0;
@@ -122,23 +139,25 @@ struct hstream_exception : hr_exception { hstream_exception() {} };
 
 struct fhstream : hstream {
   color_t vernum;
-  virtual color_t get_vernum() override { return vernum; }
   FILE *f;
-  virtual void write_char(char c) override { write_chars(&c, 1); }
-  virtual void write_chars(const char* c, size_t i) override { if(fwrite(c, i, 1, f) != 1) throw hstream_exception(); }
-  virtual void read_chars(char* c, size_t i) override { if(fread(c, i, 1, f) != 1) throw hstream_exception(); }
-  virtual char read_char() override { char c; read_chars(&c, 1); return c; }
-  fhstream() { f = NULL; vernum = VERNUM_HEX; }
-  fhstream(const string pathname, const char *mode) { f = fopen(pathname.c_str(), mode); vernum = VERNUM_HEX; }
+  explicit fhstream() { f = NULL; vernum = VERNUM_HEX; }
+  explicit fhstream(const string pathname, const char *mode) { f = fopen(pathname.c_str(), mode); vernum = VERNUM_HEX; }
   ~fhstream() { if(f) fclose(f); }
+  color_t get_vernum() override { return vernum; }
+  void write_char(char c) override { write_chars(&c, 1); }
+  void write_chars(const char* c, size_t i) override { if(fwrite(c, i, 1, f) != 1) throw hstream_exception(); }
+  void read_chars(char* c, size_t i) override { if(fread(c, i, 1, f) != 1) throw hstream_exception(); }
+  char read_char() override { char c; read_chars(&c, 1); return c; }
   };
 
 struct shstream : hstream { 
+  color_t vernum;
   string s;
   int pos;
-  shstream(const string& t = "") : s(t) { pos = 0; }
-  virtual void write_char(char c) { s += c; }
-  virtual char read_char() { if(pos == isize(s)) throw hstream_exception(); return s[pos++]; }
+  explicit shstream(const string& t = "") : s(t) { pos = 0; vernum = VERNUM_HEX; }
+  color_t get_vernum() override { return vernum; }
+  void write_char(char c) override { s += c; }
+  char read_char() override { if(pos == isize(s)) throw hstream_exception(); return s[pos++]; }
   };
 
 inline void print(hstream& hs) {}
@@ -209,6 +228,8 @@ struct comma_printer {
 template<class T, size_t X> void print(hstream& hs, const array<T, X>& a) { print(hs, "("); comma_printer c(hs); for(const T& t: a) c(t); print(hs, ")"); }
 template<class T> void print(hstream& hs, const vector<T>& a) { print(hs, "("); comma_printer c(hs); for(const T& t: a) c(t); print(hs, ")"); }
 
+template<class T, class U> void print(hstream& hs, const map<T,U>& a) { print(hs, "("); comma_printer c(hs); for(auto& t: a) c(t); print(hs, ")"); }
+
 inline void print(hstream& hs, const hyperpoint h) { print(hs, (const array<ld, MAXMDIM>&)h); }
 inline void print(hstream& hs, const transmatrix T) { 
   print(hs, "("); comma_printer c(hs);
@@ -236,11 +257,9 @@ int SDL_GetTicks();
 struct logger : hstream {
   int indentation;
   bool doindent;
-  logger() { doindent = false; }
-  virtual void write_char(char c) { if(doindent) { doindent = false; 
-    if(debugflags & DF_TIME) { int t = SDL_GetTicks(); if(t < 0) t = 999999; t %= 1000000; string s = its(t); while(isize(s) < 6) s = "0" + s; for(char c: s) special_log(c); special_log(' '); }
-    for(int i=0; i<indentation; i++) special_log(' '); } special_log(c); if(c == 10) doindent = true; if(c == 10 && debugfile) fflush(debugfile); }
-  virtual char read_char() { throw hstream_exception(); }
+  explicit logger() { doindent = false; }
+  void write_char(char c) override;  
+  char read_char() override { throw hstream_exception(); }
   };
 
 extern logger hlog;
@@ -271,15 +290,31 @@ inline void print(hstream& hs, cellwalker cw) {
 struct indenter {
   dynamicval<int> ind;
   
-  indenter(int i = 2) : ind(hlog.indentation, hlog.indentation + (i)) {}
+  explicit indenter(int i = 2) : ind(hlog.indentation, hlog.indentation + (i)) {}
   };
 
 struct indenter_finish : indenter {
-  indenter_finish(bool b = true): indenter(b ? 2:0) {}
+  explicit indenter_finish(bool b = true): indenter(b ? 2:0) {}
   ~indenter_finish() { if(hlog.indentation != ind.backup) println(hlog, "(done)"); }
   };
 
 #endif
+
+void logger::write_char(char c) { 
+  if(doindent) { 
+    doindent = false; 
+    if(debugflags & DF_TIME) { 
+      string s = get_stamp(); 
+      if(s != "") { for(char c: s) special_log(c); special_log(' '); }
+      }
+    for(int i=0; i<indentation; i++) special_log(' ');
+    }
+  special_log(c); 
+  if(c == 10) {
+    doindent = true;
+    if(debugfile) fflush(debugfile); 
+    }
+  }
 
 EX void print(hstream& hs, cld x) { 
   int parts = 0;
@@ -404,6 +439,19 @@ EX string as_cstring(string o) {
   for(char c: o)
     s += format("\\x%02x", (unsigned char) c);
   s += format("\", %d)", isize(o));
+  return s;
+  }
+
+EX string as_nice_cstring(string o) {
+  string s = "\"";
+  for(char c: o)
+    if(c >= 32 && c < 126)
+      s += c;
+    else if(c == 10)
+      s += "\\n";
+    else
+      s += format("\\x%02x", (unsigned char) c);
+  s += "\"";
   return s;
   }
 

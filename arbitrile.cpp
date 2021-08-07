@@ -18,18 +18,45 @@ EX bool legacy; /* angleofs command */
 
 #if HDR
 
+/** a type used to specify the connections between shapes */
+struct connection_t {
+  /** the index of the connected shape in the 'shapes' table */
+  int sid;
+  /** the index of the edge in the 'shapes' table */
+  int eid;
+  /** 1 if this connection mirrored, 0 otherwise. do_unmirror() removes all mirrors by doubling shapes */
+  int mirror;
+  };
+
+inline void print(hstream& hs, const connection_t& conn) { print(hs, tie(conn.sid, conn.eid, conn.mirror)); }
+
+/** \brief each shape of the arb tessellation
+ *  note: the usual HyperRogue convention is: vertex 0, edge 0, vertex 1, edge 1, ... 
+ *  note: the tesfile convention is: edge 0, vertex 0, edge 1, vertex 1, ...
+ */
+
 struct shape {
+  /** index in the arbi_tiling::shapes */
   int id;
+  /** flags such as sfLINE and sfPH */
   int flags;
+  /** list of vertices in the usual convention */
   vector<hyperpoint> vertices;
+  /** list of vertices in the tesfile convention */
   vector<ld> angles;
+  /** list of edge lengths */
   vector<ld> edges;
-  vector<tuple<int, int, int>> connections;
+  /** list of edge connections */
+  vector<connection_t> connections;
   int size() const { return isize(vertices); }
   void build_from_angles_edges();
   vector<pair<int, int> > sublines;
   vector<pair<ld, ld>> stretch_shear;
   int repeat_value;
+  /** if a tile/edge combination may be connected to edges j1 and j2 of this, j1-j2 must be divisible by cycle_length */
+  int cycle_length;
+  /** list of valences of vertices in the tesfile convention */
+  vector<int> vertex_valence;
   };
 
 struct slider {
@@ -43,7 +70,8 @@ struct slider {
 struct arbi_tiling {
 
   int order;
-  bool have_line, have_ph;
+  bool have_line, have_ph, have_tree;
+  int yendor_backsteps;
 
   vector<shape> shapes;
   string name;
@@ -52,7 +80,12 @@ struct arbi_tiling {
   vector<slider> sliders;
   
   ld cscale;
+  int range;
+  ld floor_scale;
+  ld boundary_ratio;
   string filename;
+  
+  int min_valence, max_valence;
 
   geometryinfo1& get_geometry();
   eGeometryClass get_class() { return get_geometry().kind; }
@@ -119,7 +152,7 @@ void ensure_geometry(eGeometryClass c) {
     canvas_default_wall = waInvisibleFloor;
     patterns::whichCanvas = 'g';
     patterns::canvasback = 0xFFFFFF;
-    firstland = specialland = laCanvas;
+    enable_canvas();
     }
   start_game();
   }
@@ -180,7 +213,7 @@ void shape::build_from_angles_edges() {
   for(auto& v: vertices) v = gpushxto0(ctr) * v;
   }
 
-bool correct_index(int index, int size) { return index >= 0 && index < size; }
+EX bool correct_index(int index, int size) { return index >= 0 && index < size; }
 template<class T> bool correct_index(int index, const T& v) { return correct_index(index, isize(v)); }
 
 template<class T> void verify_index(int index, const T& v, exp_parser& ep) { if(!correct_index(index, v)) throw hr_parse_exception("bad index: " + its(index) + " at " + ep.where()); }
@@ -218,8 +251,133 @@ EX void load_tile(exp_parser& ep, arbi_tiling& c, bool unit) {
     }
   cc.connections.resize(cc.size());
   for(int i=0; i<isize(cc.connections); i++)
-    cc.connections[i] = make_tuple(cc.id, i, false);
+    cc.connections[i] = connection_t{cc.id, i, false};
   cc.stretch_shear.resize(cc.size(), make_pair(1, 0));
+  }
+
+EX bool do_unmirror = true;
+
+/** \brief for tessellations which contain mirror rules, remove them by taking the orientable double cover */
+EX void unmirror() {
+  int mirror_rules = 0;
+  for(auto& s: arb::current.shapes)
+    for(auto& t: s.connections)
+      if(t.mirror)
+        mirror_rules++;
+  if(!mirror_rules) return;
+  auto& sh = current.shapes;
+  int s = isize(sh);
+  for(int i=0; i<s; i++)
+    sh.push_back(sh[i]);
+  for(int i=0; i<2*s; i++)
+    sh[i].id = i;
+  for(int i=s; i<s+s; i++) {
+    for(auto& v: sh[i].vertices) 
+      v[1] = -v[1];
+    reverse(sh[i].edges.begin(), sh[i].edges.end());
+    reverse(sh[i].vertices.begin()+1, sh[i].vertices.end());
+    reverse(sh[i].angles.begin(), sh[i].angles.end()-1);
+    reverse(sh[i].connections.begin(), sh[i].connections.end());
+    }
+
+  if(true) for(int i=0; i<s+s; i++) {
+    for(auto& co: sh[i].connections) {
+      bool mirr = co.mirror ^ (i >= s);
+      co.mirror = false;
+      if(mirr) {
+        co.sid += s;
+        co.eid = isize(sh[co.sid].angles) - 1 - co.eid;
+        }
+      }
+    }
+  }
+
+EX void compute_vertex_valence() {
+  auto& ac = arb::current;
+
+  int tcl = -1;
+
+  for(auto& sh: ac.shapes)
+    sh.cycle_length = isize(sh.vertices);
+  
+  recompute:
+  while(true) {
+
+    for(auto& sh: ac.shapes) {
+      int i = sh.id;
+      int n = isize(sh.vertices);
+      
+      for(int k=sh.cycle_length; k<n; k++) {
+        auto co = sh.connections[k];
+        auto co1 = sh.connections[k-sh.cycle_length];
+        if(co.sid != co1.sid) {
+          println(hlog, "ik = ", tie(i,k), " co=", co, "co1=", co1, " cl=", sh.cycle_length);
+          throw hr_parse_exception("connection error #2 in compute_vertex_valence");
+          }
+        ac.shapes[co.sid].cycle_length = abs(gcd(ac.shapes[co.sid].cycle_length, co.eid - co1.eid));
+        }
+
+      for(int k=0; k<n; k++) {
+        auto co = sh.connections[k];
+        co = ac.shapes[co.sid].connections[co.eid];
+        if(co.sid != i) throw hr_parse_exception("connection error in compute_vertex_valence");
+        sh.cycle_length = abs(gcd(sh.cycle_length, k-co.eid));
+        }
+      if(debugflags & DF_GEOM) 
+        println(hlog, "tile ", i, " cycle_length = ", sh.cycle_length, " / ", n);
+      }
+    
+    int new_tcl = 0;
+    for(auto& sh: ac.shapes) {
+      auto& len = sh.cycle_length;
+      if(len < 0) len = -len;
+      new_tcl += len;
+      }
+
+    if(new_tcl == tcl) break;
+    tcl = new_tcl;
+    }
+  
+  if(cgflags & qAFFINE) return;
+  for(auto& sh: ac.shapes) {
+    int n = sh.size();
+    int i = sh.id;
+    sh.vertex_valence.resize(n);
+    for(int k=0; k<n; k++) {
+      ld total = 0;
+      int qty = 0;
+      connection_t at = {i, k, false};
+      do {
+        ld a = ac.shapes[at.sid].angles[at.eid];
+        while(a < 0) a += 360 * degree;
+        while(a > 360 * degree) a -= 360 * degree;
+        total += a;
+        qty++;
+
+        at.eid++;
+        if(at.eid == isize(ac.shapes[at.sid].angles)) at.eid = 0;
+
+        at = ac.shapes[at.sid].connections[at.eid];
+        }
+      while(total < 360*degree - 1e-6);
+      if(total > 360*degree + 1e-6) throw hr_parse_exception("improper total in compute_stats");
+      if(at.sid != i) throw hr_parse_exception("ended at wrong type determining vertex_valence");
+      if((at.eid - k) % ac.shapes[i].cycle_length) {
+        ac.shapes[i].cycle_length = abs(gcd(ac.shapes[i].cycle_length, at.eid - k));
+        goto recompute;
+        }
+      sh.vertex_valence[k] = qty;
+      }
+    if(debugflags & DF_GEOM) 
+      println(hlog, "computed vertex_valence of ", i, " as ", ac.shapes[i].vertex_valence);
+    }
+  
+  ac.min_valence = UNKNOWN; ac.max_valence = 0;
+  for(auto& sh: ac.shapes) 
+    for(auto& val: sh.vertex_valence) {
+      if(val < ac.min_valence) ac.min_valence = val;
+      if(val > ac.max_valence) ac.max_valence = val;
+      }      
   }
 
 EX void load(const string& fname, bool after_sliding IS(false)) {
@@ -239,6 +397,12 @@ EX void load(const string& fname, bool after_sliding IS(false)) {
   c.comment = "";
   c.filename = fname;
   c.cscale = 1;
+  c.range = 0;
+  c.boundary_ratio = 1;
+  c.floor_scale = .5;
+  c.have_ph = c.have_line = false;
+  c.have_tree = false;
+  c.yendor_backsteps = 0;
   exp_parser ep;
   ep.s = s;
   ld angleunit = 1, distunit = 1, angleofs = 0;
@@ -350,6 +514,29 @@ EX void load(const string& fname, bool after_sliding IS(false)) {
       c.cscale = ep.rparse();
       ep.force_eat(")");
       }
+    else if(ep.eat("treestate(")) {
+      rulegen::parse_treestate(c, ep);
+      }
+    else if(ep.eat("first_treestate(")) {
+      rulegen::rule_root = ep.iparse();
+      ep.force_eat(")");
+      }
+    else if(ep.eat("yendor_backsteps(")) {
+      c.yendor_backsteps = ep.iparse();
+      ep.force_eat(")");
+      }
+    else if(ep.eat("range(")) {
+      c.range = ep.iparse();
+      ep.force_eat(")");
+      }
+    else if(ep.eat("floor_scale(")) {
+      c.floor_scale = ep.rparse();
+      ep.force_eat(")");
+      }
+    else if(ep.eat("boundary_ratio(")) {
+      c.boundary_ratio = ep.rparse();
+      ep.force_eat(")");
+      }
     else if(ep.eat("conway(\"")) {
       string s = "";
       while(true) {
@@ -375,8 +562,8 @@ EX void load(const string& fname, bool after_sliding IS(false)) {
         verify_index(as, c.shapes[ai], ep);
         verify_index(bi, c.shapes, ep);
         verify_index(bs, c.shapes[bi], ep);
-        c.shapes[ai].connections[as] = make_tuple(bi, bs, m);
-        c.shapes[bi].connections[bs] = make_tuple(ai, as, m);
+        c.shapes[ai].connections[as] = connection_t{bi, bs, m};
+        c.shapes[bi].connections[bs] = connection_t{ai, as, m};
         }
       ep.force_eat(")");
       }
@@ -386,8 +573,8 @@ EX void load(const string& fname, bool after_sliding IS(false)) {
       int bi = ep.iparse(); verify_index(bi, c.shapes, ep); ep.force_eat(",");
       int bs = ep.iparse(); verify_index(bs, c.shapes[bi], ep); ep.force_eat(",");
       int m = ep.iparse(); ep.force_eat(")");
-      c.shapes[ai].connections[as] = make_tuple(bi, bs, m);
-      c.shapes[bi].connections[bs] = make_tuple(ai, as, m);
+      c.shapes[ai].connections[as] = connection_t{bi, bs, m};
+      c.shapes[bi].connections[bs] = connection_t{ai, as, m};
       }
     else if(ep.eat("subline(")) {
       int ai = ep.iparse(); verify_index(ai, c.shapes, ep); ep.force_eat(",");
@@ -448,12 +635,10 @@ EX void load(const string& fname, bool after_sliding IS(false)) {
       auto& sh = c.shapes[i];
       sh.stretch_shear[j] = {stretch, shear};
       auto& co = sh.connections[j];
-      int i2 = get<0>(co);
-      int j2 = get<1>(co);
-      auto& xsh = c.shapes[i2];
-      ld scale = sh.edges[j] / xsh.edges[j2];
+      auto& xsh = c.shapes[co.sid];
+      ld scale = sh.edges[j] / xsh.edges[co.eid];
       println(hlog, "scale = ", scale);
-      xsh.stretch_shear[j2] = {1/stretch, shear * (get<2>(co) ? 1 : -1) * stretch };
+      xsh.stretch_shear[co.eid] = {1/stretch, shear * (co.mirror ? 1 : -1) * stretch };
       }
     else throw hr_parse_exception("expecting command, " + ep.where());
     }
@@ -463,15 +648,21 @@ EX void load(const string& fname, bool after_sliding IS(false)) {
       for(int j=0; j<isize(sh.edges); j++) {
         ld d1 = sh.edges[j];
         auto con = sh.connections[j];
-        int i2 = get<0>(con);
-        int j2 = get<1>(con);
-        auto& xsh = c.shapes[get<0>(con)];
-        ld d2 = xsh.edges[j2];
+        auto& xsh = c.shapes[con.sid];
+        ld d2 = xsh.edges[con.eid];
         if(abs(d1 - d2) > 1e-6)
-          throw hr_parse_exception(lalign(0, "connecting ", make_pair(i,j), " to ", make_pair(i2,j2), " of different lengths only possible in a2"));
+          throw hr_parse_exception(lalign(0, "connecting ", make_pair(i,j), " to ", con, " of different lengths only possible in a2"));
         }
       }
     }
+
+  if(do_unmirror) {
+    unmirror();
+    }
+  if(!c.have_tree) compute_vertex_valence();
+
+  if(c.have_tree) rulegen::verify_parsed_treestates();
+  
   if(!after_sliding) slided = current;
   }
 
@@ -533,12 +724,12 @@ void connection_debugger() {
   int N = isize(sh.edges);
   for(int k=0; k<N; k++) {
     auto con = sh.connections[k];
-    string cap = its(k) + primes(last.second) + " -> " + its(get<1>(con)) + primes(get<0>(con)) + (get<2>(con) ? " (m) " : "");
+    string cap = its(k) + primes(last.second) + " -> " + its(con.eid) + primes(con.sid) + (con.mirror ? " (m) " : "");
     dialog::addSelItem(cap, "go", '0' + k);
     
     dialog::add_action([k, last, con] {
       if(euclid) cgflags |= qAFFINE;
-      debug_polys.emplace_back(last.first * get_adj(debugged, last.second, k, -1), get<0>(con));
+      debug_polys.emplace_back(last.first * get_adj(debugged, last.second, k, -1, -1), con.sid);
       if(euclid) cgflags &= ~qAFFINE;
       });
     
@@ -572,18 +763,18 @@ EX hrmap *current_altmap;
 
 heptagon *build_child(heptspin p, pair<int, int> adj);
 
-EX transmatrix get_adj(arbi_tiling& c, int t, int dl, int xdl) {
+EX transmatrix get_adj(arbi_tiling& c, int t, int dl, int t1, int xdl) {
   
   auto& sh = c.shapes[t];
   
   int dr = gmod(dl+1, sh.size());
 
   auto& co = sh.connections[dl];
-  int xt = get<0>(co);
-  if(xdl == -1) xdl = get<1>(co);
-  int m = get<2>(co);
+  if(xdl == -1) xdl = co.eid;
 
-  auto& xsh = c.shapes[xt];
+  if(t1 == -1) t1 = co.sid;
+
+  auto& xsh = c.shapes[t1];
   int xdr = gmod(xdl+1, xsh.size());
 
   hyperpoint vl = sh.vertices[dl];
@@ -612,10 +803,10 @@ EX transmatrix get_adj(arbi_tiling& c, int t, int dl, int xdl) {
     Res = Res * Tsca;
     }
 
-  if(m) Res = Res * MirrorX;
+  if(co.mirror) Res = Res * MirrorX;
   Res = Res * spintox(xrm*xvl) * xrm;
   
-  if(m) swap(vl, vr);
+  if(co.mirror) swap(vl, vr);
   
   if(hdist(vl, Res*xvr) + hdist(vr, Res*xvl) > .1) {
     println(hlog, "s1 = ", kz(spintox(rm*vr)), " s2 = ", kz(rspintox(xrm*xvr)));    
@@ -633,50 +824,29 @@ struct hrmap_arbi : hrmap {
 
   hrmap_arbi() {
     dynamicval<hrmap*> curmap(currentmap, this);
-    origin = tailored_alloc<heptagon> (current.shapes[0].size());
+    origin = init_heptagon(current.shapes[0].size());
     origin->s = hsOrigin;
-    origin->emeraldval = 0;
-    origin->zebraval = 0;
-    origin->fiftyval = 0;
-    origin->fieldval = 0;
-    origin->rval0 = origin->rval1 = 0;
-    origin->cdata = NULL;
-    origin->alt = NULL;
     origin->c7 = newCell(origin->type, origin);
-    origin->distance = 0;
 
     heptagon *alt = NULL;
     
     if(hyperbolic) {
       dynamicval<eGeometry> g(geometry, gNormal); 
-      alt = tailored_alloc<heptagon> (S7);
+      alt = init_heptagon(S7);
       alt->s = hsOrigin;
-      alt->emeraldval = 0;
-      alt->zebraval = 0;
-      alt->distance = 0;
-      alt->c7 = NULL;
       alt->alt = alt;
-      alt->cdata = NULL;
       current_altmap = newAltMap(alt); 
       }
     
     transmatrix T = xpush(.01241) * spin(1.4117) * xpush(0.1241) * Id;
     arbi_matrix[origin] = make_pair(alt, T);
     altmap[alt].emplace_back(origin, T);
-  
-    cgi.base_distlimit = 0;
-    celllister cl(origin->c7, 1000, 200, NULL);
-    ginf[geometry].distlimit[0] = cgi.base_distlimit = cl.dists.back();
-    if(sphere) cgi.base_distlimit = SEE_ALL;
+    
+    if(!current.range)
+      current.range = auto_compute_range(origin->c7);
     }
 
   ~hrmap_arbi() {
-    /*
-    if(hyperbolic) for(auto& p: arbi_matrix) if(p.second.first->cdata) {
-      delete p.second.first->cdata;
-      p.second.first->cdata = NULL;
-      }
-    */
     clearfrom(origin);
     altmap.clear();
     arbi_matrix.clear();
@@ -689,7 +859,7 @@ struct hrmap_arbi : hrmap {
   void verify() override { }
 
   transmatrix adj(heptagon *h, int dl) override { 
-    return get_adj(current_or_slided(), id_of(h), dl, h->c.move(dl) ? h->c.spin(dl) : -1);
+    return get_adj(current_or_slided(), id_of(h), dl, -1, h->c.move(dl) ? h->c.spin(dl) : -1);
     }
 
   heptagon *create_step(heptagon *h, int d) override {
@@ -701,10 +871,7 @@ struct hrmap_arbi : hrmap {
     
     auto& co = sh.connections[d];
     
-    int xt = get<0>(co);
-    int e = get<1>(co);
-    int m = get<2>(co);
-    auto& xsh = current.shapes[xt];
+    auto& xsh = current.shapes[co.sid];
     
     if(cgflags & qAFFINE) {
       set<heptagon*> visited;
@@ -720,7 +887,7 @@ struct hrmap_arbi : hrmap {
         transmatrix T = v[i].second;
         heptagon *h2 = v[i].first;
         if(eqmatrix(T, goal)) {
-          h->c.connect(d, h2, e, m);
+          h->c.connect(d, h2, co.eid, co.mirror);
           return h2;
           }
         for(int i=0; i<h2->type; i++) {
@@ -732,14 +899,12 @@ struct hrmap_arbi : hrmap {
           }
         }
       
-      auto h1 = tailored_alloc<heptagon> (current.shapes[xt].size());
+      auto h1 = init_heptagon(current.shapes[co.sid].size());
       h1->distance = h->distance + 1;
-      h1->zebraval = xt;
+      h1->zebraval = co.sid;
       h1->c7 = newCell(h1->type, h1);
-      h1->alt = nullptr;
-      h1->cdata = nullptr;
-      h1->emeraldval = h->emeraldval ^ m;
-      h->c.connect(d, h1, e, m);
+      h1->emeraldval = h->emeraldval ^ co.mirror;
+      h->c.connect(d, h1, co.eid, co.mirror);
       
       return h1;
       }
@@ -765,64 +930,49 @@ struct hrmap_arbi : hrmap {
       alt = (heptagon*) s;
       }
 
-    for(auto& p2: altmap[alt]) if(id_of(p2.first) == xt && hdist(tC0(p2.second), tC0(T)) < 1e-2) {
+    for(auto& p2: altmap[alt]) if(id_of(p2.first) == co.sid && hdist(tC0(p2.second), tC0(T)) < 1e-2) {
       for(int oth=0; oth < p2.first->type; oth++) {
-        ld err = hdist(p2.second * xsh.vertices[oth], T * xsh.vertices[e]);
+        ld err = hdist(p2.second * xsh.vertices[oth], T * xsh.vertices[co.eid]);
         if(err < 1e-2) {
           static ld max_err = 0;
           if(err > max_err) {
             println(hlog, "err = ", err);
             max_err = err;
             }
-          h->c.connect(d, p2.first, oth%p2.first->type, m);
+          h->c.connect(d, p2.first, oth%p2.first->type, co.mirror);
           return p2.first;
           }
         }
       }
 
-    auto h1 = tailored_alloc<heptagon> (current.shapes[xt].size());
+    auto h1 = init_heptagon(current.shapes[co.sid].size());
     h1->distance = h->distance + 1;
-    h1->zebraval = xt;
+    h1->zebraval = co.sid;
     h1->c7 = newCell(h1->type, h1);
-    h1->alt = nullptr;
-    h1->cdata = nullptr;
-    h1->emeraldval = h->emeraldval ^ m;
-    h->c.connect(d, h1, e, m);
+    h1->emeraldval = h->emeraldval ^ co.mirror;
+    h->c.connect(d, h1, co.eid, co.mirror);
     
     arbi_matrix[h1] = make_pair(alt, T);
     altmap[alt].emplace_back(h1, T);    
     return h1;
     }
-  
-  void draw() override {
-    dq::visited.clear();
-    dq::enqueue(centerover->master, cview());
-    
-    while(!dq::drawqueue.empty()) {
-      auto& p = dq::drawqueue.front();
-      heptagon *h = get<0>(p);
-      transmatrix V = get<1>(p);
-      dynamicval<ld> b(band_shift, get<2>(p));
-      dq::drawqueue.pop();
-  
-      if(do_draw(h->c7, V)) drawcell(h->c7, V);
-      else continue;
-  
-      for(int i=0; i<h->type; i++) {
-        transmatrix V1 = V * adj(h, i);
-        bandfixer bf(V1);
-        dq::enqueue(h->move(i), V1);
-        }
-      }
-    }
-
-  transmatrix relative_matrix(heptagon *h2, heptagon *h1, const hyperpoint& hint) override {
+  transmatrix relative_matrixh(heptagon *h2, heptagon *h1, const hyperpoint& hint) override {
     return relative_matrix_recursive(h2, h1);
     }
 
   transmatrix adj(cell *c, int dir) override { return adj(c->master, dir); }
   
   ld spin_angle(cell *c, int d) override { return SPIN_NOT_AVAILABLE; }
+
+  int shvid(cell *c) override {
+    return id_of(c->master);
+    }
+
+  hyperpoint get_corner(cell *c, int cid, ld cf) override {
+    auto& sh = arb::current_or_slided().shapes[arb::id_of(c->master)];
+    return normalize(C0 + (sh.vertices[gmod(cid, c->type)] - C0) * 3 / cf);
+    }
+
   };
 
 EX hrmap *new_map() { return new hrmap_arbi; }
@@ -905,6 +1055,224 @@ EX void set_sliders() {
   dialog::display();
   }
 
+/** convert a tessellation (e.g. Archimedean, regular, etc.) to the arb::current internal representation */
+EX namespace convert {
+
+EX eGeometry base_geometry;
+EX eVariation base_variation;
+
+struct id_record {
+  int target;   /* master of this id type */
+  int shift;    /* sample direction 0 == our direction shift */
+  int modval;   /* this master type is the same as itself rotated by modval */
+  cell *sample; /* sample of the master type */
+  };
+
+inline void print(hstream& hs, const id_record& i) { print(hs, "[", i.target, " shift=", i.shift, " mod=", i.modval, "]"); }
+
+map<int, id_record> identification;
+
+id_record& get_identification(int s, cell *c) {  
+  if(!identification.count(s)) {
+    auto &id = identification[s];
+    id.target = s;
+    id.shift = 0;
+    id.modval = c->type;
+    id.sample = c;
+    }
+  return identification[s];
+  }
+
+id_record& get_identification(cell *c) {  
+  auto id = currentmap->full_shvid(c);
+  return get_identification(id, c);
+  }
+
+int changes;
+
+void be_identified(cellwalker cw1, cellwalker cw2) {
+  auto& id1 = get_identification(cw1.at);
+  auto& id2 = get_identification(cw2.at);
+  
+  indenter ind(2);
+  
+  int t = cw2.at->type;
+
+  if(cw1.at->type != t) {
+    println(hlog, cw1.at->type, " vs ", t);
+    throw hr_exception("numbers disagree");
+    }
+    
+  int d2 = gmod(-cw2.to_spin(id2.shift), id2.modval);
+  int d1 = gmod(-cw1.to_spin(id1.shift), id1.modval);
+
+  indenter ind1(2);
+
+  if(id2.target != id1.target) {
+    auto oid2 = id2;
+    id1.modval = gcd(id1.modval, id2.modval);
+    if(id1.modval < 6 && t == 6) throw hr_exception("reducing hex");
+    for(auto& p: identification) {
+      auto& idr = p.second;
+      if(idr.target == oid2.target) {
+        idr.target = id1.target;
+        idr.modval = id1.modval;
+        idr.shift = gmod(idr.shift + (d2-d1), idr.modval);        
+        idr.sample = id1.sample;
+        }
+      }
+    changes++;
+    println(hlog, identification);
+    return;
+    }
+  if(d2 != d1) {
+    auto oid2 = id2;
+    id2.modval = gcd(id2.modval, abs(d2-d1));
+    if(id1.modval == 1 && t == 6) throw hr_exception("reducing hex");
+    for(auto& p: identification) 
+      if(p.second.target == oid2.target) p.second.modval = id2.modval;
+    changes++;
+    println(hlog, identification);
+    return;
+    }
+  }
+
+EX void convert() {
+  start_game();
+  identification.clear(); changes = 0;
+
+  manual_celllister cl;
+  cl.add(currentmap->gamestart());
+  
+  int chg = -1;
+  while(changes > chg) {
+    changes = chg;
+    
+    set<int> masters_analyzed;
+
+    for(int i=0; i<isize(cl.lst); i++) {
+      auto c = cl.lst[i];
+      auto& id = get_identification(c);
+      
+      if(masters_analyzed.count(id.target)) continue;
+      masters_analyzed.insert(id.target);
+      
+      cellwalker cw0(c, id.shift);
+      cellwalker cws(id.sample, 0);
+      
+      for(int i=0; i<c->type; i++) {
+        if(1) {
+          indenter ind(2);
+          be_identified(cw0 + i + wstep, cws + i + wstep);
+          be_identified(cw0 + i + wstep, cw0 + i + id.modval + wstep);
+          }
+        
+        if(1) {
+          indenter ind(2);
+          auto cwx = cw0 + i + wstep;
+          
+          auto idx = get_identification(cwx.at);
+          cellwalker xsample(idx.sample, cwx.spin);
+          xsample -= idx.shift;
+          
+          be_identified(cwx + wstep, xsample + wstep);
+          
+          cl.add((cw0 + i).cpeek());
+          }
+        }
+      }
+    }
+  
+  vector<int> old_shvids;
+  map<int, int> old_to_new;
+  for(auto id: identification)
+    if(id.first == id.second.target) {
+      old_to_new[id.first] = isize(old_shvids);
+      old_shvids.push_back(id.first);
+      }
+  
+  auto& ac = arb::current;
+  ac.order++; 
+  ac.comment = ac.filename = "converted from: " + full_geometry_name();
+  ac.cscale = cgi.scalefactor;
+  ac.boundary_ratio = 1;
+  ac.floor_scale = cgi.hexvdist / cgi.scalefactor;
+  ac.range = cgi.base_distlimit;
+  int N = isize(old_shvids);
+  ac.shapes.clear();
+  ac.shapes.resize(N);
+
+  ginf[gArbitrary].g = cginf.g;
+  ginf[gArbitrary].flags = cgflags & qBOUNDED;
+  
+  for(int i=0; i<N; i++) {
+    auto id = identification[old_shvids[i]];
+    cell *s = id.sample;
+    auto& sh = ac.shapes[i];
+    sh.id = i;
+    int t = s->type;
+    sh.vertices.clear();
+    sh.connections.clear();
+    sh.repeat_value = id.modval;
+    for(int j=0; j<t; j++) {
+      auto co = currentmap->get_corner(s, j);
+      sh.vertices.push_back(co);
+      cellwalker cw(s, j);
+      cw += wstep;
+      auto idx = get_identification(cw.at);
+      cellwalker xsample(idx.sample, cw.spin);
+      xsample -= idx.shift;
+      sh.connections.emplace_back(arb::connection_t{old_to_new.at(idx.target), xsample.spin, false});
+      }
+    sh.stretch_shear.resize(t, make_pair(1, 0));    
+    sh.edges.clear();
+    for(int j=0; j<t-1; j++)
+      sh.edges.push_back(hdist(sh.vertices[j], sh.vertices[j+1]));
+    sh.edges.push_back(hdist(sh.vertices[t-1], sh.vertices[0]));
+
+    sh.angles.clear();
+    for(int j=0; j<t; j++) {
+      hyperpoint v0 = sh.vertices[j];
+      hyperpoint v1 = sh.vertices[(j+1) % t];
+      hyperpoint v2 = sh.vertices[(j+2) % t];
+      transmatrix T = gpushxto0(v1);
+      v0 = T * v0;
+      v2 = T * v2;
+      ld alpha = atan2(v0) - atan2(v2);
+      while(alpha > M_PI) alpha -= 360*degree;
+      while(alpha < -M_PI) alpha += 360*degree;
+      sh.angles.push_back(alpha);
+      }
+    if(debugflags & DF_GEOM) {
+      println(hlog, "shape ", i, ":");
+      indenter indp(2);
+      println(hlog, "vertices=", sh.vertices);
+      println(hlog, "connections=", sh.connections);
+      println(hlog, "edges=", sh.edges);
+      println(hlog, "angles=", sh.angles);
+      }
+    }
+  
+  arb::compute_vertex_valence();
+  }
+
+EX bool in() {
+  return arb::in() && base_geometry != gArbitrary;
+  }
+
+/** activate the converted tessellation */
+EX void activate() {
+  if(geometry != gArbitrary) {
+    base_geometry = geometry;
+    base_variation = variation;
+    stop_game();
+    geometry = gArbitrary;
+    variation = eVariation::pure;
+    }
+  }
+
+EX }
+
 #if CAP_COMMANDLINE  
 int readArgs() {
   using namespace arg;
@@ -917,6 +1285,15 @@ int readArgs() {
     }
   else if(argis("-arb-legacy")) {
     legacy = true;
+    }
+  else if(argis("-arb-convert")) {
+    try {
+      convert::convert();
+      set_geometry(gArbitrary);      
+      }
+    catch(hr_exception& e) {
+      println(hlog, "failed to convert: ", e.what());
+      }
     }
   else if(argis("-arb-slider")) {
     PHASEFROM(2);
@@ -949,6 +1326,7 @@ EX bool linespattern(cell *c) {
   }
 
 EX bool pseudohept(cell *c) {
+  if(!current.have_ph) return true;
   return current.shapes[id_of(c->master)].flags & arcm::sfPH;
   }
 

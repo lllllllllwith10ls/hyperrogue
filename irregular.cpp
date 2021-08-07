@@ -42,66 +42,6 @@ EX map<cell*, int> cellindex;
 
 EX vector<cellinfo> cells;
 
-ld inner(hyperpoint h1, hyperpoint h2) {
-  return 
-    hyperbolic ? h1[LDIM] * h2[LDIM] - h1[0] * h2[0] - h1[1] * h2[1] :
-    sphere ? h1[LDIM] * h2[LDIM] + h1[0] * h2[0] + h1[1] * h2[1] :
-    h1[0] * h2[0] + h1[1] * h2[1];
-  }
-
-hyperpoint circumscribe(hyperpoint a, hyperpoint b, hyperpoint c) {
-  hyperpoint h = C0;
-
-  b = b - a;
-  c = c - a;
-  
-  if(euclid) {
-    ld b2 = inner(b, b)/2;
-    ld c2 = inner(c, c)/2;
-    
-    ld det = c[1]*b[0] - b[1]*c[0];
-    
-    h = a;
-    
-    h[1] += (c2*b[0] - b2 * c[0]) / det;
-    h[0] += (c2*b[1] - b2 * c[1]) / -det;
-    
-    return h;
-    }
-
-  if(inner(b,b) < 0) {
-    b = b / sqrt(-inner(b, b));
-    c = c + b * inner(c, b);
-    h = h + b * inner(h, b);
-    }
-  else {
-    b = b / sqrt(inner(b, b));
-    c = c - b * inner(c, b);
-    h = h - b * inner(h, b);
-    }
-  
-  if(inner(c,c) < 0) {
-    c = c / sqrt(-inner(c, c));
-    h = h + c * inner(h, c);
-    }
-  else {
-    c = c / sqrt(inner(c, c));
-    h = h - c * inner(h, c);
-    }
-  
-  if(h[LDIM] < 0) h[0] = -h[0], h[1] = -h[1], h[LDIM] = -h[LDIM];
-
-  ld i = inner(h, h);
-  if(i > 0) h /= sqrt(i);
-  else h /= -sqrt(-i);
-
-  return h;
-  }
-
-bool clockwise(hyperpoint h1, hyperpoint h2) {
-  return h1[0] * h2[1] > h1[1] * h2[0];
-  }
-
 EX map<heptagon*, vector<int> > cells_of_heptagon;
 
 int runlevel;
@@ -749,7 +689,7 @@ void compute_horocycle(heptagon *alt) {
   set<heptagon*> region;
   for(int i=0; i<LOOKUP-1; i++) {
     for(auto h: hs[i]) {
-      currentmap->generateAlts(h);
+      currentmap->extend_altmap(h);
       for(int j=0; j<S7; j++) {
         if(h->move(j)->alt->alt != master->alt->alt) continue;
         region.insert(h->move(j));
@@ -820,7 +760,7 @@ EX int celldist(cell *c, bool alts) {
         }
       }
     if(doalts == 0) {
-      currentmap->generateAlts(master);
+      currentmap->extend_altmap(master);
       for(int i=0; i<S7; i++) if(master->move(i)->alt == master->alt->move[0] && periodmap[master->move(i)].celldists[true].empty())
         compute_horocycle(master);
       }
@@ -957,7 +897,7 @@ void show_gridmaker() {
   for(int i=0; i<5; i++)
     dialog::addInfo(status[i]);
   dialog::addBreak(100);
-  dialog::addSelItem(XLAT("activate"), XLAT(runlevel == 10 ? "ready" : "wait..."), 'f');
+  dialog::addSelItem(XLAT("activate"), runlevel == 10 ? XLAT("ready") : XLAT("wait..."), 'f');
   if(runlevel == 10) dialog::add_action(start_game_on_created_map);
   dialog::addItem(XLAT("cancel"), 'c');
   dialog::add_action(cancel_map_creation);
@@ -990,7 +930,7 @@ void show_gridmaker() {
   dialog::addSelItem(XLAT("bitruncation count"), its(bitruncations_requested), 'b');
   dialog::add_action([] () { 
     dialog::editNumber(bitruncations_requested, 0, 5, 1, 1, XLAT("bitruncation const"),
-      XLAT("Bitruncation introduces some regularity, allowing more sophisiticated floor tilings and textures."));
+      XLAT("Bitruncation introduces some regularity, allowing more sophisticated floor tilings and textures."));
     dialog::reaction = [] () {
       if(bitruncations_requested > bitruncations_performed && runlevel > 5) runlevel = 5;
       if(bitruncations_requested < bitruncations_performed) runlevel = 0;
@@ -1061,15 +1001,15 @@ int readArgs() {
     showstartmenu = false;
     }
   else if(argis("-irrdens")) {
-    PHASE(2);
+    PHASEFROM(2);
     shift_arg_formula(density);
     }
   else if(argis("-irrb")) {
-    PHASE(2);
+    PHASEFROM(2);
     shift(); bitruncations_requested = argi();
     }
   else if(argis("-irrq")) {
-    PHASE(2);
+    PHASEFROM(2);
     shift_arg_formula(quality);
     }
   else if(argis("-irrload")) {

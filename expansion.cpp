@@ -99,12 +99,20 @@ template<class T, class U> vector<int> get_children_codes(cell *c, const T& dist
     }
   return res;
   }
-  
+
 void expansion_analyzer::preliminary_grouping() {
   samples.clear();
   codeid.clear();
-  children.clear();  
-  if(reg3::in_rule()) {
+  children.clear();
+  if(currentmap->strict_tree_rules()) {
+    N = isize(rulegen::treestates);
+    children.resize(N);
+    rootid = rulegen::rule_root;
+    for(int i=0; i<N; i++)
+      for(int v: rulegen::treestates[i].rules)
+        if(v >= 0) children[i].push_back(v);
+    }
+  else if(reg3::in_rule()) {
 #if MAXMDIM >= 4
     rootid = reg3::rule_get_root(0);
     auto& chi = reg3::rule_get_children();
@@ -112,8 +120,10 @@ void expansion_analyzer::preliminary_grouping() {
     children.resize(N);
     int k = 0;
     for(int i=0; i<N; i++) for(int j=0; j<S7; j++) {
-      if(chi[k] >= 0)
-        children[i].push_back(chi[k]);
+      int ck = chi[k];
+      if(ck < -1) ck += (1<<16);
+      if(ck >= 0)
+        children[i].push_back(ck);
       k++;
       }
 #endif
@@ -134,6 +144,7 @@ void expansion_analyzer::preliminary_grouping() {
 
 void expansion_analyzer::reduce_grouping() {
   if(reg3::in_rule()) return;
+  if(currentmap->strict_tree_rules()) return;
   int old_N = N;
   vector<int> grouping;
   grouping.resize(N);
@@ -198,6 +209,7 @@ bignum& expansion_analyzer::get_descendants(int level) {
   }
 
 bignum& expansion_analyzer::get_descendants(int level, int type) {
+  if(!N) preliminary_grouping(), reduce_grouping();
   auto& pd = descendants;
   size_upto(pd, level+1);
   for(int d=0; d<=level; d++)
@@ -385,6 +397,8 @@ EX bool sizes_known() {
   // not implemented
   if(arcm::in()) return false;
   if(kite::in()) return false;
+  if(currentmap->strict_tree_rules()) return true;
+  if(arb::in()) return false;
   return true;  
   }
 
@@ -407,12 +421,12 @@ string expansion_analyzer::approximate_descendants(int d, int max_length) {
   }
 
 enum eDistanceFrom { dfPlayer, dfStart, dfWorld };
-string dfnames[3] = { "player", "start", "land" };
+EX string dfnames[3] = { "player", "start", "land" };
 
 eDistanceFrom distance_from = dfPlayer;
 
-enum eNumberCoding { ncNone, ncDistance, ncType, ncDebug };
-string ncnames[4] = { "NO", "distance", "type", "debug" };
+enum eNumberCoding { ncNone, ncDistance, ncType, ncDebug, ncError };
+EX string ncnames[5] = { "NO", "distance", "type", "debug", "error" };
 eNumberCoding number_coding = ncDistance;
 
 bool mod_allowed() {
@@ -428,7 +442,10 @@ EX int curr_dist(cell *c) {
     case dfWorld:
       if(!mod_allowed() && !among(c->land, laOcean, laIvoryTower, laEndorian, laDungeon, laTemple, laWhirlpool, laCanvas))
         return 0;
-      if((isCyclic(c->land) || c->land == laCanvas) && (eubinary || c->master->alt)) return celldistAlt(c);
+      if((isCyclic(c->land) || among(c->land, laCanvas, laCaribbean, laStorms, laRlyeh))) {
+        if(eubinary || c->master->alt) return celldistAlt(c);
+        return UNKNOWN;
+        }
       return inmirror(c) ? (c->landparam & 255) : c->landparam;
     }
   return 0;    
@@ -534,6 +551,9 @@ color_t distribute_color(int id) {
   return v; 
   }
 
+EX bool dist_label_colored = true;
+EX color_t dist_label_color = 0;
+
 void celldrawer::do_viewdist() {
   if(behindsphere(V)) return;
   
@@ -550,7 +570,7 @@ void celldrawer::do_viewdist() {
  
   switch(number_coding) {
     case ncDistance: { 
-      label = its(cd);
+      label = cd == UNKNOWN ? "?" : its(cd);
       dc = distcolors[cd];
       break;
       }
@@ -567,6 +587,17 @@ void celldrawer::do_viewdist() {
           if(c->master->alt) t = c->master->alt->fiftyval;
           break;
         }
+      else if(currentmap->strict_tree_rules()) switch(distance_from) {
+        case dfPlayer: 
+          t = -1;
+          break;
+        case dfStart:
+          t = c->master->fieldval;
+          break;
+        case dfWorld:
+          if(c->master->alt) t = c->master->alt->fieldval;
+          break;
+        }
       else t = type_in_reduced(expansion, c, curr_dist);
       if(t >= 0) label = its(t), dc = distribute_color(t);
       break;
@@ -578,8 +609,13 @@ void celldrawer::do_viewdist() {
       dc = (d != cd) ? 0xFF0000 : 0x00FF00;
       label = its(d);
       }
+    case ncError: {
+      if(pointer_indices.count(c)) label = index_pointer(c);
+      }
     case ncNone: ;
     }
+  
+  if(!dist_label_colored) dc = dist_label_color;
 
   // string label = its(fieldpattern::getriverdistleft(c)) + its(fieldpattern::getriverdistright(c));
   /* queuepolyat(V, shFloor[ct6], darkena(gradient(0, distcolors[cd&7], 0, .25, 1), fd, 0xC0),
@@ -607,6 +643,9 @@ EX void viewdist_configure_dialog() {
     dialog::editNumber(first_distance, 0, 3000, 1, 0, XLAT("display distances from"), "");
     });
 
+  dialog::addBoolItem(XLAT("strict tree maps"), currentmap->strict_tree_rules(), 's');
+  dialog::add_action_push(rulegen::show);
+
   int id = 0;
   using namespace linepatterns;
   for(auto& lp: {&patTriTree, &patTriRings, &patTriOther}) {
@@ -632,7 +671,7 @@ EX void viewdist_configure_dialog() {
   dialog::addItem(XLAT("move the player"), 'm');
   dialog::add_action([] () { show_distance_lists = false; popScreenAll(); });
   
-  dialog::addItem(XLAT(distance_from ? "show number of descendants by distance" : "show number of cells by distance"), 'l');
+  dialog::addItem(distance_from ? XLAT("show number of descendants by distance") : XLAT("show number of cells by distance"), 'l');
   dialog::add_action([] () { show_distance_lists = true; popScreenAll(); });
 
   dialog::display();
@@ -691,7 +730,7 @@ void expansion_analyzer::view_distances_dialog() {
   
   if(really_use_analyzer) {
     int t;
-    if(reg3::in_rule()) {
+    if(reg3::in_rule() || currentmap->strict_tree_rules()) {
       if(!N) preliminary_grouping();      
       t = rootid;
       }
@@ -731,7 +770,7 @@ void expansion_analyzer::view_distances_dialog() {
   dialog::addBreak(100 * scrolltime / scrollspeed);
 
   if(sizes_known() || bt::in()) {
-    if(euclid) {
+    if(euclid && !arb::in()) {
       dialog::addBreak(200);
       dialog::addInfo("a(d) = " + its(get_descendants(10).approx_int() - get_descendants(9).approx_int()) + "d", forecolor);
       }
@@ -889,6 +928,11 @@ int expansion_readArgs() {
     shift(); number_coding = (eNumberCoding) argi();
     shift(); use_color_codes = argi() & 1; use_analyzer = argi() & 2; show_distance_lists = argi() & 4;
     not_only_descendants = argi() & 8;
+    }
+
+  else if(argis("-expansion-labelcolor")) {
+    dist_label_colored = false;
+    shift(); dist_label_color = arghex();
     }
 
   else if(argis("-expansion-off")) {

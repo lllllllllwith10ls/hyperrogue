@@ -28,7 +28,7 @@ EX int currentslide;
 enum presmode { 
   pmStartAll = 0,
   pmStart = 1, pmFrame = 2, pmStop = 3, pmKey = 4, pmRestart = 5,
-  pmAfterFrame = 6,
+  pmAfterFrame = 6, pmHelpEx = 7,
   pmGeometry = 11, pmGeometryReset = 13, pmGeometryStart = 15,
   pmGeometrySpecial = 16
   };
@@ -72,6 +72,8 @@ template<class T> void slide_backup(T& what, T value) {
   restorers.push_back([&what, backup] { what = backup; });
   what = value;
   }
+
+template<class T> void slide_backup(T& what) { slide_backup(what, what); }
 #endif
 
 EX void on_restore(const reaction_t& t) {
@@ -85,6 +87,13 @@ EX void slide_restore_all() {
     }
   }
 
+EX void slide_url(presmode mode, char key, string text, string url) {
+  if(mode == pmHelpEx)
+    help_extensions.push_back(help_extension{key, text, [url] () { 
+      open_url(url);
+      }});
+  }
+
 /** \brief an auxiliary function to enable a visualization in the Canvas land */
 EX void setCanvas(presmode mode, char canv) {
   if(mode == pmStart) {
@@ -92,6 +101,9 @@ EX void setCanvas(presmode mode, char canv) {
     slide_backup(patterns::whichCanvas, canv);
     slide_backup(firstland, laCanvas);
     slide_backup(specialland, laCanvas);
+    slide_backup(land_structure);
+    slide_backup(randomPatternsMode);
+    enable_canvas();
     start_game();
     resetview();
     }
@@ -165,12 +177,15 @@ string get_subname(const string& s, const string& folder) {
 
 /** \brief display the help text for the current slide if texts enabled */
 EX void slidehelp() {
-  if(texts && slides[currentslide].help[0])
+  if(texts && slides[currentslide].help[0]) {
+    string slidename = get_slidename(slides[currentslide].name);
     gotoHelp(
       help = 
-        helptitle(XLAT(get_slidename(slides[currentslide].name)), 0xFF8000) + 
+        helptitle(XLAT(slidename), 0xFF8000) + 
         XLAT(slides[currentslide].help)
       );
+    presentation(pmHelpEx);
+    }
   }
 
 /** \brief return from a subgame launched while in presentation */
@@ -212,8 +227,8 @@ bool handleKeyTour(int sym, int uni) {
     if(inhelp) slidehelp();
     return true;
     }
-  if(NUMBERKEY == '1' || NUMBERKEY == '2') {
-    int legal = slides[currentslide].flags & 7;
+  int legal = slides[currentslide].flags & 7;
+  if((NUMBERKEY == '1' || NUMBERKEY == '2') && (legal != LEGAL::NONE)) {
     
     if(legal == LEGAL::SPECIAL) {
       presentation(pmGeometrySpecial);
@@ -314,11 +329,14 @@ bool handleKeyTour(int sym, int uni) {
         canmove = true;
         }
       }
-    else addMessage(XLAT(
-      (vid.shifttarget&1) ? 
-        "Shift-click a location to teleport there."
-      : "Click a location to teleport there."
-      ));
+    else {
+      bool shift = vid.shifttarget & 1;
+      addMessage(
+        shift ? 
+          XLAT("Shift-click a location to teleport there.")
+        : XLAT("Click a location to teleport there.")
+        );
+      }
     return true;
     }
   if(NUMBERKEY == '5') {
@@ -382,6 +400,17 @@ EX namespace ss {
   EX string current_folder;
 
   string slidechars = "abcdefghijklmnopqrsvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ23456789!@#$%^&*(";
+    
+  #if HDR
+  using slideshow_callback = function<void(string, slide*, char)>;
+  #endif
+  
+  EX hookset<void(slideshow_callback)> hooks_extra_slideshows;
+  
+  EX void for_all_slideshows(const slideshow_callback& cb) {
+    cb(XLAT("HyperRogue Guided Tour"), default_slides, 't');
+    callhooks(hooks_extra_slideshows, cb);
+    }
   
   EX hookset<int(bool)> hooks_extra_slideshows;
 
@@ -399,8 +428,17 @@ EX namespace ss {
 
     dialog::init(XLAT("slides"), forecolor, 150, 100);
     
+    string cftrans, cftransbuild;
+    for(char c: current_folder)
+      if(c == '/') {
+        cftrans += XLAT(cftransbuild);
+        cftrans += "/";
+        cftransbuild = "";
+        }
+      else cftransbuild += c;    
+    
     if(current_folder != "") {
-      dialog::addTitle(current_folder, 0xFFFFFFFF, 120);
+      dialog::addTitle(cftrans, 0xFFFFFFFF, 120);
       dialog::addItem(XLAT("go up"), 'u');
       dialog::add_action([] { current_folder = parent_folder(current_folder); });
       dialog::addBreak(100);
@@ -416,11 +454,14 @@ EX namespace ss {
       if(sf == last) continue;
       last = sf;
       string sfd;
-
-      if(sf.back() == '/') sfd = XLAT(sf.substr(0, isize(sf)-1)) + "/  ";
+      
+      if(sf.back() == '/') {
+        sfd = sf.substr(0, isize(sf)-1);
+        sfd = XLAT(sfd) + "/  ";
+        }
       else sfd = XLAT(sf);
 
-      dialog::addBoolItem(XLAT(sf), wts == slides && in_folder(slides[currentslide].name, current_folder+sf), slidechars[key++]);
+      dialog::addBoolItem(sfd, wts == slides && in_folder(slides[currentslide].name, current_folder+sf), slidechars[key++]);
       dialog::add_action([i, sf] {
         if(sf.back() == '/') {
           current_folder += sf;
@@ -472,10 +513,10 @@ EX void start() {
     }
   }
 
-string bog = "Basics of Gameplay/";
-string shapes = "Hyperbolic Shapes/";
-string models = "Projections of Hyperbolic Space/";
-string pcg = "Procedural Generation/";
+string bog = "Basics of gameplay/";
+string shapes = "Hyperbolic shapes/";
+string models = "Projections of hyperbolic space/";
+string pcg = "Procedural generation/";
 
 /** \brief the default presentation (the Guided Tour) */
 EX slide default_slides[] = {
@@ -761,7 +802,7 @@ EX slide default_slides[] = {
       QUICKFIND {
         return (l == laBurial && !items[itOrbSword]);
         };
-      SHOWLAND ( l == laCrossroads || l == laBurial );
+      SHOWLAND ( l == laRlyeh || l == laCrossroads || l == laBurial );
       }
     },
   {pcg+"Periodic patterns", 30, LEGAL::UNLIMITED | USE_SLIDE_NAME,
@@ -897,7 +938,7 @@ EX slide default_slides[] = {
         }
 #if CAP_SDL
       slidecommand = "render spiral";
-      if(mode == 4) history::createImage(true);
+      if(mode == 4) history::open_filedialog_to_create_image(true);
       if(mode == 11) history::create_playerpath();
       if(mode == 13) history::clear();
 #endif

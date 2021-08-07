@@ -27,8 +27,6 @@ namespace rogueviz {
 
 namespace sunflower {
 
-bool on;
-
 bool nodes;
 
 ld qty = 100;
@@ -59,8 +57,7 @@ vector<int> inext, inext2;
 
 vector<int> fibs = {1, 2};
   
-bool sunflower_cell(cell *c, transmatrix V) {
-  if(!on) return false;
+bool sunflower_cell(cell *c, shiftmatrix V) {
   density = zdensity / 100;
   
   ld qd;
@@ -106,7 +103,7 @@ bool sunflower_cell(cell *c, transmatrix V) {
     }
   
   if(c == cwt.at) {
-    for(int i=0; i<iqty; i++) ps[i] = V * p(i);
+    for(int i=0; i<iqty; i++) ps[i] = p(i);
 
     for(int i=0; i<iqty; i++) {
       ld ba = 99;
@@ -129,34 +126,41 @@ bool sunflower_cell(cell *c, transmatrix V) {
         curvepoint(ps[inext[i]]);
         curvepoint(ps[inext2[i]]);
         // queuecurve(0xFFFFFFFF, 0x00C000FF, PPR::LINE);
-        queuecurve(0x000000FF, 0xC04000FF, PPR::LINE);
+        queuecurve(V, 0x000000FF, 0xC04000FF, PPR::LINE);
         }      
       else {
         curvepoint(ps[i]);
         curvepoint(ps[inext[i]]);
         curvepoint(ps[inext[i] + inext2[i] - i]);
         curvepoint(ps[inext2[i]]);
-        queuecurve(0x000000FF, 0xFFD500FF, PPR::LINE);
+        queuecurve(V,0x000000FF, 0xFFD500FF, PPR::LINE);
         }
-      if(nodes) queuepolyat(rgpushxto0(ps[i]), cgi.shSnowball, 0xFF, PPR::SUPERLINE);
+      if(nodes) queuepolyat(V * rgpushxto0(ps[i]), cgi.shSnowball, 0xFF, PPR::SUPERLINE);
       }
     }
   return true;
   }
 
 void insert_param() {  
-  params.insert({"sund", zdensity});
-  params.insert({"sunq", qty});
-  params.insert({"sunr", range});
-  params.insert({"sunf", distance_per_rug});
+  param_f(zdensity, "sund");
+  param_f(qty, "sunq");
+  param_f(range, "sunr");
+  param_f(distance_per_rug, "sunf");
   }
 
+void show();
+
+void enable() {
+  rv_hook(hooks_o_key, 80, [] (o_funcs& v) { v.push_back(named_dialog("sunflowers", show)); });
+  rv_hook(hooks_drawcell, 100, sunflower_cell);
+  }
+  
 int readArgs() {
   using namespace arg;
            
   if(0) ;
   else if(argis("-sunflower-qd")) {
-    on = true;
+    enable();
     infer = 'r';
     shift_arg_formula(qty);
     shift_arg_formula(zdensity);
@@ -165,7 +169,7 @@ int readArgs() {
     nohud = true;
     }
   else if(argis("-sunflower-qr")) {
-    on = true;
+    enable();
     infer = 'd';
     shift_arg_formula(qty);
     shift_arg_formula(range);
@@ -174,7 +178,7 @@ int readArgs() {
     nohud = true;
     }
   else if(argis("-sunflower-dr")) {
-    on = true;
+    enable();
     infer = 'q';
     shift_arg_formula(zdensity);
     shift_arg_formula(range);
@@ -259,20 +263,15 @@ void show() {
   dialog::display();
   }
 
-void o_key(o_funcs& v) {
-  if(on) v.push_back(named_dialog("sunflowers", show));
-  }
-
 auto hook = 0
 #if CAP_COMMANDLINE
 + addHook(hooks_args, 100, readArgs)
 #endif
-+ addHook(hooks_o_key, 80, o_key)
-+ addHook(hooks_drawcell, 100, sunflower_cell)
-+ addHook(rvtour::hooks_build_rvtour, 144, [] (vector<tour::slide>& v) {
++ addHook_rvslides(144, [] (string s, vector<tour::slide>& v) {
+  if(s != "mixed") return;
   using namespace tour;
   v.push_back(
-    tour::slide{"unsorted/sunflower spirals", 18, LEGAL::ANY | QUICKGEO, 
+    tour::slide{"sunflower spirals", 18, LEGAL::ANY | QUICKGEO, 
       "A sunflower sends out its n-th seed at angle 180° (3-sqrt(5)). "
       "As new seeds are created, older seeds are pushed out. Therefore. "
       "the distance d(n) of the n-th seed from the center will be such that "
@@ -289,6 +288,8 @@ auto hook = 0
       "Press o to change the density.",
    
   [] (presmode mode) {
+    slide_url(mode, 'y', "YouTube link", "https://www.youtube.com/watch?v=bKzibaNqEog");
+    slide_url(mode, 't', "Twitter link", "https://twitter.com/ZenoRogue/status/1247900522905886723");
     setCanvas(mode, '0');
     
     if((mode == pmStop || mode == pmGeometry) && rug::rugged) rug::close();
@@ -301,7 +302,7 @@ auto hook = 0
     if(mode == pmStart) {
       stop_game();
       
-      tour::slide_backup(on, true);
+      enable();
       tour::slide_backup(range, sphere ? 2 : euclid ? 10 : 4.3);
       tour::slide_backup<ld>(zdensity, 1);
       tour::slide_backup(infer, 'q');

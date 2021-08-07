@@ -10,7 +10,9 @@
 #include "hyper.h"
 namespace hr {
 
-#define NUMLEADER 85
+#define NUMLEADER 87
+
+EX bool test_achievements = false;
 
 EX bool offlineMode = false;
 
@@ -18,7 +20,7 @@ EX const char* leadernames[NUMLEADER] = {
   "Score", "Diamonds", "Gold", "Spice", "Rubies", "Elixirs",
   "Shards100", "Totems", "Daisies", "Statues", "Feathers", "Sapphires",
   "Hyperstones", "Time to Win-71", "Turns to Win-71",
-  "Time to 10 Hyperstones-113", "Turns to 10 Hyperstones-113", "Orbs of Yendor",
+  "Time to 10 Hyperstones-120", "Turns to 10 Hyperstones-120", "Orbs of Yendor",
   "Fern Flowers", 
   "Royal Jellies", "Powerstones", "Silver", "Wine", "Emeralds", "Grimoires",
   "Holy Grails", "Red Gems", "Pirate Treasures",
@@ -77,6 +79,8 @@ EX const char* leadernames[NUMLEADER] = {
   "Gold Balls", // 82
   "Lazurite Figurines", // 83
   "Water Lilies", // 84
+  "Capon Stones", // 85
+  "Crystal Dice" // 86
   };
 
 #define LB_STATISTICS 62
@@ -102,6 +106,7 @@ EX vector<string> achievementsReceived;
  */
 EX bool wrongMode(char flags) {
   if(cheater) return true;
+  if(casual) return true;
   if(flags == rg::global) return false;
 
   if(flags != rg::special_geometry) {
@@ -123,7 +128,12 @@ EX bool wrongMode(char flags) {
 #if CAP_TOUR
   if(tour::on) return true;
 #endif
-  if((!!chaosmode) != (flags == rg::chaos)) return true;
+  if(flags == rg::special_geometry && !ls::single())
+    return true;
+  if(flags != rg::special_geometry && ineligible_starting_land)
+    return true;
+  if(flags == rg::chaos && !ls::std_chaos()) return true;
+  if(flags != rg::chaos && flags != rg::special_geometry && !ls::nice_walls()) return true;
   if((numplayers() > 1) != (flags == rg::multi)) return true;
   return false;
   }
@@ -132,19 +142,26 @@ EX set<string> got_achievements;
 
 EX void achievement_gain_once(const string& s, char flags IS(0)) {
   LATE(achievement_gain_once(s, flags));
-  if(wrongMode(flags)) return;
   if(got_achievements.count(s)) return;
+  if(wrongMode(flags)) {
+    if(test_achievements) println(hlog, "wrong mode for achievement: ", s);
+    else return;
+    }
   got_achievements.insert(s);
   achievement_gain(s.c_str(), flags);
   }
 
 EX void achievement_log(const char* s, char flags) {
 
-#ifdef PRINT_ACHIEVEMENTS
-  printf("achievement = %s [%d]\n", s, wrongMode(flags));
-#endif
-  
-  if(wrongMode(flags)) return;
+  if(wrongMode(flags)) {
+    if(test_achievements) println(hlog, "wrong mode for achievement: ", s);
+    return;
+    }
+
+  if(test_achievements) {
+    println(hlog, "got achievement:", s);
+    return;
+    }
   
   for(int i=0; i<isize(achievementsReceived); i++)
     if(achievementsReceived[i] == s) return;
@@ -199,7 +216,8 @@ EX void achievement_collection(eItem it) {
   }
 
 EX void achievement_collection2(eItem it, int q) {
-  if(cheater) return;
+  if(cheater && !test_achievements) return;
+  if(casual && !test_achievements) return;
   if(randomPatternsMode) return;
   LATE( achievement_collection2(it, q); )
 
@@ -279,6 +297,9 @@ EX void achievement_collection2(eItem it, int q) {
     if(it == itFrog) achievement_gain("FROG1");
     if(it == itEclectic) achievement_gain("ECLEC1");
     if(it == itWet) achievement_gain("WET1");
+
+    if(it == itCursed) achievement_gain("CURSED1");
+    if(it == itDice) achievement_gain("DICE1");
     }
 
   // 32
@@ -366,6 +387,9 @@ EX void achievement_collection2(eItem it, int q) {
     if(it == itFrog) achievement_gain("FROG2");
     if(it == itEclectic) achievement_gain("ECLEC2");
     if(it == itWet) achievement_gain("WET2");
+
+    if(it == itCursed) achievement_gain("CURSED2");
+    if(it == itDice) achievement_gain("DICE2");
     }
 
   if(q == (inv::on ? 50 : 25)) {
@@ -441,6 +465,9 @@ EX void achievement_collection2(eItem it, int q) {
     if(it == itFrog) achievement_gain("FROG3");
     if(it == itEclectic) achievement_gain("ECLEC3");
     if(it == itWet) achievement_gain("WET3");
+
+    if(it == itCursed) achievement_gain("CURSED3");
+    if(it == itDice) achievement_gain("DICE3");
     }
 
   if(q == 50 && !inv::on) {
@@ -513,6 +540,9 @@ EX void achievement_collection2(eItem it, int q) {
     if(it == itFrog) achievement_gain("FROG4");
     if(it == itEclectic) achievement_gain("ECLEC4");
     if(it == itWet) achievement_gain("WET4");
+
+    if(it == itCursed) achievement_gain("CURSED4");
+    if(it == itDice) achievement_gain("DICE4");
     }
   
   if(it == itOrbYendor) {
@@ -529,7 +559,8 @@ EX void achievement_collection2(eItem it, int q) {
  */
 
 EX void achievement_count(const string& s, int current, int prev) {
-  if(cheater) return;
+  if(cheater && !test_achievements) return;
+  if(casual && !test_achievements) return;
   if(shmup::on) return;
   if(randomPatternsMode) return;
   LATE( achievement_count(s, current, prev); )
@@ -596,12 +627,16 @@ EX void achievement_score(int cat, int number) {
   if(offlineMode) return;
 #ifdef HAVE_ACHIEVEMENTS
   if(cheater) return;
+  if(casual) return;
   LATE( achievement_score(cat, number); )
   if(cat == LB_HALLOWEEN) {
     if(geometry != gSphere && geometry != gElliptic)
       return;
     }
-  else if(geometry) return;
+  else {
+    if(geometry) return;
+    if(ineligible_starting_land) return;
+    }
   if(CHANGED_VARIATION) return;
   if(randomPatternsMode) return;
   if(dual::state) return;
@@ -678,6 +713,9 @@ EX void improveItemScores() {
   improve_score(82, itFrog);
   improve_score(83, itEclectic);
   improve_score(84, itWet);
+
+  improve_score(85, itCursed);
+  improve_score(86, itDice);
   }
 
 int next_stat_tick;
@@ -696,6 +734,7 @@ EX void achievement_final(bool really_final) {
     next_stat_tick = ticks + 600000;
     }
   if(cheater) return;
+  if(casual) return;
 
 #if CAP_TOUR
   if(tour::on) return;
@@ -722,7 +761,8 @@ EX void achievement_final(bool really_final) {
   
   int specialcode = 0;
   if(shmup::on) specialcode++;
-  if(chaosmode) specialcode+=2;
+  if(ls::std_chaos()) specialcode+=2;
+  else if(!ls::nice_walls()) return;
   if(PURE) specialcode+=4;
   if(numplayers() > 1) specialcode+=8;
   if(inv::on) specialcode+=16;
@@ -733,6 +773,7 @@ EX void achievement_final(bool really_final) {
     return;
     }
 
+  if(ineligible_starting_land) return;
   if(geometry) return;
   if(NONSTDVAR) return;
   
@@ -812,6 +853,7 @@ EX void achievement_victory(bool hyper) {
   if(offlineMode) return;
 #ifdef HAVE_ACHIEVEMENTS
   if(cheater) return;
+  if(casual) return;
   if(geometry) return;
   if(CHANGED_VARIATION) return;
   if(randomPatternsMode) return;
@@ -819,7 +861,8 @@ EX void achievement_victory(bool hyper) {
   if(yendor::on) return;
   if(peace::on) return;
   if(tactic::on) return;
-  if(chaosmode) return;
+  if(!ls::nice_walls()) return;
+  if(!ineligible_starting_land) return;
   LATE( achievement_victory(hyper); )
   DEBB(DF_STEAM, ("after checks"))
 
@@ -895,12 +938,13 @@ EX string get_rich_presence_text() {
   if(geometry != gNormal || !BITRUNCATED) 
     res = res + full_geometry_name() + " ";
   
-  if(chaosmode) res += "chaos ";
+  if(land_structure != default_land_structure()) res += land_structure_name(false) + " ";
   if(shmup::on) res += "shmup ";
   if(dual::state) res += "dual ";
   if(randomPatternsMode) res += "random ";
   if(inv::on) res += "OSM ";
   if(multi::players > 1) res += "multi ";
+  if(casual) res += "casual ";
 
   if(cheater || among(cwt.at->land, laCanvas, laCA)) 
     return res + "(?)";

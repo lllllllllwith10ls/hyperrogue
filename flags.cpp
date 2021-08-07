@@ -141,7 +141,7 @@ EX int mirrorcolor(bool mirrored) {
 
 EX bool isMounted(cell *c) {
   if(c && c->monst && c->monst != moTentacleGhost && isMountable(c->monst)) {
-    for(int i=0; i<numplayers(); i++) {
+    for(int i: player_indices()) {
       if(playerpos(i)->monst && sameMonster(c, playerpos(i))) 
         return true;
       if(lastmountpos[i] && lastmountpos[i]->monst && sameMonster(c, lastmountpos[i]))
@@ -157,6 +157,14 @@ EX bool isFriendly(eMonster m) { return isFriendlyType(m); }
 
 EX bool isFriendly(cell *c) { 
   return isMounted(c) || isFriendly(c->monst); 
+  }
+
+EX eThreatLevel get_threat_level(cell *c) { 
+  if(!c->monst) return tlNoThreat;
+  if(isFriendly(c)) return tlNoThreat;
+  if(classflag(c->monst) & CF_HIGH_THREAT) return tlHighThreat;
+  if(classflag(c->monst) & CF_SPAM) return tlSpam;
+  return tlNormal;
   }
 
 EX bool isFriendlyOrBug(cell *c) { // or killable discord!
@@ -285,6 +293,10 @@ EX bool isPermanentFlying(eMonster m) {
   return m == moAirElemental || isGhostAether(m);
   }
 
+EX bool isLuckyLand(eLand l) {
+  return among(l, laIce, laDesert, laDeadCaves, laOvergrown, laDice);
+  }
+
 EX bool survivesFire(eMonster m) {
   return
     isGhostAether(m) || m == moWitchWinter || m == moWitchGhost ||
@@ -371,6 +383,14 @@ EX bool do_not_touch_this_wall(cell *c) {
 
 EX bool is_paired(eMonster m) {
   return among(m, moPair, moNorthPole, moSouthPole);
+  }
+
+EX bool isDie(eMonster m) {
+  return among(m, moAnimatedDie, moAngryDie);
+  }
+
+EX bool isDie(eWall w) {
+  return among(w, waRichDie, waHappyDie);
   }
 
 }

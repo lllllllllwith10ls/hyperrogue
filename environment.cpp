@@ -43,7 +43,8 @@ namespace hr {
 #define HF_MONK       Flag(30)
 #define HF_WESTWALL   Flag(31)
 #define HF_JUMP       Flag(32)
-#define HF_WINTER     Flag(32)
+#define HF_WINTER     Flag(33)
+#define HF_DICE       Flag(34)
 #endif
 
 EX flagtype havewhat, hadwhat;
@@ -166,7 +167,7 @@ EX void computePathdist(eMonster param) {
           if(param == moTortoise && nogoSlow(c, c2)) continue;
           if(param == moIvyRoot  && strictlyAgainstGravity(c, c2, false, MF_IVY)) continue;
           if(param == moWorm && (cellUnstable(c) || cellEdgeUnstable(c) || prairie::no_worms(c))) continue;
-          if(items[itOrbLava] && c2->cpdist <= 5 && pseudohept(c) && makeflame(c2, 1, true))
+          if(!isFriendly(param) && items[itOrbLava] && c2->cpdist <= 5 && pseudohept(c) && makeflame(c2, 1, true))
             continue;
           }
 
@@ -229,9 +230,7 @@ EX void bfs() {
 
   recalcTide = false;
   
-  for(int i=0; i<numplayers(); i++) {
-    cell *c = playerpos(i);
-    if(!c) continue;
+  for(cell *c: player_positions()) {
     if(c->cpdist == 0) continue;
     c->cpdist = 0;
     checkTide(c);
@@ -242,9 +241,7 @@ EX void bfs() {
   
   int distlimit = gamerange();
 
-  for(int i=0; i<numplayers(); i++) {
-    cell *c = playerpos(i);
-    if(!c) continue;
+  for(cell *c: player_positions()) {
     if(items[itOrbDomination])
     if(c->monst == moTentacle || c->monst == moTentaclewait || c->monst == moTentacleEscaping)
       worms.push_back(c);
@@ -283,7 +280,7 @@ EX void bfs() {
         // remove treasures
         if(!peace::on && c2->item && c2->cpdist == distlimit && itemclass(c2->item) == IC_TREASURE &&
           c2->item != itBabyTortoise &&
-          (items[c2->item] >= (chaosmode?10:20) + currentLocalTreasure || getGhostcount() >= 2)) {
+          (items[c2->item] >= (ls::any_chaos()?10:20) + currentLocalTreasure || getGhostcount() >= 2)) {
             c2->item = itNone;
             if(c2->land == laMinefield) { c2->landparam &= ~3; }
             }
@@ -292,7 +289,7 @@ EX void bfs() {
           c2->item = itNone;
           c2->landparam |= 2;
           c2->landparam &= ~1;
-          if(!c2->monst) c2->monst = moBomberbird;
+          if(!c2->monst) c2->monst = moBomberbird, c2->stuntime = 0;
           }
         
         if(c2->item == itBarrow && c2->cpdist == distlimit && c2->wall != waBarrowDig) {
@@ -432,6 +429,7 @@ EX void bfs() {
           else if(isMagneticPole(c2->monst)) havewhat |= HF_MAGNET;
           else if(c2->monst == moAltDemon) havewhat |= HF_ALT;
           else if(c2->monst == moHexDemon) havewhat |= HF_HEXD;
+          else if(among(c2->monst, moAnimatedDie, moAngryDie)) havewhat |= HF_DICE;
           else if(c2->monst == moMonk) havewhat |= HF_MONK;
           else if(c2->monst == moShark || c2->monst == moCShark || among(c2->monst, moRusalka, moPike)) havewhat |= HF_SHARK;
           else if(c2->monst == moAirElemental) 
@@ -494,7 +492,7 @@ EX void moverefresh(bool turn IS(true)) {
       }
     
     if(c->stuntime && !isMutantIvy(c)) {
-      c->stuntime--;
+      if(turn) c->stuntime--;
       int breathrange = sphere ? 2 : 3;
       if(c->stuntime == 0 && c->monst == moDragonHead)  {
         // if moDragonHead is renamed to "Dragon Head", we might need to change this
@@ -746,8 +744,9 @@ EX void monstersTurn() {
   DEBB(DF_TURN, ("mmo"));
   int phase2 = (1 & items[itOrbSpeed]);
   if(!phase2) movemonsters();
-  for(int i=0; i<numplayers(); i++) if(playerpos(i)->item == itOrbSafety) {
-    collectItem(playerpos(i), true);
+
+  for(cell *pc: player_positions()) if(pc->item == itOrbSafety)  {
+    collectItem(pc, true);
     return;
     }
 
@@ -800,9 +799,8 @@ EX void monstersTurn() {
   #endif
   
   if(items[itOrbFreedom])
-    for(int i=0; i<numplayers(); i++)
-      if(multi::playerActive(i))
-        checkFreedom(playerpos(i));
+    for(cell *pc: player_positions())
+      checkFreedom(pc);
 
   DEBB(DF_TURN, ("check"));
   checkmove();
@@ -810,9 +808,8 @@ EX void monstersTurn() {
 
 
 #if CAP_HISTORY
-  for(int i=0; i<numplayers(); i++)
-    if(multi::playerActive(i))
-      history::movehistory.push_back(playerpos(i));
+  for(cell *pc: player_positions())
+    history::movehistory.push_back(pc);
 #endif
   }
 

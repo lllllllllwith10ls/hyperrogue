@@ -87,6 +87,10 @@ EX namespace arg {
   EX const string& args() { return argument[pos]; }
   EX const char* argcs() { return args().c_str(); }
   EX int argi() { return atoi(argcs()); }
+
+  EX int shift_argi() { shift(); return argi(); }
+  EX const string& shift_args() { shift(); return args(); }
+
   EX unsigned arghex() { return strtoll(argcs(), NULL, 16); }
   EX ld argf() { 
     try {
@@ -158,6 +162,9 @@ int arg::readCommon() {
   else if(argis("-font")) { PHASE(1); shift(); fontpath = args(); }
 #endif
 #endif
+
+  else if(argis("-test-ach")) 
+    test_achievements = true;
 
   else if(argis("-test")) 
     callhooks(hooks_tests);
@@ -240,7 +247,8 @@ int arg::readCommon() {
     }
   else if(argis("-face-vertex")) {
     PHASE(3);  start_game();
-    View = cspin(0, 2, M_PI/2) * spintox(cgi.vertices_only[0]);
+    auto &ss = currentmap->get_cellshape(cwt.at);
+    View = cspin(0, 2, M_PI/2) * spintox(ss.vertices_only_local[0]);
     }
   else if(argis("-face-face")) {
     PHASE(3);  start_game();
@@ -357,8 +365,8 @@ int arg::readCommon() {
     printf("  -offline       - don't connect to Steam (for Steam versions)\n");
     printf("  -I ITEM n      - start with n of ITEM (activates cheat and disables ghosts)\n");
     printf("  -fix           - fix the seed\n");
-    printf("Toggles: -o0 disables, -o1 enables, -o switches");
-    printf("Not all options are documented, see hyper.cpp");
+    printf("Toggles: -o0 disables, -o1 enables, -o switches\n");
+    printf("Not all options are documented, see hyper.cpp\n");
     exit(0);
     }
   else return 1;
@@ -369,9 +377,36 @@ EX purehookset hooks_config;
 
 EX hookset<int()> hooks_args;
 
-namespace arg {
+EX map<string, pair<int, reaction_t>> *added_commands;
 
-  auto ah = addHook(hooks_args, 0, readCommon);
+EX namespace arg {
+
+  int read_added_commands() {
+    if(!added_commands) return 1;
+    if(added_commands->count(args())) {
+      auto& ac = (*added_commands)[args()];
+      if(ac.first == 2)
+        PHASEFROM(2);
+      if(ac.first == 3)
+        PHASE(3);
+      ac.second();
+      return 0;
+      }
+    return 1;
+    }
+  
+  EX int add_at(const string& s, int at, const reaction_t& r) {
+    if(!added_commands) added_commands = new map<string, pair<int, reaction_t>> ();
+    if(added_commands->count(s)) throw hr_exception("arg::add conflict");
+    (*added_commands)[s] = {at, r};
+    return 1;
+    }
+
+  EX int add1(const string& s, const reaction_t& r) { return add_at(s, 1, r); }
+  EX int add2(const string& s, const reaction_t& r) { return add_at(s, 2, r); }
+  EX int add3(const string& s, const reaction_t& r) { return add_at(s, 3, r); }
+
+  auto ah = addHook(hooks_args, 0, readCommon) + addHook(hooks_args, 200, read_added_commands);
   
   void read(int phase) { 
     curphase = phase;
@@ -386,7 +421,14 @@ namespace arg {
         }
       }
     }
-  }
+EX }
 #endif
 
+#if !CAP_COMMANDLINE
+EX namespace arg {
+  EX int add1(const string& s, const reaction_t& r) { return 0; }
+  EX int add2(const string& s, const reaction_t& r) { return 0; }
+  EX int add3(const string& s, const reaction_t& r) { return 0; }
+EX }
+#endif
 }

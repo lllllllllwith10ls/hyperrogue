@@ -17,6 +17,12 @@ enum cpatterntype {
   };
 #endif
 
+EX void enable_canvas() {
+  firstland = specialland = laCanvas;
+  randomPatternsMode = false;
+  land_structure = lsSingle;
+  }
+
 EX int ctof(cell *c) {
   #if CAP_IRR
   if(IRREGULAR) return irr::ctof(c);
@@ -34,6 +40,7 @@ EX int ctof012(cell *c) {
   }
 
 int gp_threecolor() {
+  if(cgflags & qPORTALSPACE) return 0;
   if(!GOLDBERG) return 0;
   #if CAP_GP
   if(S3 == 3 && (gp::param.first - gp::param.second) % 3 == 0) return 2;
@@ -42,6 +49,7 @@ int gp_threecolor() {
   }
 
 int eupattern(cell *c) {
+  if(cgflags & qPORTALSPACE) return 0;
   auto co = euc2_coordinates(c);
   int x = co.first, y = co.second;
   if(a4)
@@ -57,6 +65,7 @@ int eupattern4(cell *c) {
   }
 
 EX bool ishept(cell *c) {
+  if(cgflags & qPORTALSPACE) return 0;
   // EUCLIDEAN
   if(euc::in() && PURE) return eupattern(c) == 0;
   else if(hybri) { cell *c1 = hybrid::get_where(c).first; return c1 == c1->master->c7; }
@@ -64,6 +73,7 @@ EX bool ishept(cell *c) {
   }
 
 EX bool ishex1(cell *c) {
+  if(cgflags & qPORTALSPACE) return 0;
   // EUCLIDEAN
   if(euc::in() && PURE) return eupattern(c) == 1;
   #if CAP_GP
@@ -73,6 +83,7 @@ EX bool ishex1(cell *c) {
   }
 
 bool ishex2(cell *c) {
+  if(cgflags & qPORTALSPACE) return 0;
   // EUCLIDEAN
   if(euc::in() && PURE) return eupattern(c) == 1;
   #if CAP_GP
@@ -82,6 +93,7 @@ bool ishex2(cell *c) {
   }
 
 EX int chessvalue(cell *c) {
+  if(cgflags & qPORTALSPACE) return 0;
   #if CAP_ARCM
   if(arcm::in()) 
     return arcm::chessvalue(c);
@@ -147,6 +159,11 @@ int fiftyval(cell *c) {
   }
 
 EX int cdist50(cell *c) {
+  if(euclid && S3 == 4) {
+    auto co = euc2_coordinates(c);
+    int x = co.first, y = co.second;
+    return abs(szgmod(x, 5)) + abs(zgmod(y, 5));
+    }
   if(sphere || S7>7 || S6>6) return 0;
   if(euclid) {
     if(c->land == laWildWest) 
@@ -333,6 +350,7 @@ EX int zebra40(cell *c) {
   else if(S3 == 4 && S7 == 6) {
     return 8 + ((c->master->zebraval / 10 + c->c.spin(0))%2) * 2;
     }
+  else if(reg3::in()) return 0;
   else {
     int ii[3], z;
     auto ar = gp::get_masters(c);
@@ -383,6 +401,8 @@ EX pair<int, bool> fieldval(cell *c) {
 EX int fieldval_uniq(cell *c) {
   if(fake::in()) return FPIU(fieldval_uniq(c));
   if(experimental) return 0;
+  if(reg3::in() && !PURE) return 0;
+  else if(arb::in()) return arb::id_of(c->master);
   else if(hybri) { 
     auto c1 = hybrid::get_where(c).first; 
     return PIU ( fieldval_uniq(c1) );
@@ -440,6 +460,12 @@ EX int fieldval_uniq_rand(cell *c, int randval) {
   }
 
 pair<int, int> subval(cell *c, int _subpathid = subpathid, int _subpathorder = subpathorder) {
+
+  if(_subpathid == -1)
+    _subpathid = currfp.matcode[currfp.strtomatrix("RRRPRRRRRPRRRP")];
+  if(_subpathorder == -1)
+    _subpathorder = currfp.order(currfp.matrices[subpathid]);
+
   if(!ctof(c)) {
     auto m = subval(createMov(c, 0));
     for(int u=2; u<S6; u+=2)
@@ -618,10 +644,10 @@ EX namespace patterns {
       si.reflect = false;
       }
     else {
-      int ids = 0, tids = 0, td = 0;
+      int ids = 0, td = 0;
       for(int i=0; i<S3; i++) {
         int d = c->move(2*i)->master->fieldval;
-        ids |= (1<<d); tids += d;
+        ids |= (1<<d);
         }
       for(int i=0; i<S3; i++) {
         int d = c->move(2*i)->master->fieldval;
@@ -851,7 +877,7 @@ EX namespace patterns {
     }
 
   void val_all(cell *c, patterninfo &si, int sub, int pat) {
-    if(IRREGULAR || arcm::in() || bt::in() || arb::in() || WDIM == 3) si.symmetries = c->type;
+    if(IRREGULAR || arcm::in() || bt::in() || arb::in() || WDIM == 3 || currentmap->strict_tree_rules()) si.symmetries = c->type;
     else if(a46) val46(c, si, sub, pat);
     else if(a38) val38(c, si, sub, pat);
     else if(S7 < 6 && S3 == 3) valSibling(c, si, sub, pat);
@@ -1044,6 +1070,8 @@ EX namespace patterns {
       if(sub & SPF_EXTRASYM) si.reflect = true;
       return si;
       }
+    
+    if(currentmap->strict_tree_rules()) return si;
 
     if(arb::in()) {
       si.id = arb::id_of(c->master);
@@ -1560,12 +1588,12 @@ EX namespace patterns {
 
     cell *sc = currentmap->gamestart();
     auto ac = currentmap->allcells();
-    vector<int> bydist(20, 0);
-    vector<int> bynei(S7+1, 0);
+    vector<int> bydist(100, 0);
+    vector<int> bynei(FULL_EDGE+1, 0);
     int maxd = 0;
     for(cell *d: ac) {
       int di = celldistance(sc, d);
-      bydist[di]++;
+      if(di<100) bydist[di]++;
       maxd = max(maxd, di);
       }
     
@@ -1601,12 +1629,12 @@ EX namespace patterns {
 
     cell *sc = currentmap->gamestart();
     auto ac = currentmap->allcells();
-    vector<int> bydist(20, 0);
-    vector<int> bynei(S7+1, 0);
+    vector<int> bydist(100, 0);
+    vector<int> bynei(FULL_EDGE+1, 0);
     int maxd = 0;
     for(cell *d: ac) {
       int di = celldistance(sc, d);
-      bydist[di]++;
+      if(di<100) bydist[di]++;
       maxd = max(maxd, di);
       }
     
@@ -1629,7 +1657,9 @@ EX namespace patterns {
     ep.extra_params["x"] = h[0];
     ep.extra_params["y"] = h[1];
     ep.extra_params["z"] = h[2];
+    #if MAXMDIM >= 4
     ep.extra_params["w"] = h[3];
+    #endif
     ep.extra_params["z40"] = zebra40(c);
     ep.extra_params["z3"] = zebra3(c);
     ep.extra_params["ev"] = emeraldval(c);
@@ -1666,12 +1696,15 @@ EX namespace patterns {
       for(int i=0; i<crystal::MAXDIM; i++)
         ep.extra_params["x"+its(i)] = co[i];
       }
+    #endif
+    #if CAP_SOLV
     if(asonov::in()) {
       auto co = asonov::get_coord(c->master);
       ep.extra_params["ax"] = szgmod(co[0], asonov::period_xy);
       ep.extra_params["ay"] = szgmod(co[1], asonov::period_xy);
       ep.extra_params["az"] = szgmod(co[2], asonov::period_z);      
       }
+    #endif
     if(nil) {
       auto co = nilv::get_coord(c->master);
       ep.extra_params["nx"] = szgmod(co[0], nilv::nilperiod[0]);
@@ -1692,7 +1725,7 @@ EX namespace patterns {
     try {
       return ep.parse();
       }
-    catch(hr_parse_exception& ex) {
+    catch(hr_parse_exception&) {
       return 0;
       }
     }
@@ -1725,7 +1758,8 @@ EX namespace patterns {
         #if CAP_ARCM
         if(arcm::in()) return colortables['A'][arcm::current.tilegroup[arcm::id_of(c->master)]];
         #endif
-        if(arb::in()) return colortables['A'][c->master->zebraval + c->master->emeraldval * isize(arb::current.shapes)];
+        if(arb::in()) return colortables['A'][shvid(c) + c->master->emeraldval * isize(arb::current.shapes)];
+        return colortables['A'][shvid(c)];
       case 'B':
         return colortables['B'][c->type & 15];
       #if CAP_FIELD
@@ -1763,7 +1797,7 @@ EX namespace patterns {
         }
       case 'P': {
         cell *s = currentmap->gamestart()->move(0);
-        if(yendor::exhaustive_distance_appropriate() && !keep_distances_from.count(s))
+        if(exhaustive_distance_appropriate() && !keep_distances_from.count(s))
           permanent_long_distances(s);
         int d = celldistance(s, c);
         color_t res = distcolors[d];
@@ -1785,6 +1819,11 @@ EX namespace patterns {
         color_t r = hrand(0xFFFFFF + 1);
         if(hrand(100) < rwalls) r |= 0x1000000;
         if(c == cwt.at && rwalls <= 100) r &= 0xFFFFFF;
+        return r;
+        }
+      case 'I': {
+        color_t r = 0xFFD500;
+        if(c->type != (variation == eVariation::dual_subcubes ? 6 : 14)) r |= 0x1000000;
         return r;
         }
       case '^': {
@@ -1968,9 +2007,7 @@ EX namespace patterns {
       dialog::addSelItem(XLAT("furthest from start"), "bounded", 'Y');
       }
 
-    if(arb::in() || arcm::in())
-      dialog::addSelItem(XLAT("types"), "types", 'A');
-
+    dialog::addSelItem(XLAT("types"), "types", 'A');
     dialog::addSelItem(XLAT("sides"), "sides", 'B');
 
     if(!ISMOBILE)
@@ -2012,8 +2049,7 @@ EX namespace patterns {
             stop_game();
             whichCanvas = 'g';
             canvasback = c >> 8;
-            firstland = specialland = laCanvas;
-            randomPatternsMode = false;
+            enable_canvas();
             start_game();
             }
           else {
@@ -2034,8 +2070,7 @@ EX namespace patterns {
             break;
             }
         if(instant) {
-          firstland = specialland = laCanvas; 
-          randomPatternsMode = false;
+          enable_canvas();
           start_game();
           }
         }
@@ -2062,16 +2097,15 @@ EX namespace patterns {
           );
         
         s += XLAT("see compute_map_function in pattern2.cpp for more\n");
-
-        s += "\n\n" + parser_help();
-
+        
         dialog::edit_string(color_formula, "formula", s);
+
+        dialog::extra_options = dialog::parser_help;
         dialog::reaction_final = [instant] () { 
           if(instant) stop_game();
           whichCanvas = 'f';
           if(instant) {
-            firstland = specialland = laCanvas; 
-            randomPatternsMode = false;
+            enable_canvas();
             start_game();
             }
           };
@@ -2083,8 +2117,7 @@ EX namespace patterns {
         whichCanvas = uni;
         subcanvas = rand();
         if(instant) {
-          firstland = specialland = laCanvas; 
-          randomPatternsMode = false;
+          enable_canvas();
           start_game();
           }
         if(uni == 'r') 
@@ -2563,11 +2596,19 @@ EX namespace linepatterns {
     [] (linepattern *lp) { auto& col = lp->color; for(auto& p: current_display->all_drawn_copies) for(auto& V: p.second) { cell *c = p.first; R } }
   
   #define ATCENTER(T) \
-    [] (linepattern *lp) { auto& col = lp->color; transmatrix V = gmatrix[cwt.at]; T}
-      
+    [] (linepattern *lp) { auto& col = lp->color; shiftmatrix V = gmatrix[cwt.at]; T}
+  
+  /** for functions drawing edges, ensure that the edge is drawn only in one direction */  
+  template<class T> bool way(T*c, int i) {
+    T* c2 = c->move(i);
+    if(c == c2)
+      return i <= c->c.spin(i);
+    return c2 > c;
+    }
+
   linepattern patDual("dual grid", 0xFFFFFF00, always_available,
     ALLCELLS(
-      forCellIdEx(c2, i, c) if(c2 > c) {
+      forCellIdEx(c2, i, c) if(way(c,i)) {
         gridlinef(V, C0, V * currentmap->adj(c, i), C0, col, 2 + vid.linequality);
         }
       )
@@ -2575,14 +2616,14 @@ EX namespace linepatterns {
   
   linepattern patHepta("heptagonal grid", 0x0000C000, always_available,
     ALLCELLS(
-      forCellIdEx(c2, i, c) if(c2 > c) if(pseudohept(c) == pseudohept(c2)) 
+      forCellIdEx(c2, i, c) if(way(c,i)) if(pseudohept(c) == pseudohept(c2)) 
         gridlinef(V, C0, V * currentmap->adj(c, i), C0, col, 2 + vid.linequality);
       )
     );
   
   linepattern patRhomb("rhombic tesselation", 0x0000C000, always_available,
     ALLCELLS(
-      forCellIdEx(c2, i, c) if(c2 > c) if(pseudohept(c) != pseudohept(c2)) 
+      forCellIdEx(c2, i, c) if(way(c,i)) if(pseudohept(c) != pseudohept(c2)) 
         gridlinef(V, C0, V * currentmap->adj(c, i), C0, col, 2 + vid.linequality);
       )
     );
@@ -2599,7 +2640,7 @@ EX namespace linepatterns {
   linepattern patNormal("normal tesselation", 0x0000C000, always_available, 
     ALLCELLS(
       for(int t=0; t<c->type; t++)
-        if(c->move(t) && c->move(t) < c)
+        if(c->move(t) && way(c,t))
         gridline(V, get_corner_position(c, t),
                   get_corner_position(c, (t+1)%c->type),
                   col, 1 + vid.linequality);
@@ -2618,7 +2659,7 @@ EX namespace linepatterns {
   linepattern patBigRings("big triangles: rings", 0x00606000, cheating,
     ALLCELLS(
       if(is_master(c) && !euclid) for(int i=0; i<S7; i++) 
-        if(c->master->move(i) && c->master->move(i) < c->master && c->master->move(i)->dm4 == c->master->dm4)
+        if(c->master->move(i) && way(c->master, i) && c->master->move(i)->dm4 == c->master->dm4)
           gridlinef(V, C0, xspinpush0(-2*M_PI*i/S7 - master_to_c7_angle(), cgi.tessf), col, 2 + vid.linequality);
       )
     );
@@ -2628,14 +2669,10 @@ EX namespace linepatterns {
       if(is_master(c)) {
         int dir = updir(c->master);
         if(dir == -1) continue;
-        cell *c2 = c->master->cmove(dir)->c7;
-        if(gmatrix.count(c2)) {
-          if(S3 >= OINF)
-            gridlinef(V, C0, Id, mid(tC0(V), tC0(V * currentmap->adj(c, dir))), col, 2 + vid.linequality);
-          else 
-             gridlinef(V, C0, V * master_relative(c, true) * currentmap->adj(c->master, dir), C0, col, 2 + vid.linequality);
-           }
-         }
+        hyperpoint end = currentmap->master_relative(c, true) * currentmap->adj(c->master, dir) * C0;
+        hyperpoint start = mid(C0, mid(C0, mid(C0, end)));
+        gridlinef(V, start, V, end, col, 2 + vid.linequality);
+        }
       )
     );
   linepattern patAltTree("circle/horocycle tree", 0xd000d000, cheating, 
@@ -2643,17 +2680,9 @@ EX namespace linepatterns {
       if(is_master(c)) {
         int dir = updir_alt(c->master);
         if(dir == -1) continue;
-        for(int i=0; i<S7; i++)
-          if(c->master->move(i) && c->master->move(i)->alt == c->master->alt->move(0)) {
-            cell *c2 = c->master->move(i)->c7;
-            if(gmatrix.count(c2)) {
-              if(S3 >= OINF) {
-                gridlinef(V, C0, Id, mid(tC0(V), tC0(gmatrix[c2])), col, 2 + vid.linequality);
-                }
-              else 
-                gridlinef(V, C0, V*master_relative(c, true) * currentmap->adj(c->master,i), C0, col, 2 + vid.linequality);
-              }
-            }
+        hyperpoint end = currentmap->master_relative(c, true) * currentmap->adj(c->master, dir) * C0;
+        hyperpoint start = mid(C0, mid(C0, mid(C0, end)));
+        gridlinef(V, start, V, end, col, 2 + vid.linequality);
         }
       )
     );
@@ -2712,7 +2741,7 @@ EX namespace linepatterns {
   linepattern patIrregularMaster("irregular master", 0x8438A400, [] { return IRREGULAR; }, 
     ALLCELLS(
       if(c->master->c7 != c) if(gmatrix.count(c->master->c7))
-        gridlinef(V, C0, V*master_relative(c, true), C0, 
+        gridlinef(V, C0, V*currentmap->master_relative(c, true), C0, 
           darkena(backcolor ^ 0xFFFFFF, 0, col),
           2 + vid.linequality);
       )
@@ -2751,7 +2780,7 @@ EX namespace linepatterns {
     );
   linepattern patGoldbergSep("Goldberg", 0xFFFF0000, [] { return GOLDBERG; },
     ALLCELLS(
-      forCellIdEx(c2, i, c) if(c2->master != c->master)
+      forCellIdEx(c2, i, c) if(c2->master != c->master && way(c, i))
         gridlinef(V, C0, V*currentmap->adj(c, i), C0, 
           col,
           1 + vid.linequality);
@@ -2759,7 +2788,7 @@ EX namespace linepatterns {
     );
   linepattern patArcm("Archimedean", 0xFFFF0000, [] { return arcm::in(); },
     ALLCELLS(
-      if(!pseudohept(c)) forCellIdEx(c2, i, c) if(c < c2 && !pseudohept(c2)) 
+      if(!pseudohept(c)) forCellIdEx(c2, i, c) if(way(c, i) && !pseudohept(c2)) 
         gridlinef(V, C0, V*currentmap->adj(c, i), C0, 
           col,
           1 + vid.linequality);
@@ -3062,7 +3091,7 @@ int read_pattern_args() {
   else if(argis("-canvas")) {
     PHASEFROM(2);
     stop_game();
-    firstland = specialland = laCanvas;
+    enable_canvas();
     shift();
     if(args() == "i") canvas_default_wall = waInvisibleFloor;
     else if(args().size() == 1) patterns::whichCanvas = args()[0];
@@ -3072,14 +3101,14 @@ int read_pattern_args() {
   else if(argis("-canvas-random")) {
     PHASEFROM(2);
     stop_game();
-    firstland = specialland = laCanvas;
+    enable_canvas();
     patterns::whichCanvas = 'r';
     shift(); patterns::rwalls = argi();
     }
   else if(argis("-cformula")) {
     PHASEFROM(2);
     stop_game();
-    firstland = specialland = laCanvas;
+    enable_canvas();
     patterns::whichCanvas = 'f';
     shift(); patterns::color_formula = args();
     }

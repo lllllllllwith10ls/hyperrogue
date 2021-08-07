@@ -351,7 +351,7 @@ S("Your score: %1", "Punkte: %1")
 S("Enemies killed: %1", "Getötete Gegner: %1")
 S("Orbs of Yendor found: %1", "Orbs von Yendor gefunden: %1")
 S("Collect %1 $$$ to access more worlds", "Sammle %1 $$$ um mehr Länder betreten zu können")
-S("Collect at least %1 treasures in each of 9 types to access Hell", "Sammle 9 verschiedene Schätze mindestens %1x um Zugang zur Hölle zu erhalten")
+S("Collect at least %1 treasures in each of %2 types to access Hell", "Sammle %2 verschiedene Schätze mindestens %1x um Zugang zur Hölle zu erhalten")
 S("Collect at least %1 Demon Daisies to find the Orbs of Yendor", "Sammle mindestens %1 Dämonenblümchen um die Orbs von Yendor zu finden")
 S("Hyperstone Quest: collect at least %3 %1 in %the2", "Hyperstein-Herausforderung: Sammle %3 %P1 %a2")
 S("Hyperstone Quest completed!", "Hyperstein-Herausforderung abgeschlossen!")
@@ -641,8 +641,8 @@ S("Rangers take care of the magic mirrors in the Land of Mirrors. "
   "Ranger beschützen die Zauberspiegel im Spiegelland. Sie wissen, dass Schurken wie du "
   "die Spiegel gerne zerbrechen - also greifen sie dich an!")
 
-S("A nasty creature native to the Living Caves. They don't like you "
-  "for some reason.",
+// TODO update translation
+S("A nasty creature that lives in caves. They don't like you for some reason.",
   "Ein grässliches Geschöpf, das in den Lebenden Höhlen haust. Irgendwie können diese Kreaturen dich nicht leiden.")
 
 S("A tribe of men native to the Desert. They have even tamed the huge Sandworms, who won't attack them.",
@@ -680,8 +680,8 @@ S("A typical monster from the Graveyard, who moves through walls.\n\n"
 S("Necromancers can raise ghosts and zombies from fresh graves.",
   "Totenbeschwörer können Geister und Zombies aus frischen Gräbern auferwecken.")
 
-S("A creepy monster who follows you everywhere in the Graveyard.",
-  "Ein gruseliges Monster das dir über den ganzen Friedhof folgt!")
+S("A creepy monster who follows you everywhere in the Graveyard and the Cursed Canyon.",
+  "Ein gruseliges Monster das dir über den ganzen Friedhof folgt!") //TODO UPDATE
 
 S("People worshipping Cthulhu. They are very dangerous.",
   "Verehrer Cthulhus. Sie sind sehr gefährlich.")
@@ -722,7 +722,7 @@ S("This being radiates an aura of wisdom. "
   "It is made of a beautiful crystal, you would love to take it home. "
   "But how is it going to defend itself? Better not to think of it, "
   "thinking causes your brain to go hot...\n\n"
-  "Crystal Sages melt at -30 °C, and they can rise the temperature around you from afar.",
+  "Crystal Sages melt at -30 °C, and they can raise the temperature around you from afar.",
   "Dieses Wesen strahlt eine Aura der Weisheit aus. Es besteht aus einem schönen Kristall, "
   "am liebsten würdest du es mit nach Hause nehmen... Nur, wie verteidigt es sich? Besser "
   "nicht daran denken... Denken lässt dein Gehirn heiß werden...\n\n"
@@ -2407,7 +2407,7 @@ S("Variants of %the1 are available in the Random Pattern Mode after "
 S(" kills: %1", " Kills: %1")
 S(" $$$: %1", " $$$: %1")
 S(" Hyperstone: %1/%2", " Hypersteine: %1/%2")
-S(" Hell: %1/9", " Hölle: %1/9")
+S(" Hell: %1/%2", " Hölle: %1/%2")
 
 // improved editor
 // ---------------
@@ -3070,7 +3070,7 @@ S("Someone has put air fans in these plains, causing strong winds everywhere. "
   "Cells which are blocked by walls, or at distance at most 2 from an Air Elemental, "
   "do not count for this.\n\n"
   "It is illegal to move in a direction which is closer to incoming wind than to "
-  "outcoming wind. However, you can move two cells with the wind in a single turn, "
+  "outgoing wind. However, you can move two cells with the wind in a single turn, "
   "and so can the birds.",
 
   "Jemand hat Ventilatoren in diese Ebenen gebracht, die überall starke Winde hervorrufen. "
@@ -3098,7 +3098,7 @@ Orb("Empathy", "der Empathie")
 S(" %1", " %1") // ???
 S(", %1", ", %1") // ???
 
-S("This Orb lets your allies to share your Orb powers.\n\n"
+S("This Orb lets your allies share your Orb powers.\n\n"
   "The following Orbs are affected:",
 
   "Dieser Orb erlaubt es deinen Verbündeten deine Orbkräfte zu nutzen.\n\n"
@@ -3227,9 +3227,6 @@ S("This Orb makes you stunningly beautiful. "
   "Außerdem macht er dich immun gegenüber 'Schönheit'.")
 
 S("A big, beautiful, magical flower.", "Eine große, schöne, magische Blume.")
-
-S("Don't be fooled by beauty, or you will be stabbed if you come too close!",
-  "Lass dich von Schönheit nicht täuschen - oder du wirst erstochen, wenn du zu nah kommst!")
 
 S("Each eight turns, each rosebush at distance at most 5 from you will "
   "release a wave of alluring scent. Creatures on the frontwave "

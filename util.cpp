@@ -72,46 +72,6 @@ EX ld ilerp(ld a0, ld a1, ld x) {
   return (x-a0) / (a1-a0);
   }
 
-// debug utilities
-
-#if CAP_PROFILING
-
-#define FRAMES 64
-#define CATS 16
-
-long long proftable[16][FRAMES];
-int pframeid;
-
-void profile_frame() { 
-  pframeid++; pframeid %=  FRAMES;
-  for(int t=0; t<16; t++) proftable[t][pframeid] = 0;
-  }
-
-EX void profile_start(int t) { proftable[t][pframeid] -= getms(); }
-EX void profile_stop(int t) { proftable[t][pframeid] += getms(); }
-
-void profile_info() {
-  for(int t=0; t<16; t++) {
-    sort(proftable[t], proftable[t]+FRAMES);
-    if(proftable[t][FRAMES-1] == 0) continue;
-    long long sum = 0;
-    for(int f=0; f<FRAMES; f++) sum += proftable[t][f];
-    printf("Category %d: avg = %Ld, %Ld..%Ld..%Ld..%Ld..%Ld\n",
-      t, sum / FRAMES, proftable[t][0], proftable[t][16], proftable[t][32],
-      proftable[t][48], proftable[t][63]);
-    }
-  }
-#endif
-
-#if !CAP_PROFILING
-#if HDR
-#define profile_frame()
-#define profile_start(t)
-#define profile_stop(t)
-#define profile_info()
-#endif
-#endif
-
 EX purehookset hooks_tests;
 
 EX string simplify(const string& s) {
@@ -247,11 +207,10 @@ cld exp_parser::parse(int prio) {
     cld c = rparse(0);
     force_eat(")");
 
-    if(extra_params.count("angleunit")) {    
-      
-      a *= extra_params["angleunit"];
-      b *= extra_params["angleunit"];
-      c *= extra_params["angleunit"];
+    if (auto *angleunit = hr::at_or_null(extra_params, "angleunit")) {
+      a *= *angleunit;
+      b *= *angleunit;
+      c *= *angleunit;
       }
 
     return edge_of_triangle_with_angles(real(a), real(b), real(c));
@@ -277,13 +236,13 @@ cld exp_parser::parse(int prio) {
     test.compute_sum();
     test.compute_geometry();
     res = test.edgelength;
-    if(extra_params.count("distunit"))
-      res /= extra_params["distunit"];
+    if (auto *distunit = hr::at_or_null(extra_params, "distunit"))
+      res /= *distunit;
     }
   else if(eat("regangle(")) {
     cld edgelen = parse(0);
-    if(extra_params.count("distunit")) {
-      edgelen = edgelen * extra_params["distunit"];
+    if (auto *distunit = hr::at_or_null(extra_params, "distunit")) {
+      edgelen *= *distunit;
       }
     
     force_eat(",");
@@ -299,14 +258,14 @@ cld exp_parser::parse(int prio) {
     
     if(arb::legacy) {
       res = M_PI - result;
-      if(extra_params.count("angleofs"))
-        res -= extra_params["angleofs"];
+      if (auto *angleofs = hr::at_or_null(extra_params, "angleofs"))
+        res -= *angleofs;
       }
     else
       res = result;
 
-    if(extra_params.count("angleunit"))
-      res /= extra_params["angleunit"];    
+    if (auto *angleunit = hr::at_or_null(extra_params, "angleunit"))
+      res /= *angleunit;
     }
   else if(eat("test(")) {
     res = parsepar();
@@ -357,8 +316,8 @@ cld exp_parser::parse(int prio) {
   else if(next() == '(') at++, res = parsepar(); 
   else {
     string number = next_token();
-    if(extra_params.count(number)) res = extra_params[number];
-    else if(params.count(number)) res = params.at(number);
+    if (auto *p = hr::at_or_null(extra_params, number)) res = *p;
+    else if (auto *p = hr::at_or_null(params, number)) res = (*p)->get_cld();
     else if(number == "e") res = exp(1);
     else if(number == "i") res = cld(0, 1);
     else if(number == "p" || number == "pi") res = M_PI;
@@ -376,6 +335,8 @@ cld exp_parser::parse(int prio) {
     else if(number == "mousez") res = cld(mousex - current_display->xcenter, mousey - current_display->ycenter) / cld(current_display->radius, 0);
     else if(number == "shot") res = inHighQual ? 1 : 0;
     else if(number[0] >= 'a' && number[0] <= 'z') throw hr_parse_exception("unknown value: " + number);
+    else if(number[0] >= 'A' && number[0] <= 'Z') throw hr_parse_exception("unknown value: " + number);
+    else if(number[0] == '_') throw hr_parse_exception("unknown value: " + number);
     else { std::stringstream ss; res = 0; ss << number; ss >> res; }
     }
   while(true) {
@@ -408,6 +369,7 @@ cld exp_parser::parse(int prio) {
       ld v = ticks * (isize(rest)-1.) / anims::period;
       int vf = v;
       v -= vf;
+      if(isize(rest) == 1) rest.push_back(rest[0]);
       vf %= (isize(rest)-1);
       auto& lft = rest[vf];
       auto& rgt = rest[vf+1];
@@ -437,12 +399,23 @@ cld exp_parser::parse(int prio) {
 EX ld parseld(const string& s) {
   exp_parser ep;
   ep.s = s;
-  return real(ep.parse());
+  return ep.rparse();
   }
 
-EX string parser_help() {
-  return XLAT("Functions available: %1", 
-    "(a)sin(h), (a)cos(h), (a)tan(h), exp, log, abs, re, im, conj, let(t=...,...t...), floor, frac, e, i, pi, s, ms, mousex, mousey, mousez, shot [1 if taking screenshot/animation], sqrt, to01, random, edge(7,3), regradius(7,3), ifp(a,v,w) [if positive]");
+EX int parseint(const string& s) {
+  exp_parser ep;
+  ep.s = s;
+  return ep.iparse();
+  }
+
+EX string available_functions() {
+  return 
+    "(a)sin(h), (a)cos(h), (a)tan(h), exp, log, abs, re, im, conj, let(t=...,...t...), floor, frac, sqrt, to01, random, edge(7,3), regradius(7,3), ifp(a,v,w) [if positive]";
+  }
+
+EX string available_constants() {
+  return 
+    "e, i, pi, s, ms, mousex, mousey, mousez, shot [1 if taking screenshot/animation]";
   }
 
 #if HDR
@@ -673,6 +646,12 @@ bignum::bignum(ld d) {
   while(n >= 0) { digits[n] = int(d); d -= digits[n]; d *= BASE; n--; }
   }
 
+/** in s, replace occurences of a with b */
+EX void replace_str(string& s, string a, string b) {
+  while(s.find(a) != string::npos)
+    s.replace(s.find(a), isize(a), b);
+  }
+
 #if CAP_ZLIB
 /* compression/decompression */
 
@@ -683,14 +662,14 @@ EX string compress_string(string s) {
   strm.opaque = Z_NULL;
   println(hlog, "pre init");
   auto ret = deflateInit(&strm, 9);
-  if(ret != Z_OK) throw "z-error";
+  if(ret != Z_OK) throw hr_exception("z-error");
   println(hlog, "init ok");
   strm.avail_in = isize(s);
   strm.next_in = (Bytef*) &s[0];
-  vector<char> buf(1000000, 0);
-  strm.avail_out = 1000000;
+  vector<char> buf(10000000, 0);
+  strm.avail_out = 10000000;
   strm.next_out = (Bytef*) &buf[0];
-  if(deflate(&strm, Z_FINISH) != Z_STREAM_END) throw "z-error-2";
+  if(deflate(&strm, Z_FINISH) != Z_STREAM_END) throw hr_exception("z-error-2");
   println(hlog, "deflate ok");
   string out(&buf[0], (char*)(strm.next_out) - &buf[0]);
   println(hlog, isize(s), " -> ", isize(out));
@@ -703,17 +682,64 @@ EX string decompress_string(string s) {
   strm.zfree = Z_NULL;
   strm.opaque = Z_NULL;
   auto ret = inflateInit(&strm);
-  if(ret != Z_OK) throw "z-error";
+  if(ret != Z_OK) throw hr_exception("z-error");
   strm.avail_in = isize(s);
   strm.next_in = (Bytef*) &s[0];
-  vector<char> buf(1000000, 0);
-  strm.avail_out = 1000000;
+  vector<char> buf(10000000, 0);
+  strm.avail_out = 10000000;
   strm.next_out = (Bytef*) &buf[0];
-  if(inflate(&strm, Z_FINISH) != Z_STREAM_END) throw "z-error-2";
+  if(inflate(&strm, Z_FINISH) != Z_STREAM_END) throw hr_exception("z-error-2");
   string out(&buf[0], (char*)(strm.next_out) - &buf[0]);
   println(hlog, isize(s), " -> ", isize(out));
   return out;
   }
 #endif
 
+EX bool file_exists(string fname) {
+  return access(fname.c_str(), F_OK) != -1;
+  }
+
+EX void open_url(string s) {
+  #if ISWEB
+  EM_ASM_({
+    window.open(UTF8ToString($0, 1000));
+    }, s.c_str());
+  #else
+
+#ifdef WINDOWS  
+  ShellExecute(0, 0, s.c_str(), 0, 0, SW_SHOW);
+#endif
+
+#ifdef LINUX
+  ignore(system(("xdg-open "+s).c_str()));
+#endif
+
+#ifdef MAC
+  ignore(system(("open "+s).c_str()));
+#endif
+#endif
+  }
+  
+const char *urlhex = "0123456789ABCDEF";
+EX void open_wiki(const char *title) {
+  string url = "https://hyperrogue.miraheze.org/wiki/";
+  unsigned char c;
+  for (size_t i = 0; (c = title[i]); ++i) {
+    if (('0' <= c && c <= '9') || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || c == '_' || c == '-')
+      url += c;
+    else if (c == ' ')
+      url += "_";
+    else
+      url += string("%") + urlhex[c/16] + urlhex[c%16];
+    }
+  open_url(url);
+}
+
+EX void floyd_warshall(vector<vector<char>>& v) {
+  int N = isize(v);
+  for(int k=0; k<N; k++)
+  for(int i=0; i<N; i++)
+  for(int j=0; j<N; j++)
+    v[i][j] = min<int>(v[i][j], v[i][k] + v[k][j]);
+  }
 }

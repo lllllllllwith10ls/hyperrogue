@@ -37,7 +37,9 @@ enum class eCompScreen { none, reference, single, eyes };
 
 EX eHeadset hsm = eHeadset::reference;
 EX eEyes eyes = eEyes::equidistant;
-EX eCompScreen cscr = eCompScreen::single;
+EX eCompScreen cscr = eCompScreen::eyes;
+
+EX bool controllers_on_desktop = true;
 
 EX cell *forward_cell;
 
@@ -120,7 +122,7 @@ vr_framebuffer::vr_framebuffer(int xsize, int ysize) {
   rb.reset();
   }
 
-EX transmatrix eyeproj;
+EX transmatrix eyeproj, eyeshift;
 
 vr_framebuffer::~vr_framebuffer() {
   glDeleteRenderbuffers( 1, &m_nDepthBufferId );
@@ -232,6 +234,55 @@ EX transmatrix hmd_mvp, hmd_pre, hmd_mv;
 
 EX transmatrix sm;
 
+EX int ui_xmin, ui_ymin, ui_xmax, ui_ymax;
+
+EX reaction_t change_ui_bounds;
+
+#if HDR
+struct frustum_info {
+  transmatrix pre;
+  transmatrix nlp;
+  bool screen;
+  transmatrix proj;
+  };
+#endif
+
+EX vector<frustum_info> frusta;
+
+EX void set_ui_bounds() {
+  ui_xmin = 0;
+  ui_ymin = 0;
+  ui_xmax = current_display->xsize;
+  ui_ymax = current_display->ysize;  
+  if(change_ui_bounds)
+    change_ui_bounds();
+  }
+
+EX void size_and_draw_ui_box() {
+  if(!vrhr::active()) return;
+  if(!vrhr::in_menu()) return;
+
+  vrhr::set_ui_bounds();
+  color_t col = 0x000000C0;
+  current_display->next_shader_flags = 0;
+  dynamicval<eModel> m(pmodel, mdPixel);
+  
+  vrhr::in_vr_ui([&] {
+    glhr::color2(col);
+    glhr::set_depthtest(false);
+    vector<glvertex> vs;
+    vs.emplace_back(glhr::makevertex(ui_xmin, ui_ymin, 0));
+    vs.emplace_back(glhr::makevertex(ui_xmax, ui_ymin, 0));
+    vs.emplace_back(glhr::makevertex(ui_xmax, ui_ymax, 0));
+    vs.emplace_back(glhr::makevertex(ui_xmin, ui_ymin, 0));
+    vs.emplace_back(glhr::makevertex(ui_xmin, ui_ymax, 0));
+    vs.emplace_back(glhr::makevertex(ui_xmax, ui_ymax, 0));
+    glhr::current_vertices = NULL;
+    glhr::vertices(vs);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    });
+  }
+
 vr_rendermodel *get_render_model(string name) {
   for(auto& m: vrdata.models)
     if(m->name == name)
@@ -302,11 +353,13 @@ vr_rendermodel *get_render_model(string name) {
   return md;
   }
 
-void track_all() {
-  track_actions();
+EX bool need_poses = true;
 
+void track_poses() {
   E4;
-  // println(hlog, "tracking");
+
+  if(!need_poses) return;
+  need_poses = false;
   vr::VRCompositor()->WaitGetPoses(vrdata.poses, vr::k_unMaxTrackedDeviceCount, NULL, 0 );
   // println(hlog, "poses received");
   
@@ -353,9 +406,9 @@ void track_all() {
           hyperpoint px = pxo;
           px[0] /= ui_size * ui_size_unit;
           px[1] /= -ui_size * ui_size_unit;
-          px[0] += current_display->xsize/2;
-          px[1] += current_display->ysize/2;
-          targeting_menu = px[0] >= 0 && px[1] >= 0 && px[1] <= vid.xres && px[1] <= vid.xres;
+          px[0] += (ui_xmin+ui_xmax) / 2;
+          px[1] += (ui_ymin+ui_ymax) / 2;
+          targeting_menu = px[0] >= 0 && px[1] >= 0 && px[0] <= vid.xres && px[1] <= vid.yres;
           if(targeting_menu) {
             mousex = px[0];
             mousey = px[1];
@@ -405,7 +458,8 @@ EX void vr_control() {
     start_vr();
     }
   if(state == 1) {
-    track_all();
+    track_actions();
+    need_poses = true;
     }
   static bool last_vr_clicked = false;
   
@@ -459,7 +513,7 @@ EX void vr_shift() {
   rug::using_rugview urv;
   if(GDIM == 2) return;
        
-  if(hsm == eHeadset::holonomy) {    
+  if(GDIM == 3 && hsm == eHeadset::holonomy) {    
     apply_movement(IN_E4(hmd_at * inverse(hmd_ref_at)));
     hmd_ref_at = hmd_at;
     playermoved = false;
@@ -550,13 +604,17 @@ ld vr_distance(const shiftpoint& h, int id, ld& dist) {
 
 EX hyperpoint vr_direction;
 
+EX void compute_vr_direction(int id) {
+  E4;
+  transmatrix T = (hsm == eHeadset::none ? hmd_at : hmd_ref_at) * vrdata.pose_matrix[id] * sm;
+  vrhr::be_33(T);
+  vr_direction = T * point31(0, 0, -0.01);
+  }
+
 EX void compute_point(int id, shiftpoint& res, cell*& c, ld& dist) {
 
   if(WDIM == 3) {
-    E4;
-    transmatrix T = (hsm == eHeadset::none ? hmd_at : hmd_ref_at) * vrdata.pose_matrix[id] * sm;
-    vrhr::be_33(T);
-    vr_direction = T * point31(0, 0, -0.01);
+    compute_vr_direction(id);
     movedir md = vectodir(vr_direction);
     cellwalker xc = cwt + md.d + wstep;
     forward_cell = xc.at;
@@ -661,7 +719,7 @@ vector<analog_action_data> aads = {
   };
 
 EX bool always_show_hud = false;
-EX bool in_actual_menu() { return !(cmode & (sm::NORMAL | sm::DRAW)); }
+EX bool in_actual_menu() { return (cmode & sm::VR_MENU) || !(cmode & (sm::NORMAL | sm::DRAW)); }
 EX bool in_menu() { return always_show_hud || in_actual_menu(); }
 
 vector<set_data> sads = {
@@ -752,6 +810,8 @@ EX void start_vr() {
     return;
     }  
   else println(hlog, "VR initialized successfully");
+  
+  apply_screen_settings();
 
   string driver = GetTrackedDeviceString( vr::k_unTrackedDeviceIndex_Hmd, vr::Prop_TrackingSystemName_String );
   string display = GetTrackedDeviceString( vr::k_unTrackedDeviceIndex_Hmd, vr::Prop_SerialNumber_String );
@@ -800,6 +860,11 @@ EX void shutdown_vr() {
     delete e;
     e = nullptr;
     }
+  for(auto& m: vrdata.models) {
+    if(m) delete m;
+    }
+  vrdata.models.clear();
+  for(auto& m: vrdata.device_models) m = nullptr;
   state = 0;
   }
 
@@ -827,26 +892,43 @@ EX ld ui_size = 2;
 const ld ui_size_unit = 0.001;
 #endif
 
+struct vr_eye_settings {
+  dynamicval<int> vx, vy;
+  dynamicval<ld> xmin, ymin, xmax, ymax;
+  
+  vr_eye_settings() :
+    vx(vid.xres, vrdata.xsize),
+    vy(vid.yres, vrdata.ysize),
+    xmin(current_display->xmin, 0),
+    ymin(current_display->ymin, 0),
+    xmax(current_display->xmax, 1),
+    ymax(current_display->ymax, 1)
+    { }    
+  
+  void use(int i) {
+    glBindFramebuffer( GL_FRAMEBUFFER, vrdata.eyes[i]->m_nRenderFramebufferId );
+    glViewport(0, 0, vrdata.xsize, vrdata.ysize );
+    calcparam();
+    }
+  
+  };
+
 EX void in_vr_ui(reaction_t what) {
   
   resetbuffer rb;
   if(!state) return;
 
-  int xsi = current_display->xsize;
-  int ysi = current_display->ysize;
+  int ui_xmed = (ui_xmin + ui_xmax) / 2;
+  int ui_ymed = (ui_ymin + ui_ymax) / 2;
   state = 2;
 
   for(int i=0; i<2; i++) {
-    dynamicval<int> vx(vid.xres, vrdata.xsize);
-    dynamicval<int> vy(vid.yres, vrdata.ysize);
     E4;
-    auto& ey = vrdata.eyes[i];
-    glBindFramebuffer( GL_FRAMEBUFFER, ey->m_nRenderFramebufferId );
-    glViewport(0, 0, vrdata.xsize, vrdata.ysize );
-    calcparam();
+    vr_eye_settings ey;
+    ey.use(i);
     glhr::set_depthtest(false);
     hmd_mvp = Id;
-    hmd_mvp = xpush(-xsi/2) * ypush(-ysi/2) * hmd_mvp;
+    hmd_mvp = xpush(-ui_xmed) * ypush(-ui_ymed) * hmd_mvp;
     transmatrix Sca = Id;
     Sca[0][0] *= ui_size * ui_size_unit;
     Sca[1][1] *= -ui_size * ui_size_unit;
@@ -857,6 +939,8 @@ EX void in_vr_ui(reaction_t what) {
     hmd_mvp = vrdata.proj[i] * inverse(vrdata.eyepos[i]) * hmd_mvp;
     reset_projection();
     current_display->set_all(0, 0);
+    current_display->xcenter = 0;
+    current_display->ycenter = 0;
     what();
     }
   state = 1;
@@ -928,18 +1012,19 @@ EX void gen_mv() {
     if(pconf.vr_angle) hmd_mv = cspin(1, 2, -pconf.vr_angle * degree) * hmd_mv;
     if(pconf.vr_zshift) hmd_mv = euclidean_translate(0, 0, -pconf.vr_zshift) * hmd_mv;
     hmd_mv = mu * hmd_mv;
-    if(hsm == eHeadset::model_viewing) {
+    if(GDIM == 2 || hsm == eHeadset::model_viewing) {
       hmd_mv = sm * hmd_at * inverse(hmd_ref_at) * sm * hmd_mv;
       }
     }
   }
 
-EX void render() {
+EX shiftmatrix master_cview;
 
+EX void render() {
+  track_poses();  
   resetbuffer rb;
   state = 2;
-  
-  // eyes = lshiftclick ? eEyes::truesim : eEyes::equidistant;
+  vrhr::frusta.clear();
   
   // cscr = lshiftclick ? eCompScreen::eyes : eCompScreen::single;
 
@@ -947,10 +1032,11 @@ EX void render() {
 
     if(1) {
       make_actual_view();
-      shiftmatrix Tv = cview();
+      master_cview = cview();
       dynamicval<transmatrix> tN(NLP, NLP);
       dynamicval<transmatrix> tV(View, View);
       dynamicval<transmatrix> tC(current_display->which_copy, current_display->which_copy);
+      dynamicval<transmatrix> trt(radar_transform);
       
       if(hsm == eHeadset::rotation_only) {
         transmatrix T = hmd_at;
@@ -958,7 +1044,7 @@ EX void render() {
         apply_movement(T);
         }
       
-      else if(hsm == eHeadset::reference) {
+      else if(GDIM == 3 && hsm == eHeadset::reference) {
         apply_movement(IN_E4(hmd_at * inverse(hmd_ref_at)));
         }
 
@@ -967,17 +1053,22 @@ EX void render() {
         }
 
       make_actual_view();
-      hmd_pre = hmd_pre_for[i] = cview().T * inverse(Tv.T);
-      // inverse_shift(Tv, cview());
-      // View * inverse(Tv.T);
-      // inverse(inverse_shift(cview(), Tv));
+      hmd_pre = hmd_pre_for[i] = cview().T * inverse(master_cview.T);
+      radar_transform = trt.backup * inverse(hmd_pre);
+      
+      if(i < 2)
+        frusta.push_back(frustum_info{hmd_pre, NLP, false, vrdata.proj[i]});
+      else
+        frusta.push_back(frustum_info{hmd_pre, NLP, true, Id});
       
       if(1) {
         gen_mv();
         E4;
         if(eyes == eEyes::equidistant && i != 2) {
-          hmd_mv = inverse(vrdata.eyepos[i]) * hmd_mv;
+          eyeshift = vrdata.eyepos[i];
+          hmd_mv = inverse(eyeshift) * hmd_mv;
           }
+        else eyeshift = Id;
         hmd_mv_for[i] = hmd_mv;
         if(i != 2) {
           hmd_mvp = vrdata.proj[i] * hmd_mv;
@@ -987,13 +1078,8 @@ EX void render() {
 
       if(i != 2) {
   
-        dynamicval<int> vx(vid.xres, vrdata.xsize);
-        dynamicval<int> vy(vid.yres, vrdata.ysize);
-    
-        auto& ey = vrdata.eyes[i];
-        
-        glBindFramebuffer( GL_FRAMEBUFFER, ey->m_nRenderFramebufferId );
-        glViewport(0, 0, vrdata.xsize, vrdata.ysize );
+        vr_eye_settings ey;
+        ey.use(i);
         glhr::set_depthtest(false);
         glhr::set_depthtest(true);
         glhr::set_depthwrite(false);
@@ -1023,45 +1109,29 @@ EX void render() {
     
     }
 
-  if(cscr == eCompScreen::eyes) draw_eyes();
-  
   if(cscr == eCompScreen::reference) {
     state = 3;
     drawqueue();
     }
 
-  state = 1;  
-  }
+  if(cscr == eCompScreen::eyes && !controllers_on_desktop) draw_eyes();
+  
+  render_controllers();
 
-template<class T> 
-void show_choice(string name, T& value, char key, vector<pair<string, string>> options) {
-  dialog::addSelItem(XLAT(name), XLAT(options[int(value)].first), key);
-  dialog::add_action_push([&value, name, options] {
-    dialog::init(XLAT(name));
-    dialog::addBreak(100);
-    int q = isize(options);
-    for(int i=0; i<q; i++) {
-      dialog::addBoolItem(XLAT(options[i].first), int(value) == i, 'a'+i);
-      dialog::add_action([&value, i] { value = T(i); popScreen(); });
-      dialog::addBreak(100);
-      dialog::addHelp(XLAT(options[i].second));
-      dialog::addBreak(100);
-      }
-    dialog::addBreak(100);
-    dialog::addBack();
-    dialog::display();
-    });
+  if(cscr == eCompScreen::eyes && controllers_on_desktop) draw_eyes();
+
+  state = 1;  
   }
 
 EX void show_vr_demos() {
   cmode = sm::SIDE | sm::MAYDARK;
   gamescreen(0);
   dialog::init(XLAT("VR demos"));
-  dialog::addInfo("warning: these will restart your game!");
+  dialog::addInfo(XLAT("warning: these will restart your game!"));
   
   dialog::addBreak(100);
 
-  dialog::addItem("standard HyperRogue but in VR", 'a');
+  dialog::addItem(XLAT("standard HyperRogue but in VR"), 'a');
   dialog::add_action([] {
     if(rug::rugged) rug::close();
     hmd_ref_at = hmd_at;
@@ -1081,7 +1151,7 @@ EX void show_vr_demos() {
     popScreenAll();
     });
 
-  dialog::addItem("HyperRogue FPP", 'b');
+  dialog::addItem(XLAT("HyperRogue FPP"), 'b');
   dialog::add_action([] {
     if(rug::rugged) rug::close();
     hmd_ref_at = hmd_at;
@@ -1101,7 +1171,8 @@ EX void show_vr_demos() {
     popScreenAll();
     });
 
-  dialog::addItem("Hypersian Rug", 'c');
+  #if CAP_RUG
+  dialog::addItem(XLAT("Hypersian Rug"), 'c');
   dialog::add_action([] {
     if(rug::rugged) rug::close();
     hmd_ref_at = hmd_at;
@@ -1122,8 +1193,9 @@ EX void show_vr_demos() {
     rug::init();
     popScreenAll();
     });
+  #endif
 
-  dialog::addItem("sphere from the inside", 'd');
+  dialog::addItem(XLAT("sphere from the inside"), 'd');
   dialog::add_action([] {
     if(rug::rugged) rug::close();
     hmd_ref_at = hmd_at;
@@ -1143,7 +1215,7 @@ EX void show_vr_demos() {
     popScreenAll();
     });
 
-  dialog::addItem("sphere from the outside", 'e');
+  dialog::addItem(XLAT("sphere from the outside"), 'e');
   dialog::add_action([] {
     if(rug::rugged) rug::close();
     hmd_ref_at = hmd_at;
@@ -1163,17 +1235,17 @@ EX void show_vr_demos() {
     popScreenAll();
     });
 
-  dialog::addItem("Thurston racing", 'f');
+  dialog::addItem(XLAT("Thurston racing"), 'f');
   dialog::add_action([] {
     if(rug::rugged) rug::close();
     hmd_ref_at = hmd_at;
     hsm = eHeadset::reference;
     eyes = eEyes::equidistant;
-    pushScreen(racing::thurston_racing);
     popScreenAll();
+    pushScreen(racing::thurston_racing);
     });
 
-  dialog::addItem("raytracing in H3", 'g');
+  dialog::addItem(XLAT("raytracing in H3"), 'g');
   dialog::add_action([] {
     if(rug::rugged) rug::close();
     hmd_ref_at = hmd_at;
@@ -1208,7 +1280,10 @@ EX void show_vr_settings() {
   dialog::add_action_push(show_vr_demos);
 
   
-  dialog::addBoolItem_action(XLAT("VR enabled"), enabled, 'o');
+  dialog::addBoolItem(XLAT("VR enabled"), enabled, 'o');
+  dialog::add_action([] {
+    enabled = !enabled;
+    });
   if(!enabled)
     dialog::addBreak(100);
   else if(failed)
@@ -1218,15 +1293,17 @@ EX void show_vr_settings() {
   
   dialog::addBreak(100);
 
-  show_choice("headset movement", hsm, 'h', headset_desc);
-  show_choice("binocular vision", eyes, 'b', eyes_desc);
-  show_choice("computer screen", cscr, 'c', comp_desc);
+  add_edit(hsm);   
+  if(enabled && GDIM == 2 && among(hsm, eHeadset::holonomy, eHeadset::reference))
+    dialog::addInfo(XLAT("(this setting is for 3D geometries only, use 'model viewing' instead)"));
+  add_edit(eyes);
+  add_edit(cscr);
   
   dialog::addSelItem(XLAT("absolute unit in meters"), fts(absolute_unit_in_meters), 'a');
   dialog::add_action([] {
     dialog::editNumber(absolute_unit_in_meters, .01, 100, 0.1, 1, XLAT("absolute unit in meters"), 
       XLAT(
-        "The size of the absolute unit of the non-Euclidean geometry correspond in meters. "
+        "The size of the absolute unit of the non-Euclidean geometry in meters. "
         "This affects the headset movement and binocular vision.\n\n"
         "In spherical geometry, the absolute unit is the radius of the sphere. "
         "The smaller the absolute unit, the stronger the non-Euclidean effects.\n\n"
@@ -1259,7 +1336,7 @@ EX void show_vr_settings() {
         "If the pointer length is 0.5m, the object pointed to is 0.5 meter from the controller. "
         "This is used in situations where the controller is used as a 3D mouse, e.g., "
         "the drawing tool in three-dimensional geometries. When pointing at two-dimensional surfaces, "
-        "this is not relevant (the pointer is as long as needed to hit the surface.)."
+        "this is not relevant (the pointer is as long as needed to hit the surface)."
         ));
       });
 
@@ -1334,50 +1411,72 @@ auto hooka = addHook(hooks_args, 100, readArgs);
 void addconfig() {
   addsaver(enabled, "vr-enabled");
 
-  addparamsaver(absolute_unit_in_meters, "vr-abs-unit");
+  param_f(absolute_unit_in_meters, "vr-abs-unit");
 
-  addparamsaver(pconf.vr_scale_factor, "vr_scale");
-  addparamsaver(pconf.vr_zshift, "vr_zshift");
-  addparamsaver(pconf.vr_angle, "vr_angle");
+  param_f(pconf.vr_scale_factor, "vr_scale");
+  param_f(pconf.vr_zshift, "vr_zshift");
+  param_f(pconf.vr_angle, "vr_angle");
 
-  auto& rconf = vid.rug_config;
-  addparamsaver(rconf.vr_scale_factor, "rug_vr_scale");
-  addparamsaver(rconf.vr_zshift, "rug_vr_shift");
-  addparamsaver(rconf.vr_angle, "rug_vr_angle");
+  auto& rrconf = vid.rug_config;
+  param_f(rrconf.vr_scale_factor, "rug_vr_scale");
+  param_f(rrconf.vr_zshift, "rug_vr_shift");
+  param_f(rrconf.vr_angle, "rug_vr_angle");
 
-  addparamsaver(vrhr::pointer_length, "vr_pointer_length");
-  addparamsaver(vrhr::ui_depth, "vr_ui_depth");
-  addparamsaver(vrhr::ui_size, "vr_ui_size");
+  param_f(vrhr::pointer_length, "vr_pointer_length");
+  param_f(vrhr::ui_depth, "vr_ui_depth");
+  param_f(vrhr::ui_size, "vr_ui_size");
   
-  addsaverenum(vrhr::hsm, "vr-headset-mode");
-  addsaverenum(vrhr::eyes, "vr-eyes-mode");
-  addsaverenum(vrhr::cscr, "vr-screen-mode");
+  param_enum(vrhr::hsm, "vr_headset_mode", "vr_headset_mode", vrhr::hsm)
+    ->editable(headset_desc, "VR headset movement", 'h');
+  param_enum(vrhr::eyes, "vr_eyes_mode", "vr_eyes_mode", vrhr::eyes)
+    ->editable(eyes_desc, "VR binocular vision", 'b');
+  param_enum(vrhr::cscr, "vr_screen_mode", "vr_screen_mode", vrhr::cscr)
+    ->editable(comp_desc, "VR computer screen", 'c');
   }
 auto hookc = addHook(hooks_configfile, 100, addconfig);
 #endif
 
-EX void submit() {
+EX bool rec;
 
+EX void render_controllers() {
   if(!state) return;
+  dynamicval<bool> rc(rec, true);
   for(int i=0; i<(int)vr::k_unMaxTrackedDeviceCount; i++) 
     if(vrdata.device_models[i]) {
       resetbuffer rb;
-      if(!state) return;
     
       state = 2;
       dynamicval<eModel> m(pmodel, mdPerspective);
       dynamicval<ld> ms(sightranges[geometry], 100);
+      
+      for(int e=0; e<3; e++) {
+      
+        if(e < 2) {
+          vr_eye_settings ey;
+          ey.use(e);
+          }
+        
+        else {
+          state = 1;
+          
+          rb.reset();
+          calcparam();
+          current_display->set_viewport(0);
+          calcparam();
+          reset_projection();
+          current_display->set_all(0, 0);
 
-      for(int e=0; e<2; e++) {
-        dynamicval<int> vx(vid.xres, vrdata.xsize);
-        dynamicval<int> vy(vid.yres, vrdata.ysize);
+          if(cscr != eCompScreen::single || !controllers_on_desktop) goto next_model;
+          state = 4;
+          }
+
         E4;
-        auto& ey = vrdata.eyes[e];
-        glBindFramebuffer( GL_FRAMEBUFFER, ey->m_nRenderFramebufferId );
-        glViewport(0, 0, vrdata.xsize, vrdata.ysize );
-        calcparam();
 
-        hmd_mvp = vrdata.proj[e] * inverse(vrdata.eyepos[e]) * sm * hmd_at * vrdata.pose_matrix[i] * sm * Id;
+        hmd_mvp = sm * hmd_at * vrdata.pose_matrix[i] * sm * Id;
+        if(e < 2) 
+          hmd_mvp = vrdata.proj[e] * inverse(vrdata.eyepos[e]) * hmd_mvp;
+        else
+          hmd_mv = hmd_mvp;
         hmd_pre = Id;
         
         reset_projection();        
@@ -1409,17 +1508,15 @@ EX void submit() {
           }
 
         }
-
-      state = 1;
       
-      rb.reset();
-      calcparam();
-      current_display->set_viewport(0);
-      calcparam();
-      reset_projection();
-      current_display->set_all(0, 0);
-      }    
-    
+      next_model: ;
+      }
+  }
+
+EX void submit() {
+
+  if(!state) return;
+      
   for(int i=0; i<2; i++) {
     auto eye = vr::EVREye(i);
     auto& ey = vrdata.eyes[i];
@@ -1433,6 +1530,11 @@ EX void submit() {
     vr::Texture_t texture = {(void*)(uintptr_t)ey->m_nResolveTextureId, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
     vr::VRCompositor()->Submit(eye, &texture );
     }
+  }
+
+EX void handoff() {
+  if(!state) return;
+  vr::VRCompositor()->PostPresentHandoff();  
   }
 
 #endif

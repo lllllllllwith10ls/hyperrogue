@@ -17,8 +17,6 @@
 namespace rogueviz {
   using namespace hr;
   
-  inline void *vizid;
-  
   constexpr flagtype RV_GRAPH = 1;
   constexpr flagtype RV_WHICHWEIGHT = 2; // sag
   constexpr flagtype RV_AUTO_MAXWEIGHT = 4; // sag
@@ -30,11 +28,13 @@ namespace rogueviz {
   inline flagtype vizflags;
   extern string weight_label;
   extern ld maxweight;
+  
+  extern int vertex_shape;
 
   void drawExtra();
   void close();
 
-  void init(void *vizid, flagtype flags);
+  void init(flagtype flags);
   
   struct edgetype {
     double visible_from;
@@ -70,16 +70,22 @@ namespace rogueviz {
   extern vector<int> legend;
   extern vector<cell*> named;
   
+  #if CAP_TEXTURE
   struct rvimage {
     basic_textureinfo tinf;
     texture::texture_data tdata;
     vector<hyperpoint> vertices;
     };
+  #endif
+  
+  extern int brm_limit;
 
   struct colorpair {
     color_t color1, color2;
     char shade;
+    #if CAP_TEXTURE
     shared_ptr<rvimage> img;
+    #endif
     colorpair(color_t col = 0xC0C0C0FF) { shade = 0; color1 = color2 = col; }
     };
   
@@ -98,6 +104,19 @@ namespace rogueviz {
   extern vector<vertexdata> vdata;
  
   void storeall(int from = 0);
+  
+  extern vector<reaction_t> cleanup;
+  
+  void do_cleanup();
+
+  template<class T, class U> void rv_hook(hookset<T>& m, int prio, U&& hook) {
+    int p = addHook(m, prio, hook);
+    auto del = [&m, p] { 
+      delHook(m, p); 
+      };
+    if(tour::on) tour::on_restore(del);
+    else cleanup.push_back(del);
+    }
 
   namespace anygraph {
     extern double R, alpha, T;
@@ -126,14 +145,19 @@ namespace rogueviz {
 
   void close();
   extern bool showlabels;
-  
-  namespace rvtour {
-    using namespace hr::tour;
-    inline hookset<void(vector<slide>&)> hooks_build_rvtour;
-    slide *gen_rvtour();
 
-template<class T> function<void(presmode)> roguevizslide(char c, const T& t) {
-  return [c,t] (presmode mode) {
+  namespace pres {
+    using namespace hr::tour;
+#if CAP_RVSLIDES
+    inline hookset<void(string, vector<slide>&)> hooks_build_rvtour;
+    slide *gen_rvtour();
+    #if CAP_TEXTURE
+    void draw_texture(texture::texture_data& tex);
+    #endif
+
+template<class T, class U> function<void(presmode)> roguevizslide(char c, const T& t, const U& f) {
+  return [c,t,f] (presmode mode) {
+    f(mode);
     patterns::canvasback = 0x101010;
     setCanvas(mode, c);
     if(mode == 1 || mode == pmGeometryStart) t();
@@ -150,6 +174,8 @@ template<class T> function<void(presmode)> roguevizslide(char c, const T& t) {
     pd_from = NULL;
     };
   }
+
+template<class T> function<void(presmode)> roguevizslide(char c, const T& t) { return roguevizslide(c, t, [] (presmode mode) {}); }
 
 template<class T, class U>
 function<void(presmode)> roguevizslide_action(char c, const T& t, const U& act) {
@@ -169,18 +195,133 @@ function<void(presmode)> roguevizslide_action(char c, const T& t, const U& act) 
     };
   }
 
-    }
+
+    void add_end(vector<slide>& s);
+
+    template<class T, class U> void add_temporary_hook(int mode, hookset<T>& m, int prio, U&& hook) {
+      using namespace tour;
+      if(mode == pmStart) {
+        int p = addHook(m, prio, hook);
+        on_restore([&m, p] { 
+          delHook(m, p); 
+          });
+        }
+      }
+
+  /* maks graphs in presentations */
+  struct grapher {
+  
+    ld minx, miny, maxx, maxy;
+    
+    shiftmatrix T;
+    
+    grapher(ld _minx, ld _miny, ld _maxx, ld _maxy);
+    void line(hyperpoint h1, hyperpoint h2, color_t col);
+    void arrow(hyperpoint h1, hyperpoint h2, ld sca, color_t col = 0xFF);
+    shiftmatrix pos(ld x, ld y, ld sca);
+    };
+  
+  void add_stat(presmode mode, const bool_reaction_t& stat);  
+  void compare_projections(presmode mode, eModel a, eModel b);
+  void no_other_hud(presmode mode);
+  void empty_screen(presmode mode, color_t col = 0xFFFFFFFF);
+  void show_picture(presmode mode, string s);    
+  void use_angledir(presmode mode, bool reset);
+  void slide_error(presmode mode, string s);
+
+  inline ld angle = 0;
+  inline int dir = -1;
+  hyperpoint p2(ld x, ld y);
+#endif
+  }
 
   void createViz(int id, cell *c, transmatrix at);
 
   extern map<string, int> labeler;
+  bool id_known(const string& s);
   int getid(const string& s);
   int getnewid(string s);
   extern string fname;
 
-  colorpair perturb(colorpair cp);
-  void queuedisk(const transmatrix& V, const colorpair& cp, bool legend, const string* info, int i);
+  bool rv_ignore(char c);
 
+  colorpair perturb(colorpair cp);
+  void queuedisk(const shiftmatrix& V, const colorpair& cp, bool legend, const string* info, int i);
+
+/* 3D models */
+
+namespace objmodels {
+
+  using tf_result = pair<int, hyperpoint>;
+
+  using transformer = std::function<tf_result(hyperpoint)>;
+  using subdivider = std::function<int(vector<hyperpoint>&)>;
+  
+  inline ld prec = 1;
+  
+  struct object {
+    hpcshape sh;
+    basic_textureinfo tv;
+    color_t color;
+    };
+  
+  struct model_data : gi_extension {
+    ld prec_used;
+    vector<shared_ptr<object>> objs;
+    void render(const shiftmatrix& V);
+    };
+  
+  inline tf_result default_transformer(hyperpoint h) { return {0, direct_exp(h) };}
+  
+  inline int default_subdivider(vector<hyperpoint>& hys) { 
+    if(euclid) return 1;
+    ld maxlen = prec * max(hypot_d(3, hys[1] - hys[0]), max(hypot_d(3, hys[2] - hys[0]), hypot_d(3, hys[2] - hys[1])));
+    return int(ceil(maxlen));
+    }
+  
+  #if CAP_TEXTURE
+  struct model {
+  
+    string path, fname;
+    reaction_t preparer;
+    transformer tf;
+    subdivider sd;
+  
+    bool is_available, av_checked;
+
+    model(string path = "", string fn = "", 
+      transformer tf = default_transformer,
+      reaction_t prep = [] {},
+      subdivider sd = default_subdivider
+      ) : path(path), fname(fn), preparer(prep), tf(tf), sd(sd) { av_checked = false; }
+  
+    map<string, texture::texture_data> materials;
+    map<string, color_t> colors;
+    
+    /* private */
+    void load_obj(model_data& objects);
+    
+    model_data& get();
+
+    void render(const shiftmatrix& V) { get().render(V); }
+    
+    bool available();
+    };
+
+  void add_model_settings();
+  #endif
+  
+  }
+
+#if CAP_RVSLIDES
+#define addHook_rvslides(x, y) addHook(rogueviz::pres::hooks_build_rvtour, x, y)
+#define addHook_slideshows(x, y) addHook(tour::ss::hooks_extra_slideshows, x, y)
+#define addHook_rvtour(x, y) addHook(pres::hooks_build_rvtour, x, y)
+#else
+#define addHook_rvslides(x, y) 0
+#define addHook_slideshows(x, y) 0
+#define addHook_rvtour(x, y) 0
+#endif
   }
 
 #endif

@@ -82,7 +82,7 @@ transmatrix random_snow_matrix(cell *c) {
         h[a] = randd() * 2 - 1;
       else {
         ld r = randd();
-        h[co] = log(lerp(1, aer, r)) / log(aer) * 2 - 1;
+        h[co] = log(hr::lerp(1, aer, r)) / log(aer) * 2 - 1;
         }
       }
     return bt::normalized_at(h);
@@ -102,7 +102,7 @@ transmatrix random_snow_matrix(cell *c) {
     }
   }
 
-bool draw_snow(cell *c, const transmatrix& V) {
+bool draw_snow(cell *c, const shiftmatrix& V) {
   
   if(!matrices_at.count(c)) {
     auto& v = matrices_at[c];
@@ -137,8 +137,6 @@ bool draw_snow(cell *c, const transmatrix& V) {
 
   return false;
   }
-
-bool cylanim = false;
 
 string cap = "non-Euclidean snowballs/";
 
@@ -236,14 +234,18 @@ auto hchook = addHook(hooks_drawcell, 100, draw_snow)
   })
 #endif
 
-+ addHook(rvtour::hooks_build_rvtour, 140, [] (vector<tour::slide>& v) {
++ addHook_rvslides(161, [] (string s, vector<tour::slide>& v) {
+  if(s != "noniso") return;
   v.push_back(tour::slide{
     cap+"snowball visualization", 10, tour::LEGAL::NONE | tour::QUICKSKIP,
     "Non-Euclidean visualizations usually show some regular constructions. Could we visualize the geometries themselves? Let's distribute the snowballs randomly."
     "\n\n"
     "You can use mouse to look in different directions. Press 5 to turn the automatic movement on or off. Press 'o' to change density and shape."
     ,
-    [] (tour::presmode mode) {}
+    [] (tour::presmode mode) {
+      slide_url(mode, 'y', "YouTube link", "https://www.youtube.com/watch?v=leuleS9SpiA");
+      slide_url(mode, 't', "Twitter link", "https://twitter.com/ZenoRogue/status/1245367263936512001");
+      }
     });
   snow_slide(v, "Euclidean geometry", "This is the Euclidean space. Looks a bit like space flight in some old video games.", [] {
     set_geometry(gCubeTiling);

@@ -1,9 +1,9 @@
 // non-Euclidean falling block game, implemented using the HyperRogue engine
-// Copyright (C) 2011-2019 Zeno Rogue, see 'hyper.cpp' for details
+// Copyright (C) 2011-2021 Zeno Rogue, see 'hyper.cpp' for details
 
 #ifdef BRINGRIS
 
-#define CUSTOM_CAPTION "Bringris 1.3"
+#define CUSTOM_CAPTION "Bringris 1.6"
 
 #define MAXMDIM 4
 
@@ -35,8 +35,6 @@
 #define CAP_STARTANIM 0
 #define CAP_SAVE 0
 #define CAP_TRANS 0
-
-#define MINIMIZE_GL_CALLS 0 // minimize does not currently work correctly
 
 #ifdef BWEB
 #include "../hyperweb.cpp"
@@ -85,7 +83,11 @@ int bgeom = 0;
 int max_piece;
 bool rotate_allowed = false;
 
+bool in_bringris;
+
 bool use_raycaster = true;
+
+bool flashes = true;
 
 int last_adjust, when_t;
 transmatrix tView, pView;
@@ -514,10 +516,14 @@ int penalty(const vector<cellwalker>& shape, const code_t& code) {
       if(get_z(s.at) > get_z(shape[0].at))
         p += 10000;
   if(bflags() & HDUAL) {
-    if(!dists.count(shape[0].at->move(2)))
+
+    for(auto s: shape) 
+      if(get_z(s.at) > get_z(shape[0].at))
+        p += 20000;
+    /* if(!dists.count(shape[0].at->move(2)))
       p += 40000;
     if(!dists.count(shape[0].at->move(3)))
-      p += 20000;
+      p += 20000; */
     }
   return p;
   }
@@ -630,12 +636,21 @@ void draw_shape() {
     int y = -get_z(c.at);
     c.at->wall = waWaxWall, c.at->landparam = get_hipso(y);
     }
+  ray::reset_raycaster_map();
   }
 
+bool shape_drawn() {
+  auto shape = build_from(piecelist[shape_id].code, at);
+  for(auto c: shape)
+    return c.at->wall == waWaxWall;
+  return false;
+  }
+  
 void remove_shape() {
   auto shape = build_from(piecelist[shape_id].code, at);
   for(auto c: shape)
     c.at->wall = waNone;
+  ray::reset_raycaster_map();
   }
 
 bool shape_conflict(cellwalker cw) {  
@@ -801,6 +816,7 @@ void disappear_lines() {
     }
   to_disappear.clear();
   state = tsBetween;
+  ray::reset_raycaster_map();
   }
 
 void state_loop() {
@@ -1050,8 +1066,6 @@ void draw_wirecube_at(cell *c, const transmatrix& rel, int zlev, color_t col) {
   }
 
 void draw_piece(int zlev, int id) {
-  sightranges[geometry] *= 100;
-  initquickqueue();
   auto shape = build_from(piecelist[id].code, at);
   auto matrices = build_shape_matrices(piecelist[id].code, at);
 
@@ -1068,16 +1082,11 @@ void draw_piece(int zlev, int id) {
     }  
   
   vid.linewidth /= 3;
-
-  quickqueue();
-  glflush();
-  sightranges[geometry] /= 100;
   }
 
 void draw_holes(int zlev) {
-  sightranges[geometry] *= 100;
-  initquickqueue();
-  if(state == tsFalling) remove_shape();
+  bool d = state == tsFalling && shape_drawn();
+  if(d) remove_shape();
   for(auto lev: level) {
     bool covered = false;
     for(int z=well_size; z>=1; z--) {
@@ -1090,14 +1099,10 @@ void draw_holes(int zlev) {
         }
       }
     }
-  if(state == tsFalling) draw_shape();
-  quickqueue();
-  sightranges[geometry] /= 100;
+  if(d) draw_shape();
   }
 
 void draw_all_noray(int zlev) {
-  sightranges[geometry] *= 100;
-  initquickqueue();
   for(auto lev: level) {
     for(int z=0; z<=camera_level+1; z++) {
       cell *c1 = get_at(lev, -z);
@@ -1125,15 +1130,49 @@ void draw_all_noray(int zlev) {
         }
       }
     }
-  quickqueue();
-  sightranges[geometry] /= 100;
   }
 
 void start_new_game();
 
+bool use_equidistant;
+
+void bringris_frame() {
+  if(!in_bringris) return;
+  ray::want_use = use_raycaster ? 2 : 0;
+  #if CAP_VR
+  vrhr::hsm = explore ? vrhr::eHeadset::holonomy : vrhr::eHeadset::reference;
+  vrhr::eyes = use_equidistant ? vrhr::eEyes::equidistant : vrhr::eEyes::truesim;
+  #endif
+  
+  int zlev = get_z(centerover);
+
+  if(state == tsCollect) for(cell *c: to_disappear) c->landparam = flashes ? rand() & 0xFFFFFF : 0x101010;
+  
+  // just_gmatrix = true;
+
+  create_matrices();
+
+  if(!use_raycaster) 
+    draw_all_noray(zlev);
+
+  if(anyshiftclick) draw_holes(zlev);
+  
+  if(state == tsFalling && !explore && !cur_ang) draw_piece(zlev, shape_id);
+  }
+
+renderbuffer *next_buffer;
+
 void draw_screen(int xstart, bool show_next) {
   int steps = camera_level - (-get_z(at.at));
   if(state != tsFalling) steps = camera_level - (well_size + 1);
+
+  #if CAP_VR
+  if(!explore) {
+    E4;
+    vrhr::hmd_at_ui = vrhr::hmd_ref_at * cspin(0, 2, 30*degree);
+    }
+  #endif
+    
   
   dynamicval<display_data> ccd(*current_display);
   current_display->xmax = xstart * 1. / vid.xres;
@@ -1171,41 +1210,20 @@ void draw_screen(int xstart, bool show_next) {
       centerover = ncenter;
       anims::moved();
       }
-    int zlev = get_z(centerover);
 
     // make_actual_view();
     // anims::moved();
     
-    if(state == tsCollect) for(cell *c: to_disappear) c->landparam = rand() & 0xFFFFFF;
-    
+    sightranges[geometry] *= 100;
     if(state == tsFalling && !explore && !cur_ang && !lctrlclick) remove_shape();    
-    // just_gmatrix = true;
-
-    ray::want_use = use_raycaster ? 2 : 0;
-    if(1) {
-      gamescreen(0);
-      create_matrices();
-      }
-
-    if(!use_raycaster) 
-      draw_all_noray(zlev);
-
+    gamescreen(0);
     if(state == tsFalling && !explore && !cur_ang) draw_shape();
 
-    if(anyshiftclick) draw_holes(zlev);
-    
-    if(state == tsFalling && !explore && !cur_ang) draw_piece(zlev, shape_id);
+    extern void render_next(int xstart);
+    render_next(xstart);
 
-    if(show_next) {
-      dynamicval<display_data> ccd(*current_display);
-      current_display->xmin = (xstart + vid.fsize) * 1. / vid.xres;
-      current_display->xmax = (vid.xres - vid.fsize) * 1. / vid.xres;
-      current_display->ymin = (vid.fsize * 18) * 1. / vid.yres;
-      current_display->ymax = (vid.fsize * (18+8)) * 1. / vid.yres;
-      calcparam();
-      draw_piece(zlev, next_shape_id);
-      }      
-  
+    sightranges[geometry] /= 100;
+
     if(state == tsBetween) state_loop();
     
     if(state == tsCollect && ticks >= move_at) 
@@ -1264,7 +1282,11 @@ void geometry_menu() {
   }
 
 void visual_menu() {
+  gamescreen(2);
   dialog::init("Bringris visuals");
+
+  dialog::addBoolItem_action("flashes on level completed", flashes, 'f');
+
   dialog::addBoolItem_action("use raycasting", use_raycaster, 'r');
 
   dialog::addSelItem(XLAT("iterations in raycasting"), its(ray::max_iter_current()), 's');
@@ -1287,22 +1309,49 @@ void visual_menu() {
       "If the level size is 30, 600 cells to draw means that every cell is drawn 20 times on average. "
       "Used when raycasting is off, and to draw the wireframes");
     });
+  
+  dialog::addBreak(200);
+  
+  #if CAP_VR  
+  dialog::addBoolItem_action(XLAT("VR enabled"), vrhr::enabled, 'o');
+  if(!vrhr::enabled)
+    dialog::addBreak(100);
+  else if(vrhr::failed)
+    dialog::addInfo(XLAT("error: ") + vrhr::error_msg, 0xC00000);
+  else
+    dialog::addInfo(XLAT("VR initialized correctly"), 0x00C000);
+  
+  if(vrhr::active()) {
+    dialog::addBoolItem_action(XLAT("equidistant VR"), use_equidistant, 'e');
+    if(use_equidistant)
+      dialog::addInfo("(distances are seen correctly)");
+    else
+      dialog::addInfo("(simulate non-Euclidean binocular vision)");
+    add_edit(vrhr::cscr);
+    }
+  else
+    dialog::addBreak(300);
+  #endif
+    
+  dialog::addBreak(100);
+  dialog::addBack();  
 
   dialog::display();
   }
   
 void settings_menu() {
+  emptyscreen();
   dialog::init("Bringris settings");
   dialog::addItem("alternative geometry", 'g');
   dialog::add_action_push(geometry_menu);
-  dialog::addItem("visuals", 'v');
+  dialog::addItem("visuals & Virtual Reality", 'v');
   dialog::add_action_push(visual_menu);
   dialog::addItem("configure keys", 'k');
   dialog::add_action_push(multi::get_key_configurer(1, move_names, "Bringris keys"));
 
   #if CAP_AUDIO
-  menuitem_sfx_volume();
-  menuitem_music_volume();
+  add_edit(effvolume);
+  add_edit(musicvolume);
   #endif
 
   dialog::addBreak(100);
@@ -1339,6 +1388,108 @@ void adjust_animation(ld part) {
     }
   }
 
+bool next_fail = false;
+
+int TEXTURESIZE = 256;
+
+int nxmin, nxmax, nymin, nymax;
+
+void render_next(int xstart) {
+  if(!next_buffer && !next_fail) {
+    next_buffer = new renderbuffer(TEXTURESIZE, TEXTURESIZE, true);
+    if(!next_buffer->valid) {
+      next_fail = true;
+      delete next_buffer;
+      next_buffer = nullptr;
+      println(hlog, "failed to create next_buffer");
+      }
+    else println(hlog, "valid next_buffer created");
+    }
+  
+  nxmin = (xstart + vid.fsize);  
+  nxmax = (vid.xres - vid.fsize);
+  nymin = vid.yres - (vid.fsize * (18+8));  
+  nymax = vid.yres - (vid.fsize * 18);
+
+  int zlev = get_z(centerover);
+
+  if(!next_buffer) {
+    if(1) {
+      dynamicval<display_data> ccd(*current_display);
+      current_display->xmin = nxmin * 1. / vid.xres;
+      current_display->xmax = nxmax * 1. / vid.xres;
+      current_display->ymin = 1 - nymax * 1. / vid.yres;
+      current_display->ymax = 1 - nymin * 1. / vid.yres;
+      calcparam();
+      initquickqueue();
+      draw_piece(zlev, next_shape_id);
+      quickqueue();
+      }
+
+    calcparam();
+    return;
+    }
+  
+  if(1) {
+    resetbuffer rb;
+    next_buffer->enable();
+    dynamicval<int> dx(vid.xres, TEXTURESIZE);
+    dynamicval<int> dy(vid.yres, TEXTURESIZE);
+    dynamicval<ld> dxmi(current_display->xmin, 0);
+    dynamicval<ld> dxma(current_display->xmax, 1);
+    dynamicval<ld> dymi(current_display->ymin, 0);
+    dynamicval<ld> dyma(current_display->ymax, 1);
+    #if CAP_VR
+    dynamicval<int> dvr(vrhr::state, 0);
+    #endif
+    calcparam();
+    current_display->set_viewport(0);
+    setGLProjection();
+    
+    // gamescreen(1);
+    initquickqueue();
+    draw_piece(zlev, next_shape_id);
+    quickqueue();
+    rb.reset();
+    }
+  }
+
+EX void reset_vr_ref() {
+  #if CAP_VR
+  vrhr::hmd_ref_at = vrhr::hmd_at_ui = vrhr::hmd_at;
+  #endif
+  }
+
+EX void display_next(int xstart) {
+
+  if(next_buffer) {
+    current_display->next_shader_flags = GF_TEXTURE;
+    dynamicval<eModel> m(pmodel, mdPixel);
+    current_display->set_all(0, 0);
+    glBindTexture(GL_TEXTURE_2D, next_buffer->renderedTexture);
+    glhr::id_modelview();
+    glhr::set_depthtest(false);
+    glhr::color2(0xFFFFFFFF);
+    vector<glhr::textured_vertex> tvx;
+    for(int a=0; a<6; a++) {
+      int dx[6] = {0, 1, 1, 0, 0, 1};
+      int dy[6] = {0, 0, 1, 0, 1, 1};
+      glhr::textured_vertex tx;
+      tx.coords[2] = 0;
+      tx.coords[3] = 1;
+      tx.coords[0] = (dx[a] ? nxmax : nxmin) - current_display->xcenter;
+      tx.coords[1] = (dy[a] ? nymax : nymin) - current_display->ycenter;
+      tx.texture[0] = dx[a];
+      tx.texture[1] = dy[a];
+      tvx.push_back(tx);
+      }
+    glhr::prepare(tvx);
+    glDrawArrays(GL_TRIANGLES, 0, 6);    
+    }
+  }
+
+purehookset bringris_extensions;
+
 void run() {
 
   clearMessages();
@@ -1366,22 +1517,40 @@ void run() {
 
   last_adjust = ticks;
   
-  ray::want_use = 2;
+  ray::want_use = use_raycaster ? 2 : 0;
   sightranges[geometry] = 50;
   if(!solnil) vid.cells_drawn_limit = 1;
   else vid.cells_drawn_limit = 2000;
 
   cmode = sm::NORMAL | sm::CENTER;
+  if(!explore) cmode |= sm::VR_MENU;
 
-  int xstart = vid.xres - vid.fsize * 10;
+  int xstart = vid.xres;
+  if(!nohud) xstart -= vid.fsize * 10;
   
   getcstat = '-';
   
   bool show_next = state != tsGameover && state != tsPreGame && !paused;
 
+  #if CAP_VR  
+  dynamicval<reaction_t> d(vrhr::change_ui_bounds, [show_next, xstart] {
+    vrhr::ui_xmin = xstart;
+    vrhr::ui_xmax = vid.xres;
+    if(show_next && !explore)
+      vrhr::ui_ymin = vid.yres - vid.fsize * 28;
+    });
+  #endif
+
   draw_screen(xstart, show_next);
   
   calcparam();
+  
+  bool in_menu = !show_next && !explore;
+  
+  if(nohud) {
+    describeMouseover();
+    }
+  else {
   for(int i=0; i<isize(by_level); i++) {
     displaystr(xstart + vid.fsize, vid.yres - vid.fsize * (i+2), 0, vid.fsize, its(by_level[i]), get_hipso(i+1), 0);
     }
@@ -1395,11 +1564,18 @@ void run() {
       displaystr(xstart + vid.fsize, vid.yres - vid.fsize * 13, 0, vid.fsize, "SCORE " + fts(int(score)), winf[waBarrier].color, 0);
     }
   
-  if(show_next)
+  if(show_next) {
     displaystr(xstart + vid.fsize, vid.yres - vid.fsize * 27, 0, vid.fsize, "NEXT:", winf[waBarrier].color, 0);
+    #if CAP_VR
+    if(vrhr::active())
+      vrhr::in_vr_ui([xstart] {
+        display_next(xstart);
+        });
+    else
+    #endif
+      display_next(xstart);
+    }
       
-  bool in_menu = !show_next && !explore;
-  
   if(explore) {
     int xx = (xstart + vid.xres) / 2;
     if(displayButtonS(xx, vid.fsize * 2, "backspace", 0xFFFFFFFF, 8, vid.fsize)) getcstat = SDLK_BACKSPACE;
@@ -1425,7 +1601,11 @@ void run() {
       }
     else if(state == tsGameover)
       if(displayButtonS(xx, vid.fsize * 12, "TWEET", 0xFFFFFFFF, 8, vid.fsize)) getcstat = 't';
+    
+    if(vrhr::active())
+      if(displayButtonS(xx, vid.fsize * 14, "RESET VR", 0xFFFFFFFF, 8, vid.fsize)) getcstat = 'V';
     }
+  }
   
   keyhandler = [xstart, in_menu] (int sym, int uni) {
     if(explore) handlePanning(sym, uni);
@@ -1446,19 +1626,57 @@ void run() {
     dialog::handleNavigation(sym, uni);
     if(in_menu && sym == 'q' && !ISWEB) exit(0);
     if(sym == '-') {
-      int ax = mousex * 3 / xstart;
-      if(ax > 3) ax = 3;
-      int ay = mousey * 3 / vid.yres;
-      if(ay > 2) ay = 2;
-      int id = ay * 4 + ax;
-      eBringrisMove moves[12] = {
-        bmTurnLeft, bmUp, bmTurnRight, bmPause,
-        bmLeft, bmDrop, bmRight, bmFullDrop,
-        bmNothing, bmDown, bmNothing, bmFullDrop
-        };
-      eBringrisMove mov = moves[id];
-      if((state == tsFalling && !paused) || mov == bmPause)  
-        bringris_action(mov);
+      if(!which_pointer) {
+        int ax = mousex * 3 / xstart;
+        if(ax > 3) ax = 3;
+        int ay = mousey * 3 / vid.yres;
+        if(ay > 2) ay = 2;
+        int id = ay * 4 + ax;
+        eBringrisMove moves[12] = {
+          bmTurnLeft, bmUp, bmTurnRight, bmPause,
+          bmLeft, bmDrop, bmRight, bmFullDrop,
+          bmNothing, bmDown, bmNothing, bmFullDrop
+          };
+        eBringrisMove mov = moves[id];
+        if((state == tsFalling && !paused) || mov == bmPause)  
+          bringris_action(mov);
+        }
+#if CAP_VR
+      else {
+        if(explore)
+          explore = !explore;
+        else if(
+          mousex >= vrhr::ui_xmin && mousex <= vrhr::ui_xmax && 
+          mousey >= vrhr::ui_ymin && mousey <= vrhr::ui_ymax)
+            paused = !paused;
+        else {
+          vrhr::compute_vr_direction(which_pointer);
+          ld r = 1 / sqrt(2);        
+          auto& dir = vrhr::vr_direction;
+          vector<pair<eBringrisMove, hyperpoint> > choices = {
+            {bmLeft, hyperpoint(-1, 0, 0, 0)},
+            {bmRight, hyperpoint(1, 0, 0, 0)},
+            {bmUp, hyperpoint(0, -1, 0, 0)},
+            {bmDown, hyperpoint(0, 1, 0, 0)},
+            {bmTurnLeft, hyperpoint(-r, -r, 0, 0)},
+            {bmTurnRight, hyperpoint(r, -r, 0, 0)},
+            {bmDrop, hyperpoint(-r, r, 0, 0)},
+            {bmFullDrop, hyperpoint(r, r, 0, 0)}
+            };
+          
+          eBringrisMove mov = bmNothing;
+          ld best = 0;
+                    
+          for(auto& b: choices) {
+            ld dot = (dir | b.second);
+            if(dot > best) best = dot, mov = b.first;
+            }
+
+          bringris_action(mov);          
+          }
+        println(hlog, vrhr::vr_direction);
+        }
+#endif
       return;
       }
     
@@ -1504,6 +1722,9 @@ void run() {
       }
     if(in_menu && sym == 'e') {
       explore = !explore;
+      }
+    if(sym == 'V') {
+      reset_vr_ref();
       }
     if(in_menu && sym == 'n') {
       start_new_game();
@@ -1582,6 +1803,8 @@ void run() {
       }
     #endif
     };
+
+  callhooks(bringris_extensions);
   }
 
 cell *get_center() {
@@ -1631,6 +1854,7 @@ void start_new_game() {
   state = tsBetween;
   
   reset_view();
+  ray::reset_raycaster_map();
 
   // reset_view();
 
@@ -1745,6 +1969,7 @@ void create_game() {
   ray::want_use = 2;
   ray::exp_decay_poly = 200;
   ray::max_iter_current() = solnil ? 600 : 200;
+  ray::fixed_map = true;
   mapeditor::drawplayer = false;
   // sightranges[geometry] = 1;
   
@@ -1766,6 +1991,7 @@ void init_all() {
   vid.texture_step = 8;
   showstartmenu = false;
   pushScreen(run);  
+  in_bringris = true;
   }
 
 int args() {
@@ -1836,10 +2062,13 @@ void default_config() {
   addsaver(bgeom, "bringris-geometry");
   addsaver(use_raycaster, "bringris-ray");
   addsaver(draw_per_level, "draw-per-level");
+  addsaver(use_equidistant, "bringris-equidistant");
+  addsaver(flashes, "bringris-flashes");
   }
 
 auto hooks = 
     addHook(hooks_args, 100, args)
+  + addHook(hooks_frame, 100, bringris_frame)
   + addHook(hooks_configfile, 100, default_config)
   + addHook(dialog::hooks_display_dialog, 100, [] () {
       if(dialog::items[0].body == "Bringris keys") {

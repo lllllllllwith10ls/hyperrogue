@@ -1,18 +1,18 @@
 #!/bin/sh
 mkdir -p app/src/main/assets/sounds
 cp ../sounds/* app/src/main/assets/sounds/
+cp ../honeycomb-rules-*.txt app/src/main/assets/
 mkdir -p app/src/main/res/raw/
 
 #for x in caves crossroads desert graveyard hell icyland jungle laboratory mirror rlyeh
 #do cp ../music/hr3-$x.ogg app/src/main/res/raw/$x.ogg
 #done
 
-# make sure that language-data.cpp is generated
-if [ ! -f ../language-data.cpp ]; then
-    echo "File language-data.cpp not found! Trying to compile and run langen"
-    cd ..
-    g++ langen.cpp -o langen
-    ./langen > language-data.cpp
-    ls -l langen language-data.cpp
-    cd hyperroid
+# make sure autohdr.h is generated
+# language-data.cpp is a make dependency of autohdr.h, so it's generated as well
+if [ ! -f ../autohdr.h ]; then
+    echo "generating autohdr.h..."
+    LAST_PWD=$(pwd); cd ..
+    make autohdr.h
+    cd $LAST_PWD
 fi

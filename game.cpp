@@ -44,7 +44,7 @@ EX int hrand(int i) {
 #if HDR
 template<class T, class... U> T pick(T x, U... u) { std::initializer_list<T> i = {x,u...}; return *(i.begin() + hrand(1+sizeof...(u))); }
 template<class T> void hrandom_shuffle(T* x, int n) { for(int k=1; k<n; k++) swap(x[k], x[hrand(k+1)]); }
-template<class T> void hrandom_shuffle(T& container) { hrandom_shuffle(&container[0], isize(container)); }
+template<class T> void hrandom_shuffle(T& container) { hrandom_shuffle(container.data(), isize(container)); }
 template<class U> auto hrand_elt(U& container) -> decltype(container[0]) { return container[hrand(isize(container))]; }
 template<class T, class U> T hrand_elt(U& container, T default_value) { 
   if(container.empty()) return default_value; 
@@ -236,7 +236,7 @@ EX void teleportToLand(eLand l, bool make_it_safe) {
   if(l == laClearing) l = laOvergrown;
   if(l == laWhirlpool) l = laOcean;
   if(l == laCrossroads5) l = laCrossroads2; // could not fit!
-  if(l == laCamelot && !(tactic::on && specialland == laCamelot)) 
+  if(l == laCamelot && !ls::single())
     l = laCrossroads;
   firstland = l;
   safetyland = l;
@@ -258,6 +258,13 @@ EX void teleportToLand(eLand l, bool make_it_safe) {
 
 EX void activateSafety(eLand l) {
   teleportToLand(l, true);
+  #if CAP_SAVE
+  if(casual) {
+    saveStats();
+    savecount++;
+    save_turns = turncount;
+    }
+  #endif
   }
 
 EX void placeGolem(cell *on, cell *moveto, eMonster m) {
@@ -295,6 +302,7 @@ EX void placeGolem(cell *on, cell *moveto, eMonster m) {
 EX bool multiRevival(cell *on, cell *moveto) {
   int fl = 0;
   if(items[itOrbAether]) fl |= P_AETHER;
+  if(items[itCurseWater]) fl |= P_WATERCURSE;
   if(items[itOrbFish]) fl |= P_FISH;
   if(items[itOrbWinter]) fl |= P_WINTER;
   if(passable(on, moveto, fl)) {
@@ -360,15 +368,59 @@ EX void pushThumper(const movei& mi) {
     cto->wall = waNone;
     playSound(cto, "splash"+pick12());
     }
-  else 
+  else if(w == waCrateCrate && cto->wall == waCrateTarget) {
+    cto->wall = waCrateOnTarget;
+    th->wall = waNone;
+    }    
+  else if(w == waCrateOnTarget && cto->wall == waNone) {
+    cto->wall = waCrateCrate;
+    th->wall = waCrateTarget;
+    }    
+  else if(w == waCrateOnTarget && cto->wall == waCrateTarget) {
+    cto->wall = waCrateOnTarget;
+    th->wall = waCrateTarget;
+    }
+  #if CAP_COMPLEX2
+  else if(isDie(w)) {
+    th->wall = waNone;
+    cto->wall = w;    
+    dice::roll(mi);
+    if(w == waRichDie && dice::data[cto].happy() > 0) {
+      cto->wall = waHappyDie;
+      if(cto->land == laDice && th->land == laDice) {
+        gainItem(itDice);
+        addMessage(XLAT("The die is now happy, and you are rewarded!"));
+        }
+      else {
+        addMessage(XLAT("The die is now happy, but won't reward you outside of the Dice Reserve!"));
+        }
+      }          
+    if(w == waHappyDie && dice::data[cto].happy() <= 0) {
+      cto->monst = moAngryDie;
+      cto->wall = waNone;
+      cto->stuntime = 5;
+      addMessage(XLAT("You have made a Happy Die angry!"));
+      animateMovement(mi, LAYER_SMALL);
+      }          
+    else
+      animateMovement(mi, LAYER_BOAT);
+    }
+  #endif
+  else
     cto->wall = w;
   if(explode) cto->wall = waFireTrap, cto->wparam = explode;
   if(cto->wall == waThumperOn)
     cto->wparam = th->wparam;
   }
 
-EX bool canPushThumperOn(cell *tgt, cell *thumper, cell *player) {
-  if(tgt->wall == waBoat || tgt->wall == waStrandedBoat) return false;
+EX bool canPushThumperOn(movei mi, cell *player) {
+  cell *thumper = mi.s;
+  cell *tgt = mi.t;
+  #if CAP_COMPLEX2
+  if(dice::on(thumper) && !dice::can_roll(mi))
+    return false;
+  #endif
+  if(tgt->wall == waBoat || tgt->wall == waStrandedBoat) return false;  
   if(isReptile(tgt->wall)) return false;
   if(isWatery(tgt) && !tgt->monst)
     return true;
@@ -377,7 +429,7 @@ EX bool canPushThumperOn(cell *tgt, cell *thumper, cell *player) {
   return
     passable(tgt, thumper, P_MIRROR) &&
     passable(tgt, player, P_MIRROR) &&
-    !tgt->item;
+    (!tgt->item || dice::on(thumper));
   }
 
 EX void activateActiv(cell *c, bool msg) {
@@ -448,9 +500,9 @@ EX bool sameMonster(cell *c1, cell *c2) {
   }
 
 EX eMonster haveMount() {
-  for(int i=0; i<numplayers(); i++) if(multi::playerActive(i)) {
-    eMonster m = playerpos(i)->monst;
-    if(m) return m;
+  for(cell *pc: player_positions()) {
+    eMonster m = pc->monst;
+    if(isWorm(m)) return m;
     }
   return moNone;
   }

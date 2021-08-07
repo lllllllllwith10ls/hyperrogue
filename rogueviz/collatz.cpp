@@ -11,10 +11,12 @@ namespace collatz {
   
   edgetype *collatz1, *collatz2;
   
-  int collatz_id;
-  
+  void act(vertexdata& vd, cell *c, shmup::monster *m, int i);
+  void lookup(long long reached, int bits);
+  void collatz_video(const string &fname);
+
   void start() {
-    init(&collatz_id, RV_GRAPH);
+    init(RV_GRAPH);
     collatz1 = add_edgetype("1");
     collatz2 = add_edgetype("2");
     vdata.resize(1);
@@ -29,6 +31,30 @@ namespace collatz {
 
     T2 = spin(collatz::s2) * xpush(collatz::p2);
     T3 = spin(collatz::s3) * xpush(collatz::p3);
+
+    rv_hook(hooks_drawvertex, 100, act);
+    rv_hook(hooks_args, 100, [] {
+      using namespace arg;
+
+      if(0) ;
+
+      #if CAP_SHOT
+      else if(argis("-rvvideo")) {
+        shift(); collatz_video(arg::args());
+        }
+      #endif
+    
+      else if(argis("-collatz-go")) {
+        shift(); int i = argi(); shift(); int j = argi();
+        if(i <= 0) i = 763;
+        if(j < 0 || j > 61) j = 61;
+        collatz::lookup(i, j);
+        }
+      
+      else return 1;
+      
+      return 0;
+      });
     }
   
   void lookup(long long reached, int bits) {
@@ -76,7 +102,6 @@ namespace collatz {
     }
 
   void act(vertexdata& vd, cell *c, shmup::monster *m, int i) {
-    if(vizid != &collatz_id) return;
     if(c->cpdist > 7 && euclid) ;
     else if(vd.data == 2) {
       // doubler vertex
@@ -141,7 +166,7 @@ namespace collatz {
 
 // see: https://www.youtube.com/watch?v=4Vu3F95jpQ4&t=6s (Collatz)
 void collatz_video(const string &fname) {
-  if(vizid == &collatz_id) {
+  if(true) {
     sightrange_bonus = 3;
     genrange_bonus = 3;
     dronemode = true; pconf.camera_angle = -45; rog3 = true; patterns::whichShape = '8';
@@ -273,14 +298,6 @@ int readArgs() {
     start();
     }
 
-  else if(argis("-collatz-go")) {
-    if(vizid != &collatz_id) { printf("not in Collatz\n"); throw hr_exception(); }
-    shift(); int i = argi(); shift(); int j = argi();
-    if(i <= 0) i = 763;
-    if(j < 0 || j > 61) j = 61;
-    collatz::lookup(i, j);
-    }
-
   else if(argis("-collatz3")) {
     PHASE(3); 
     using namespace collatz; 
@@ -298,12 +315,6 @@ int readArgs() {
     unshift();
     }
 
-  #if CAP_SHOT
-  else if(argis("-rvvideo") && vizid == &collatz_id) {
-    shift(); collatz_video(arg::args());
-    }
-  #endif
-
   else if(argis("-cshift")) {
     shift_arg_formula(collatz::cshift);
     }
@@ -313,15 +324,16 @@ int readArgs() {
   }
 
 int ah = addHook(hooks_args, 100, readArgs) +
-  addHook(rvtour::hooks_build_rvtour, 142, [] (vector<tour::slide>& v) {
+  addHook_rvslides(42, [] (string s, vector<tour::slide>& v) {
+    if(s != "data") return;
     using namespace tour;
     v.push_back(
-      tour::slide{"unsorted/Collatz conjecture", 51, LEGAL::UNLIMITED | QUICKGEO,
+      tour::slide{"Collatz conjecture", 51, LEGAL::UNLIMITED | QUICKGEO,
     "The following slide is a visualization of the Collatz conjecture. "
     "Press '5' for a spiral rendering of the Collatz conjecture visualization.\n\n"
     "Note that this, and many other RogueViz visualizations, have "
     "Euclidean versions (press ESC).\n",
-    rvtour::roguevizslide('d', [] () {
+    pres::roguevizslide('d', [] () {
       rogueviz::dftcolor = 0x206020FF;
       
       int fac = euclid ? 2 : 1;
@@ -338,10 +350,9 @@ int ah = addHook(hooks_args, 100, readArgs) +
       gmatrix0 = gmatrix;
 
       rogueviz::collatz::start();
-      })
+      }, [] (presmode m) { slide_url(m, 'y', "YouTube link", "https://www.youtube.com/watch?v=NqPUwA_A0_k"); })
     });
-    })
-+ addHook(hooks_drawvertex, 100, act);
+    });
   
 
 EX }

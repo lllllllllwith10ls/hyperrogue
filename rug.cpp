@@ -19,6 +19,8 @@ EX bool rug_failure = false;
 
 EX namespace rug {
 
+EX bool mouse_control_rug = false;
+
 EX transmatrix rugView;
 
 EX ld lwidth = 2;
@@ -44,7 +46,7 @@ bool computed = false;
     bool valid;
     bool inqueue;
     double dist;
-    hyperpoint h;      // point in the represented space
+    shiftpoint h;      // point in the represented space
     hyperpoint native; // point in the native space
     hyperpoint precompute;
     vector<edge> edges;
@@ -121,7 +123,6 @@ EX int renderlate  = 0;
 EX bool rendernogl  = false;
 EX int  texturesize = 1024;
 EX ld scale = 1;
-EX ld ruggo = 0;
 
 EX ld anticusp_factor = 1;
 EX ld anticusp_dist;
@@ -164,7 +165,9 @@ bool rug_hyperbolic() { USING_NATIVE_GEOMETRY; return hyperbolic; }
 bool rug_sphere() { USING_NATIVE_GEOMETRY; return sphere; }
 bool rug_elliptic() { USING_NATIVE_GEOMETRY; return elliptic; }
 
-EX rugpoint *addRugpoint(hyperpoint h, double dist) {
+EX map<cell*, rugpoint*> rug_map;
+
+EX rugpoint *addRugpoint(shiftpoint h, double dist) {
   rugpoint *m = new rugpoint;
   m->h = h;
   
@@ -181,7 +184,7 @@ EX rugpoint *addRugpoint(hyperpoint h, double dist) {
   m->valid = false;
 
   if(euclid && quotient && !bounded) {
-    hyperpoint h1 = inverse(models::euclidean_spin) * eumove(euc::eu.user_axes[1]) * C0;
+    hyperpoint h1 = iso_inverse(models::euclidean_spin) * eumove(euc::eu.user_axes[1]) * C0;
     h1 /= sqhypot_d(2, h1);
     if(nonorientable) h1 /= 2;
     m->valid = good_shape = true;
@@ -218,12 +221,12 @@ EX rugpoint *addRugpoint(hyperpoint h, double dist) {
       }
     else
       scale = 1;
-    m->native = h * scale;
+    m->native = unshift(h) * scale;
     m->native = hpxy3(m->native[0], m->native[1], m->native[2]);
     }
 
   else if(euclid && rug_euclid()) {
-    m->native = h * modelscale;
+    m->native = unshift(h) * modelscale;
     m->native[2] = 0;
     #if MAXMDIM >= 4
     m->native[3] = 1;
@@ -247,11 +250,11 @@ EX rugpoint *addRugpoint(hyperpoint h, double dist) {
     
     USING_NATIVE_GEOMETRY;
     
-    m->native = rgpushxto0(h) * cpush0(2, r);
+    m->native = rgpushxto0(unshift(h)) * cpush0(2, r);
     }
   
   else {
-    m->native = h;
+    m->native = unshift(h);
     ld hd = h[LDIM];
     for(int d=GDIM; d<MAXMDIM-1; d++) {
       m->native[d] = (hd - .99) * (rand() % 1000 - rand() % 1000) / 1000;
@@ -269,14 +272,14 @@ EX rugpoint *addRugpoint(hyperpoint h, double dist) {
   return m;
   }
 
-EX rugpoint *findRugpoint(hyperpoint h) {
+EX rugpoint *findRugpoint(shiftpoint h) {
   USING_NATIVE_GEOMETRY;
   for(int i=0; i<isize(points); i++) 
-    if(geo_dist_q(points[i]->h, h) < 1e-5) return points[i];
+    if(geo_dist_q(points[i]->h.h, unshift(h, points[i]->h.shift)) < 1e-5) return points[i];
   return NULL;
   }
 
-EX rugpoint *findOrAddRugpoint(hyperpoint h, double dist) {
+EX rugpoint *findOrAddRugpoint(shiftpoint h, double dist) {
   rugpoint *r = findRugpoint(h);
   return r ? r : addRugpoint(h, dist);
   }
@@ -342,7 +345,7 @@ EX void sort_rug_points() {
 void calcLengths() {
   for(auto p: points) 
     for(auto& edge: p->edges) 
-      edge.len = geo_dist_q(p->h, edge.target->h) * modelscale;
+      edge.len = geo_dist_q(p->h.h, unshift(edge.target->h, p->h.shift)) * modelscale;
   }
 
 EX void calcparam_rug() {
@@ -355,25 +358,52 @@ EX void calcparam_rug() {
   cd->radius = cd->scrsize * pconf.scale;
   }
 
-EX void buildTorusRug() {
+#if HDR
+struct clifford_torus {
+  transmatrix T;
+  transmatrix iT;
+  ld xfactor, yfactor;
+  bool flipped;
+  hyperpoint xh, yh;
+  hyperpoint torus_to_s4(hyperpoint t);  
+  hyperpoint actual_to_torus(const hyperpoint& a) {
+    return iT * a;
+    }
+  hyperpoint torus_to_actual(const hyperpoint& t) {
+    return T * t;
+    }
+  clifford_torus();
+  ld get_modelscale() {
+    return hypot_d(2, xh) * xfactor * 2 * M_PI;
+    }
+  ld compute_mx();  
+  };
+#endif
 
-  calcparam_rug();
-  models::configure();
+struct hyperpoint clifford_torus::torus_to_s4(hyperpoint t) {
+  double alpha = -t[0] * 2 * M_PI;
+  double beta = t[1] * 2 * M_PI;
+  
+  ld ax = alpha + 1.124651, bx = beta + 1.214893;
+  return hyperpoint(
+    xfactor * sin(ax), 
+    xfactor * cos(ax), 
+    yfactor * sin(bx),
+    yfactor * cos(bx)
+    );
+  }
 
+clifford_torus::clifford_torus() {
   auto p1 = to_loc(euc::eu.user_axes[0]);
   auto p2 = to_loc(euc::eu.user_axes[1]);
 
-  hyperpoint xh = euc::eumove(p1)*C0-C0;
-  hyperpoint yh = euc::eumove(p2)*C0-C0;
+  xh = euc::eumove(p1)*C0-C0;
+  yh = euc::eumove(p2)*C0-C0;
   if(nonorientable) yh *= 2;
   
-  bool flipped = false; // sqhypot_d(2, xh) < sqhypot_d(2, yh);
+  flipped = false; // sqhypot_d(2, xh) < sqhypot_d(2, yh);
   
   if(flipped) swap(xh, yh);
-  
-  cell *gs = currentmap->gamestart();
-  
-  ld xfactor, yfactor;
   
   ld factor2 = sqhypot_d(2, xh) / sqhypot_d(2, yh);
   ld factor = sqrt(factor2);
@@ -381,44 +411,51 @@ EX void buildTorusRug() {
   yfactor = sqrt(1/(1+factor2));
   xfactor = factor * yfactor;
                                     
-  transmatrix T = build_matrix(xh, yh, C0, C03);  
-  transmatrix iT = inverse(T);
+  T = build_matrix(xh, yh, C0, C03);  
+  iT = inverse(T);
+  }
 
-  if(gwhere == gSphere) 
-    modelscale = hypot_d(2, xh) * xfactor * 2 * M_PI;
-  
-  map<pair<int, int>, rugpoint*> glues;
-  
+ld clifford_torus::compute_mx() {
   ld mx = 0;
   for(int i=0; i<1000; i++)
-    mx = max(mx, hypot(xfactor, yfactor * sin(i)) / (1-yfactor * cos(i)));
-
+    mx = max(mx, hypot(xfactor, yfactor * sin(i)) / (1-yfactor * cos(i)));    
   println(hlog, "mx = ", mx);
+  return mx;
+  }
+
+#if MAXMDIM >= 4
+EX void buildTorusRug() {
+
+  calcparam_rug();
+  models::configure();
   
+  clifford_torus ct;
+
+  if(gwhere == gSphere) 
+    modelscale = ct.get_modelscale();
+  
+  cell *gs = currentmap->gamestart();  
+  map<pair<int, int>, rugpoint*> glues;
+  
+  ld mx = ct.compute_mx();
+    
   auto addToruspoint = [&] (hyperpoint h) {
-    auto r = addRugpoint(C0, 0);
+    auto r = addRugpoint(shiftless(C0), 0);
     hyperpoint onscreen;
-    hyperpoint h1 = gmatrix[gs] * T * h;
+    shiftpoint h1 = gmatrix[gs] * ct.torus_to_actual(h);
     applymodel(h1, onscreen);
     r->x1 = onscreen[0];
     r->y1 = onscreen[1];
-
-    double alpha = -h[0] * 2 * M_PI;
-    double beta = h[1] * 2 * M_PI;
-    
-    ld ax = alpha + 1.124651, bx = beta + 1.214893;
-    ld x = xfactor * sin(ax), y = xfactor * cos(ax), z = yfactor * sin(bx), t = yfactor * cos(bx);
     
     if(1) {
-      hyperpoint hp = hyperpoint(x, y, z, t);
-      
       USING_NATIVE_GEOMETRY;
+      hyperpoint hp = ct.torus_to_s4(h);
       
       /* spherical coordinates are already good, otherwise... */
       
       if(!sphere) {
         /* stereographic projection to get Euclidean conformal torus */
-        hp /= (t+1);
+        hp /= (hp[3]+1);
         hp /= mx;
         #if MAXMDIM >= 4
         hp[3] = 1;
@@ -429,6 +466,8 @@ EX void buildTorusRug() {
 
       if(hyperbolic) 
         hp = perspective_to_space(hp, 1, gcHyperbolic);
+      
+      r->native = hp;
       }
         
     r->valid = true;
@@ -447,15 +486,15 @@ EX void buildTorusRug() {
   
   ld rmd = rugmax;
   
-  hyperpoint sx = iT * (currentmap->adj(gs, 0)*C0-C0)/rmd;
-  hyperpoint sy = iT * (currentmap->adj(gs, 1)*C0-C0)/rmd;
+  hyperpoint sx = ct.iT * (currentmap->adj(gs, 0)*C0-C0)/rmd;
+  hyperpoint sy = ct.iT * (currentmap->adj(gs, 1)*C0-C0)/rmd;
   
   for(int leaf=0; leaf<(nonorientable ? 2 : 1); leaf++)
   for(cell *c: currentmap->allcells()) {
         
-    hyperpoint h = iT * calc_relative_matrix(c, gs, C0) * C0;
+    hyperpoint h = ct.iT * calc_relative_matrix(c, gs, C0) * C0;
     
-    if(leaf) h[flipped ? 0 : 1] += .5;
+    if(leaf) h[ct.flipped ? 0 : 1] += .5;
     
     rugpoint *rugarr[32][32];
     for(int yy=0; yy<=rugmax; yy++)
@@ -485,6 +524,7 @@ EX void buildTorusRug() {
 
   return;
   }
+#endif
 
 EX void verify() {
   vector<ld> ratios;
@@ -516,20 +556,20 @@ EX void buildRug() {
 
   need_mouseh = true;
   good_shape = false;
+  #if MAXMDIM >= 4
   if(euclid && bounded) {
     good_shape = true;
     buildTorusRug();
     return;
     }
+  #endif
   
   celllister cl(centerover ? centerover : cwt.at, get_sightrange(), vertex_limit, NULL);
 
-  map<cell*, rugpoint *> vptr;
-  
   for(int i=0; i<isize(cl.lst); i++)
-    vptr[cl.lst[i]] = addRugpoint(ggmatrix(cl.lst[i])*C0, cl.dists[i]);
+    rug_map[cl.lst[i]] = addRugpoint(ggmatrix(cl.lst[i])*C0, cl.dists[i]);
 
-  for(auto& p: vptr) {
+  for(auto& p: rug_map) {
     cell *c = p.first;
     rugpoint *v = p.second;
     
@@ -539,7 +579,7 @@ EX void buildRug() {
       for(int j=0; j<c->type; j++) addTriangle(v, p[j], p[(j+1) % c->type]);
       
       if((euclid && quotient) && nonorientable) {
-        transmatrix T = ggmatrix(c) * eumove(euc::eu.user_axes[1]);
+        shiftmatrix T = ggmatrix(c) * eumove(euc::eu.user_axes[1]);
         rugpoint *Tv = addRugpoint(T * C0, 0);
         for(int j=0; j<c->type; j++) p[j] = findOrAddRugpoint(T * get_corner_position(c, j), v->dist);
         for(int j=0; j<c->type; j++) addTriangle(Tv, p[j], p[(j+1) % c->type]);
@@ -548,11 +588,11 @@ EX void buildRug() {
     
     else for(int j=0; j<c->type; j++) try {
       cell *c2 = c->move(j);
-      rugpoint *w = vptr.at(c2);
+      rugpoint *w = rug_map.at(c2);
       // if(v<w) addEdge(v, w);
       
       cell *c3 = c->modmove(j+1);
-      rugpoint *w2 = vptr.at(c3);
+      rugpoint *w2 = rug_map.at(c3);
       
       cell *c4 = (cellwalker(c,j) + wstep - 1).cpeek();      
       
@@ -564,7 +604,7 @@ EX void buildRug() {
       else if(v > w && v > w2)
         addTriangle(v, w, w2);
       }
-    catch(out_of_range&) {}
+    catch(const std::out_of_range&) {}
     }
 
   println(hlog, "vertices = ", isize(points), " triangles= ", isize(triangles));
@@ -624,12 +664,12 @@ bool force(rugpoint& m1, rugpoint& m2, double rd, bool is_anticusp=false, double
   bool nonzero = abs(t-rd) > err_zero_current;
   double forcev = (t - rd) / 2; // 20.0;
   
-  transmatrix T = inverse(rgpushxto0(m1.native));
-  hyperpoint ie = inverse_exp(T * m2.native);
+  transmatrix T = iso_inverse(rgpushxto0(m1.native));
+  hyperpoint ie = inverse_exp(shiftless(T * m2.native));
 
   transmatrix iT = rgpushxto0(m1.native);
   
-  for(int i=0; i<MDIM; i++) if(std::isnan(m1.native[i])) { 
+  for(int i=0; i<MXDIM; i++) if(std::isnan(m1.native[i])) { 
     addMessage("Failed!");
     println(hlog, "m1 = ", m1.native);
     throw rug_exception();
@@ -740,7 +780,8 @@ EX void optimize(rugpoint *m, bool do_preset) {
       force(*m, *m->edges[j].target, m->edges[j].len, false, 1, 0);
   }
 
-int divides = 0;
+EX int divides;
+EX int precision_increases;
 bool stop = false;
 
 EX bool subdivide_further() {
@@ -758,6 +799,7 @@ EX void subdivide() {
       stop = true; 
       }
     else {
+      precision_increases++;
       err_zero_current /= 2;
       println(hlog, "increasing precision to ", err_zero_current);
       for(auto p: points) enqueue(p);
@@ -927,7 +969,7 @@ EX void addNewPoints() {
 
 EX void physics() {
 
-  #if CAP_CRYSTAL
+  #if CAP_CRYSTAL && MAXMDIM >= 4
   if(in_crystal()) {
     crystal::build_rugdata();
     return;
@@ -1020,6 +1062,9 @@ EX void prepareTexture() {
   
   dynamicval<eStereo> d(vid.stereo_mode, sOFF);
   dynamicval<ld> dl(levellines, 0);
+  #if CAP_VR
+  dynamicval<int> i(vrhr::state, 0);
+  #endif
   calcparam_rug();
   models::configure();
   
@@ -1036,12 +1081,8 @@ EX void prepareTexture() {
   #endif
 
   drawthemap();
-  if(mousing && !renderonce) {
-    for(int i=0; i<numplayers(); i++) if(multi::playerActive(i))
-      queueline(tC0(ggmatrix(playerpos(i))), mouseh, 0xFF00FF, 8 + vid.linequality);
-    }
   if(finger_center) {
-    transmatrix V = rgpushxto0(finger_center->h);
+    shiftmatrix V = rgpushxto0(finger_center->h);
     queuestr(V, 0.5, "X", 0xFFFFFFFF, 2);
     for(int i=0; i<72; i++)
       queueline(V * xspinpush0(i*M_PI/32, finger_range), V * xspinpush0((i+1)*M_PI/32, finger_range), 0xFFFFFFFF, vid.linequality);
@@ -1058,8 +1099,6 @@ EX ld hirug = 1e3;
 
 EX GLuint alternate_texture;
 
-EX bool invert_depth;
-
 EX bool rug_control() { return rug::rugged; }
 
 #if HDR
@@ -1071,8 +1110,10 @@ struct using_rugview {
 
 #endif
 
+EX purehookset hooks_rugframe;
 
 EX void drawRugScene() {
+  callhooks(hooks_rugframe);
   USING_NATIVE_GEOMETRY;
   tinf.texture_id = alternate_texture ? alternate_texture : glbuf->renderedTexture;
   tinf.tvertices.clear();
@@ -1081,20 +1122,23 @@ EX void drawRugScene() {
   
   for(auto t: triangles) drawTriangle(t);
   
-  auto& rug = queuecurve(0, 0xFFFFFFFF, PPR::LINE);
+  auto& rug = queuecurve(shiftless(Id), 0, 0xFFFFFFFF, PPR::LINE);
+
+  dynamicval<transmatrix> tV(View, View);
+  View = Id; /* needed for vr */
 
   if(nonisotropic) {
-    transmatrix T2 = eupush( tC0(inverse(rugView)) );
+    transmatrix T2 = eupush( tC0(view_inverse(rugView)) );
     NLP = rugView * T2;  
-    rug.V = inverse(NLP) * rugView;
+    rug.V = shiftless(ortho_inverse(NLP) * rugView);
     }
   else {
-    rug.V = rugView;
+    rug.V = shiftless(rugView);
     }
    
   rug.offset_texture = 0;
   rug.tinf = &tinf;
-  if(disable_texture) rug.tinf = nullptr;
+  if(levellines && disable_texture) rug.tinf = nullptr;
   rug.flags = POLY_TRIANGLES | POLY_FAT | POLY_PRINTABLE | POLY_ALWAYS_IN | POLY_ISSIDE | POLY_SHADE_TEXTURE;
 
   dynamicval<projection_configuration> p(pconf, rconf);
@@ -1144,6 +1188,8 @@ EX void init_model() {
   
   qvalid = 0; dt = 0; queueiter = 0;
   err_zero_current = err_zero;
+  divides = 0;
+  precision_increases = 0;
   
   #if CAP_CRYSTAL
   if(cryst && surface::sh == surface::dsNone) {
@@ -1176,7 +1222,7 @@ EX void init_model() {
         "Use a different projection to fix this."
         );
     }
-  catch(rug_exception) {
+  catch(const rug_exception&) {
     close();
     clear_model();
     }
@@ -1200,6 +1246,7 @@ EX void init() {
 EX void clear_model() {
   triangles.clear();
   for(int i=0; i<isize(points); i++) delete points[i];
+  rug_map.clear();
   points.clear();
   pqueue = queue<rugpoint*> ();
   }
@@ -1219,7 +1266,7 @@ ld protractor = 0;
 
 EX bool handlekeys(int sym, int uni) {
   USING_NATIVE_GEOMETRY;
-  if(NUMBERKEY == '1') {
+  if(NUMBERKEY == '2') {
     ld bdist = 1e12;
     if(finger_center) 
       finger_center = NULL;
@@ -1233,7 +1280,7 @@ EX bool handlekeys(int sym, int uni) {
     if(renderonce) renderlate+=10;
     return true;
     }
-  else if(NUMBERKEY == '2') {
+  else if(NUMBERKEY == '3') {
     #if CAP_CRYSTAL
     if(in_crystal())
       crystal::switch_z_coordinate();
@@ -1242,7 +1289,7 @@ EX bool handlekeys(int sym, int uni) {
       rotate_view(cspin(0, 2, M_PI));
     return true;
     }
-  else if(NUMBERKEY == '3') {
+  else if(NUMBERKEY == '4') {
     #if CAP_CRYSTAL
     if(in_crystal())
       crystal::flip_z();
@@ -1270,12 +1317,12 @@ EX void finger_on(int coord, ld val) {
 
 transmatrix last_orientation;
 
-EX ld ruggospeed = 1;
+EX ld move_on_touch = 1;
 
 EX void actDraw() {
   try {
 
-  if(!renderonce && !disable_texture) prepareTexture();
+  if(!renderonce && !(levellines && disable_texture)) prepareTexture();
   else if(renderlate) {
     renderlate--;
     prepareTexture();
@@ -1289,30 +1336,28 @@ EX void actDraw() {
   double alpha = (ticks - lastticks) / 1000.0;
   lastticks = ticks;
 
-  // if(ruggo) move_forward(ruggo * alpha);
-
   #if CAP_HOLDKEYS
-  Uint8 *keystate = SDL_GetKeyState(NULL);
-  if(keystate[SDLK_LALT]) alpha /= 10;
+  const Uint8 *keystate = SDL12_GetKeyState(NULL);
+  if(keystate[SDL12(SDLK_LALT, SDL_SCANCODE_LALT)]) alpha /= 10;
   #endif
 
   #if CAP_HOLDKEYS
   auto perform_finger = [=] () {
-    if(keystate[SDLK_HOME]) finger_range /= exp(alpha);
-    if(keystate[SDLK_END]) finger_range *= exp(alpha);
-    if(keystate[SDLK_LEFT]) finger_on(0, -alpha);
-    if(keystate[SDLK_RIGHT]) finger_on(0, alpha);
-    if(keystate[SDLK_UP]) finger_on(1, alpha);
-    if(keystate[SDLK_DOWN]) finger_on(1, -alpha);
-    if(keystate[SDLK_PAGEDOWN]) finger_on(2, -alpha);
-    if(keystate[SDLK_PAGEUP]) finger_on(2, +alpha);
+    if(keystate[SDL12(SDLK_HOME, SDL_SCANCODE_HOME)]) finger_range /= exp(alpha);
+    if(keystate[SDL12(SDLK_END, SDL_SCANCODE_END)]) finger_range *= exp(alpha);
+    if(keystate[SDL12(SDLK_LEFT, SDL_SCANCODE_LEFT)]) finger_on(0, -alpha);
+    if(keystate[SDL12(SDLK_RIGHT, SDL_SCANCODE_RIGHT)]) finger_on(0, alpha);
+    if(keystate[SDL12(SDLK_UP, SDL_SCANCODE_UP)]) finger_on(1, alpha);
+    if(keystate[SDL12(SDLK_DOWN, SDL_SCANCODE_DOWN)]) finger_on(1, -alpha);
+    if(keystate[SDL12(SDLK_PAGEDOWN, SDL_SCANCODE_PAGEDOWN)]) finger_on(2, -alpha);
+    if(keystate[SDL12(SDLK_PAGEUP, SDL_SCANCODE_PAGEUP)]) finger_on(2, +alpha);
     };
 
   if(finger_center)
     perform_finger();    
   #endif
     }
-  catch(rug_exception) {
+  catch(const rug_exception&) {
     rug::close();
     }
   }
@@ -1322,7 +1367,7 @@ int besti;
 static const ld RADAR_INF = 1e12;
 ld radar_distance = RADAR_INF;
 
-EX hyperpoint gethyper(ld x, ld y) {
+EX shiftpoint gethyper(ld x, ld y) {
   
   projection_configuration bak = pconf;
   pconf = rconf;
@@ -1330,6 +1375,24 @@ EX hyperpoint gethyper(ld x, ld y) {
 
   double mx = (x - current_display->xcenter)/current_display->radius;
   double my = (y - current_display->ycenter)/current_display->radius/pconf.stretch;
+
+  bool vr = vrhr::active() && which_pointer;
+  transmatrix U;
+
+  if(1) {
+    USING_NATIVE_GEOMETRY;
+    U = ortho_inverse(NLP) * rugView;
+    }
+  
+  #if CAP_VR
+  transmatrix T = Id;
+  if(vr) {
+    mx = my = 0;
+    E4;
+    vrhr::gen_mv();
+    T = vrhr::model_to_controller(which_pointer);
+    }
+  #endif
   
   calcparam();
   
@@ -1338,7 +1401,7 @@ EX hyperpoint gethyper(ld x, ld y) {
   double rx1=0, ry1=0;
   
   bool found = false;
-  
+
   for(int i=0; i<isize(triangles); i++) {
     auto r0 = triangles[i].m[0];
     auto r1 = triangles[i].m[1];
@@ -1358,13 +1421,31 @@ EX hyperpoint gethyper(ld x, ld y) {
           (r0->native[3] < 0) + (r1->native[3] < 0) + (r2->native[3] < 0);
         if(sp == 1 || sp == 2) continue;
         }
-    
-      applymodel(inverse(NLP) * rugView * r0->native, p0);
-      applymodel(inverse(NLP) * rugView * r1->native, p1);
-      applymodel(inverse(NLP) * rugView * r2->native, p2);
+      
+
+      auto find = [&] (const hyperpoint &native, hyperpoint& res) {
+        if(!vr) {
+          applymodel(shiftless(U * native), res);
+          }
+        #if CAP_VR
+        else {
+          dynamicval<int> vi(vrhr::state, 2);
+          bool bad;
+          res = vrhr::model_location(shiftless(U * native), bad);
+          if(bad) error = true;
+          E4; res[3] = 1; res = T * res;
+          }
+        #endif
+        };
+
+      find(r0->native, p0);
+      find(r1->native, p1);
+      find(r2->native, p2);
+      
       }
 
     if(error || spherepoints == 1 || spherepoints == 2) continue;
+    
     double dx1 = p1[0] - p0[0];
     double dy1 = p1[1] - p0[1];
     double dx2 = p2[0] - p0[0];
@@ -1380,23 +1461,27 @@ EX hyperpoint gethyper(ld x, ld y) {
     if(tx >= 0 && ty >= 0 && tx+ty <= 1) {
       double rz1 = p0[2] * (1-tx-ty) + p1[2] * tx + p2[2] * ty;
       rz1 = -rz1;
-      if(rz1 < radar_distance) {
+      if(vr && rz1 < 0) { /* behind the controller, ignore */ }
+      else if(rz1 < radar_distance) {
         radar_distance = rz1;
         rx1 = r0->x1 + (r1->x1 - r0->x1) * tx + (r2->x1 - r0->x1) * ty;
         ry1 = r0->y1 + (r1->y1 - r0->y1) * tx + (r2->y1 - r0->y1) * ty;
+        #if CAP_VR
+        if(vr) vrhr::pointer_distance = radar_distance;
+        #endif
         }
       found = true;
       }
     }
   
   pconf = bak;
-  if(!found) return Hypc;
+  if(!found) return shiftless(Hypc);
   
   double px = rx1 * TEXTURESIZE, py = (1-ry1) * TEXTURESIZE;
 
   calcparam_rug();
   models::configure();
-  hyperpoint h = hr::gethyper(px, py);
+  shiftpoint h = hr::gethyper(px, py);
   calcparam();
 
   return h;
@@ -1494,7 +1579,9 @@ EX void show() {
     if(rug::rugged)
       dialog::lastItem().value += " (" + fts(err_zero_current) + ")";
     }
-  dialog::addSelItem(XLAT("automatic move speed"), fts(ruggo), 'G');
+  #if ISMOBILE
+  dialog::addSelItem(XLAT("move on touch"), fts(move_on_touch), 'G');
+  #endif
   dialog::addSelItem(XLAT("anti-crossing"), fts(anticusp_factor), 'A');
   dialog::addBoolItem(XLAT("3D monsters/walls on the surface"), spatial_rug, 'S');
   dialog::add_action([] () { spatial_rug = !spatial_rug; });
@@ -1537,9 +1624,8 @@ EX void show() {
     else if(uni == 'o')
       renderonce = !renderonce;
     else if(uni == 'G') {
-      dialog::editNumber(ruggo, -1, 1, .1, 0, XLAT("automatic move speed"),
-        XLAT("Move automatically without pressing any keys.")
-        );
+      dialog::editNumber(move_on_touch, -1, 1, .1, 0, XLAT("move on touch"), "");
+      dialog::extra_options = anims::rug_angle_options;
       }
     else if(uni == 'A') {
       dialog::editNumber(anticusp_factor, 0, 1.5, .1, 0, XLAT("anti-crossing"),
@@ -1651,7 +1737,7 @@ EX void select() {
 EX void rug_save(string fname) {
   fhstream f(fname, "wb");
   if(!f.f) {
-    addMessage(XLAT("Failed to save rug to %1", fname));
+    addMessage(XLAT("Failed to save embedding to %1", fname));
     return;
     }
   f.write(f.vernum);
@@ -1692,7 +1778,7 @@ EX void rug_load(string fname) {
   clear_model();
   fhstream f(fname, "rb");
   if(!f.f) {
-    addMessage(XLAT("Failed to load rug from %1", fname));
+    addMessage(XLAT("Failed to load embedding from %1", fname));
     return;
     }
   f.read(f.vernum);
@@ -1785,10 +1871,6 @@ int rugArgs() {
     shift_arg_formula(lwidth);
     }
 
-  else if(argis("-rugauto")) {
-    shift_arg_formula(ruggo);
-    }
-
   else if(argis("-rugorth")) {
     rconf.model = mdEquidistant;
     }
@@ -1837,6 +1919,8 @@ auto rug_hook =
   addHook(hooks_args, 100, rugArgs);
 #endif
 
+auto clear_rug_map = addHook(hooks_clearmemory, 40, [] () { rug_map.clear(); });
+
 EX }
 
 #endif
@@ -1848,11 +1932,16 @@ EX namespace rug {
     EX bool rugged = false;
     EX bool renderonce = false;
     EX bool rendernogl = true;
+    EX bool mouse_control_rug = false;
     EX int texturesize = 512;
     EX ld scale = 1.0f;
     EX bool rug_control() { return false; }
     EX bool in_crystal() { return false; }
     EX void reset_view() { }
+    EX void close() { }
+#if HDR
+  struct using_rugview {};
+#endif
 EX }
 
 #endif

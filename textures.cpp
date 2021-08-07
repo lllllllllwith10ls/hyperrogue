@@ -38,10 +38,13 @@ enum eTextureState {
 struct texture_data {
   GLuint textureid;
 
-  int twidth;
+  int twidth, theight;
+  bool stretched, original;
   int tx, ty, origdim;
   
-  texture_data() { textureid = 0; twidth = 2048; }
+  int strx, stry, base_x, base_y;
+  
+  texture_data() { textureid = 0; twidth = 2048; theight = 0; stretched = false; original = false; }
 
   vector<color_t> texture_pixels;
 
@@ -152,7 +155,7 @@ SDL_Surface *convertSurface(SDL_Surface* s) {
   fmt.Aloss = fmt.Rloss = fmt.Gloss = fmt.Bloss = 0;
   fmt.palette = NULL;
 
-#ifndef SDL2
+#if !CAP_SDL2
   fmt.alpha = 0;
   fmt.colorkey = 0x1ffffff;
 #endif
@@ -298,12 +301,36 @@ bool texture_data::readtexture(string tn) {
   printf("texture read OK\n");
 
 #endif
+
+  if(twidth == 0) 
+    twidth = next_p2(tx);
+  if(theight == 0) theight = (stretched || original) ? next_p2(ty) : twidth;
+
+  texture_pixels.resize(twidth * theight);
+
+  if(stretched) {
+    int i = 0;
+    println(hlog, tx, " -> " , twidth, " / " , ty, " -> ", theight);
+    for(int y=0; y<theight; y++)
+    for(int x=0; x<twidth; x++)
+      texture_pixels[i++] = pix(x * tx / twidth, y * ty / theight);
+    strx = twidth; stry = theight; base_x = base_y = 0;
+    }
   
   if(tx == twidth && ty == twidth) {
     int i = 0;
     for(int y=0; y<ty; y++)
     for(int x=0; x<tx; x++)
       texture_pixels[i++] = pix(x, y);
+    }
+  
+  else if(original) {
+    base_x = 0;
+    base_y = 0;
+    strx = tx; stry = ty;
+    for(int y=0; y<ty; y++)
+    for(int x=0; x<tx; x++)
+      get_texture_pixel(x, y) = pix(x,y);
     }
    
   else {
@@ -696,7 +723,7 @@ enum eMagicParameter {
   mpMAX
   };
 
-vector<string> mpnames = {
+EX vector<string> mpnames = {
   "affect model scale",
   "affect model projection",
   "affect model central point",
@@ -1205,7 +1232,7 @@ void showMagicMenu() {
   }
 
 string texturehelp = 
-  "This mode lets you to change the floor tesselation easily -- "
+  "This mode lets you change the floor tesselation easily -- "
   "select 'paint a new texture' and draw like in a Paint program. "
   "The obtained pattern can then be easily changed to another geometry, "
   "or saved.\n\n"
@@ -1219,12 +1246,13 @@ string texturehelp =
 
 #if CAP_EDIT
 EX void start_editor() {
-  addMessage("white");
   if(config.data.whitetexture() && config.data.loadTextureGL()) {
     config.tstate = config.tstate_max = tsActive;
     config.perform_mapping();
     config.finish_mapping();
     mapeditor::initdraw(cwt.at);
+    mapeditor::intexture = true;
+    mapeditor::drawing_tool = false;
     pushScreen(mapeditor::showDrawEditor);
     }
   }
@@ -1292,7 +1320,7 @@ EX void showMenu() {
         pushScreen(patterns::showPrePattern);
       else {
         stop_game();
-        firstland = specialland = laCanvas;
+        enable_canvas();
         patterns::whichCanvas = 'g';
         patterns::canvasback = 0xFFFFFF;
         start_game();
@@ -1369,6 +1397,8 @@ EX void showMenu() {
     if(GDIM == 2) {
       dialog::addItem(XLAT("edit the texture"), 'e');
       dialog::add_action([] {
+        mapeditor::intexture = true;
+        mapeditor::drawing_tool = false;
         mapeditor::initdraw(cwt.at);
         pushScreen(mapeditor::showDrawEditor);
         });

@@ -29,6 +29,22 @@ EX bool canPickupItemWithMagnetism(cell *c, cell *from) {
   }
 
 EX bool doPickupItemsWithMagnetism(cell *c) {
+  /* repulsion works first -- Magnetism will collect the item if not repulsed */
+  if(items[itCurseRepulsion])
+    forCellIdEx(c3, i, c) if(c3->item) {
+      cellwalker cw(c, i);
+      cw += wstep;
+      for(int j=1; j<c3->type; j++) {
+        cell *c4 = (cw+j).peek();
+        if(!isNeighbor(c, c4) && c3->item && !c4->item && passable(c4, c3, ZERO)) {
+          changes.ccell(c3);
+          changes.ccell(c4);
+          c4->item = c3->item;
+          moveEffect(movei(c3, c4, (cw+j).spin), moDeadBird);
+          c3->item = itNone;
+          }
+        }
+      }
   cell *csaf = NULL;
   if(items[itOrbMagnetism])
     forCellEx(c3, c) if(canPickupItemWithMagnetism(c3, c)) {      
@@ -61,6 +77,10 @@ EX void pickupMovedItems(cell *c) {
         }
   }
 
+EX bool in_lovasz() {
+  return specialland == laMotion && bounded && ls::single() && !daily::on;
+  }
+
 EX bool collectItem(cell *c2, bool telekinesis IS(false)) {
 
   bool dopickup = true;
@@ -68,6 +88,14 @@ EX bool collectItem(cell *c2, bool telekinesis IS(false)) {
   
   if(cannotPickupItem(c2, telekinesis))
     return false;
+
+  if(items[itCurseGluttony] && c2->item) {
+    addMessage(XLAT("%The1 is consumed!", c2->item));
+    playSound(c2, "apple");
+    items[itCurseGluttony] = 0;
+    c2->item = itNone;
+    return false;
+    }
   
   /* if(c2->item == itHolyGrail && telekinesis)
     return false; */
@@ -78,7 +106,7 @@ EX bool collectItem(cell *c2, bool telekinesis IS(false)) {
     string s0 = "";
     
     if(c2->item == itPalace && items[c2->item] == 12)
-      princess::forceVizier = true;
+      changes.value_set(princess::forceVizier, true);
     
     if(!cantGetGrimoire(c2, false)) collectMessage(c2, c2->item);
     if(c2->item == itDodeca && peace::on) peace::simon::extend();
@@ -121,14 +149,29 @@ EX bool collectItem(cell *c2, bool telekinesis IS(false)) {
     if(markOrb(itOrbIntensity)) oc = intensify(oc);
     if(!items[it]) items[it]++;
     items[it] += oc;
+    
+    if(it == itOrbPurity) {
+      bool no_curses = true;
+      for(cell *c: dcal) if(c->land == laCursed) no_curses = false;
+      if(no_curses) {
+        items[itOrbSpeed] += 5;
+        items[itOrbWinter] += 5;
+        items[itOrbSlaying] += 5;
+        items[itOrbTime] += 5;
+        items[itOrbMagnetism] += 5;
+        items[itOrbChoice] += 5;
+        }
+      }
     }
   else if(c2->item == itOrbLife) {
     playSound(c2, "pickup-orb"); // TODO summon
     placeGolem(cwt.at, c2, moGolem);
+    if(cwt.at->monst == moGolem) cwt.at->stuntime = 0;
     }
   else if(c2->item == itOrbFriend) {
     playSound(c2, "pickup-orb"); // TODO summon
     placeGolem(cwt.at, c2, moTameBomberbird);
+    if(cwt.at->monst == moTameBomberbird) cwt.at->stuntime = 0;
     }
 #if CAP_TOUR
   else if(tour::on && (c2->item == itOrbSafety || c2->item == itOrbRecall)) {
@@ -204,7 +247,7 @@ EX bool collectItem(cell *c2, bool telekinesis IS(false)) {
   else if(c2->item == itKey) {
     playSound(c2, "pickup-key");
     for(int i=0; i<isize(yendor::yi); i++) if(yendor::yi[i].actual_key() == c2)
-      yendor::yi[i].found = true;
+      changes.value_set(yendor::yi[i].found, true);
     items[itKey]++;
     }
   else if(!telekinesis && cantGetGrimoire(c2)) {
@@ -347,14 +390,15 @@ EX void moveItem1(cell *from, cell *to, bool activateYendor) {
     if(xnew && activateYendor) yendor::check(from);
     for(int i=0; i<isize(yendor::yi); i++) 
       if(yendor::yi[i].path[0] == from) 
-        yendor::yi[i].path[0] = to;
+        changes.value_set(yendor::yi[i].path[0], to);
     }
 
   if(from->item == itKey) {
-    for(int i=0; i<isize(yendor::yi); i++) if(yendor::yi[i].path[YDIST-1] == from)
-      yendor::yi[i].path[YDIST-1] = to;
+    for(int i=0; i<isize(yendor::yi); i++) if(yendor::yi[i].path[YDIST-1] == from) {
+      changes.value_set(yendor::yi[i].path[YDIST-1], to);
+      }
     for(int i=0; i<isize(yendor::yi); i++) if(yendor::yi[i].actualKey == from)
-      yendor::yi[i].actualKey = to;
+      changes.value_set(yendor::yi[i].actualKey, to);
     }
   
   if(from->item == itBabyTortoise) {
@@ -471,7 +515,7 @@ EX void gainItem(eItem it) {
   if(it == itHyperstone && items[itHyperstone] == 10)
     achievement_victory(true);
 
-  if(chaosmode && gold() >= 300)
+  if(ls::any_chaos() && gold() >= 300)
     achievement_gain_once("CHAOS", rg::chaos);
 
 #if ISMOBILE
@@ -526,7 +570,7 @@ EX void placeItems(int qty, eItem it) {
   }
 
 EX bool cantGetGrimoire(cell *c2, bool verbose IS(true)) {
-  if(chaosmode) return false;
+  if(ls::any_chaos()) return false;
   if(!eubinary && !c2->master->alt) return false;
   if(c2->item == itGrimoire && items[itGrimoire] > celldistAlt(c2)/-temple_layer_size()) {
     if(verbose)
@@ -617,13 +661,13 @@ EX void collectMessage(cell *c2, eItem which) {
   else if(which == itPalace && items[itPalace] == U5-1 && !specialmode && isLandIngame(laDungeon)) {
     addMessage(XLAT("The rug depicts a man in a deep dungeon, unable to leave."));
     }
-  else if(which == itFeather && items[itFeather] == 25-1 && !specialmode && inv::on && !chaosmode)
+  else if(which == itFeather && items[itFeather] == 25-1 && !specialmode && inv::on && !ls::any_chaos())
     addMessage(XLAT("You feel the presence of free saves on the Crossroads."));
-  else if(which == itHell && items[itHell] == 25-1 && !specialmode && inv::on && !chaosmode)
+  else if(which == itHell && items[itHell] == 25-1 && !specialmode && inv::on && !ls::any_chaos())
     addMessage(XLAT("You feel the Orbs of Yendor nearby..."));
-  else if(which == itHell && items[itHell] == 50-1 && !specialmode && inv::on && !chaosmode)
+  else if(which == itHell && items[itHell] == 50-1 && !specialmode && inv::on && !ls::any_chaos())
     addMessage(XLAT("You feel the Orbs of Yendor in the Crossroads..."));
-  else if(which == itHell && items[itHell] == 100-1 && !specialmode && inv::on && !chaosmode)
+  else if(which == itHell && items[itHell] == 100-1 && !specialmode && inv::on && !ls::any_chaos())
     addMessage(XLAT("You feel the Orbs of Yendor everywhere..."));
   else if(which == itBone && items[itBone] % 25 == 24 && !specialmode && inv::on)
     addMessage(XLAT("You have gained an offensive power!"));

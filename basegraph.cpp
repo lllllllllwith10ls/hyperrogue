@@ -8,8 +8,6 @@
 #include "hyper.h"
 namespace hr {
 
-EX int fontscale = 100;
-
 #if HDR
 /** configuration of the current view */
 struct display_data {
@@ -108,17 +106,50 @@ EX int getnext(const char* s, int& i) {
     if(eqs(s+i, natchars[k])) {
       i += siz; return 128+k;
       }
+
+#ifdef REPLACE_LETTERS
+  for(int j=0; j<isize(dialog::latin_letters_l); j++)
+    if(s[i] == dialog::foreign_letters[2*j] && s[i+1] == dialog::foreign_letters[2*j+1]) {
+      i += 2;
+      return int(dialog::latin_letters_l[j]);
+      }
+#endif
+
   printf("Unknown character in: '%s' at position %d\n", s, i);
-  i ++; return '?';
+  i += siz; return '?';
   }
 
 #if CAP_SDLTTF
-TTF_Font *font[256];
+const int max_font_size = 288;
+TTF_Font* font[max_font_size+1];
+
+void fix_font_size(int& size) {
+  if(size < 1) size = 1;
+  if(size > max_font_size) size = max_font_size;
+  if(size > 72) size &=~ 3;
+  if(size > 144) size &=~ 7;
+  }
 #endif
 
 #if CAP_SDL
+
+#if !CAP_SDL2
+#if HDR
+typedef SDL_Surface SDL_Renderer;
+#define srend s
+#endif
+#endif
+
 EX SDL_Surface *s;
 EX SDL_Surface *s_screen;
+#if CAP_SDL2
+EX SDL_Renderer *s_renderer, *s_software_renderer;
+#if HDR
+#define srend s_software_renderer
+#endif
+EX SDL_Texture *s_texture;
+EX SDL_Window *s_window;
+#endif
 
 EX color_t qpixel_pixel_outside;
 
@@ -130,6 +161,31 @@ EX color_t& qpixel(SDL_Surface *surf, int x, int y) {
   return pi[x];
   }
 
+EX void present_surface() {
+  #if CAP_SDL2
+  SDL_UpdateTexture(s_texture, nullptr, s->pixels, s->w * sizeof (Uint32));
+  SDL_RenderClear(s_renderer);
+  SDL_RenderCopy(s_renderer, s_texture, nullptr, nullptr);
+  SDL_RenderPresent(s_renderer);
+  #else
+  SDL_UpdateRect(s, 0, 0, 0, 0);  
+  #endif
+  }
+
+EX void present_screen() {
+#if CAP_GL
+  if(vid.usingGL) {
+    #if CAP_SDL2
+    SDL_GL_SwapWindow(s_window);
+    #else
+    SDL_GL_SwapBuffers();
+    #endif
+    return;
+    }
+#endif
+  present_surface();
+  }
+
 #endif
 
 #if CAP_SDLTTF
@@ -137,6 +193,7 @@ EX color_t& qpixel(SDL_Surface *surf, int x, int y) {
 EX string fontpath = ISWEB ? "sans-serif" : HYPERPATH "DejaVuSans-Bold.ttf";
 
 void loadfont(int siz) {
+  fix_font_size(siz);
   if(!font[siz]) {
     font[siz] = TTF_OpenFont(fontpath.c_str(), siz);
     // Destination set by ./configure (in the GitHub repository)
@@ -158,6 +215,7 @@ int textwidth(int siz, const string &str) {
   if(isize(str) == 0) return 0;
 
 #if CAP_SDLTTF
+  fix_font_size(siz);
   loadfont(siz);
   
   int w, h;
@@ -179,39 +237,6 @@ int textwidth(int siz, const string &str) {
   }
 #endif
 
-EX int darkenedby(int c, int lev) {
-  for(int i=0; i<lev; i++)
-    c = ((c & 0xFEFEFE) >> 1);
-  return c;
-  }
-
-bool fading = false;
-
-ld fadeout = 1;
-
-EX color_t darkened(color_t c) {
-  if(inmirrorcount&1)
-    c = gradient(c, winf[waMirror].color, 0, 0.5, 1);
-  else if(inmirrorcount)
-    c = gradient(c, winf[waCloud].color, 0, 0.5, 1);
-  if(fading) c = gradient(backcolor, c, 0, fadeout, 1);
-  if(vid.desaturate) {
-    ld luminance = 0.2125 * part(c,2) + 0.7154 * part(c,1) + 0.0721 * part(c, 0);
-    c = gradient(c, int(luminance+.5) * 0x10101, 0, vid.desaturate, 100);
-    }
-  for(int i=0; i<darken; i++)
-    c = ((c & 0xFEFEFE) >> 1) + ((backcolor & 0xFEFEFE) >> 1);
-  return c;
-  }
-
-EX color_t darkena3(color_t c, int lev, int a) {
-  return (darkenedby(c, lev) << 8) + a;
-  }
-
-EX color_t darkena(color_t c, int lev, int a) {
-  return darkena3(c, lev, GDIM == 3 ? 255 : a);
-  }
-
 #if !CAP_GL
 void setcameraangle(bool b) { }
 #endif
@@ -220,7 +245,7 @@ void setcameraangle(bool b) { }
 EX void reset_projection() { }
 EX void glflush() { }
 EX bool model_needs_depth() { return false; }
-void display_data::set_all(int ed) {}
+void display_data::set_all(int ed, ld lshift) {}
 #endif
 
 #if CAP_GL
@@ -293,7 +318,7 @@ EX void setGLProjection(color_t col IS(backcolor)) {
 
   glClearColor(part(col, 2) / 255.0, part(col, 1) / 255.0, part(col, 0) / 255.0, 1);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
+  
   GLERR("setGLProjection #1");
 
   glEnable(GL_BLEND);
@@ -347,15 +372,22 @@ EX  int next_p2 (int a ) {
 
 #define CHARS (128+NUMEXTRA)
 
+#if HDR
+struct charinfo_t {
+  int w, h;
+  float tx0, ty0, tx1, ty1;
+  };
+
 struct glfont_t {
   GLuint texture;                                     // Holds The Texture Id
 //GLuint list_base;                                   // Holds The First Display List ID  
-  int widths[CHARS];
-  int heights[CHARS];
-  float tx0[CHARS], tx1[CHARS], ty0[CHARS], ty1[CHARS];
+  vector<charinfo_t> chars; 
   };
 
-glfont_t *glfont[256];
+const int max_glfont_size = 72;
+#endif
+
+EX glfont_t *glfont[max_glfont_size+1];
 
 typedef Uint16 texturepixel;
 
@@ -376,7 +408,7 @@ void sdltogl(SDL_Surface *txt, glfont_t& f, int ch) {
   int otheight = txt->h;
 #endif
   
-  if(otwidth+curx > FONTTEXTURESIZE) curx = 0, cury += theight, theight = 0;
+  if(otwidth+curx+1 > FONTTEXTURESIZE) curx = 0, cury += theight+1, theight = 0;
   
   theight = max(theight, otheight);
   
@@ -389,17 +421,19 @@ void sdltogl(SDL_Surface *txt, glfont_t& f, int ch) {
 #endif
     }
   
-  f.widths[ch] = otwidth;
-  f.heights[ch] = otheight;
+  auto& c = f.chars[ch];
+  
+  c.w = otwidth;
+  c.h = otheight;
 
-  f.tx0[ch] = (float) curx / (float) FONTTEXTURESIZE;
-  f.tx1[ch] = (float) (curx+otwidth) / (float) FONTTEXTURESIZE;
-  f.ty0[ch] = (float) cury;
-  f.ty1[ch] = (float) (cury+otheight);
-  curx += otwidth;
+  c.tx0 = (float) curx / (float) FONTTEXTURESIZE;
+  c.tx1 = (float) (curx+otwidth) / (float) FONTTEXTURESIZE;
+  c.ty0 = (float) cury;
+  c.ty1 = (float) (cury+otheight);
+  curx += otwidth+1;
   }
   
-void init_glfont(int size) {
+EX void init_glfont(int size) {
   if(glfont[size]) return;
   DEBBI(DF_GRAPH, ("init GL font: ", size));
   
@@ -411,6 +445,8 @@ void init_glfont(int size) {
   glfont[size] = new glfont_t;
   
   glfont_t& f(*(glfont[size]));
+  
+  f.chars.resize(CHARS);
 
 //f.list_base = glGenLists(128);
   glGenTextures(1, &f.texture );
@@ -421,6 +457,10 @@ void init_glfont(int size) {
   SDL_Color white;
   white.r = white.g = white.b = 255;
 #endif
+
+  for(int y=0; y<FONTTEXTURESIZE; y++)
+  for(int x=0; x<FONTTEXTURESIZE; x++)
+    fontdata[y][x] = 0;
 
 #if CAP_TABFONT
   resetTabFont();
@@ -439,12 +479,14 @@ void init_glfont(int size) {
 
 #else
     SDL_Surface *txt;
+    int siz = size;
+    fix_font_size(siz);
     if(ch < 128) {
       str[0] = ch;
-      txt = TTF_RenderText_Blended(font[size], str, white);
+      txt = TTF_RenderText_Blended(font[siz], str, white);
       }
     else {
-      txt = TTF_RenderUTF8_Blended(font[size], natchars[ch-128], white);
+      txt = TTF_RenderUTF8_Blended(font[siz], natchars[ch-128], white);
       }
     if(txt == NULL) continue;
 #if CAP_CREATEFONT
@@ -465,7 +507,7 @@ void init_glfont(int size) {
     GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, 
     fontdata);
 
-  for(int ch=0; ch<CHARS; ch++) f.ty0[ch] /= theight, f.ty1[ch] /= theight;
+  for(int ch=0; ch<CHARS; ch++) f.chars[ch].ty0 /= theight, f.chars[ch].ty1 /= theight;
  
 #if CAP_CREATEFONT
   printf("#define NUMEXTRA %d\n", NUMEXTRA);
@@ -479,7 +521,7 @@ void init_glfont(int size) {
 
 int gl_width(int size, const char *s) {
   int gsiz = size;
-  if(size > vid.fsize || size > 72) gsiz = 72;
+  if(size > vid.fsize || size > max_glfont_size) gsiz = max_glfont_size;
 
 #if CAP_FIXEDSIZE
   gsiz = CAP_FIXEDSIZE;
@@ -493,7 +535,7 @@ int gl_width(int size, const char *s) {
   int x = 0;
   for(int i=0; s[i];) {
     int tabid = getnext(s,i);    
-    x += f.widths[tabid] * size/gsiz;
+    x += f.chars[tabid].w * size/gsiz;
     }
   
   return x;
@@ -512,7 +554,7 @@ glhr::textured_vertex charvertex(int x1, int y1, ld tx, ld ty) {
 
 bool gl_print(int x, int y, int shift, int size, const char *s, color_t color, int align) {
   int gsiz = size;
-  if(size > vid.fsize || size > 72) gsiz = 72;
+  if(size > vid.fsize || size > max_glfont_size) gsiz = max_glfont_size;
 
 #if CAP_FIXEDSIZE
   gsiz = CAP_FIXEDSIZE;
@@ -526,12 +568,12 @@ bool gl_print(int x, int y, int shift, int size, const char *s, color_t color, i
   int tsize = 0;
   
   for(int i=0; s[i];) {
-    tsize += f.widths[getnext(s,i)] * size/gsiz;
+    tsize += f.chars[getnext(s,i)].w * size/gsiz;
     }
   x -= tsize * align / 16;
-  y += f.heights[32] * size / (gsiz*2);
+  y += f.chars[32].h * size / (gsiz*2);
   
-  int ysiz = f.heights[32] * size / gsiz;
+  int ysiz = f.chars[32].h * size / gsiz;
 
   bool clicked = (mousex >= x && mousey <= y && mousex <= x+tsize && mousey >= y-ysiz);
   
@@ -551,15 +593,16 @@ bool gl_print(int x, int y, int shift, int size, const char *s, color_t color, i
   for(int i=0; s[i];) {
   
     int tabid = getnext(s,i);
-    int wi = f.widths[tabid] * size/gsiz;
-    int hi = f.heights[tabid] * size/gsiz;
+    auto& c = f.chars[tabid];
+    int wi = c.w * size/gsiz;
+    int hi = c.h * size/gsiz;
 
     GLERR("pre-print");
-  
-    glhr::textured_vertex t00 = charvertex(x,    y-hi, f.tx0[tabid], f.ty0[tabid]);
-    glhr::textured_vertex t01 = charvertex(x,    y,    f.tx0[tabid], f.ty1[tabid]);
-    glhr::textured_vertex t11 = charvertex(x+wi, y,    f.tx1[tabid], f.ty1[tabid]);
-    glhr::textured_vertex t10 = charvertex(x+wi, y-hi, f.tx1[tabid], f.ty0[tabid]);
+      
+    glhr::textured_vertex t00 = charvertex(x,    y-hi, c.tx0, c.ty0);
+    glhr::textured_vertex t01 = charvertex(x,    y,    c.tx0, c.ty1);
+    glhr::textured_vertex t11 = charvertex(x+wi, y,    c.tx1, c.ty1);
+    glhr::textured_vertex t10 = charvertex(x+wi, y-hi, c.tx1, c.ty0);
     
     tver.push_back(t00);
     tver.push_back(t01);
@@ -582,7 +625,7 @@ EX void resetGL() {
   DEBBI(DF_INIT | DF_GRAPH, ("reset GL"))
   callhooks(hooks_resetGL);
 #if CAP_GLFONT
-  for(int i=0; i<128; i++) if(glfont[i]) {
+  for(int i=0; i<=max_glfont_size; i++) if(glfont[i]) {
     delete glfont[i];
     glfont[i] = NULL;
     }
@@ -593,6 +636,12 @@ EX void resetGL() {
     floor_textures = NULL;
     }
 #endif
+  #if MAXMDIM >= 4 && CAP_GL
+  if(airbuf) {
+    delete airbuf;
+    airbuf = nullptr;
+    }
+  #endif
   check_cgi();
   if(currentmap) cgi.require_shapes();
   #if MAXMDIM >= 4
@@ -698,6 +747,7 @@ EX bool displaystr(int x, int y, int shift, int size, const char *str, color_t c
   
   col.r >>= darken; col.g >>= darken; col.b >>= darken;
 
+  fix_font_size(size);
   loadfont(size);
 
   SDL_Surface *txt = ((vid.antialias & AA_FONT)?TTF_RenderUTF8_Blended:TTF_RenderUTF8_Solid)(font[size], str, col);
@@ -715,7 +765,11 @@ EX bool displaystr(int x, int y, int shift, int size, const char *str, color_t c
   bool clicked = (mousex >= rect.x && mousey >= rect.y && mousex <= rect.x+rect.w && mousey <= rect.y+rect.h);
   
   if(shift) {
+    #if CAP_SDL2
+    SDL_Surface* txt2 = SDL_ConvertSurfaceFormat(txt, SDL_PIXELFORMAT_RGBA8888, 0);
+    #else
     SDL_Surface* txt2 = SDL_DisplayFormat(txt);
+    #endif
     SDL_LockSurface(txt2);
     SDL_LockSurface(s);
     color_t c0 = qpixel(txt2, 0, 0);
@@ -858,6 +912,7 @@ EX ld realradius() {
   }
 
 EX void drawmessage(const string& s, int& y, color_t col) {
+  if(nomsg) return;
   int rrad = (int) realradius();
   int space;
   if(dual::state)
@@ -928,17 +983,6 @@ EX void drawmessages() {
     }
   }
 
-EX color_t gradient(color_t c0, color_t c1, ld v0, ld v, ld v1) {
-  int vv = int(256 * ((v-v0) / (v1-v0)));
-  color_t c = 0;
-  for(int a=0; a<4; a++) {
-    int p0 = part(c0, a);
-    int p1 = part(c1, a);
-    part(c, a) = (p0*(256-vv) + p1*vv + 127) >> 8;
-    }
-  return c;
-  }
-
 EX void drawCircle(int x, int y, int size, color_t color, color_t fillcolor IS(0)) {
   if(size < 0) size = -size;
   #if CAP_GL && CAP_POLY
@@ -972,15 +1016,15 @@ EX void drawCircle(int x, int y, int size, color_t color, color_t fillcolor IS(0
   #endif
 
 #if CAP_XGD
-  gdpush(4); gdpush(color); gdpush(x); gdpush(y); gdpush(size);
+  gdpush(4); gdpush(color); gdpush(fillcolor); gdpush(x); gdpush(y); gdpush(size);
 #elif CAP_SDLGFX
   if(pconf.stretch == 1) {
-    if(fillcolor) filledCircleColor(s, x, y, size, fillcolor);
-    if(color) ((vid.antialias && AA_NOGL)?aacircleColor:circleColor) (s, x, y, size, color);
+    if(fillcolor) filledCircleColor(srend, x, y, size, fillcolor);
+    if(color) ((vid.antialias && AA_NOGL)?aacircleColor:circleColor) (srend, x, y, size, align(color));
     }
   else {
-    if(fillcolor) filledEllipseColor(s, x, y, size, size * pconf.stretch, fillcolor);
-    if(color) ((vid.antialias && AA_NOGL)?aaellipseColor:ellipseColor) (s, x, y, size, size * pconf.stretch, color);
+    if(fillcolor) filledEllipseColor(srend, x, y, size, size * pconf.stretch, fillcolor);
+    if(color) ((vid.antialias && AA_NOGL)?aaellipseColor:ellipseColor) (srend, x, y, size, size * pconf.stretch, align(color));
     }
 #elif CAP_SDL
   int pts = size * 4;
@@ -1029,69 +1073,237 @@ EX void displayColorButton(int x, int y, const string& name, int key, int align,
 ld textscale() { 
   return vid.fsize / (current_display->radius * cgi.crossf) * (1+pconf.alpha) * 2;
   }
-  
-EX bool setfsize = true;
 
-EX bool vsync_off;
-
-EX void do_setfsize() {
+EX void compute_fsize() {
   dual::split_or_do([&] {
-    vid.fsize = min(vid.yres * fontscale/ 3200, vid.xres * fontscale/ 4800), setfsize = false;
+    if(vid.relative_font)
+      vid.fsize = min(vid.yres * vid.fontscale/ 3200, vid.xres * vid.fontscale/ 4800);
+    else
+      vid.fsize = vid.abs_fsize;
+    if(vid.fsize < 6) vid.fsize = 6;
     });
   }
 
-EX void disable_vsync() {
-#if CAP_SDL && CAP_GL && !ISMOBWEB
-  SDL_GL_SetAttribute( SDL_GL_SWAP_CONTROL, 0 ); 
-#endif
+EX bool graphics_on;
+
+EX bool want_vsync() {
+  if(vrhr::active())
+    return false;
+  return vid.want_vsync;
   }
-  
+
+EX bool need_to_reopen_window() {
+  if(vid.want_antialias != vid.antialias)
+    return true;
+  if(vid.wantGL != vid.usingGL)
+    return true;
+  if(want_vsync() != vid.current_vsync)
+    return true;
+  return false;
+  }
+
+EX bool need_to_apply_screen_settings() {
+  if(need_to_reopen_window())
+    return true;
+  if(vid.want_fullscreen != vid.full)
+    return true;
+  if(make_pair(vid.xres, vid.yres) != get_requested_resolution())
+    return true;
+  return false;
+  }
+
+EX void close_renderer() {
+  #if CAP_SDL2
+  if(s_renderer) SDL_DestroyRenderer(s_renderer), s_renderer = nullptr;
+  if(s_texture) SDL_DestroyTexture(s_texture), s_texture = nullptr;
+  if(s) SDL_FreeSurface(s), s = nullptr;
+  if(s_software_renderer) SDL_DestroyRenderer(s_software_renderer), s_software_renderer = nullptr;
+  #endif
+  }
+
+EX void close_window() {
+  #if CAP_SDL2
+  close_renderer();
+  if(s_window) SDL_DestroyWindow(s_window), s_window = nullptr;
+  #endif
+  }
+
+EX void apply_screen_settings() {
+  if(!need_to_apply_screen_settings()) return;
+  if(!graphics_on) return;
+ 
+#if ISANDROID
+  if(vid.full != vid.want_fullscreen)
+    addMessage(XLAT("Reenter HyperRogue to apply this setting"));
+#endif
+
+  close_renderer();
+  #if CAP_VR
+  if(vrhr::state) vrhr::shutdown_vr();
+  #endif
+
+  #if CAP_SDL
+  #if !CAP_SDL2
+  if(need_to_reopen_window())
+    SDL_QuitSubSystem(SDL_INIT_VIDEO);
+  #endif
+  #endif
+
+  graphics_on = false;
+  android_settings_changed();
+  init_graph();
+  #if CAP_GL
+  if(vid.usingGL) {
+    glhr::be_textured(); glhr::be_nontextured();
+    }
+  #endif
+  }
+
+EX pair<int, int> get_requested_resolution() {
+  #if ISMOBILE || ISFAKEMOBILE
+  return { vid.xres, vid.yres };
+  #endif
+  if(vid.want_fullscreen && vid.change_fullscr)
+    return { vid.fullscreen_x, vid.fullscreen_y };
+  else if(vid.want_fullscreen)
+    return { vid.xres = vid.xscr, vid.yres = vid.yscr };
+  else if(vid.relative_window_size)
+    return { vid.xscr * vid.window_rel_x + .5, vid.yscr * vid.window_rel_y + .5 };
+  else
+    return { vid.window_x, vid.window_y };
+  }
+
+#ifndef CUSTOM_CAPTION
+#define CUSTOM_CAPTION ("HyperRogue " VER)
+#endif
+
+EX bool resizable = true;
+
+EX void setvideomode_android() {
+  vid.usingGL = vid.wantGL;
+  vid.full = vid.want_fullscreen;
+  vid.antialias = vid.want_antialias;
+  }
+
 #if CAP_SDL
+
+EX int current_window_flags = -1;
+
 EX void setvideomode() {
 
   DEBBI(DF_INIT | DF_GRAPH, ("setvideomode"));
   
-  if(!vid.full) {
-    if(vid.xres > vid.xscr) vid.xres = vid.xscr * 9/10, setfsize = true;
-    if(vid.yres > vid.yscr) vid.yres = vid.yscr * 9/10, setfsize = true;    
-    }
+  vid.full = vid.want_fullscreen;
   
-  if(setfsize) do_setfsize();
+  tie(vid.xres, vid.yres) = get_requested_resolution();
+    
+  compute_fsize();
 
   int flags = 0;
   
+  vid.antialias = vid.want_antialias;
+    
 #if CAP_GL
+  vid.usingGL = vid.wantGL;
   if(vid.usingGL) {
-    flags = SDL_OPENGL | SDL_HWSURFACE;
+    flags = SDL12(SDL_OPENGL | SDL_HWSURFACE, SDL_WINDOW_OPENGL | SDL_WINDOW_ALLOW_HIGHDPI);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 1);
-    if(vsync_off) disable_vsync();
+
+    vid.current_vsync = want_vsync();
+    #if !ISMOBWEB && !CAP_SDL2
+    if(vid.current_vsync) 
+      SDL_GL_SetAttribute( SDL_GL_SWAP_CONTROL, 1 );
+    else
+      SDL_GL_SetAttribute( SDL_GL_SWAP_CONTROL, 0 ); 
+    #endif
     if(vid.antialias & AA_MULTI) {
       SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
       SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, (vid.antialias & AA_MULTI16) ? 16 : 4);
       }
     }
+#else
+  vid.usingGL = false;
 #endif
 
-  int sizeflag = (vid.full ? SDL_FULLSCREEN : SDL_RESIZABLE);
+  int sizeflag = SDL12(vid.full ? SDL_FULLSCREEN : resizable ? SDL_RESIZABLE : 0, vid.full ? SDL_WINDOW_FULLSCREEN : resizable ? SDL_WINDOW_RESIZABLE : 0);
+
+  #ifdef WINDOWS
+  #ifndef OLD_MINGW
+  static bool set_awareness = true;
+  if(set_awareness) {
+    set_awareness = false;
+    HMODULE user32_dll = LoadLibraryA("User32.dll");
+    if (user32_dll) {
+      DPI_AWARENESS_CONTEXT (WINAPI * Loaded_SetProcessDpiAwarenessContext) (DPI_AWARENESS_CONTEXT) =
+        (DPI_AWARENESS_CONTEXT (WINAPI *) (DPI_AWARENESS_CONTEXT)) (void*)
+        GetProcAddress(user32_dll, "SetProcessDpiAwarenessContext");
+      if(Loaded_SetProcessDpiAwarenessContext) {
+        Loaded_SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+        }
+      FreeLibrary(user32_dll);
+      }
+    }
+  #endif
+  #endif
   
-  s = s_screen = SDL_SetVideoMode(vid.xres, vid.yres, 32, flags | sizeflag);
+  #if CAP_SDL2
+  if(s_renderer) SDL_DestroyRenderer(s_renderer), s_renderer = nullptr;
+  #endif
+
+  auto create_win = [&] {
+    #if CAP_SDL2
+    if(s_window && current_window_flags != (flags | sizeflag))
+      SDL_DestroyWindow(s_window), s_window = nullptr;
+    if(s_window)
+      SDL_SetWindowSize(s_window, vid.xres, vid.yres);
+    else
+      s_window = SDL_CreateWindow(CUSTOM_CAPTION, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 
+      vid.xres, vid.yres,
+      flags | sizeflag
+      );
+    current_window_flags = (flags | sizeflag);
+    #else
+    s = SDL_SetVideoMode(vid.xres, vid.yres, 32, flags | sizeflag);
+    #endif  
+    };
   
-  if(vid.full && !s) {
+  create_win();
+  
+  auto& sw = SDL12(s, s_window);
+  
+  if(vid.full && !sw) {
     vid.xres = vid.xscr;
     vid.yres = vid.yscr;
-    do_setfsize();
-    s = s_screen = SDL_SetVideoMode(vid.xres, vid.yres, 32, flags | SDL_FULLSCREEN);
+    vid.fsize = 10;
+    sizeflag = SDL12(SDL_FULLSCREEN, SDL_WINDOW_FULLSCREEN);
+    create_win();
     }
 
-  if(!s) {
+  if(!sw) {
     addMessage("Failed to set the graphical mode: "+its(vid.xres)+"x"+its(vid.yres)+(vid.full ? " fullscreen" : " windowed"));
     vid.xres = 640;
     vid.yres = 480;
-    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 0);
+    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 0);    
     vid.antialias &= ~AA_MULTI;
-    s = s_screen = SDL_SetVideoMode(vid.xres, vid.yres, 32, flags | SDL_RESIZABLE);
+    sizeflag = SDL12(SDL_RESIZABLE, SDL_WINDOW_RESIZABLE);
+    create_win();
     }
+  
+  #if CAP_SDL2
+  s_renderer = SDL_CreateRenderer(s_window, -1, vid.current_vsync ? SDL_RENDERER_PRESENTVSYNC : 0);
+  SDL_GetRendererOutputSize(s_renderer, &vid.xres, &vid.yres);
+  
+  if(s_texture) SDL_DestroyTexture(s_texture), s_texture = nullptr;
+  s_texture = SDL_CreateTexture(s_renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, vid.xres, vid.yres);
+  
+  if(s) SDL_FreeSurface(s), s = nullptr;
+  s = shot::empty_surface(vid.xres, vid.yres, false);
+  
+  if(s_software_renderer) SDL_DestroyRenderer(s_software_renderer), s_software_renderer = nullptr;
+  s_software_renderer = SDL_CreateSoftwareRenderer(s);
+  #endif
+  s_screen = s;
 
 #if CAP_GL
   if(vid.usingGL) {
@@ -1115,7 +1327,102 @@ EX void setvideomode() {
 
 EX bool noGUI = false;
 
-EX void initgraph() {
+#if CAP_SDL
+EX bool sdl_on = false;
+EX int SDL_Init1(Uint32 flags) {
+  if(!sdl_on) {
+    sdl_on = true;
+    return SDL_Init(flags);
+    }
+  else  
+    return SDL_InitSubSystem(flags);
+  }
+#endif
+
+EX void init_font() {
+#if CAP_SDLTTF
+  if(TTF_Init() != 0) {
+    printf("Failed to initialize TTF.\n");
+    exit(2);
+    }
+#endif
+  }
+
+EX void close_font() {
+#if CAP_SDLTTF
+  for(int i=0; i<=max_font_size; i++) if(font[i]) {
+    TTF_CloseFont(font[i]);
+    font[i] = nullptr;
+    }
+  TTF_Quit();
+#endif
+#if CAL_GLFONT
+  for(int i=0; i<=max_glfont_size; i++) if(glfont[i]) {
+    delete glfont[i];
+    glfont[i] = nullptr;
+    }
+#endif
+  }
+
+EX void init_graph() {
+#if CAP_SDL
+  if (SDL_Init1(SDL_INIT_VIDEO) == -1)
+  {
+    printf("Failed to initialize video.\n");
+    exit(2);
+  }
+
+#if ISWEB
+  vid.xscr = vid.xres = 1200;
+  vid.yscr = vid.yres = 900;
+#else
+  if(!vid.xscr) {
+    #if CAP_SDL2
+    SDL_DisplayMode dm;
+    SDL_GetCurrentDisplayMode(0, &dm);
+    vid.xscr = vid.xres = dm.w;
+    vid.yscr = vid.yres = dm.h;
+    #else
+    const SDL_VideoInfo *inf = SDL_GetVideoInfo();
+    vid.xscr = vid.xres = inf->current_w;
+    vid.yscr = vid.yres = inf->current_h;
+    #endif
+    }
+#endif
+
+#if !CAP_SDL2
+  SDL_WM_SetCaption(CUSTOM_CAPTION, CUSTOM_CAPTION);
+#endif
+#endif
+  graphics_on = true;
+
+#if ISIOS
+  vid.usingGL = true;
+#endif
+
+#if ISANDROID
+  setvideomode_android();
+#endif
+
+#if CAP_SDL
+  setvideomode();
+  if(!s) {
+    printf("Failed to initialize graphics.\n");
+    exit(2);
+    }
+    
+  #if !CAP_SDL2
+  SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
+  SDL_EnableUNICODE(1);
+  #endif
+#endif  
+
+#if ISANDROID
+  vid.full = vid.want_fullscreen;
+#endif
+  }
+
+EX void initialize_all() {
 
   DEBBI(DF_INIT | DF_GRAPH, ("initgraph"));
   
@@ -1134,59 +1441,24 @@ EX void initgraph() {
     return;
     }
 
-#if CAP_SDL
-  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK) == -1)
-  {
-    printf("Failed to initialize video.\n");
-    exit(2);
-  }
-
-#if ISWEB
-  vid.xscr = vid.xres = 1200;
-  vid.yscr = vid.yres = 900;
-#else
-  const SDL_VideoInfo *inf = SDL_GetVideoInfo();
-  vid.xscr = vid.xres = inf->current_w;
-  vid.yscr = vid.yres = inf->current_h;
-#endif
-
-#ifdef CUSTOM_CAPTION  
-  SDL_WM_SetCaption(CUSTOM_CAPTION, CUSTOM_CAPTION);
-#else
-  SDL_WM_SetCaption("HyperRogue " VER, "HyperRogue " VER);
-#endif
-#endif
-  
   preparesort();
 #if CAP_CONFIG
   loadConfig();
 #endif
+#if CAP_ARCM
   arcm::current.parse();
+#endif
   if(hybri) geometry = hybrid::underlying;
 
 #if CAP_COMMANDLINE
   arg::read(2);
 #endif
+
+  init_graph();
   check_cgi();
   cgi.require_basics();
-
-#if CAP_SDL
-  setvideomode();
-  if(!s) {
-    printf("Failed to initialize graphics.\n");
-    exit(2);
-    }
-    
-  SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
-  SDL_EnableUNICODE(1);
-#endif
   
-#if CAP_SDLTTF
-  if(TTF_Init() != 0) {
-    printf("Failed to initialize TTF.\n");
-    exit(2);
-    }
-#endif
+  init_font();
 
 #if CAP_SDLJOY  
   initJoysticks();
@@ -1195,22 +1467,17 @@ EX void initgraph() {
 #if CAP_SDLAUDIO
   initAudio();
 #endif
-    
   }
 
-EX void cleargraph() {
+EX void quit_all() {
   DEBBI(DF_INIT, ("clear graph"));
-#if CAP_SDLTTF
-  for(int i=0; i<256; i++) if(font[i]) TTF_CloseFont(font[i]);
-#endif
-#if CAL_GLFONT
-  for(int i=0; i<128; i++) if(glfont[i]) delete glfont[i];
-#endif
 #if CAP_SDLJOY
   closeJoysticks();
 #endif
 #if CAP_SDL
+  close_window();
   SDL_Quit();
+  sdl_on = false;
 #endif
   }
 

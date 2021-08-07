@@ -44,6 +44,7 @@ constexpr int aTexture = 8;
 
 /* texture bindings */
 constexpr int INVERSE_EXP_BINDING = 2;
+constexpr int AIR_BINDING = 4;
 #endif
 
 EX map<string, shared_ptr<glhr::GLprogram>> compiled_programs;
@@ -59,6 +60,34 @@ glhr::glmatrix model_orientation_gl() {
   return s;
   }
 
+EX void reset_all_shaders() {
+  ray::reset_raycaster();
+  compiled_programs.clear();
+  matched_programs.clear();
+  }
+
+EX string panini_shader() {
+  return
+    "t.w += 1.; t *= 2. / t.w; t.w -= 1.;\n"
+    "float s = t.z;\n"
+    "float l = length(t.xyz);\n"
+    "t /= max(length(t.xz), 1e-2);\n"
+    "t.z += " + glhr::to_glsl(panini_alpha) + ";\n"
+    "t *= l;\n"
+    "t.w = 1.;\n";
+  }
+
+EX string stereo_shader() {
+  return
+    "t.w += 1.; t *= 2. / t.w; t.w -= 1.;\n"
+    "float s = t.z;\n"
+    "float l = length(t.xyz);\n"
+    "t /= max(l, 1e-2);\n"
+    "t.z += " + glhr::to_glsl(panini_alpha) + ";\n"
+    "t *= l;\n"
+    "t.w = 1.;\n";
+  }
+
 shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
   string varying, vsh, fsh, vmain = "void main() {\n", fmain = "void main() {\n";
 
@@ -66,6 +95,9 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
   varying += "varying mediump vec4 vColor;\n";
 
   fmain += "gl_FragColor = vColor;\n";
+  
+  bool have_texture = false;
+  
   if(shader_flags & GF_TEXTURE_SHADED) {
     vsh += "attribute mediump vec3 aTexture;\n";
     varying += "varying mediump vec3 vTexCoord;\n";
@@ -79,7 +111,7 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
     varying += "varying mediump vec2 vTexCoord;\n";
     fsh += "uniform mediump sampler2D tTexture;\n";
     vmain += "vTexCoord = aTexture;\n",
-    fmain += "gl_FragColor *= texture2D(tTexture, vTexCoord);\n";
+    have_texture = true;
     }
   if(shader_flags & GF_LEVELS) {
     fsh += "uniform mediump float uLevelLines;\n";
@@ -96,10 +128,12 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
     vsh += "uniform mediump vec4 uColor;\n";
     }
   
+  bool have_vfogs = false, have_vfogcolor = false;
+
   if(shader_flags & GF_LIGHTFOG) {
-    vmain += "mediump float fogx = clamp(1.0 + aPosition.z * uFog, 0.0, 1.0); vColor = vColor * fogx + uFogColor * (1.0-fogx);\n";      
     vsh += "uniform mediump float uFog;\n";
-    vsh += "uniform mediump vec4 uFogColor;\n";
+    vmain += "vFogs = clamp(1.0 + aPosition.z * uFog, 0.0, 1.0);\n";
+    have_vfogs = true;
     }
 
   string coordinator;
@@ -110,6 +144,8 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
   bool dim3 = GDIM == 3;
   
   bool skip_t = false;
+  
+  bool azi_hyperbolic = false;
   
   if(vid.stereo_mode == sODS) {
     shader_flags |= SF_DIRECT | SF_ODSBOX;
@@ -134,6 +170,35 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
     }
   else if(!vid.consider_shader_projection) {
     shader_flags |= SF_PIXELS;
+    }        
+  else if(among(pmodel, mdDisk, mdBall) && GDIM == 2 && vrhr::rendering() && !sphere) {
+    shader_flags |= SF_DIRECT | SF_BOX;
+    vsh += "uniform mediump float uAlpha, uDepth, uDepthScaling, uCamera;";
+    
+    if(hyperbolic) coordinator += 
+      "float zlev = sqrt(t.z*t.z-t.x*t.x-t.y*t.y);\n"
+      "float zl = uDepth - uDepthScaling * (uDepth - atanh(tanh(uDepth)/zlev));\n"
+      "float dd = sqrt(t.x*t.x+t.y*t.y);\n"
+      "float d  = acosh(t.z/zlev);\n"
+      "float uz = uAlpha + cosh(zl) * cosh(d) * cosh(uCamera) + sinh(zl) * sinh(uCamera);\n"
+      "float ux = cosh(zl) * sinh(d) / uz;\n"      
+      "t.xy = ux * t.xy / dd;\n"
+      "t.z = (sinh(zl) * cosh(uCamera) + sinh(uCamera) * cosh(zl) * cosh(d)) / uz;\n"
+      ;
+    
+    else if(euclid) coordinator +=
+      "t.z = uDepth * (1. - (t.z - 1.) * uDepthScaling) + uAlpha + uCamera;\n";
+
+    else if(sphere) coordinator += 
+      "float zlev = sqrt(t.z*t.z+t.x*t.x+t.y*t.y);\n"
+      "float zl = uDepth - uDepthScaling * (uDepth - atan(tan(uDepth)/zlev));\n"
+      "float dd = sqrt(t.x*t.x+t.y*t.y);\n"
+      "float d  = acos(t.z/zlev);\n"
+      "float uz = uAlpha + cos(zl) * cos(d) * cos(uCamera) + sin(zl) * sin(uCamera);\n"
+      "float ux = cos(zl) * sin(d) / uz;\n"
+      "t.xy = ux * t.xy / dd;\n"
+      "t.z = (sin(uCamera) * cos(zl) * cos(d) - sin(zl) * cos(uCamera)) / uz;\n"
+      ;
     }
   else if(pmodel == mdDisk && MDIM == 3 && !spherespecial && !prod) {
     shader_flags |= SF_DIRECT;
@@ -181,7 +246,13 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
         "mediump float d = dot(t.xyz, t.xyz);\n"
         "mediump float hz = (1.+d) / (1.-d);\n"
         "mediump float ad = acosh(hz);\n"
-        "mediump float m = d == 0. ? 0. : d >= 1. ? 1.e4 : (hz+1.) * ad / sinh(ad);\n"
+        "mediump float m = d == 0. ? 0. : d >= 1. ? 1.e4 : (hz+1.) * ad / sinh(ad);\n";
+      #if CAP_VR
+      if(vrhr::rendering_eye())
+        coordinator += "t.xyz *= ad/d;\n";
+      else
+      #endif
+      coordinator +=
         "t.xyz *= m;\n";
       distfun = "ad";
       }
@@ -246,9 +317,20 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
     }
   else if(pmodel == mdPerspective) {
     shader_flags |= SF_PERS3 | SF_DIRECT;
+    #if CAP_VR
+    if(vrhr::rendering() && hyperbolic && vrhr::eyes != vrhr::eEyes::truesim) {
+      azi_hyperbolic = true;
+      coordinator += "mediump vec4 orig_t = t;\n";
+      coordinator += 
+        "t = t * acosh(t[3]) / length(t.xyz);\n"
+        "t[3] = 1.;\n";
+      distfun = "length(t.xyz)";
+      }
+    else 
+    #endif
     if(hyperbolic)
-      distfun = "acosh(t[3])", treset = true;
-    else if(euclid || nonisotropic)
+      distfun = "acosh(t[3])";
+    else if(euclid || nonisotropic || stretch::in() || (sphere && ray::in_use))
       distfun = "length(t.xyz)", treset = true;
     else {
       if(spherephase & 4) coordinator += "t = -t;\n";
@@ -264,35 +346,112 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
     shader_flags |= SF_PIXELS;
     if(dim3) shader_flags |= SF_ZFOG;
     }
+  
+  #if CAP_VR
+  /* no z-fog in VR */
+  if((shader_flags & SF_ZFOG) && vrhr::rendering())
+    shader_flags &= ~SF_ZFOG;
+  #endif
+
+  if(nil && pmodel == mdPerspective)  {
+    vsh += "uniform mediump float uRotCos, uRotSin, uRotNil;\n";
+    coordinator +=
+      "t.z += (uRotCos * t.x + uRotSin * t.y) * (uRotCos * t.y - uRotSin * t.x) * uRotNil / 2. - t.x * t.y / 2.;\n";
+    }
 
   if(!skip_t) {
     vmain += "mediump vec4 t = uMV * aPosition;\n";
     vmain += coordinator;
-    if(distfun != "") {
-      vmain += "mediump float fogs = (uFogBase - " + distfun + " / uFog);\n";
-      vmain += "vColor.xyz = vColor.xyz * fogs + uFogColor.xyz * (1.0-fogs);\n";
+    if(GDIM == 3 && WDIM == 2 && hyperbolic && context_fog && pmodel == mdPerspective) {
       vsh += 
+        "uniform mediump mat4 uRadarTransform;\n"
+        "uniform mediump sampler2D tAirMap;\n"
         "uniform mediump float uFog;\n"
         "uniform mediump float uFogBase;\n"
-        "uniform mediump vec4 uFogColor;\n";
+        "vec4 color_at(vec4 ending, float dist) {"
+        "    vec3 pt = ending.xyz * sinh(dist);\n"
+        "    pt.xy /= sqrt(pt.z*pt.z+1.);\n"
+        "    pt.xy /= 2. * (1. + sqrt(1.+pt.x*pt.x+pt.y*pt.y));\n"
+        "    pt.xy += vec2(.5, .5);\n"
+        "    return texture2D(tAirMap, pt.xy);\n"
+        "    }\n";
+      
+      
+      if(azi_hyperbolic) vmain += 
+        "vec4 ending = uRadarTransform * orig_t;\n";
+      else vmain += 
+        "vec4 ending = uRadarTransform * t;\n";
+      
+      have_vfogs = true; have_vfogcolor = true;
+
+      vmain += 
+        "float len = acosh(ending.w);\n"
+        "float eulen = length(ending.xyz);\n"
+        "ending.xyz /= eulen;\n"
+        "ending.y *= -1.;\n"
+        "vec4 fog = vec4(1e-3,0,1e-3,1e-3);\n"
+        "vec4 last = vec4(0,0,0,0);\n"
+        "for(int i=0; i<50; i++) {\n"
+        "  vec4 px = color_at(ending, ((float(i) + .5) / 50.) * min(len, uFog));\n"
+        "  if(px.r < .9 || px.b < .9 || px.g > .1) last = px;\n"
+        "  fog += last;\n"
+        "  }\n"
+        "mediump float fogs = (uFogBase - len / uFog);\n"        
+        "if(fogs < 0.) fogs = 0.;\n"
+        "vFogs = fogs; vFogColor = fog / fog.w;\n";
+      }
+    else if(distfun != "") {
+      have_vfogs = true;
+      vmain += "vFogs = (uFogBase - " + distfun + " / uFog);\n";
+      vsh += 
+        "uniform mediump float uFog;\n"
+        "uniform mediump float uFogBase;\n";
       }
     if(shader_flags & GF_LEVELS) vmain += "vPos = t;\n";  
     if(treset) vmain += "t[3] = 1.0;\n";
+    
+    if((shader_flags & SF_PERS3) && panini_alpha && !vrhr::rendering_eye()) {
+      vmain += "t = uPP * t;", vsh += "uniform mediump mat4 uPP;";
+      /* panini */
+      vmain += panini_shader();
+      shader_flags |= SF_ORIENT;
+      }
+    else if((shader_flags & SF_PERS3) && stereo_alpha && !vrhr::rendering_eye()) {
+      vmain += "t = uPP * t;", vsh += "uniform mediump mat4 uPP;";
+      vmain += stereo_shader();
+      }
+      
     vmain += "gl_Position = uP * t;\n";
+    }
+
+  if(shader_flags & SF_ZFOG) {
+    have_vfogs = true;
+    vmain += 
+      "vFogs = 0.5 - gl_Position.z / 2.0;\n";
+    }
+  
+  if(have_texture) {
+    fmain += "gl_FragColor *= texture2D(tTexture, vTexCoord);\n";
+    fmain += "if(gl_FragColor.a == 0.) discard;\n";
+    }
+
+  if(have_vfogcolor) {
+    varying += 
+      "varying mediump vec4 vFogColor;\n"
+      "varying mediump float vFogs;\n";
+    fmain += "gl_FragColor.xyz = gl_FragColor.xyz * vFogs + vFogColor.xyz * (1.0-vFogs);\n";
+    }
+  else if(have_vfogs) {
+    varying += 
+      "uniform mediump vec4 uFogColor;\n"
+      "varying mediump float vFogs;\n";
+    fmain += "gl_FragColor.xyz = gl_FragColor.xyz * vFogs + uFogColor.xyz * (1.0-vFogs);\n";
     }
 
   vsh += 
     "uniform mediump mat4 uMV;\n"
     "uniform mediump mat4 uP;\n";
 
-  if(shader_flags & SF_ZFOG) {
-    vmain += 
-      "mediump float pz = 0.5 + gl_Position.z / 2.0;\n"
-      "vColor.xyz = vColor.xyz * (1.-pz) + uFogColor.xyz * pz;\n";
-    vsh += 
-        "uniform mediump vec4 uFogColor;\n";
-    }
-  
   vmain += "}";
   fmain += "}";
   
@@ -313,7 +472,7 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
     }    
   }
 
-void display_data::set_projection(int ed) {  
+void display_data::set_projection(int ed, ld shift) {
   flagtype shader_flags = current_display->next_shader_flags;
   unsigned id;
   id = geometry;
@@ -325,10 +484,15 @@ void display_data::set_projection(int ed) {
   id <<= 6; id |= shader_flags;
   id <<= 6; id |= spherephase;
   id <<= 1; if(vid.consider_shader_projection) id |= 1;
+  #if CAP_VR
+  id <<= 3; id |= vrhr::state;
+  if(vrhr::rendering() && vrhr::eyes == vrhr::eEyes::truesim) id += 3;
+  #endif
   id <<= 2; id |= (spherespecial & 3);
   if(sol && solv_all) id |= 1;
   if(in_h2xe()) id |= 1;
   if(in_s2xe()) id |= 2;
+  if(WDIM == 2 && GDIM == 3 && hyperbolic && context_fog) id |= 1;
   shared_ptr<glhr::GLprogram> selected;
 
   if(matched_programs.count(id)) selected = matched_programs[id];
@@ -357,28 +521,47 @@ void display_data::set_projection(int ed) {
     }
   #endif
   
+  #if MAXMDIM >= 4
+  if(selected->tAirMap != -1 && airbuf) {
+    glActiveTexture(GL_TEXTURE0 + AIR_BINDING);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glBindTexture(GL_TEXTURE_2D, airbuf->renderedTexture);
+    glUniform1i(selected->tAirMap, AIR_BINDING);
+    glActiveTexture(GL_TEXTURE0 + 0);
+    glUniformMatrix4fv(selected->uRadarTransform, 1, 0, glhr::tmtogl_transpose3(radar_transform).as_array());
+    }
+  #endif
+  
   if(selected->uIterations != -1) {
     glhr::set_index_sl(0);
+    glhr::set_sv(stretch::not_squared());
     glhr::set_sl_iterations(slr::steps);
     }
 
   glhr::new_projection();
-
-  if(ed && vid.stereo_mode == sLR) {
-    glhr::projection_multiply(glhr::translate(ed, 0, 0));
-    glhr::projection_multiply(glhr::scale(2, 1, 1));
-    }      
-
-  ld tx = (cd->xcenter-cd->xtop)*2./cd->xsize - 1;
-  ld ty = (cd->ycenter-cd->ytop)*2./cd->ysize - 1;
-  glhr::projection_multiply(glhr::translate(tx, -ty, 0));
-
-  if(pmodel == mdManual) return;
   
-  if(pconf.stretch != 1 && (shader_flags & SF_DIRECT) && pmodel != mdPixel) glhr::projection_multiply(glhr::scale(1, pconf.stretch, 1));
+  #if CAP_VR
+  if(!vrhr::rendering_eye()) {
+  #else
+  if(true) {
+  #endif
+    if(ed && vid.stereo_mode == sLR) {
+      glhr::projection_multiply(glhr::translate(ed, 0, 0));
+      glhr::projection_multiply(glhr::scale(2, 1, 1));
+      }      
+  
+    ld tx = (cd->xcenter-cd->xtop)*2./cd->xsize - 1;
+    ld ty = (cd->ycenter-cd->ytop)*2./cd->ysize - 1;
+    glhr::projection_multiply(glhr::translate(tx, -ty, 0));
 
-  if(vid.stereo_mode != sODS)
-    eyewidth_translate(ed);
+    if(pmodel == mdManual) return;
+    
+    if(pconf.stretch != 1 && (shader_flags & SF_DIRECT) && pmodel != mdPixel) glhr::projection_multiply(glhr::scale(1, pconf.stretch, 1));
+  
+    if(vid.stereo_mode != sODS)
+      eyewidth_translate(ed);
+    }
   
   auto ortho = [&] (ld x, ld y) {
     glhr::glmatrix M = glhr::ortho(x, y, 1);
@@ -400,25 +583,60 @@ void display_data::set_projection(int ed) {
     glhr::id_modelview();
     };
 
-  if(shader_flags & SF_PIXELS) ortho(cd->xsize/2, -cd->ysize/2);
-  else if(shader_flags & SF_BOX) ortho(cd->xsize/current_display->radius/2, -cd->ysize/current_display->radius/2);
+  bool u_alpha = false;
+
+  glhr::glmatrix pp0 = glhr::id;
+  
+  auto use_mv = [&] {
+    #if CAP_VR
+    auto cd = current_display;
+    if(vrhr::rendering_eye()) {
+      glhr::projection_multiply(glhr::tmtogl_transpose(vrhr::hmd_mvp));
+      glhr::id_modelview();
+      }
+    else {
+      glhr::projection_multiply(glhr::frustum(cd->tanfov, cd->tanfov * cd->ysize / cd->xsize));
+      if(selected->uPP != -1) {
+        transmatrix swapz = Id;
+        swapz[2][2] = -1;
+        pp0 = glhr::tmtogl_transpose(swapz * vrhr::hmd_mv);
+        glhr::projection_multiply(glhr::tmtogl(swapz));
+        }
+      else
+        glhr::projection_multiply(glhr::tmtogl_transpose(vrhr::hmd_mv));
+      }
+    #endif
+    };
+  
+  if(shader_flags & SF_PIXELS) {
+    if(vrhr::rendering()) use_mv();
+    else ortho(cd->xsize/2, -cd->ysize/2);
+    }
+  else if(shader_flags & SF_BOX) {
+    if(vrhr::rendering()) use_mv();
+    else ortho(cd->xsize/current_display->radius/2, -cd->ysize/current_display->radius/2);
+    }
   else if(shader_flags & SF_ODSBOX) {
     ortho(M_PI, M_PI);
     glhr::fog_max(1/sightranges[geometry], darkena(backcolor, 0, 0xFF));
     }
   else if(shader_flags & SF_PERS3) {
-    glhr::projection_multiply(glhr::frustum(current_display->tanfov, current_display->tanfov * cd->ysize / cd->xsize));
-    glhr::projection_multiply(glhr::scale(1, -1, -1));
-    if(nisot::local_perspective_used()) {
-      if(prod) {
-        for(int i=0; i<3; i++) NLP[3][i] = NLP[i][3] = 0;
-        NLP[3][3] = 1;
+    if(vrhr::rendering()) use_mv();
+    else {
+      glhr::projection_multiply(glhr::frustum(cd->tanfov, cd->tanfov * cd->ysize / cd->xsize));
+      glhr::projection_multiply(glhr::scale(1, -1, -1));
+      if(nisot::local_perspective_used()) {
+        if(prod) {
+          for(int i=0; i<3; i++) NLP[3][i] = NLP[i][3] = 0;
+          NLP[3][3] = 1;
+          }
+        if(!(shader_flags & SF_ORIENT))
+          glhr::projection_multiply(glhr::tmtogl_transpose(NLP));
         }
-      glhr::projection_multiply(glhr::tmtogl_transpose(NLP));
-      }
-    if(ed) {
-      glhr::using_eyeshift = true;
-      glhr::eyeshift = glhr::tmtogl(xpush(vid.ipd * ed/2));
+      if(ed) {
+        glhr::using_eyeshift = true;
+        glhr::eyeshift = glhr::tmtogl(xpush(vid.ipd * ed/2));
+        }
       }
     glhr::fog_max(1/sightranges[geometry], darkena(backcolor, 0, 0xFF));
     }
@@ -434,14 +652,25 @@ void display_data::set_projection(int ed) {
     GLfloat sc = current_display->radius / (cd->ysize/2.);
     glhr::projection_multiply(glhr::frustum(cd->xsize / cd->ysize, 1));
     glhr::projection_multiply(glhr::scale(sc, -sc, -1));
-    glhr::projection_multiply(glhr::translate(0, 0, pconf.alpha));
-    if(ed) glhr::projection_multiply(glhr::translate(vid.ipd * ed/2, 0, 0));
+    u_alpha = true;
+    }
+
+  if(selected->uRotNil != -1) {
+    glUniform1f(selected->uRotCos, models::ocos);
+    glUniform1f(selected->uRotSin, models::osin);
+    glUniform1f(selected->uRotNil, pconf.rotational_nil);
     }
 
   if(selected->uPP != -1) {
+
     glhr::glmatrix pp = glhr::id;
     if(get_shader_flags() & SF_USE_ALPHA)
       pp[3][2] = GLfloat(pconf.alpha);
+
+    pp = pp * pp0;    
+
+    if(nisot::local_perspective_used()) 
+      pp = glhr::tmtogl_transpose(NLP) * pp;
 
     if(get_shader_flags() & SF_ORIENT) {
       if(GDIM == 3) for(int a=0; a<4; a++) 
@@ -456,6 +685,15 @@ void display_data::set_projection(int ed) {
   if(selected->uAlpha != -1)
     glhr::set_ualpha(pconf.alpha);
 
+  if(selected->uDepth != -1)
+    glUniform1f(selected->uDepth, vid.depth);
+
+  if(selected->uCamera != -1)
+    glUniform1f(selected->uCamera, vid.camera);
+
+  if(selected->uDepthScaling != -1)
+    glUniform1f(selected->uDepthScaling, pconf.depth_scaling);
+
   if(selected->uLevelLines != -1) {
     glUniform1f(selected->uLevelLines, levellines);
     }
@@ -466,8 +704,13 @@ void display_data::set_projection(int ed) {
   if(selected->shader_flags & SF_BAND)
     glhr::projection_multiply(glhr::scale(2 / M_PI, 2 / M_PI, GDIM == 3 ? 2/M_PI : 1));
 
-  if(selected->shader_flags & SF_BAND)
-    glhr::projection_multiply(glhr::translate(band_shift, 0, 0));
+  if(selected->shader_flags & SF_BAND) {
+    glhr::projection_multiply(glhr::translate(shift, 0, 0));
+    }
+
+  if(in_h2xe() || in_s2xe()) {
+    glhr::projection_multiply(glhr::translate(0, 0, shift));
+    }
 
   if(selected->shader_flags & SF_HALFPLANE) {
     glhr::projection_multiply(glhr::translate(0, 1, 0));      
@@ -490,6 +733,11 @@ void display_data::set_projection(int ed) {
       };
     
     glhr::projection_multiply(glhr::as_glmatrix(yzspin));
+    }
+  
+  if(u_alpha) {
+    glhr::projection_multiply(glhr::translate(0, 0, pconf.alpha));
+    if(ed) glhr::projection_multiply(glhr::translate(vid.ipd * ed/2, 0, 0));
     }
   }
 
@@ -527,12 +775,20 @@ EX flagtype get_shader_flags() {
   }
 
 EX void glapplymatrix(const transmatrix& V) {
+  #if CAP_VR
+  transmatrix V3;
+  bool use_vr = vrhr::rendering();
+  if(use_vr) V3 = vrhr::hmd_pre * V;
+  const transmatrix& V2 = use_vr ? V3 : V;
+  #else
+  const transmatrix& V2 = V;
+  #endif
   GLfloat mat[16];
   int id = 0;
   
-  if(MDIM == 3) {
+  if(MXDIM == 3) {
     for(int y=0; y<3; y++) {
-      for(int x=0; x<3; x++) mat[id++] = V[x][y];
+      for(int x=0; x<3; x++) mat[id++] = V2[x][y];
       mat[id++] = 0;
       }
     mat[12] = 0;
@@ -542,7 +798,7 @@ EX void glapplymatrix(const transmatrix& V) {
     }
   else {
     for(int y=0; y<4; y++) 
-      for(int x=0; x<4; x++) mat[id++] = V[x][y];
+      for(int x=0; x<4; x++) mat[id++] = V2[x][y];
     }
   glhr::set_modelview(glhr::as_glmatrix(mat));
   }

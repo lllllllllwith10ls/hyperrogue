@@ -393,17 +393,15 @@ struct hrmap_grigorchuk : hrmap_standard {
     return h;
     }
   
-  void draw() override {
+  void draw_at(cell *at, const shiftmatrix& where) override {
   
-    dq::visited_by_matrix.clear();
-    dq::enqueue_by_matrix(centerover->master, cview() * master_relative(centerover, true));
+    dq::clear_all();
+    dq::enqueue_by_matrix(at->master, where * currentmap->master_relative(centerover, true));
     
     while(!dq::drawqueue.empty()) {      
       auto& p = dq::drawqueue.front();
       heptagon *h = get<0>(p);
-      transmatrix V = get<1>(p);
-      dynamicval<ld> b(band_shift, get<2>(p));
-      bandfixer bf(V);
+      shiftmatrix V = get<1>(p);
       dq::drawqueue.pop();
             
       cell *c = h->c7;
@@ -416,22 +414,22 @@ struct hrmap_grigorchuk : hrmap_standard {
       if(patterns::whichCanvas == 'G' && c->landparam == 0)
         c->landparam = 0x102008 * (1 + ((hrmap_grigorchuk*)currentmap)->dec[c->master]->len);
       
-      drawcell(c, V * master_relative(c, false));
+      drawcell(c, V * currentmap->master_relative(c, false));
       
       for(int i=0; i<3; i++) if(c->move(i))
-        dq::enqueue_by_matrix(h->cmove(i), V * adj(h, i));
+        dq::enqueue_by_matrix(h->cmove(i), optimized_shift(V * adj(h, i)));
       }
     }
   
-  transmatrix relative_matrix(heptagon *h2, heptagon *h1, const hyperpoint& hint) override {
+  transmatrix relative_matrixh(heptagon *h2, heptagon *h1, const hyperpoint& hint) override {
     if(gmatrix0.count(h2->c7) && gmatrix0.count(h1->c7))
-      return inverse(gmatrix0[h1->c7]) * gmatrix0[h2->c7];
+      return inverse_shift(gmatrix0[h1->c7], gmatrix0[h2->c7]);
     return Id;
     }
 
-  transmatrix relative_matrix(cell *c2, cell *c1, const struct hyperpoint& hint) override {
+  transmatrix relative_matrixc(cell *c2, cell *c1, const struct hyperpoint& hint) override {
     if(gmatrix0.count(c2) && gmatrix0.count(c1))
-      return inverse(gmatrix0[c1]) * gmatrix0[c2];
+      return inverse_shift(gmatrix0[c1], gmatrix0[c2]);
     return Id;
     }
   };
@@ -442,7 +440,6 @@ void create_grigorchuk_geometry() {
   if(gGrigorchuk != eGeometry(-1)) return;
   ginf.push_back(ginf[gNormal]);
   gGrigorchuk = eGeometry(isize(ginf) - 1);
-  variation = eVariation::pure;
   auto& gi = ginf[gGrigorchuk];
   gi.sides = 3;
   gi.vertex = 8;
@@ -451,7 +448,6 @@ void create_grigorchuk_geometry() {
   gi.quotient_name = "Grigorchuk";
   gi.menu_displayed_name = "Grigorchuk group";
   gi.shortname = "Grig";
-  gi.xcode = 0x31400;
   gi.default_variation = eVariation::pure;
   }
 
@@ -498,12 +494,12 @@ auto hook = addHook(hooks_args, 100, readArgsG)
       dialog::addBoolItem_action(XLAT("Grigorchuk labels"), grigorchuk::view_labels, 'M'); 
       }
     })
-   + addHook(hooks_initialize, 100, create_grigorchuk_geometry)
-
-  + addHook(rogueviz::rvtour::hooks_build_rvtour, 140, [] (vector<tour::slide>& v) {
-    using namespace rogueviz::rvtour;
+  + addHook(hooks_initialize, 100, create_grigorchuk_geometry)
+  + addHook_rvslides(140, [] (string s, vector<tour::slide>& v) {
+    if(s != "mixed") return;
+    using namespace rogueviz::pres;
     v.push_back(tour::slide{
-      "unsorted/Grigorchuk group", 10, tour::LEGAL::NONE,
+      "Grigorchuk group", 10, tour::LEGAL::NONE,
 
       "This is a visualization of the Grigorchuk group. It is the first known group with "
       "intermediate growth (i.e., superpolynomial and subexponential).\n\n"
@@ -516,6 +512,7 @@ auto hook = addHook(hooks_args, 100, readArgsG)
       "See grigorchuk.cpp for more comments.",
 
       [] (tour::presmode mode) {
+        slide_url(mode, 'p', "a paper about Grigorchuk group", "https://arxiv.org/pdf/math/0607384.pdf");
         if(mode == pmStart) {
           grigorchuk::grig_limit = 10000;
           gamestack::push();

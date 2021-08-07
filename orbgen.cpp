@@ -115,7 +115,8 @@ EX vector<orbinfo> orbinfos = {
   {orbgenflags::S_NATIVE, laIvoryTower, 500, 4000, itOrbMatter},
   {orbgenflags::S_NAT_NT, laElementalWall, 1500, 4000, itOrbSummon},
   {orbgenflags::S_NATIVE, laStorms, 1000, 2500, itOrbStunning},
-  {orbgenflags::S_NAT_NT, laOvergrown, 1000, 800, itOrbLuck},
+  {orbgenflags::S_NATIVE, laOvergrown, 1000, 800, itOrbWoods},
+  {orbgenflags::S_GUEST,  laOvergrown, 1000, 0, itOrbLuck},
   {orbgenflags::S_NATIVE, laWhirlwind, 1250, 3000, itOrbAir},
   {orbgenflags::S_NATIVE, laHaunted, 1000, 5000, itOrbUndeath},
   {orbgenflags::S_NATIVE, laClearing, 5000, 5000, itOrbFreedom},
@@ -170,6 +171,9 @@ EX vector<orbinfo> orbinfos = {
   {orbgenflags::S_NATIVE, laHurricane, 200, 4000, itOrbCharge},
   {orbgenflags::S_GUEST, laHurricane, 500, 0, itOrbWater},
   {orbgenflags::S_GUEST, laHurricane, 500, 0, itOrbLightning},
+  {orbgenflags::S_NATIVE, laCursed, 400, 1500, itOrbPurity},
+  {orbgenflags::S_NAT_NT, laDice, 500, 800, itOrbLuck},
+  {orbgenflags::S_GUEST, laDice, 750, 0, itOrbAir},
   {orbgenflags::S_NATIVE, laWhirlpool, 0, 2000, itOrbWater}, // needs to be last
   };
 
@@ -193,7 +197,7 @@ const orbinfo& getNativityOrbInfo(eItem orb) {
   return oi;
   }
 
-EX string olrDescriptions[] = {
+EX string olrDescriptions[18] = {
   "forbidden to find in %the1",
   "too dangerous to use in %the1",
   "useless in %the1",
@@ -241,11 +245,6 @@ EX eOrbLandRelation getOLR(eItem it, eLand l) {
   if(it == itOrbDigging && l == laKraken) return olrUseless;
   if(it == itOrbIllusion && l == laKraken) return olrUseless;
   
-  if(it == itOrbSlaying && !among(l, 
-    laMirror, laHell, laEmerald, laDryForest, laCamelot, laPalace, laStorms, laRose, laTortoise, laBurial, laDungeon, laReptile, 
-    laPrairie, laBull, laVolcano, laTerracotta, laRuins, laVariant))
-    return olrUseless;
-  
   if(it == itOrbYendor && among(l, laWhirlwind, laWestWall)) return olrUseless;
   
   if(it == itOrbLife && (l == laKraken)) return olrUseless;
@@ -277,6 +276,8 @@ EX eOrbLandRelation getOLR(eItem it, eLand l) {
     return olrUseless;
   if(it == itOrbLuck && l == laMountain)
     return olrUseless;
+  if(it == itOrbLuck && l == laWestWall)
+    return olrUseless;
    if(it == itOrbLuck && l == laCamelot)
     return olrUseless;
    if(it == itOrbLuck && l == laHaunted)
@@ -298,6 +299,11 @@ EX eOrbLandRelation getOLR(eItem it, eLand l) {
     return olrMonster;
   if(isCrossroads(l) || l == laOcean)
     return olrHub;
+
+  if(it == itOrbSlaying && !among(l, 
+    laMirror, laHell, laEmerald, laDryForest, laCamelot, laPalace, laStorms, laRose, laTortoise, laBurial, laDungeon, laReptile, 
+    laPrairie, laBull, laVolcano, laTerracotta, laRuins, laVariant, laEclectic, laBrownian, laCursed))
+    return olrUseless;
   
   if(l == laCocytus)
     if(it == itOrbDragon || it == itOrbFire || it == itOrbFlash || it == itOrbLightning)
@@ -306,7 +312,7 @@ EX eOrbLandRelation getOLR(eItem it, eLand l) {
   if(it == itOrbSafety)
     if(l == laCaves || l == laLivefjord || l == laRedRock || l == laCocytus || l == laHell ||
       l == laDesert || l == laAlchemist || l == laDeadCaves || l == laMinefield || isHaunted(l) ||
-      l == laDragon) 
+      l == laDragon || l == laWet || l == laCursed)
       return olrDangerous;
     
   if(it == itOrbMatter)
@@ -321,12 +327,19 @@ EX eOrbLandRelation getOLR(eItem it, eLand l) {
     return olrNoPrizes;
   
   if(it == itOrbDigging) {
-    if(l == laCaves || l == laOcean || l == laLivefjord || l == laEmerald ||
-      l == laDesert || l == laDeadCaves || l == laRedRock || l == laCaribbean || l == laGraveyard ||
-      l == laMountain || l == laHunting)
+    if(among(l, laCaves, laOcean, laLivefjord, laEmerald, laDesert, laDeadCaves, laRedRock, laCaribbean, laGraveyard,
+      laMountain, laHunting, laWarpSea, laWarpCoast, laCursed))
         return olrPrize25;
     return olrUseless;
     }
+
+  if(it == itOrbWoods && (l == laWarpSea || l == laWarpCoast))
+    return olrDangerous;
+
+  if(it == itOrbWoods && !among(l,
+    laDryForest, laWineyard, laCaribbean, laOvergrown, laHaunted, laHauntedWall, laHauntedBorder, laTortoise, laFrog, laEclectic,
+    laVariant, laBull))
+    return olrUseless;
   
   if(it == itShard) {
     if(l == laDesert || l == laIce || l == laJungle || l == laGraveyard ||
@@ -347,7 +360,7 @@ EX eOrbLandRelation getOLR(eItem it, eLand l) {
   if(it == itOrbWinter && l == laMinefield)
     return olrForbidden;
   
-  if(it == itOrbWinter && !among(l, laRlyeh, laTemple, laVolcano)) 
+  if(it == itOrbWinter && !among(l, laRlyeh, laTemple, laVolcano, laCursed)) 
     return olrUseless;
   
   if(it == itOrbLife && l == laMotion)
@@ -396,6 +409,9 @@ EX eOrbLandRelation getOLR(eItem it, eLand l) {
       it == itOrbAether || it == itOrbSummon || it == itOrbStone) 
       return olrForbidden;
     }
+
+  if(l == laTerracotta && it == itOrbFriend)
+    return olrDangerous;
   
   return olrPrize25;
   }
@@ -415,7 +431,7 @@ EX ld orbprizefun(int tr) {
   }
 
 EX ld orbcrossfun(int tr) {
-  if(tactic::on) return 1;
+  if(tactic::on || (ls::single() && isCrossroads(specialland))) return 1;
   if(tr < 10) return 0;
   if(tr > 25) return 1;
   return (tr*2 + 50) / 100.;
@@ -436,6 +452,9 @@ extern cellwalker cwt;
 EX eLand getPrizeLand(cell *c IS(cwt.at)) {
   eLand l = c->land;
   if(isElemental(l)) l = laElementalWall;
+  if(isHaunted(l)) l = laHaunted;
+  if(l == laMercuryRiver) l = laTerracotta;
+  if(l == laWarpSea) l = laWarpCoast;
   if(l == laPalace && princess::dist(c) < OUT_OF_PRISON)
     l = laPrincessQuest;
   return l;
@@ -492,7 +511,7 @@ EX void placePrizeOrb(cell *c) {
 
 // 10 not in chaos, less in chaos
 EX int treasureForLocal() {
-  return (chaosmode ? 1+hrand(10) : 10);
+  return (ls::any_chaos() ? 1+hrand(10) : 10);
   }
 
 EX bool extra_safety_for_memory(cell *c) {
@@ -523,7 +542,7 @@ EX void placeLocalOrbs(cell *c) {
       continue;
     if(!oi.lchance) continue;
     int ch = hrand(oi.lchance);
-    if(ch == 1 && chaosmode && hrand(2) == 0 && items[treasureType(oi.l)] * landMultiplier(oi.l) >= (11+hrand(15)))
+    if(ch == 1 && ls::any_chaos() && hrand(2) == 0 && items[treasureType(oi.l)] * landMultiplier(oi.l) >= (11+hrand(15)))
       ch = 0;
     int tc = items[treasureType(oi.l)] * landMultiplier(oi.l);
     int tcmin = treasureForLocal();
@@ -573,7 +592,7 @@ EX void placeCrossroadOrbs(cell *c) {
       else continue;
       }
     
-    if(tactic::on && isCrossroads(specialland)) {
+    if(ls::single() && isCrossroads(specialland)) {
       if(oi.flags & orbgenflags::NO_TACTIC)
         continue;
       else mintreas = 0;

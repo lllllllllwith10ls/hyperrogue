@@ -8,7 +8,7 @@
 #include "hyper.h"
 namespace hr {
 
-bool hide_hud = true;
+EX bool hide_hud = true;
 
 #if HDR
 namespace shot { void default_screenshot_content(); }
@@ -233,6 +233,18 @@ int read_args() {
 
 auto ah = addHook(hooks_args, 0, read_args);
 #endif
+auto ah2 = addHook(hooks_configfile, 100, [] {
+  #if CAP_CONFIG
+  addsaver(shot::shotx, "shotx");
+  addsaver(shot::shoty, "shoty");
+  addsaverenum(shot::format, "shotsvg");
+  addsaver(shot::transparent, "shottransparent");
+  param_f(shot::gamma, "shotgamma");
+  addsaver(shot::caption, "shotcaption");
+  param_f(shot::fade, "shotfade");
+  #endif
+  });
+
 #endif
 EX }
 
@@ -295,7 +307,9 @@ EX always_false in;
       int j = i%3 ? i-1 : i+2;
       int k = j%3 ? j-1 : j+2;
       hyperpoint normal = (data[j] - data[i]) ^ (data[k] - data[i]);
+      #if MAXMDIM >= 4
       normal[3] = 0;
+      #endif
       if(sqhypot_d(3, normal) < 1e-6) {
         println(hlog, "bug ", tie(data[i], data[j], data[k]));
         }
@@ -400,8 +414,7 @@ EX always_false in;
         tdata.push_back(p.tinf->tvertices[p.offset_texture+i]);
       }
     for(auto& d: data) {
-      hyperpoint h;
-      h = p.V * d;
+      shiftpoint h = p.V * d;
       applymodel(h, d);
       }
     if(print && (p.flags & POLY_FAT)) {
@@ -652,16 +665,8 @@ void set_shotx() {
 EX int shot_aa = 1;
 
 EX void default_screenshot_content() {
-  #if CAP_RUG
-  if(rug::rugged) {
-    if(rug::in_crystal()) rug::physics();
-    rug::drawRugScene();
-    }
-  else
-  #endif
-    drawfullmap();
 
-  rots::draw_underlying(false);
+  gamescreen(0);
 
   if(caption != "")
     displayfr(vid.xres/2, vid.fsize+vid.fsize/4, 3, vid.fsize*2, caption, forecolor, 8);
@@ -768,7 +773,14 @@ EX void take(string fname, const function<void()>& what IS(default_screenshot_co
   #else
   int multiplier = shot_aa;
   #endif
-
+  
+  vector<bool> chg;
+  for(auto ap: anims::aps) chg.push_back(*ap.value == ap.last);
+  finalizer f([&] { 
+    for(int i=0; i<isize(anims::aps); i++) 
+      if(chg[i]) *anims::aps[i].value = anims::aps[i].last;
+    });
+  
   dynamicval<videopar> v(vid, vid);
   dynamicval<bool> v2(inHighQual, true);
   dynamicval<bool> v6(auraNOGL, true);
@@ -842,10 +854,34 @@ int png_read_args() {
     shot::shoty = 720;
     shot::transparent = false;
     }
+  else if(argis("-shot-qfhd")) {
+    shot::shotformat = -1;
+    shot::shotx = 960;
+    shot::shoty = 540;
+    shot::transparent = false;
+    }
+  else if(argis("-shot-qhd")) {
+    shot::shotformat = -1;
+    shot::shotx = 640;
+    shot::shoty = 360;
+    shot::transparent = false;
+    }
   else if(argis("-shot-1000")) {
     shot::shotformat = -1;
     shot::shotx = 1000;
     shot::shoty = 1000;
+    shot::transparent = false;
+    }
+  else if(argis("-shot-500")) {
+    shot::shotformat = -1;
+    shot::shotx = 500;
+    shot::shoty = 500;
+    shot::transparent = false;
+    }
+  else if(argis("-shot-vertical")) {
+    shot::shotformat = -1;
+    shot::shotx = 720;
+    shot::shoty = 1080;
     shot::transparent = false;
     }
   else if(argis("-shotaa")) {
@@ -935,10 +971,8 @@ EX void menu() {
       
       if(models::is_3d(vpconf) || rug::rugged) {
         dialog::addInfo("SVG screenshots do not work in this 3D mode", 0xFF0000);
-        if(GDIM == 2 && !rug::rugged) {
-          dialog::addSelItem(XLAT("projection"), current_proj_name(), '1');
-          dialog::add_action_push(models::model_menu);
-          }
+        if(GDIM == 2 && !rug::rugged) 
+          menuitem_projection('1');
         #if CAP_WRL
         else {
           dialog::addItem(XLAT("WRL"), 'w');
@@ -980,8 +1014,7 @@ EX void menu() {
       else if(models::is_perspective(vpconf.model)) {
       #endif
         dialog::addInfo("this does not work well in perspective projections", 0xFF8000);
-        dialog::addSelItem(XLAT("projection"), current_proj_name(), '1');
-        dialog::add_action_push(models::model_menu);
+        menuitem_projection('1');
         }
       dialog::addBoolItem_action("generate a model for 3D printing", wrl::print, 'p');
       #if CAP_PNG
@@ -1076,7 +1109,7 @@ enum eMovementAnimation {
 
 EX eMovementAnimation ma;
 
-EX ld shift_angle, movement_angle;
+EX ld shift_angle, movement_angle, movement_angle_2;
 EX ld normal_angle = 90;
 EX ld period = 10000;
 EX int noframes = 30;
@@ -1086,7 +1119,7 @@ EX ld skiprope_rotation;
 
 int lastticks, bak_turncount;
 
-EX ld rug_rotation1, rug_rotation2, ballangle_rotation, env_ocean, env_volcano;
+EX ld rug_rotation1, rug_rotation2, rug_forward, ballangle_rotation, env_ocean, env_volcano, rug_movement_angle, rug_shift_angle;
 EX bool env_shmup;
 EX ld rug_angle;
 
@@ -1117,14 +1150,16 @@ EX void moved() {
   playermoved = false;
   }
 
+#if HDR
 struct animated_parameter {
   ld *value;
   ld last;
   string formula;
   reaction_t reaction;
   };
+#endif
 
-vector<animated_parameter> aps;
+EX vector<animated_parameter> aps;
 
 EX void deanimate(ld &x) {
   for(int i=0; i<isize(aps); i++) 
@@ -1169,17 +1204,26 @@ bool joukowsky_anim;
 
 EX void reflect_view() {
   if(centerover) {
-    transmatrix T = Id;
+    shiftmatrix T = shiftless(Id);
     cell *mbase = centerover;
     cell *c = centerover;
     if(shmup::reflect(c, mbase, T))
-      View = inverse(T) * View;
+      View = iso_inverse(T.T) * View;
     }
   }
 
 bool clearup;
 
 EX purehookset hooks_anim;
+
+EX void animate_rug_movement(ld t) {
+  rug::using_rugview urv;
+  shift_view(
+    cspin(0, GDIM-1, rug_movement_angle * degree) * spin(rug_shift_angle * degree) * xtangent(t)
+    );
+  }
+
+vector<reaction_t> on_rollback;
 
 EX void apply() {
   int t = ticks - lastticks;
@@ -1222,9 +1266,11 @@ EX void apply() {
       if(GDIM == 3) {
         rotate_view(spin(-movement_angle * degree));
         rotate_view(cspin(1, 2, normal_angle * degree));
+        rotate_view(spin(-movement_angle_2 * degree));
         }
       rotate_view(spin(2 * M_PI * t / period));
       if(GDIM == 3) {
+        rotate_view(spin(movement_angle_2 * degree));
         rotate_view(cspin(2, 1, normal_angle * degree));
         rotate_view(spin(movement_angle * degree));
         }
@@ -1272,18 +1318,23 @@ EX void apply() {
     turncount -= ticks * tidalsize / period;
     }
   if(env_volcano) {
-    bak_turncount = turncount;
+    auto bak_turncount = turncount;
+    on_rollback.push_back([bak_turncount] { turncount = bak_turncount; });
     turncount += env_volcano * ticks * 64 / period;
     for(auto& p: gmatrix) if(p.first->land == laVolcano) checkTide(p.first);
     }
   #if CAP_RUG
   if(rug::rugged) {
     if(rug_rotation1) {
-      rug::rugView = cspin(1, 2, -rug_angle * degree) * cspin(0, 2, rug_rotation1 * 2 * M_PI * t / period) * cspin(1, 2, rug_angle * degree) * rug::rugView;
+      rug::using_rugview rv;
+      rotate_view(cspin(1, 2, -rug_angle * degree) * cspin(0, 2, rug_rotation1 * 2 * M_PI * t / period) * cspin(1, 2, rug_angle * degree));
       }
     if(rug_rotation2) {
-      rug::rugView = rug::rugView * cspin(0, 1, rug_rotation2 * 2 * M_PI * t / period);
+      rug::using_rugview rv;
+      View = View * cspin(0, 1, rug_rotation2 * 2 * M_PI * t / period);
       }
+    if(rug_forward) 
+      animate_rug_movement(rug_forward * t / period);
     }
   #endif
   pconf.skiprope += skiprope_rotation * t * 2 * M_PI / period;
@@ -1310,8 +1361,9 @@ EX void apply() {
   }
 
 EX void rollback() {
-  if(env_volcano) {
-    turncount = bak_turncount;
+  while(!on_rollback.empty()) {
+    on_rollback.back()();
+    on_rollback.pop_back();
     }
   }
 
@@ -1324,13 +1376,16 @@ int min_frame = 0, max_frame = 999999;
 
 int numturns = 0;
 
-EX bool record_animation() {
+EX hookset<void(int, int)> hooks_record_anim;
+
+EX bool record_animation_of(reaction_t content) {
   lastticks = 0;
   ticks = 0;
   int oldturn = -1;
   for(int i=0; i<noframes; i++) {
     if(i < min_frame || i > max_frame) continue;
     printf("%d/%d\n", i, noframes);
+    callhooks(hooks_record_anim, i, noframes);
     int newticks = i * period / noframes;
     cmode = (env_shmup ? sm::NORMAL : 0);
     while(ticks < newticks) shmup::turn(1), ticks++;
@@ -1341,7 +1396,6 @@ EX bool record_animation() {
       }
     if(playermoved) centerpc(INF), optimizeview();
     dynamicval<bool> v2(inHighQual, true);
-    apply();
     models::configure();
     if(history::on) {
       ld len = (isize(history::v)-1) + 2 * history::extra_line_steps;
@@ -1353,11 +1407,14 @@ EX bool record_animation() {
     
     char buf[1000];
     snprintf(buf, 1000, animfile.c_str(), i);
-    shot::take(buf);
-    rollback();
+    shot::take(buf, content);
     }
   lastticks = ticks = SDL_GetTicks();
   return true;
+  }
+
+EX bool record_animation() {
+  return record_animation_of(shot::default_screenshot_content);
   }
 #endif
 
@@ -1402,14 +1459,14 @@ EX bool record_video_std() {
 void display_animation() {
   if(ma == maCircle && (circle_display_color & 0xFF)) {
     for(int s=0; s<10; s++) {
-      if(s == 0) curvepoint(ggmatrix(rotation_center) * xpush0(circle_radius - .1));
-      for(int z=0; z<100; z++) curvepoint(ggmatrix(rotation_center) * xspinpush0((z+s*100) * 2 * M_PI / 1000., circle_radius));
-      queuecurve(circle_display_color, 0, PPR::LINE);
+      if(s == 0) curvepoint(xpush0(circle_radius - .1));
+      for(int z=0; z<100; z++) curvepoint(xspinpush0((z+s*100) * 2 * M_PI / 1000., circle_radius));
+      queuecurve(ggmatrix(rotation_center), circle_display_color, 0, PPR::LINE);
       }
     if(sphere) for(int s=0; s<10; s++) {
-      if(s == 0) curvepoint(centralsym * ggmatrix(rotation_center) * xpush0(circle_radius - .1));
-      for(int z=0; z<100; z++) curvepoint(centralsym * ggmatrix(rotation_center) * xspinpush0((z+s*100) * 2 * M_PI / 1000., circle_radius));
-      queuecurve(circle_display_color, 0, PPR::LINE);
+      if(s == 0) curvepoint(xpush0(circle_radius - .1));
+      for(int z=0; z<100; z++) curvepoint(xspinpush0((z+s*100) * 2 * M_PI / 1000., circle_radius));
+      queuecurve(ggmatrix(rotation_center) * centralsym, circle_display_color, 0, PPR::LINE);
       }
     }
   }
@@ -1433,24 +1490,20 @@ void animator(string caption, ld& param, char key) {
 
 EX ld a, b;
 
-void list_animated_parameters() {
-  dialog::addHelp(XLAT(
-    "Most parameters can be animated simply by using '..' in their editing dialog. "
-    "For example, the value of a parameter set to 0..1 will grow linearly from 0 to 1. "
-    "You can also use functions (e.g. cos(0..2*pi)) and refer to other parameters; "
-    "parameters 'a' and 'b' exist for this purpose. "
-    "See the list below for parameters which are currently animated (or changed)."));
-  dialog::addBreak(50);
-  for(auto& ap: aps) {
-    string what = "?";
-    for(auto& p: params) if(&p.second == ap.value) what = p.first;
-    dialog::addInfo(what + " = " + ap.formula);
-    }
-  dialog::addBreak(50);
-  dialog::addHelp(parser_help());
-  }
-
 ld animation_period;
+
+EX void rug_angle_options() {
+  dialog::addSelItem(XLAT("shift"), fts(rug_shift_angle) + "°", 'C');
+  dialog::add_action([] () { 
+    popScreen();
+    dialog::editNumber(rug_shift_angle, 0, 90, 15, 0, XLAT("shift"), ""); 
+    });
+  dialog::addSelItem(XLAT("movement angle"), fts(rug_movement_angle) + "°", 'M');
+  dialog::add_action([] () { 
+    popScreen();
+    dialog::editNumber(rug_movement_angle, 0, 360, 15, 0, XLAT("movement angle"), ""); 
+    });
+  }
 
 EX void show() {
   cmode = sm::SIDE; needs_highqual = false;
@@ -1547,12 +1600,8 @@ EX void show() {
             };
           });
         }
-      else {
-        dialog::addSelItem(XLAT("cells to go"), fts(parabolic_length), 'c');
-        dialog::add_action([] () { 
-          dialog::editNumber(parabolic_length, 0, 10, 1, 1, "cells to go", ""); 
-          });
-        }
+      else 
+        add_edit(parabolic_length);
       dialog::addSelItem(XLAT("shift"), fts(shift_angle) + "°", 'C');
       dialog::add_action([] () { 
         dialog::editNumber(shift_angle, 0, 90, 15, 0, XLAT("shift"), ""); 
@@ -1590,12 +1639,14 @@ EX void show() {
   animator(XLATN("Ocean"), env_ocean, 'o');
   animator(XLATN("Volcanic Wasteland"), env_volcano, 'v');
   if(shmup::on) dialog::addBoolItem_action(XLAT("shmup action"), env_shmup, 'T');
+  #if CAP_FILES && CAP_SHOT
   if(cheater) {
     dialog::addSelItem(XLAT("monster turns"), its(numturns), 'n');
     dialog::add_action([] {      
       dialog::editNumber(numturns, 0, 100, 1, 0, XLAT("monster turns"), XLAT("Number of turns to pass. Useful when simulating butterflies or cellular automata."));
       });
     }
+  #endif
 
   #if CAP_RUG
   if(rug::rugged) {
@@ -1608,14 +1659,16 @@ EX void show() {
       }
     else dialog::addBreak(100);
     animator(XLAT("model-relative rotation"), rug_rotation2, 'r');
-    animator(XLAT("automatic move speed"), rug::ruggo, 'M');
+    animator(XLAT("automatic move speed"), rug_forward, 'M');
     dialog::add_action([] () { 
-      dialog::editNumber(rug::ruggo, 0, 10, 1, 1, XLAT("automatic move speed"), XLAT("Move automatically without pressing any keys."));
-      if(among(rug::gwhere, gSphere, gElliptic)) 
-        dialog::extra_options = [] () {
+      dialog::editNumber(rug_forward, 0, 10, 1, 1, XLAT("automatic move speed"), XLAT("Move automatically without pressing any keys."));
+      dialog::extra_options = [] () {
+        if(among(rug::gwhere, gSphere, gElliptic))  {
           dialog::addItem(XLAT("synchronize"), 'S');
-          dialog::add_action([] () { rug::ruggo = 2 * M_PI * 1000 / period; popScreen(); });
-          };
+          dialog::add_action([] () { rug_forward = 2 * M_PI; popScreen(); });
+          }
+        rug_angle_options();
+        };
       });
     }
   #endif
@@ -1627,13 +1680,11 @@ EX void show() {
   dialog::addSelItem(XLAT("animate parameters"), fts(a), 'a');
   dialog::add_action([] () {
     dialog::editNumber(a, -100, 100, 1, 0, XLAT("animate parameters"), "");
-    dialog::extra_options = list_animated_parameters;
     });
 
   dialog::addSelItem(XLAT("animate parameters"), fts(b), 'b');
   dialog::add_action([] () {
     dialog::editNumber(b, -100, 100, 1, 0, XLAT("animate parameters"), "");
-    dialog::extra_options = list_animated_parameters;
     });
 
   dialog::addBoolItem(XLAT("history mode"), (history::on || history::includeHistory), 'h');
@@ -1695,6 +1746,7 @@ int readArgs() {
 #endif
 #if CAP_VIDEO
   else if(argis("-animvideo")) {
+    start_game();
     PHASE(3); shift(); noframes = argi();
     shift(); videofile = args(); record_video();
     }
@@ -1767,7 +1819,23 @@ auto animhook = addHook(hooks_frame, 100, display_animation)
   #if CAP_COMMANDLINE
   + addHook(hooks_args, 100, readArgs)
   #endif
-  ;
+  + addHook(hooks_configfile, 100, [] {
+    #if CAP_CONFIG
+    param_f(anims::period, "aperiod", "animation period");
+    addsaver(anims::noframes, "animation frames");
+    param_f(anims::cycle_length, "acycle", "animation cycle length");
+    param_f(anims::parabolic_length, "aparabolic", "animation parabolic length")
+      ->editable(0, 10, 1, "cells to go", "", 'c');
+    param_f(anims::rug_angle, "arugangle", "animation rug angle");
+    param_f(anims::circle_radius, "acradius", "animation circle radius");
+    param_f(anims::circle_spins, "acspins", "animation circle spins");
+    addsaver(anims::rug_movement_angle, "rug forward movement angle", 90);
+    addsaver(anims::rug_shift_angle, "rug forward shift angle", 0);
+    addsaver(anims::a, "a", 0);
+    addsaver(anims::b, "b", 0);
+    param_f(anims::movement_angle_2, "movement angle 2", 0);
+    #endif
+    });
 
 EX bool any_animation() {
   if(history::on) return true;
@@ -1814,6 +1882,7 @@ void no_init() { }
 
 startanim null_animation { "", no_init, [] { gamescreen(2); }};
 
+#if CAP_STARTANIM
 startanim joukowsky { "Joukowsky transform", no_init, [] {
   dynamicval<eModel> dm(pmodel, mdJoukowskyInverted);
   dynamicval<ld> dt(pconf.model_orientation, ticks / 25.);
@@ -1873,18 +1942,20 @@ startanim spin_around { "spinning around", no_init,  [] {
   dynamicval<transmatrix> dv(View, spin(-cos_auto(circle_radius)*alpha) * xpush(circle_radius) * spin(alpha) * View);
   gamescreen(2);
   }};
+#endif
 
 reaction_t add_to_frame;
 
 #if CAP_STARTANIM
 void draw_ghost(const transmatrix V, int id) {
+  auto sV = shiftless(V);
   if(id % 13 == 0) {
-    queuepoly(V, cgi.shMiniGhost, 0xFFFF00C0);
-    queuepoly(V, cgi.shMiniEyes, 0xFF);
+    queuepoly(sV, cgi.shMiniGhost, 0xFFFF00C0);
+    queuepoly(sV, cgi.shMiniEyes, 0xFF);
     }
   else {
-    queuepoly(V, cgi.shMiniGhost, 0xFFFFFFC0);
-    queuepoly(V, cgi.shMiniEyes, 0xFF);
+    queuepoly(sV, cgi.shMiniGhost, 0xFFFFFFC0);
+    queuepoly(sV, cgi.shMiniEyes, 0xFF);
     }
   }
 
@@ -1914,7 +1985,7 @@ startanim army_of_ghosts { "army of ghosts", no_init, [] {
       for(int y=0;; y++) {
         ld ay = (mod - y)/4.;
         transmatrix U = spin(M_PI/2) * xpush(ay / cosh(ax)) * T;
-        if(!in_smart_range(U)) break;
+        if(!in_smart_range(shiftless(U))) break;
         draw_ghost(U, (-y - t));
         if(y) {
           ay = (mod + y)/4.;

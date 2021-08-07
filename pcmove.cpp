@@ -117,14 +117,16 @@ bool pcmove::checkNeedMove(bool checkonly, bool attacking) {
     return false;
   int flags = 0;
   if(cwt.at->monst) {
-    if(isMountable(cwt.at->monst))
-      addMessage(XLAT("You need to dismount %the1!", cwt.at->monst));
-    else
-      addMessage(XLAT("You need to move to give space to %the1!", cwt.at->monst));
+    if(vmsg(miRESTRICTED)) {
+      if(isMountable(cwt.at->monst))
+        addMessage(XLAT("You need to dismount %the1!", cwt.at->monst));
+      else
+        addMessage(XLAT("You need to move to give space to %the1!", cwt.at->monst));
+      }
     }
   else if(cwt.at->wall == waRoundTable) {
     if(markOrb2(itOrbAether)) return false;
-    if(vmsg()) 
+    if(vmsg(miRESTRICTED)) 
       addMessage(XLAT("It would be impolite to land on the table!"));
     }
   else if(cwt.at->wall == waLake) {
@@ -132,47 +134,48 @@ bool pcmove::checkNeedMove(bool checkonly, bool attacking) {
     if(markOrb2(itOrbFish)) return false;
     if(in_gravity_zone(cwt.at) && passable(cwt.at, NULL, P_ISPLAYER)) return false;
     flags |= AF_FALL;
-    if(vmsg()) addMessage(XLAT("Ice below you is melting! RUN!"));
+    if(vmsg(miWALL)) addMessage(XLAT("Ice below you is melting! RUN!"));
     }
   else if(!attacking && cellEdgeUnstable(cwt.at)) {
     if(markOrb2(itOrbAether)) return false;
     if(in_gravity_zone(cwt.at) && passable(cwt.at, NULL, P_ISPLAYER)) return false;
-    if(vmsg()) addMessage(XLAT("Nothing to stand on here!"));
+    if(vmsg(miRESTRICTED)) addMessage(XLAT("Nothing to stand on here!"));
     return true;
     }
   else if(among(cwt.at->wall, waSea, waCamelotMoat, waLake, waDeepWater)) {
     if(markOrb(itOrbFish)) return false;
     if(markOrb2(itOrbAether)) return false;
     if(in_gravity_zone(cwt.at) && passable(cwt.at, NULL, P_ISPLAYER)) return false;
-    if(vmsg()) addMessage(XLAT("You have to run away from the water!"));
+    if(vmsg(miWALL)) addMessage(XLAT("You have to run away from the water!"));
     }
   else if(cwt.at->wall == waClosedGate) {
     if(markOrb2(itOrbAether)) return false;
-    if(vmsg()) addMessage(XLAT("The gate is closing right on you! RUN!"));
+    if(vmsg(miWALL)) addMessage(XLAT("The gate is closing right on you! RUN!"));
     }
-  else if(isFire(cwt.at) && !markOrb(itOrbWinter) && !markOrb2(itOrbShield)) {
+  else if(isFire(cwt.at) && !markOrb(itOrbWinter) && !markOrb(itCurseWater) && !markOrb2(itOrbShield)) {
     if(markOrb2(itOrbAether)) return false;
-    if(vmsg()) addMessage(XLAT("This spot will be burning soon! RUN!"));
+    if(vmsg(miWALL)) addMessage(XLAT("This spot will be burning soon! RUN!"));
     }
-  else if(cwt.at->wall == waMagma && !markOrb(itOrbWinter) && !markOrb2(itOrbShield)) {
+  else if(cwt.at->wall == waMagma && !markOrb(itOrbWinter) && !markOrb(itCurseWater) && !markOrb2(itOrbShield)) {
     if(markOrb2(itOrbAether)) return false;
     if(in_gravity_zone(cwt.at) && passable(cwt.at, cwt.at, P_ISPLAYER)) return false;
-    if(vmsg()) addMessage(XLAT("Run away from the magma!"));
+    if(vmsg(miWALL)) addMessage(XLAT("Run away from the magma!"));
     }
   else if(cwt.at->wall == waChasm) {
     if(markOrb2(itOrbAether)) return false;
     if(in_gravity_zone(cwt.at) && passable(cwt.at, cwt.at, P_ISPLAYER)) return false;
     flags |= AF_FALL;
-    if(vmsg()) addMessage(XLAT("The floor has collapsed! RUN!"));
+    if(vmsg(miWALL)) addMessage(XLAT("The floor has collapsed! RUN!"));
     }
   else if(items[itOrbAether] > ORBBASE && !passable(cwt.at, NULL, P_ISPLAYER | P_NOAETHER)) {
     if(markOrb2(itOrbAether)) return false;
+    vmsg(miWALL);
     return true;
     }
   else if(!passable(cwt.at, NULL, P_ISPLAYER)) {
     if(isFire(cwt.at)) return false; // already checked: have Shield
     if(markOrb2(itOrbAether)) return false;
-    if(vmsg()) addMessage(XLAT("Your Aether power has expired! RUN!"));
+    if(vmsg(miWALL)) addMessage(XLAT("Your Aether power has expired! RUN!"));
     }
   else return false;
   if(hardcore && !checkonly) 
@@ -220,15 +223,16 @@ struct pcmove {
   movei mi, mip;
   pcmove() : mi(nullptr, nullptr, 0), mip(nullptr, nullptr, 0) {}
 
-  bool vmsg();
+  bool vmsg(int code);
   };
 #endif
 
 EX cell *global_pushto;
 
-bool pcmove::vmsg() {  changes.rollback(); return errormsgs && !checkonly; }
+bool pcmove::vmsg(int code) { checked_move_issue = code; changes.rollback(); return errormsgs && !checkonly; }
 
 EX bool movepcto(int d, int subdir IS(1), bool checkonly IS(false)) {
+  checked_move_issue = miVALID;
   pcmove pcm;
   pcm.checkonly = checkonly;
   pcm.d = d; pcm.subdir = subdir;
@@ -262,7 +266,7 @@ bool pcmove::movepcto() {
     lastmountpos[0] = cwt.at;
   
   if(againstRose(cwt.at, NULL) && d<0 && !scentResistant()) {
-    if(vmsg())
+    if(vmsg(miRESTRICTED))
       addMessage("You just cannot stand in place, those roses smell too nicely.");
     return false;
     }
@@ -324,8 +328,8 @@ bool pcmove::after_move() {
   invisfish = false;
   if(items[itOrbFish]) {
      invisfish = true;
-     for(int i=0; i<numplayers(); i++) 
-       if(multi::playerActive(i) && !isWatery(playerpos(i)))
+     for(cell *pc: player_positions()) 
+       if(!isWatery(pc))
          invisfish = false;
      if(d < 0) invisfish = false; // no invisibility if staying still
      if(invisfish) invismove = true, markOrb(itOrbFish);
@@ -357,9 +361,9 @@ bool pcmove::swing() {
   sideAttack(cwt.at, d, moPlayer, 0);
 
   mirror::act(origd, mirror::SPINMULTI | mirror::ATTACK);
-
-  if(monstersnear(cwt.at, moPlayer, nullptr, cwt.at)) {
-    if(vmsg())
+  
+  if(monstersnear_add_pmi(movei(cwt.at, STAY))) {
+    if(vmsg(miTHREAT))
       wouldkill("You would be killed by %the1!");          
     return false;
     }
@@ -524,17 +528,44 @@ bool switch_lhu_in(eLand l) {
   return among(l, laBrownian, laMinefield, laTerracotta, laHive);
   }
 
+/** \brief how should be the direction from 'src' be mirrored to 'dst' */
+EX int chaos_mirror_dir(int dir, cellwalker src, cellwalker dst) {
+  if(dir >= dst.at->type) return dir;
+  return (dst-src.to_spin(dir)).spin;
+  }
+
+#if HDR
+template<class T> void swap_data(T& data, cell *c1, cell *c2) {
+  changes.map_value(data, c1);
+  changes.map_value(data, c2);
+  if(data.count(c1) && data.count(c2))
+    swap(data[c1], data[c2]);
+  else if(data.count(c1))
+    data[c2] = data[c1], data.erase(c1);
+  else if(data.count(c2))
+    data[c1] = data[c2], data.erase(c2);
+  }
+#endif
+
 /** \brief Apply the Orb of Chaos.
  *
  * We assume that the player moves from cwt.peek, in
  * in the direction given by cwt.spin.
  */
 void apply_chaos() {
-  cell *ca = (cwt+1).cpeek();
-  cell *cb = (cwt-1).cpeek();
+  auto wa = cwt+1+wstep;
+  auto wb = cwt-1+wstep;
+  cell *ca = wa.at;
+  cell *cb = wb.at;
+  if(dice::swap_forbidden(ca, cb)) return;
+  if(dice::swap_forbidden(cb, ca)) return;
   if(!items[itOrbChaos] || chaos_forbidden(ca) || chaos_forbidden(cb)) return;
   if(ca && is_paired(ca->monst)) killMonster(ca, moPlayer);
   if(cb && is_paired(cb->monst)) killMonster(cb, moPlayer);
+  destroyTrapsOn(ca);
+  destroyTrapsOn(cb);
+  if (ca->wall == waStone) destroyTrapsAround(ca);
+  if (cb->wall == waStone) destroyTrapsAround(cb);
   changes.ccell(ca);
   changes.ccell(cb);
   gcell coa = *ca;
@@ -549,22 +580,27 @@ void apply_chaos() {
   copy_metadata(cb, &coa);
   if(!switch_lhu_in(ca->land)) ca->LHU = coa.LHU;
   if(!switch_lhu_in(cb->land)) cb->LHU = cob.LHU;
-  int sa = ca->mondir - ((cwt+1)+wstep).spin;
-  int sb = cb->mondir - ((cwt-1)+wstep).spin;
   if(ca->monst && !(isFriendly(ca) && markOrb(itOrbEmpathy)))
     ca->stuntime = min(ca->stuntime + 3, 15), markOrb(itOrbChaos);
   if(cb->monst && !(isFriendly(cb) && markOrb(itOrbEmpathy)))
     cb->stuntime = min(cb->stuntime + 3, 15), markOrb(itOrbChaos);
   ca->monmirror = !ca->monmirror;
   cb->monmirror = !cb->monmirror;
-  if(ca->mondir < ca->type)
-    ca->mondir = ((cwt+1)+wstep-sb).spin;
-  if(cb->mondir < cb->type)
-    cb->mondir = ((cwt+1)+wstep-sa).spin;
+  ca->mondir = chaos_mirror_dir(ca->mondir, wb, wa);
+  cb->mondir = chaos_mirror_dir(cb->mondir, wa, wb);
   if(isPrincess(ca) && !isPrincess(cb))
     princess::move(movei{cb, ca, JUMP});
   if(isPrincess(cb) && !isPrincess(ca))
     princess::move(movei{ca, cb, JUMP});
+  if(ca->monst == moTortoise || cb->monst == moTortoise) {
+    tortoise::move_adult(ca, cb);
+    }
+  if(dice::on(ca) || dice::on(cb)) {
+    dice::chaos_swap(wa, wb);
+    }
+  if(ca->item == itBabyTortoise || cb->item == itBabyTortoise) {
+    tortoise::move_baby(ca, cb);
+    }
   }
   
 bool pcmove::actual_move() {
@@ -591,7 +627,7 @@ bool pcmove::actual_move() {
     }
 
   if(againstRose(cwt.at, c2) && !scentResistant()) {
-    if(vmsg()) addMessage("Those roses smell too nicely. You have to come towards them.");
+    if(vmsg(miRESTRICTED)) addMessage("Those roses smell too nicely. You have to come towards them.");
     return false;
     }
   
@@ -611,12 +647,26 @@ bool pcmove::actual_move() {
     activateActiv(c2, true);
     return after_instant(false);
     }
+  
+  #if CAP_COMPLEX2
+  if(c2->monst == moAnimatedDie) {
+    mip = determinePush(cwt, subdir, [] (movei mi) { return canPushThumperOn(mi, cwt.at); });
+    if(mip.proper()) {
+      auto tgt = roll_effect(mip, dice::data[c2]);
+      if(tgt.happy() > 0) {
+        changes.ccell(c2);
+        c2->monst = moNone;
+        c2->wall = waRichDie;
+        }
+      }
+    }
+  #endif
 
   if(isPushable(c2->wall) && !c2->monst && !nonAdjacentPlayer(c2, cwt.at) && fmsMove) {
-    mip = determinePush(cwt, subdir, [c2] (cell *c) { return canPushThumperOn(c, c2, cwt.at); });
+    mip = determinePush(cwt, subdir, [] (movei mi) { return canPushThumperOn(mi, cwt.at); });
     if(mip.t) changes.ccell(mip.t);
     if(mip.d == NO_SPACE) {
-      if(vmsg()) addMessage(XLAT("No room to push %the1.", c2->wall));
+      if(vmsg(miWALL)) addMessage(XLAT("No room to push %the1.", c2->wall));
       return false;
       }
     nextmovetype = lmMove;
@@ -627,7 +677,7 @@ bool pcmove::actual_move() {
     }
 
   if(c2->item == itHolyGrail && roundTableRadius(c2) < newRoundTableRadius()) {
-    if(vmsg()) addMessage(XLAT("That was not a challenge. Find a larger castle!"));
+    if(vmsg(miRESTRICTED)) addMessage(XLAT("That was not a challenge. Find a larger castle!"));
     return false;
     }
 
@@ -654,27 +704,37 @@ bool pcmove::actual_move() {
   return after_escape();
   }
 
+void blowaway_message(cell *c2) {
+  addMessage(airdist(c2) < 3 ? XLAT("The Air Elemental blows you away!") : XLAT("You cannot go against the wind!"));
+  }
+
+EX void tortoise_hero_message(cell *c2) {
+  bool fem = playergender() == GEN_F;      
+  playSound(c2, fem ? "heal-princess" : "heal-prince");
+  addMessage(fem ? XLAT("You are now a tortoise heroine!") : XLAT("You are now a tortoise hero!"));
+  }
+
 bool pcmove::boat_move() {
 
   cell *& c2 = mi.t;
   if(havePushConflict(cwt.at, checkonly)) return false;
 
-  if(againstWind(c2, cwt.at) && !markOrb(itOrbWater)) {
-    if(vmsg()) addMessage(XLAT(airdist(c2) < 3 ? "The Air Elemental blows you away!" : "You cannot go against the wind!"));
+  if(againstWind(c2, cwt.at)) {
+    if(vmsg(miRESTRICTED)) blowaway_message(c2);
     return false;
     }
 
   if(againstCurrent(c2, cwt.at) && !markOrb(itOrbWater)) {
     if(markOrb(itOrbFish) || markOrb(itOrbAether) || gravity_state)
       return after_escape();
-    if(vmsg()) addMessage(XLAT("You cannot go against the current!"));
+    if(vmsg(miRESTRICTED)) addMessage(XLAT("You cannot go against the current!"));
     return false;
     }
 
   if(cwt.at->item == itOrbYendor) {        
     if(markOrb(itOrbFish) || markOrb(itOrbAether) || gravity_state) 
       return after_escape();
-    if(vmsg()) addMessage(XLAT("The Orb of Yendor is locked in with powerful magic."));
+    if(vmsg(miRESTRICTED)) addMessage(XLAT("The Orb of Yendor is locked in with powerful magic."));
     return false;
     }
 
@@ -690,7 +750,7 @@ void pcmove::tell_why_cannot_attack() {
     addMessage(XLAT("You cannot attack Sandworms directly!"));
   else if(c2->monst == moHexSnake || c2->monst == moHexSnakeTail)
     addMessage(XLAT("You cannot attack Rock Snakes directly!"));
-  else if(nonAdjacent(c2, cwt.at))
+  else if(nonAdjacentPlayer(c2, cwt.at))
     addMessage(XLAT("You cannot attack diagonally!"));
   else if(thruVine(c2, cwt.at))
     addMessage(XLAT("You cannot attack through the Vine!"));
@@ -720,16 +780,31 @@ void pcmove::tell_why_cannot_attack() {
     addMessage(XLAT("You cannot attack Raiders directly!"));
   else if(isSwitch(c2->monst))
     addMessage(XLAT("You cannot attack Jellies in their wall form!"));
+  else if(c2->monst == moAnimatedDie)
+    addMessage(XLAT("You can only push this die if the highest number would be on the top!"));
+  else if(c2->monst == moAngryDie)
+    addMessage(XLAT("This die is really angry at you!"));
+  else if((attackflags & AF_WEAK) && isIvy(c2))
+    addMessage(XLAT("You are too weakened to attack %the1!", c2->monst));
+  else if(isWorm(cwt.at->monst) && isWorm(c2->monst) && wormhead(cwt.at) == wormhead(c2) && cwt.at->monst != moTentacleGhost && c2->monst != moTentacleGhost)
+    addMessage(XLAT("You cannot attack your own mount!"));
+  else if(checkOrb(c2->monst, itOrbShield))
+    addMessage(XLAT("A magical shield protects %the1!", c2->monst));
   else
     addMessage(XLAT("For some reason... cannot attack!"));
   }
 
 bool pcmove::after_escape() {
-  cell*& c2 = mi.t;
-
-  if(c2->wall == waBigStatue && !c2->monst && !nonAdjacentPlayer(c2, cwt.at) && fmsMove) {
-    if(!canPushStatueOn(cwt.at)) {
-      if(vmsg()) { 
+  cell*& c2 = mi.t;) { 
+  
+  bool push_behind = c2->wall == waBigStatue || (among(c2->wall, waCTree, waSmallTree, waBigTree, waShrub, waVinePlant) && markOrb(itOrbWoods));
+  
+  if(thruVine(c2, cwt.at) && markOrb(itOrbWoods)) push_behind = true;
+  
+  if(push_behind && !c2->monst && !nonAdjacentPlayer(c2, cwt.at) && fmsMove) {
+    eWall what = c2->wall;
+    if(!thruVine(c2, cwt.at) && !canPushStatueOn(cwt.at, P_ISPLAYER)) {
+      if(vmsg(miRESTRICTED)) { 
         if(isFire(cwt.at))
           addMessage(XLAT("You have to escape first!"));
         else
@@ -744,11 +819,15 @@ bool pcmove::after_escape() {
     changes.ccell(cwt.at);
     
     c2->wall = cwt.at->wall;
-    if(doesnotFall(cwt.at))
-      cwt.at->wall = waBigStatue;
+    c2->wparam = cwt.at->wparam;
+    if(doesnotFall(cwt.at)) {
+      cwt.at->wall = what;
+      if(cellHalfvine(what)) 
+        c2->wall = waNone, cwt.at->wall = waVinePlant;
+      }
       
     nextmovetype = lmMove;
-    addMessage(XLAT("You push %the1 behind you!", waBigStatue));
+    addMessage(XLAT("You push %the1 behind you!", what));
     animateMovement(mi.rev(), LAYER_BOAT);
     return perform_actual_move();
     }
@@ -768,7 +847,7 @@ bool pcmove::after_escape() {
   
   bool dont_attack = items[itOrbFlash] || items[itOrbLightning];
   
-  if(attackable && fmsAttack && !dont_attack) {
+  if(attackable && fmsAttack && !dont_attack && !items[itCurseWeakness]) {
     if(checkNeedMove(checkonly, true)) return false;
     nextmovetype = nm ? lmAttack : lmSkip;
     if(c2->wall == waSmallTree) {
@@ -810,15 +889,19 @@ bool pcmove::after_escape() {
     }
   else if(c2->monst == moKnight) {
     #if CAP_COMPLEX2
-    if(vmsg()) camelot::knightFlavorMessage(c2);
+    if(vmsg(miWALL)) camelot::knightFlavorMessage(c2);
     #endif
     return false;
     }
-  else if(c2->monst && (!isFriendly(c2) || c2->monst == moTameBomberbird || isMountable(c2->monst))
-    && !(peace::on && !isMultitile(c2->monst) && !good_tortoise)) 
+  else if(c2->monst && (!isFriendly(c2) || c2->monst == moTameBomberbird || isMountable(c2->monst)) && !(peace::on && !good_tortoise))
     return attack();
   else if(!passable(c2, cwt.at, P_USEBOAT | P_ISPLAYER | P_MIRROR | P_MONSTER)) {
-    if(vmsg()) tell_why_impassable();
+    tell_why_impassable();
+    return false;
+    }
+  else if(items[itFatigue] + fatigue_cost(mi) > 10) {
+    if(vmsg(miRESTRICTED)) 
+      addMessage(XLAT("You are too fatigued!"));
     return false;
     }
   else if(fmsMove) 
@@ -841,7 +924,7 @@ bool pcmove::move_if_okay() {
       return false;
     }
 
-  if(switchplace_prevent(cwt.at, c2, checkonly))
+  if(switchplace_prevent(cwt.at, c2, *this))
     return false;
   if(!checkonly && warningprotection_hit(do_we_stab_a_friend(cwt.at, c2, moPlayer)))
     return false;
@@ -852,29 +935,43 @@ bool pcmove::move_if_okay() {
 
 void pcmove::tell_why_impassable() {
   cell*& c2 = mi.t;
-  if(nonAdjacent(cwt.at,c2))
-    addMessage(XLAT(
-      geosupport_football() < 2 ? 
-      "You cannot move between the cells without dots here!" :
-      "You cannot move between the triangular cells here!"
-      ));
-  else if(againstWind(c2, cwt.at))
-    addMessage(XLAT(airdist(c2) < 3 ? "The Air Elemental blows you away!" : "You cannot go against the wind!"));
-  else if(isAlch(c2))
-    addMessage(XLAT("Wrong color!"));
-  else if(c2->wall == waRoundTable)
-    addMessage(XLAT("It would be impolite to land on the table!"));
-  else if(snakelevel(cwt.at) >= 3 && snakelevel(c2) == 0)
-    addMessage(XLAT("You would get hurt!", c2->wall));
-  else if(cellEdgeUnstable(cwt.at) && cellEdgeUnstable(c2)) {
-    addMessage(XLAT("Gravity does not allow this!"));
+  if(nonAdjacentPlayer(cwt.at,c2)) {
+    if(vmsg(miRESTRICTED)) addMessage(geosupport_football() < 2 ?
+      XLAT("You cannot move between the cells without dots here!") :
+      XLAT("You cannot move between the triangular cells here!")
+      );
     }
-  else if(c2->wall == waChasm && c2->land == laDual)
-    addMessage(XLAT("You cannot move there!"));
-  else if(!c2->wall)
-    addMessage(XLAT("You cannot move there!"));
+  else if(againstWind(c2, cwt.at)) {
+    if(vmsg(miRESTRICTED))
+      blowaway_message(c2);
+    }
+  else if(anti_alchemy(c2, cwt.at)) {
+    if(vmsg(miRESTRICTED))
+      addMessage(XLAT("Wrong color!"));
+    }
+  else if(c2->wall == waRoundTable) {
+    if(vmsg(miRESTRICTED))
+      addMessage(XLAT("It would be impolite to land on the table!"));
+    }
+  else if(snakelevel(cwt.at) >= 3 && snakelevel(c2) == 0 && !isWall(c2)) {
+    if(vmsg(miRESTRICTED))
+      addMessage(XLAT("You would get hurt!", c2->wall));
+    }
+  else if(cellEdgeUnstable(cwt.at) && cellEdgeUnstable(c2)) {
+    if(vmsg(miRESTRICTED))
+      addMessage(XLAT("Gravity does not allow this!"));
+    }
+  else if(c2->wall == waChasm && c2->land == laDual) {
+    if(vmsg(miRESTRICTED))
+      addMessage(XLAT("You cannot move there!"));
+    }
+  else if(!c2->wall) {
+    if(vmsg(miRESTRICTED))
+      addMessage(XLAT("You cannot move there!"));
+    }
   else {
-    addMessage(XLAT("You cannot move through %the1!", c2->wall));
+    if(vmsg(miWALL))
+      addMessage(XLAT("You cannot move through %the1!", c2->wall));
     }
   }
 
@@ -888,20 +985,21 @@ bool pcmove::attack() {
   attackflags = AF_NORMAL;
   if(items[itOrbSpeed]&1) attackflags |= AF_FAST;
   if(items[itOrbSlaying]) attackflags |= AF_CRUSH;
+  if(items[itCurseWeakness]) attackflags |= AF_WEAK;
   
   bool ca =canAttack(cwt.at, moPlayer, c2, c2->monst, attackflags);
   
   if(!ca) {
     if(forcedmovetype == fmAttack) {
-      if(monstersnear(cwt.at,moPlayer,NULL,cwt.at)) {
-        if(vmsg()) wouldkill("%The1 would get you!");
+      if(monstersnear_add_pmi(movei(cwt.at, STAY))) {
+        if(vmsg(miTHREAT)) wouldkill("%The1 would get you!");
         return false;
         }
       nextmovetype = lmSkip;
       addMessage(XLAT("You swing your sword at %the1.", c2->monst));
       return swing();
       }
-    if(vmsg()) tell_why_cannot_attack();
+    if(vmsg(miENTITY)) tell_why_cannot_attack();
     return false;
     }
     
@@ -910,9 +1008,9 @@ bool pcmove::attack() {
 
   mip = movei(c2, nullptr, NO_SPACE);
   
-  if(isStunnable(c2->monst) && c2->hitpoints > 1) {
+  if(items[itCurseWeakness] || (isStunnable(c2->monst) && c2->hitpoints > 1)) {
     if(monsterPushable(c2))
-      mip = determinePush(cwt, subdir, [c2] (cell *c) { return passable(c, c2, P_BLOW); });
+      mip = determinePush(cwt, subdir, [] (movei mi) { return passable(mi.t, mi.s, P_BLOW); });
     else
       mip.t = c2;
     if(mip.t) changes.ccell(mip.t);
@@ -938,9 +1036,7 @@ bool pcmove::attack() {
       updateHi(itBabyTortoise, items[itBabyTortoise]);
       c2->item = itBabyTortoise;
       tortoise::babymap[c2] = tortoise::seekbits;
-      playSound(c2, playergender() ? "heal-princess" : "heal-prince");
-      addMessage(XLAT(playergender() == GEN_F ? "You are now a tortoise heroine!" : "You are now a tortoise hero!"));
-      c2->stuntime = 2;
+      tortoise_hero_message(c2);
       achievement_collection(itBabyTortoise);
       });
     }
@@ -975,8 +1071,8 @@ bool pcmove::attack() {
   lastmovetype = lmAttack; lastmove = c2;
   swordAttackStatic();
 
-  if(monstersnear(cwt.at, moPlayer, nullptr, cwt.at)) {
-    if(vmsg()) wouldkill("You would be killed by %the1!");
+  if(monstersnear_add_pmi(movei(cwt.at, STAY))) {
+    if(vmsg(miTHREAT)) wouldkill("You would be killed by %the1!");
     return false;
     }
   if(checkonly) return true;
@@ -989,16 +1085,29 @@ EX bool chaos_forbidden(cell *c) {
   return do_not_touch_this_wall(c) || isMultitile(c->monst);
   }
 
+EX int fatigue_cost(const movei& mi) {
+  return
+    gravityLevelDiff(mi.t, mi.s) +
+    (snakelevel(mi.t) - snakelevel(mi.s)) +
+    (againstWind(mi.s, mi.t) ? 0 : 1);
+  }
+
+bool alchMayDuplicate(eWall w) {
+  return !isDie(w) && w != waBoat && w != waArrowTrap;
+}
+
 bool pcmove::perform_actual_move() {
   cell*& c2 = mi.t;
   changes.at_commit([&] {
     flipplayer = true; if(multi::players > 1) multi::flipped[multi::cpid] = true;
     });
   if(c2->item && isAlch(c2)) {
-    if(cwt.at->wall == waBoat)
-      c2->wall = waNone;
-    else
+    if(alchMayDuplicate(cwt.at->wall)) {
       c2->wall = cwt.at->wall;
+      c2->wparam = cwt.at->wparam;
+      }
+    else
+      c2->wall = waNone;
     }
   #if CAP_COMPLEX2
   if(c2->wall == waRoundTable) {
@@ -1015,6 +1124,14 @@ bool pcmove::perform_actual_move() {
     invismove = false;
     if(makeflame(cwt.at, 10, false)) markOrb(itOrbFire);
     }
+
+  if(items[itCurseWater]) {
+    invismove = false;
+    if(makeshallow(mi.s, 10, false)) markOrb(itCurseWater);
+    }
+  
+  if(markOrb(itCurseFatigue) && !markOrb(itOrbAether))
+    items[itFatigue] += fatigue_cost(mi);
 
   handle_friendly_ivy();  
   
@@ -1089,8 +1206,8 @@ bool pcmove::perform_move_or_jump() {
 
   if(mi.t->monst == moFriendlyIvy) changes.ccell(mi.t), mi.t->monst = moNone;
   
-  if(monstersnear(cwt.at, moPlayer, nullptr, c1)) {
-    if(vmsg()) wouldkill("%The1 would kill you there!");
+  if(monstersnear_add_pmi(pmi)) {
+    if(vmsg(miTHREAT)) wouldkill("%The1 would kill you there!");
     return false;
     }
   
@@ -1123,8 +1240,19 @@ bool pcmove::stay() {
     return false;
   swordAttackStatic();
   nextmovetype = lmSkip;
-  if(monstersnear(cwt.at, moPlayer, nullptr, cwt.at)) {
-    if(vmsg()) wouldkill("%The1 would get you!");
+
+  mi = movei(cwt.at, STAY);
+  if(last_gravity_state && !gravity_state)
+    playerMoveEffects(mi);
+  if(d == -2) 
+    dropGreenStone(cwt.at);
+
+  items[itFatigue] -= 5;
+  if(items[itFatigue] < 0)
+    items[itFatigue] = 0;
+
+  if(monstersnear_add_pmi(mi)) {
+    if(vmsg(miTHREAT)) wouldkill("%The1 would get you!");
     return false;
     }
   if(checkonly) return true;
@@ -1176,14 +1304,30 @@ EX bool warningprotection_hit(eMonster m) {
   }
 
 EX bool playerInWater() { 
-  for(int i=0; i<numplayers(); i++) 
-    if(multi::playerActive(i) && isWatery(playerpos(i)) && !playerInBoat(i)) 
+  for(int i: player_indices())
+    if(isWatery(playerpos(i)) && !playerInBoat(i)) 
       return true;
   return false;
   }
 
 EX int numplayers() {
   return multi::players;
+  }
+
+EX vector<cell*> player_positions() {
+  vector<cell*> res;
+  for(int i=0; i<numplayers(); i++)
+    if(multi::playerActive(i))
+      res.push_back(playerpos(i));
+  return res;
+  }
+
+EX vector<int> player_indices() {
+  vector<int> res;
+  for(int i=0; i<numplayers(); i++)
+    if(multi::playerActive(i))
+      res.push_back(i);
+  return res;
   }
 
 EX cell *playerpos(int i) {
@@ -1193,14 +1337,14 @@ EX cell *playerpos(int i) {
   }
 
 EX bool allPlayersInBoats() {
-  for(int i=0; i<numplayers(); i++) 
-    if(multi::playerActive(i) && playerpos(i)->wall != waBoat) return true;
+  for(cell *pc: player_positions())
+    if(pc->wall != waBoat) return true;
   return false;
   }
 
 EX int whichPlayerOn(cell *c) {
   if(singleused()) return c == singlepos() ? 0 : -1;
-  for(int i=0; i<numplayers(); i++) 
+  for(int i: player_indices())
     if(playerpos(i) == c) return i;
   return -1;
   }
@@ -1228,8 +1372,8 @@ EX bool isPlayerInBoatOn(cell *c) {
 EX bool playerInPower() {
   if(singleused()) 
     return singlepos()->land == laPower || singlepos()->land == laHalloween;
-  for(int i=0; i<numplayers(); i++) 
-    if(multi::playerActive(i) && (playerpos(i)->land == laPower || playerpos(i)->land == laHalloween))
+  for(cell *pc: player_positions())
+    if(pc->land == laPower || pc->land == laHalloween)
       return true;
   return false;
   }
@@ -1266,7 +1410,10 @@ EX void playerMoveEffects(cell *c1, cell *c2) {
     drainOrb(itOrbAether, 2);
     }
     
-  if(cellUnstable(c2) && !markOrb(itOrbAether)) doesFallSound(c2);
+  if(cellUnstable(c2) && !markOrb(itOrbAether)) {
+    doesFallSound(c2);
+    if(c2->land == laMotion && c2->wall == waChasm) c2->mondir = mi.rev_dir_or(NODIR);
+    }
 
   if(c2->wall == waStrandedBoat && markOrb(itOrbWater))
     c2->wall = waBoat;
@@ -1356,7 +1503,8 @@ EX void swordAttackStatic() {
 EX int plague_kills;
 
 EX void spread_plague(cell *mf, cell *mt, int dir, eMonster who) {
-  if(!(who == moPlayer ? markOrb(itOrbPlague) : !markEmpathy(itOrbPlague))) return;
+  if(!items[itOrbPlague]) return;
+  if(who != moPlayer && !items[itOrbEmpathy]) return;
   forCellEx(mx, mt) if(celldistance(mx, mf) > celldistance(mx, mf->modmove(dir)) && celldistance(mx, mf) <= 4) {
     sideAttackAt(mf, dir, mx, who, itOrbPlague, mt);
     }
@@ -1529,7 +1677,7 @@ EX void movecost(cell* from, cell *to, int phase) {
   bool tortoiseOK = 
     to->land == from->land || to->land == laTortoise ||
     (to->land == laDragon && from->land != laTortoise) || 
-    chaosmode;
+    ls::any_chaos();
   
   if(tortoise::seek() && !from->item && !tortoiseOK && passable(from, NULL, 0) && (phase & 2)) {
     changes.ccell(from);

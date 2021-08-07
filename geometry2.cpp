@@ -52,7 +52,7 @@ EX transmatrix relative_matrix_recursive(heptagon *h2, heptagon *h1) {
   return gm * where;
   }
 
-EX transmatrix master_relative(cell *c, bool get_inverse IS(false)) {
+transmatrix hrmap_standard::master_relative(cell *c, bool get_inverse) {
   if(0) ;
   #if CAP_IRR  
   else if(IRREGULAR) {
@@ -67,9 +67,9 @@ EX transmatrix master_relative(cell *c, bool get_inverse IS(false)) {
       return spin((get_inverse?-1:1) * master_to_c7_angle());
       }
     else {
-      auto li = gp::get_local_info(c);
-      transmatrix T = spin(master_to_c7_angle()) * cgi.gpdata->Tf[li.last_dir][li.relative.first&31][li.relative.second&31][gp::fixg6(li.total_dir)];
-      if(get_inverse) T = inverse(T);
+      auto li = gp::get_local_info(c
+      transmatrix T = spin(master_to_c7_angle()) * cgi.gpdata->Tf[li.last_dir][li.relative.first&GOLDBERG_MASK][li.relative.second&GOLDBERG_MASK][gp::fixg6(li.total_dir)];
+      if(get_inverse) T = iso_inverse(T);
       return T;
       }
     }
@@ -109,19 +109,22 @@ transmatrix hrmap_standard::adj(heptagon *h, int d) {
   return T;
   }
 
-transmatrix hrmap_standard::relative_matrix(cell *c2, cell *c1, const hyperpoint& hint) {
-
+EX transmatrix relative_matrix_via_masters(cell *c2, cell *c1, const hyperpoint& hint) {
   heptagon *h1 = c1->master;
-  transmatrix gm = master_relative(c1, true);
+  transmatrix gm = currentmap->master_relative(c1, true);
   heptagon *h2 = c2->master;
-  transmatrix where = master_relative(c2);
+  transmatrix where = currentmap->master_relative(c2);
   
-  transmatrix U = relative_matrix(h2, h1, hint);
+  transmatrix U = currentmap->relative_matrix(h2, h1, hint);
   
   return gm * U * where;
   }
 
-transmatrix hrmap_standard::relative_matrix(heptagon *h2, heptagon *h1, const hyperpoint& hint) {
+transmatrix hrmap_standard::relative_matrixc(cell *c2, cell *c1, const hyperpoint& hint) {
+  return relative_matrix_via_masters(c2, c1, hint);
+  }
+
+transmatrix hrmap_standard::relative_matrixh(heptagon *h2, heptagon *h1, const hyperpoint& hint) {
 
   transmatrix gm = Id, where = Id;
   // always add to last!
@@ -215,11 +218,15 @@ struct horo_distance {
 #endif
 
 void horo_distance::become(hyperpoint h1) {
+  #if CAP_SOLV
   if(sn::in()) {
     a = abs(h1[2]);
     if(asonov::in()) h1 = asonov::straighten * h1;
     b = hypot_d(2, h1);
     }
+  #else
+  if(0) {}
+  #endif
   #if CAP_BT
   else if(bt::in()) {
     b = intval(h1, C0);
@@ -310,12 +317,15 @@ void virtualRebase(cell*& base, T& at, const U& check) {
       };
     
     auto& nw = nilv::nilwidth;
-    while(h[1] < -0.5 * nw) step(1);
-    while(h[1] >= 0.5 * nw) step(4);
+    
+    bool ss = S7 == 6;
+
+    while(h[1] < -0.5 * nw) step(ss ? 1 : 2);
+    while(h[1] >= 0.5 * nw) step(ss ? 4 : 6);
     while(h[0] < -0.5 * nw) step(0);
-    while(h[0] >= 0.5 * nw) step(3);
-    while(h[2] < -0.5 * nw * nw) step(2);
-    while(h[2] >= 0.5 * nw * nw) step(5);
+    while(h[0] >= 0.5 * nw) step(ss ? 3 : 4);
+    while(h[2] < -0.5 * nw * nw) step(ss ? 2 : 3);
+    while(h[2] >= 0.5 * nw * nw) step(ss ? 5 : 7);
     return;
     }
 
@@ -456,14 +466,25 @@ int neighborId(heptagon *h1, heptagon *h2) {
   }
 
 transmatrix hrmap_standard::adj(cell *c, int i) {
-  if(GOLDBERG && gp::do_adjm) {
+  if(GOLDBERG) {
     transmatrix T = master_relative(c, true);
     transmatrix U = master_relative(c->cmove(i), false);
-    if(gp::gp_adj.count(make_pair(c,i))) {
-      return T * gp::get_adj(c,i) * U;
+    heptagon *h = c->master, *h1 = c->cmove(i)->master;
+    static bool first = true;
+    if(h == h1)
+      return T * U;
+    else if(gp::do_adjm) {
+      if(gp::gp_adj.count(make_pair(c,i))) {
+        return T * gp::get_adj(c,i) * U;
+        }
+      if(first) { first = false; println(hlog, "no gp_adj"); }
       }
-    else
-      println(hlog, "gpadj not found");
+    else for(int i=0; i<h->type; i++) if(h->move(i) == h1)
+      return T * adj(h, i) * U;
+    if(first) {
+      first = false;
+      println(hlog, "not adjacent");
+      }
     }
   if(NONSTDVAR || WDIM == 3) {
     return calc_relative_matrix(c->cmove(i), c, C0);
@@ -499,39 +520,12 @@ EX hyperpoint randomPointIn(int t) {
  */  
 
 EX hyperpoint get_corner_position(cell *c, int cid, ld cf IS(3)) {
+  return currentmap->get_corner(c, cid, cf);
+  } 
+
+hyperpoint hrmap_standard::get_corner(cell *c, int cid, ld cf) {
   #if CAP_GP
   if(GOLDBERG) return gp::get_corner_position(c, cid, cf);
-  if(UNTRUNCATED) {
-    cell *c1 = gp::get_mapped(c);
-    cellwalker cw(c1, cid*2);
-    if(!gp::untruncated_shift(c)) cw--;
-    hyperpoint h = UIU(nearcorner(c1, cw.spin));
-    return mid_at_actual(h, 3/cf);
-    }
-  if(UNRECTIFIED) {
-    cell *c1 = gp::get_mapped(c);
-    hyperpoint h = UIU(nearcorner(c1, cid));
-    return mid_at_actual(h, 3/cf);
-    }
-  if(WARPED) {
-    int sh = gp::untruncated_shift(c);
-    cell *c1 = gp::get_mapped(c);
-    if(sh == 2) {
-      cellwalker cw(c, cid);
-      hyperpoint h1 = UIU(tC0(currentmap->adj(c1, cid)));
-      cw--;
-      hyperpoint h2 = UIU(tC0(currentmap->adj(c1, cw.spin)));
-      hyperpoint h = mid(h1, h2);
-      return mid_at_actual(h, 3/cf);
-      }
-    else {
-      cellwalker cw(c1, cid*2);
-      if(!gp::untruncated_shift(c)) cw--;
-      hyperpoint h = UIU(nearcorner(c1, cw.spin));
-      h = mid(h, C0);
-      return mid_at_actual(h, 3/cf);
-      }
-    }
   #endif
   #if CAP_IRR
   if(IRREGULAR) {
@@ -539,41 +533,6 @@ EX hyperpoint get_corner_position(cell *c, int cid, ld cf IS(3)) {
     return mid_at_actual(vs.vertices[cid], 3/cf);
     }
   #endif
-  #if CAP_BT
-  if(kite::in()) return kite::get_corner(c, cid, cf);
-  if(bt::in()) {
-    if(WDIM == 3) {
-      println(hlog, "get_corner_position called");
-      return C0;
-      }
-    return mid_at_actual(bt::get_horopoint(bt::get_corner_horo_coordinates(c, cid)), 3/cf);
-    }
-  #endif
-  #if CAP_ARCM
-  if(arcm::in()) {
-    auto &ac = arcm::current_or_fake();
-    if(PURE) {
-      if(arcm::id_of(c->master) >= ac.N*2) return C0;
-      auto& t = ac.get_triangle(c->master, cid-1);
-      return xspinpush0(-t.first, t.second * 3 / cf * (ac.real_faces == 0 ? 0.999 : 1));
-      }
-    if(BITRUNCATED) {
-      auto& t0 = ac.get_triangle(c->master, cid-1);
-      auto& t1 = ac.get_triangle(c->master, cid);
-      hyperpoint h0 = xspinpush0(-t0.first, t0.second * 3 / cf * (ac.real_faces == 0 ? 0.999 : 1));
-      hyperpoint h1 = xspinpush0(-t1.first, t1.second * 3 / cf * (ac.real_faces == 0 ? 0.999 : 1));
-      return mid3(C0, h0, h1);
-      }
-    if(DUAL) {
-      auto& t0 = ac.get_triangle(c->master, 2*cid-1);
-      return xspinpush0(-t0.first, t0.second * 3 / cf * (ac.real_faces == 0 ? 0.999 : 1));
-      }
-    }
-  #endif
-  if(arb::in()) {
-    auto& sh = arb::current_or_slided().shapes[arb::id_of(c->master)];
-    return normalize(C0 + (sh.vertices[gmod(cid, c->type)] - C0) * 3 / cf);
-    }
   if(PURE) {
     return ddspin(c,cid,M_PI/S7) * xpush0(cgi.hcrossf * 3 / cf);
     }
@@ -652,7 +611,7 @@ EX hyperpoint nearcorner(cell *c, int i) {
     }
   if(kite::in()) {
     if(approx_nearcorner)
-      return kite::get_corner(c, i, 3) + kite::get_corner(c, i+1, 3) - C0;
+      return currentmap->get_corner(c, i, 3) + currentmap->get_corner(c, i+1, 3) - C0;
     else
       return calc_relative_matrix(c->cmove(i), c, C0) * C0;
     }
@@ -771,10 +730,284 @@ EX hyperpoint get_warp_corner(cell *c, int cid) {
   return ddspin(c,cid,M_PI/S7) * xpush0(cgi.tessf/2);
   }
 
-vector<hyperpoint> hrmap::get_vertices(cell* c) {
-  vector<hyperpoint> res;
-  for(int i=0; i<c->type; i++) res.push_back(get_corner_position(c, i, 3));
-  return res;
+EX map<cell*, map<cell*, vector<transmatrix>>> brm_structure;
+
+EX void generate_brm(cell *c1) {
+  set<unsigned> visited_by_matrix;
+  queue<pair<cell*, transmatrix>> q;
+  map<cell*, ld> cutoff;
+  auto& res = brm_structure[c1];
+  
+  auto enqueue = [&] (cell *c, const transmatrix& T) {
+    auto b = bucketer(tC0(T));
+    if(visited_by_matrix.count(b)) return;
+    visited_by_matrix.insert(b);
+    q.emplace(c, T);
+    };
+  
+  enqueue(c1, Id);
+  while(!q.empty()) {
+    cell *c2;
+    transmatrix T;
+    tie(c2,T) = q.front();
+    q.pop();
+    
+    ld mindist = HUGE_VAL, maxdist = 0;
+    
+    if(WDIM == 2) {
+      for(int i=0; i<c1->type; i++)
+      for(int j=0; j<c2->type; j++) {
+        ld d = hdist(get_corner_position(c1, i), T * get_corner_position(c2, j));
+        if(d < mindist) mindist = d;
+        if(d > maxdist) maxdist = d;
+        }
+      }
+    else {
+      auto& ss1 = currentmap->get_cellshape(c1);
+      auto& ss2 = currentmap->get_cellshape(c2);
+      for(auto v: ss1.vertices_only)
+      for(auto w: ss2.vertices_only) {
+        ld d = hdist(v, T*w);
+        if(d < mindist) mindist = d;
+        if(d > maxdist) maxdist = d;
+        }
+      }
+      
+    auto& cu = cutoff[c2];
+    if(cu == 0 || cu > maxdist) 
+      cu = maxdist;
+    
+    if(mindist >= cu) continue;
+    res[c2].push_back(T);
+    
+    forCellIdCM(c3, i, c2) enqueue(c3, T * currentmap->adj(c2, i));
+    }
+  
+  vector<int> cts;
+  for(auto& p: res) cts.push_back(isize(p.second));
+  }
+
+/** this function exhaustively finds the best transmatrix from (c1,h1) to (c2,h2) */
+EX const transmatrix& brm_get(cell *c1, hyperpoint h1, cell *c2, hyperpoint h2) {
+  if(!brm_structure.count(c1))
+    generate_brm(c1);
+  transmatrix *result = nullptr;
+  ld best = HUGE_VAL;
+  for(auto& t: brm_structure[c1][c2]) {
+    ld d = hdist(h1, t * h2);
+    if(d < best) best = d, result = &t;
+    }
+  return *result;
+  }
+
+int brm_hook = addHook(hooks_clearmemory, 0, []() {
+  brm_structure.clear();
+  });
+
+EX bool exhaustive_distance_appropriate() {
+  if(euclid && (kite::in() || arcm::in() || arb::in() || quotient)) return true;
+  #if MAXMDIM >= 4
+  if(nil && quotient) return true;
+  #endif
+  #if CAP_SOLV
+  if(asonov::in() && asonov::period_xy && asonov::period_xy <= 256) return true;
+  #endif
+
+  if(bounded) return true;
+
+  return false;
+  }
+
+#if HDR
+struct pathgen {
+  cellwalker start;
+  cellwalker last;
+  vector<cell*> path;
+  bignum full_id_0;
+  int last_id;
+  };
+#endif
+
+EX pathgen generate_random_path_randomdir(cellwalker start, int length, bool for_yendor) {
+  start.spin = hrand(start.at->type);
+  return generate_random_path(start, length, for_yendor, false);
+  }
+
+EX pathgen generate_random_path(cellwalker start, int length, bool for_yendor, bool randomdir) {
+  pathgen p;
+  p.start = start;
+  p.path.resize(length+1);
+  p.path[0] = start.at;
+  p.last_id = 0;
+
+  int turns = 0;
+
+  if(exhaustive_distance_appropriate()) {
+    permanent_long_distances(start.at);
+    int dist = max_saved_distance(start.at);
+    dist = min(dist, length);
+    auto at = random_in_distance(start.at, dist);
+    permanent_long_distances(at);
+    for(int a=length-1; a>=0; a--) {
+      p.path[a+1] = at;
+      vector<cell*> prev;
+      forCellCM(c2, at) if(celldistance(start.at, c2) == a) prev.push_back(c2);
+      if(isize(prev))  at = prev[hrand(isize(prev))];
+      }
+    p.path[0] = start.at;
+    p.last = p.path.back();
+    }
+
+  else if(hybri) {
+    /* I am lazy */
+    for(int i=1; i<=length; i++) p.path[i] = p.path[i-1]->cmove(p.path[i-1]->type-1);
+    p.last = p.path.back();
+    }
+
+  else {
+    int t = -1;
+    bignum full_id;
+    bool onlychild = true;
+    bool launched = false;
+
+    cellwalker ycw = start;
+    if(for_yendor) setdist(p.path[0], 7, NULL);
+
+    for(int i=0; i<length; i++) {
+
+      if(for_yendor && yendor::control(p, i, ycw)) { }
+
+      else if(bt::in()) {
+        // make it challenging
+        vector<int> ds;
+        for(int d=0; d<ycw.at->type; d++) {
+          bool increase;
+          if(sol)
+            increase = i < YDIST / 4 || i > 3 * YDIST / 4;
+          else
+            increase = i < YDIST/2;
+          if(increase) {
+            if(celldistAlt((ycw+d).cpeek()) < celldistAlt(ycw.at))
+              ds.push_back(d);
+            }
+          else {
+            if(celldistAlt((ycw+d).cpeek()) > celldistAlt(ycw.at) && (ycw+d).cpeek() != p.path[i-1])
+              ds.push_back(d);
+            }
+          }
+        if(isize(ds)) ycw += ds[hrand(isize(ds))];
+        }
+
+      else if(currentmap->strict_tree_rules()) {
+        if(for_yendor && i < arb::current.yendor_backsteps) {
+          println(hlog, i, " < ", arb::current.yendor_backsteps);
+          ycw.spin = 0;
+          }
+
+        else {
+          if(!launched) {
+            t = ycw.at->master->fieldval;
+            bignum b = expansion.get_descendants(length-i, t);
+            if(!full_id.approx_int()) goto stupid;
+            p.full_id_0 = full_id = hrand(b);
+            /* it may happen that the subtree dies out */
+            launched = true;
+            }
+
+          ycw.spin = 0;
+
+          auto& r = rulegen::treestates[t];
+          for(int ri=0; ri<isize(r.rules); ri++) {
+            int tch = r.rules[ri];
+            if(tch < 0) continue;
+            auto& sub_id = expansion.get_descendants(length-1-i, tch);
+            if(full_id < sub_id) {
+              t = tch; ycw += ri; break;
+              }
+            full_id.addmul(sub_id, -1);
+            }
+          }
+        }
+
+      else if(trees_known() && WDIM == 2) {
+        auto sdist = [start] (cell *c) { return celldistance(start.at, c); };
+        if(i == 0) {
+          t = type_in(expansion, randomdir ? start.at : start.cpeek(), sdist);
+          ycw--;
+          if(valence() == 3) ycw--;
+          bignum b = expansion.get_descendants(randomdir ? length : length-1, t);
+          p.full_id_0 = full_id = hrand(b);
+          }
+
+        #if DEBUG_YENDORGEN
+        printf("#%3d t%d %s / %s\n", i, t, full_id.get_str(100).c_str(), expansion.get_descendants(length-i, t).get_str(100).c_str());
+        for(int tch: expansion.children[t]) {
+          printf("     t%d %s\n", tch, expansion.get_descendants(length-i-1, t).get_str(100).c_str());
+          }
+        #endif
+
+        if(i == 1)
+          onlychild = true;
+        if(!onlychild) ycw++;
+        if(valence() == 3) ycw++;
+
+        onlychild = false;
+
+        for(int tch: expansion.children[t]) {
+          ycw++;
+          if(i < 2) tch = type_in(expansion, ycw.cpeek(), sdist);
+          auto& sub_id = expansion.get_descendants(length-1-i, tch);
+          if(full_id < sub_id) { t = tch; break; }
+
+          full_id.addmul(sub_id, -1);
+          onlychild = true;
+          }
+        }
+
+      else if(WDIM == 3) {
+        cell *prev = p.path[max(i-3, 0)];
+        int d = celldistance(prev, ycw.at);
+        vector<int> next;
+        forCellIdCM(c, i, ycw.at) if(celldistance(prev, c) > d) next.push_back(i);
+        if(!isize(next)) {
+          println(hlog, "error: no more cells for i=", i);
+          ycw.spin = hrand(ycw.at->type);
+          }
+        else {
+          ycw.spin = hrand_elt(next);
+          }
+        }
+
+      else {
+        stupid:
+        // stupid
+        ycw += rev;
+        // well, make it a bit more clever on bitruncated a4 grids
+        if(a4 && BITRUNCATED && S7 <= 5) {
+          if(ycw.at->type == 8 && ycw.cpeek()->type != 8)
+            ycw++;
+          if(hrand(100) < 10) {
+            if(euclid ? (turns&1) : (hrand(100) < 50))
+              ycw+=2;
+            else
+              ycw-=2;
+            turns++;
+            }
+          }
+        }
+
+      if(for_yendor) while(p.last_id < i && (p.path[p.last_id]->land == laMirror || inmirror(p.path[p.last_id]))) {
+        p.last_id++;
+        setdist(p.path[p.last_id], 7, nullptr);
+        }
+
+      if(for_yendor && inmirror(ycw.at)) ycw = mirror::reflect(ycw);
+      ycw += wstep;
+      p.path[i+1] = ycw.at;
+      }
+    p.last = ycw + rev;
+    }
+  return p;
   }
 
   }

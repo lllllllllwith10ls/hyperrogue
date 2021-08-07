@@ -16,7 +16,8 @@ EX int hiitemsMax(eItem it) {
   return mx;
   }
 
-EX modecode_t modecode();
+/** 1 - just return UNKNOWN if id not assigned; 2 - assign without writing to file; 3 - assign with writing to file */
+EX modecode_t modecode(int mode IS(3));
 
 typedef vector<pair<int, string> > subscoreboard;
 
@@ -139,7 +140,7 @@ EX namespace yendor {
     
   EX yendorlevel& clev() { return levels[challenge]; }
   
-  eLand changeland(int i, eLand l) {
+  EX eLand changeland(int i, eLand l) {
     if(l == laIvoryTower) return laNone;
     if((clev().flags & YF_START_ANY) && i < 20 && l != clev().l) return clev().l;
     if((clev().flags & YF_END) && i > 80 && l == clev().l) return laIce;
@@ -194,188 +195,61 @@ EX namespace yendor {
     return ysUntouched;
     }
 
-  EX bool exhaustive_distance_appropriate() {
-    if(euclid && (kite::in() || arcm::in() || arb::in() || quotient)) return true;
-    if(nil && quotient) return true;
-    if(asonov::in() && asonov::period_xy && asonov::period_xy <= 256) return true;
-    
-    if(bounded) return true;
-    
+  EX bool control(pathgen& p, int i, cellwalker& ycw) {
+
+    // change lands in the Challenge
+    if(i > BARLEV-6) {
+      p.last_id = i+7-BARLEV;
+      setdist(p.path[p.last_id], 7, p.path[i+6-BARLEV]);
+      if(yendor::challenge && !euclid && ycw.at->land != laIvoryTower) {
+        eLand ycl = yendor::changeland(i, ycw.at->land);
+        if(ycl) {
+          if(weirdhyperbolic) {
+            buildBarrierNowall(ycw.at, ycl);
+            }
+          else if(hyperbolic && ishept(ycw.at)) {
+            int bd = 2 + hrand(2) * 3;
+            buildBarrier(ycw.at, bd, ycl);
+            if(ycw.at->bardir != NODIR && ycw.at->bardir != NOBARRIERS)
+              extendBarrier(ycw.at);
+            }
+          }
+        }
+      }
+
+    // follow the branch in Yendorian
+    if(ycw.at->land == laEndorian) {
+      int bestval = -2000;
+      int best = 0, qbest = 0;
+      for(int d=0; d<ycw.at->type; d++) {
+        setdist(ycw.at, 7, ycw.peek());
+        cell *c1 = (ycw+d).cpeek();
+        int val = d * (ycw.at->type - d);
+        if(c1->wall == waTrunk) val += (i < YDIST-20 ? 1000 : -1000);
+        if(val > bestval) qbest = 0, bestval = val;
+        if(val == bestval) if(hrand(++qbest) == 0) best = d;
+        }
+      ycw += best;
+      return true;
+      }
     return false;
     }
-  
+
   EX bool check(cell *yendor) {
     int byi = isize(yi);
     for(int i=0; i<isize(yi); i++) if(yi[i].path[0] == yendor) byi = i;
     if(byi < isize(yi) && yi[byi].found) return false;
     if(byi == isize(yi)) {
+      retry:
+      int creation_attempt = 0;
       yendorinfo nyi;
-      nyi.path[0] = yendor;
       nyi.howfar = 0;
       
       generating = true;
-      
-      int turns = 0;
 
-      bignum full_id_0;
-      
-      int odir = 0;
+      auto p = generate_random_path_randomdir(yendor, YDIST-1, true);
+      for(int i=0; i<YDIST; i++) nyi.path[i] = p.path[i];
 
-      if(exhaustive_distance_appropriate()) {
-        permanent_long_distances(yendor);
-        int dist = max_saved_distance(yendor);
-        dist = min(dist, YDIST-1);
-        auto at = random_in_distance(yendor, dist);
-        permanent_long_distances(at);
-        for(int a=YDIST-2; a>=0; a--) {
-          nyi.path[a+1] = at;
-          vector<cell*> prev;
-          forCellCM(c2, at) if(celldistance(yendor, c2) == a) prev.push_back(c2);
-          if(isize(prev))  at = prev[hrand(isize(prev))];
-          }
-        nyi.path[0] = yendor;
-        }
-      
-      else if(hybri) {
-        /* I am lazy */
-        for(int i=1; i<=YDIST-1; i++) nyi.path[i] = nyi.path[i-1]->cmove(nyi.path[i-1]->type-1);
-        }
-      
-      else {
-        int t = -1;
-        bignum full_id;
-        bool onlychild = true;
-
-        cellwalker ycw(yendor, odir = hrand(yendor->type));
-        ycw--; if(S3 == 3) ycw--;
-        setdist(nyi.path[0], 7, NULL);
-
-        for(int i=0; i<YDIST-1; i++) {
-          
-          if(i > BARLEV-6) {
-            setdist(nyi.path[i+7-BARLEV], 7, nyi.path[i+6-BARLEV]);
-            if(challenge && !euclid && ycw.at->land != laIvoryTower) {
-              eLand ycl = changeland(i, ycw.at->land);
-              if(ycl) {
-                if(weirdhyperbolic) {
-                  buildBarrierNowall(ycw.at, ycl);
-                  }
-                else if(hyperbolic && ishept(ycw.at)) {
-                  int bd = 2 + hrand(2) * 3;
-                  buildBarrier(ycw.at, bd, ycl);
-                  if(ycw.at->bardir != NODIR && ycw.at->bardir != NOBARRIERS) 
-                    extendBarrier(ycw.at);
-                  }
-                }
-              }  
-            }
-
-          if(ycw.at->land == laEndorian) {
-            // follow the branch in Yendorian
-            int bestval = -2000;
-            int best = 0, qbest = 0;
-            for(int d=0; d<ycw.at->type; d++) {
-              setdist(ycw.at, 7, ycw.peek());
-              cell *c1 = (ycw+d).cpeek();
-              int val = d * (ycw.at->type - d);
-              if(c1->wall == waTrunk) val += (i < YDIST-20 ? 1000 : -1000);
-              if(val > bestval) qbest = 0, bestval = val;
-              if(val == bestval) if(hrand(++qbest) == 0) best = d;
-              }
-            ycw += best;
-            }
-          
-          else if(bt::in()) {
-            // make it challenging
-            vector<int> ds;
-            for(int d=0; d<ycw.at->type; d++) {
-              bool increase;
-              if(sol)
-                increase = i < YDIST / 4 || i > 3 * YDIST / 4;
-              else
-                increase = i < YDIST/2;
-              if(increase) {
-                if(celldistAlt((ycw+d).cpeek()) < celldistAlt(ycw.at))
-                  ds.push_back(d);
-                }
-              else {
-                if(celldistAlt((ycw+d).cpeek()) > celldistAlt(ycw.at) && (ycw+d).cpeek() != nyi.path[i-1])
-                  ds.push_back(d);
-                }
-              }
-            if(isize(ds)) ycw += ds[hrand(isize(ds))];
-            }
-          
-          else if(trees_known()) { 
-            if(i == 0) {
-              t = type_in(expansion, yendor, [yendor] (cell *c) { return celldistance(yendor, c); });
-              bignum b = expansion.get_descendants(YDIST-1, t);
-              full_id_0 = full_id = hrand(b);
-              }
-            
-            #if DEBUG_YENDORGEN
-            printf("#%3d t%d %s / %s\n", i, t, full_id.get_str(100).c_str(), expansion.get_descendants(YDIST-1-i, t).get_str(100).c_str());
-            for(int tch: expansion.children[t]) {
-              printf("     t%d %s\n", tch, expansion.get_descendants(YDIST-2-i, t).get_str(100).c_str());
-              }
-            #endif
-
-            if(i == 1) 
-              onlychild = true;
-            if(!onlychild) ycw++;
-            if(valence() == 3) ycw++;
-
-            onlychild = false;
-            
-            for(int tch: expansion.children[t]) {
-              ycw++;
-              if(i == 1)
-                tch = type_in(expansion, ycw.cpeek(), [yendor] (cell *c) { return celldistance(yendor, c); });
-              auto& sub_id = expansion.get_descendants(YDIST-i-2, tch);
-              if(full_id < sub_id) { t = tch; break; }
-              
-              full_id.addmul(sub_id, -1);
-              onlychild = true;
-              }
-            }
-          
-          else if(WDIM == 3) {
-            int d = celldistance(nyi.path[0], ycw.at);
-            vector<cell*> next;
-            forCellCM(c, ycw.at) if(celldistance(nyi.path[0], c) > d) next.push_back(c);
-            if(!isize(next)) {
-              printf("error: no more cells"); 
-              ycw.at = ycw.at->move(hrand(ycw.at->type)); 
-              }
-            else {
-              ycw.at = next[hrand(isize(next))];
-              }
-            nyi.path[i+1] = ycw.at;
-            }
-          
-          else {
-            // stupid
-            ycw += rev;
-            // well, make it a bit more clever on bitruncated a4 grids
-            if(a4 && BITRUNCATED && S7 <= 5) {
-              if(ycw.at->type == 8 && ycw.cpeek()->type != 8)
-                ycw++;
-              if(hrand(100) < 10) {
-                if(euclid ? (turns&1) : (hrand(100) < 50)) 
-                  ycw+=2;
-                else
-                  ycw-=2;
-                turns++;
-                }
-              }
-            }
-
-          if(inmirror(ycw)) ycw = mirror::reflect(ycw);
-          ycw += wstep;
-          nyi.path[i+1] = ycw.at;
-          }
-        }
-      
       nyi.found = false;
       nyi.foundOrb = false;
   
@@ -389,11 +263,21 @@ EX namespace yendor {
 
       setdist(nyi.path[YDIST-1], 7, nyi.path[YDIST-2]);
       cell *key = nyi.path[YDIST-1];
-  
-      generating = false;
-        
+
+      yendor::generating = false;
+              
       for(int b=10; b>=5; b--) setdist(key, b, nyi.path[YDIST-2]);
 
+      if(inmirror(key) || (geometry == gNormal && celldistance(key, yendor) < YDIST/2)) {
+        creation_attempt++;
+        if(creation_attempt > 100) {
+          yendor->item = itNone;
+          addMessage(XLAT("%The1 turned out to be an illusion!", itOrbYendor));
+          return false;
+          }
+        goto retry;
+        }
+  
       for(int i=-1; i<key->type; i++) {
         cell *c2 = i >= 0 ? key->move(i) : key;
         checkTide(c2);
@@ -439,10 +323,10 @@ EX namespace yendor {
           maxage *= 10;
         
         nyi.age = maxage - hrand(maxage/2);
-        bignum full_id = full_id_0 - nyi.age;
+        bignum full_id = p.full_id_0 - nyi.age;
         bool onlychild = true;
 
-        cellwalker ycw(yendor, odir);
+        cellwalker ycw = p.start;
         ycw--; if(S3 == 3) ycw--;
 
         for(int i=0; i<YDIST-1; i++) {          
@@ -459,7 +343,7 @@ EX namespace yendor {
               tch = type_in(expansion, ycw.cpeek(), [yendor] (cell *c) { return celldistance(yendor, c); });
             auto& sub_id = expansion.get_descendants(YDIST-i-2, tch);
             if(full_id < sub_id) { 
-              if(!split_found && !(full_id_0 < sub_id)) {
+              if(!split_found && !(p.full_id_0 < sub_id)) {
                 // ycw.at->item = itRuby;
                 split_found = true;
                 setdist(ycw.at, 6, NULL);
@@ -476,7 +360,7 @@ EX namespace yendor {
               }
             
             full_id.addmul(sub_id, -1);
-            if(!split_found) full_id_0.addmul(sub_id, -1);
+            if(!split_found) p.full_id_0.addmul(sub_id, -1);
             onlychild = true;
             }
           
@@ -516,6 +400,14 @@ EX namespace yendor {
         }
       }
     }
+
+  EX eLandStructure get_land_structure() {
+    if(clev().flags & YF_CHAOS)
+      return lsChaos;
+    if(clev().l == laWhirlpool)
+      return lsSingle;
+    return lsNiceWalls;
+    }
   
   EX void init(int phase) {
     if(!on) return;
@@ -523,7 +415,7 @@ EX namespace yendor {
     if(phase == 1) {
       won = false;
       if(!easy) items[itOrbYendor] = bestscore[modecode()][challenge];
-      chaosmode = (clev().flags & YF_CHAOS) ? 1 : 0;
+      land_structure = get_land_structure();
       specialland = clev().l;
       if(clev().flags & YF_START_AL) {
         specialland = laAlchemist;
@@ -704,9 +596,9 @@ EX namespace yendor {
     dialog::addBreak(60);
     if (yendor::on)
       dialog::addItem(XLAT("Return to the normal game"), '0');
-    dialog::addSelItem(XLAT(
-      easy ? "Challenges do not get harder" : "Each challenge gets harder after each victory"),
-      " " + XLAT(easy ? "easy" : "challenge"), '1');
+    dialog::addSelItem(
+      easy ? XLAT("Challenges do not get harder") : XLAT("Each challenge gets harder after each victory"),
+      " " + (easy ? XLAT("easy") : XLAT("challenge")), '1');
     
     dialog::addBack();
     dialog::addHelp();
@@ -788,7 +680,6 @@ EX namespace yendor {
     if(yendor::on) {
       changes.value_set(yendor::won, true);
       if(!cheater) {
-        dynamicval<int> c(chaosmode, 0);
         yendor::bestscore[modecode()][yendor::challenge] = 
           max(yendor::bestscore[modecode()][yendor::challenge], items[itOrbYendor]);
         yendor::uploadScore();        
@@ -830,8 +721,8 @@ EX namespace tactic {
     };
   map<modecode_t, vector<scoredata>> scoreboard;
   
-  int chances(eLand l) {
-    if(modecode() != 0 && l != laCamelot) return 3;
+  EX int chances(eLand l, modecode_t xc IS(modecode())) {
+    if(xc != 0 && l != laCamelot) return 3;
     for(auto& ti: land_tac)
       if(ti.l == l) 
         return ti.tries;
@@ -853,12 +744,12 @@ EX namespace tactic {
     return hiitemsMax(treasureType(l)) * landMultiplier(l) >= 20;
     }
 
-  EX void record(eLand land, int score, flagtype xc IS(modecode())) {
+  EX void record(eLand land, int score, modecode_t xc IS(modecode())) {
     if(land >=0 && land < landtypes) {
       for(int i=MAXTAC-1; i; i--) lsc[xc][land][i] = lsc[xc][land][i-1];
       tactic::lsc[xc][land][0] = score;
       }
-    int t = chances(land);
+    int t = chances(land, xc);
     int csum = 0;
     for(int i=0; i<t; i++) if(lsc[xc][land][i] > 0) csum += lsc[xc][land][i];
     if(csum > recordsum[xc][land]) recordsum[xc][land] = csum;
@@ -911,25 +802,36 @@ EX namespace tactic {
     if(xc == 4) set_priority_board(LB_PURE_TACTICS_COOP);
 
     cmode = sm::ZOOMABLE;
-    mouseovers = XLAT("pure tactics mode") + " - " + mouseovers;
+    if(mouseovers == "" || mouseovers == " ")
+      mouseovers = XLAT("pure tactics mode");
+    else
+      mouseovers = XLAT("pure tactics mode") + " - " + mouseovers;
+    
+    if(dialog::infix != "") mouseovers = mouseovers + " - " + dialog::infix;
+    else mouseovers = mouseovers + " - " + XLAT("press letters to search");
     
     { 
     dynamicval<bool> t(tactic::on, true);
-    generateLandList([] (eLand l) { return land_validity(l).flags & lv::appears_in_ptm; });
+    generateLandList([] (eLand l) { 
+      if(dialog::infix != "" && !dialog::hasInfix(linf[l].name)) return false;
+      return !!(land_validity(l).flags & lv::appears_in_ptm);
+      });
     }
     
     int nl = isize(landlist);
 
-    int nlm;
-    int ofs = dialog::handlePage(nl, nlm, (nl+1)/2);
-        
-    int vf = min((vid.yres-64-vid.fsize) / nlm, vid.xres/40);
+    int nlm = nl;
+    int ofs = dialog::infix != "" ? 0 : dialog::handlePage(nl, nlm, (nl+1)/2);
+            
+    int vf = nlm ? min((vid.yres-64-vid.fsize) / nlm, vid.xres/40) : vid.xres/40;
     
     int xr = vid.xres / 64;
     
     if(on) record(specialland, items[treasureType(specialland)]);
     
     getcstat = SDLK_ESCAPE;
+    
+    map<int, int> land_for;
 
     for(int i=0; i<nl; i++) {
       int i1 = i + ofs;
@@ -946,18 +848,27 @@ EX namespace tactic {
       
       if(unlocked) col = linf[l].color; else col = 0x202020;
       
-      if(displayfrZH(xr*1, i0, 1, vf-4, XLAT1(linf[l].name), col, 0) && unlocked) {
-        getcstat = 1000 + i1;
+      int keyhere;
+      if(nlm <= 9) {
+        keyhere = '1' + i;
+        if(displayfrZH(xr*1, i0, 1, vf-4, s0+char(keyhere), 0xFFFFFF, 0))
+          getcstat = keyhere;
         }
+      else
+        keyhere = 1000 + i1;
+      land_for[keyhere] = i1;
+      
+      if(displayfrZH(xr*(nlm <= 9 ? 2.5 : 1), i0, 1, vf-4, XLAT1(linf[l].name), col, 0) && unlocked) 
+        getcstat = keyhere;
         
       if(unlocked || autocheat) {
         for(int ii=0; ii<ch; ii++)
           if(displayfrZH(xr*(24+2*ii), i0, 1, (vf-4)*4/5, lsc[xc][l][ii] > 0 ? its(lsc[xc][l][ii]) : "-", col, 16)) 
-            getcstat = 1000 + i1;
+            getcstat = keyhere;
 
         if(displayfrZH(xr*(24+2*10), i0, 1, (vf-4)*4/5, 
           its(recordsum[xc][l]) + " x" + its(tacmultiplier(l)), col, 0)) 
-            getcstat = 1000 + i1;
+            getcstat = keyhere;
         }
       else {
         int m = landMultiplier(l);
@@ -967,13 +878,13 @@ EX namespace tactic {
         }
       }
     
-    dialog::displayPageButtons(3, true);
+    dialog::displayPageButtons(3, dialog::infix == "");
 
     uploadScore();
     if(on) unrecord(specialland);
     
-    if(getcstat >= 1000 && getcstat < 1000 + isize(landlist)) {
-      int ld = landlist[getcstat-1000];
+    if(land_for.count(getcstat)) {
+      int ld = landlist[land_for.at(getcstat)];
       subscoreboard scorehere;
       for(int i=0; i<isize(scoreboard[xc]); i++) {
         int sc = scoreboard[xc][i].scores[ld];
@@ -984,12 +895,15 @@ EX namespace tactic {
       displayScore(scorehere, xr * 50);
       }
      
-    keyhandler = [] (int sym, int uni) {
-      if(uni >= 1000 && uni < 1000 + isize(landlist)) dialog::do_if_confirmed([uni] {
-        stop_game();
-        specialland = landlist[uni - 1000];
-        restart_game(tactic::on ? rg::nothing : rg::tactic);
-        });
+    keyhandler = [land_for] (int sym, int uni) {
+      if(land_for.count(uni)) {
+        eLand ll = landlist[land_for.at(uni)];
+        dialog::do_if_confirmed([ll] {
+          stop_game();
+          specialland = ll;
+          restart_game(tactic::on ? rg::nothing : rg::tactic);
+          });
+        }
       else if(uni == '0') {
         if(tactic::on) {
           stop_game();          
@@ -1022,167 +936,86 @@ EX namespace tactic {
         
         "Good luck, and have fun!"
         );
-      else if(dialog::handlePageButtons(uni)) ;
+      else if(dialog::infix == "" && dialog::handlePageButtons(uni)) ;
+      else if(dialog::editInfix(uni)) ;
       else if(doexiton(sym, uni)) popScreen();
       };
     }
 
+  EX void start() {
+    dialog::infix = "";
+    popScreenAll();
+    pushScreen(tactic::showMenu);
+    }
 EX }
 
-// Identifiers for the current combinations of game modes
-// These are recorded in the save file, so it is somewhat
-// important that they do not change for already existing
-// modes, as otherwise the scores would be lost. 
-// Unfortunately, the codes assigned when HyperRogue had
-// just a few special modes did not really follow a specific
-// rule, so this system has grown rather ugly as the
-// number of special modes kept growing...
+map<string, modecode_t> code_for;
+EX map<modecode_t, string> meaning;
 
-// mode codes for 'old' modes, from 0 to 255
+char xcheat;
 
-int modecodetable[42][6] = {
-  {  0, 38, 39, 40, 41, 42}, // softcore hyperbolic
-  {  7, 43, 44, 45, 46, 47}, // hardcore hyperbolic
-  {  2,  4,  9, 11, 48, 49}, // shmup hyperbolic
-  { 13, 50, 51, 52, 53, 54}, // softcore heptagonal hyperbolic
-  { 16, 55, 56, 57, 58, 59}, // hardcore heptagonal hyperbolic
-  { 14, 15, 17, 18, 60, 61}, // shmup heptagonal hyperbolic
-  {  1, 62, 63, 64, 65, 66}, // softcore euclidean
-  {  8, 67, 68, 69, 70, 71}, // hardcore euclidean
-  {  3,  5, 10, 12, 72, 73}, // shmup euclidean
-  {110,111,112,113,114,115}, // softcore spherical
-  {116,117,118,119,120,121}, // hardcore spherical
-  {122,123,124,125,126,127}, // shmup spherical
-  {128,129,130,131,132,133}, // softcore heptagonal spherical
-  {134,135,136,137,138,139}, // hardcore heptagonal spherical
-  {140,141,142,143,144,145}, // shmup heptagonal spherical
-  {146,147,148,149,150,151}, // softcore elliptic
-  {152,153,154,155,156,157}, // hardcore elliptic
-  {158,159,160,161,162,163}, // shmup elliptic
-  {164,165,166,167,168,169}, // softcore heptagonal elliptic
-  {170,171,172,173,174,175}, // hardcore heptagonal elliptic
-  {176,177,178,179,180,181}, // shmup heptagonal elliptic
-  { 19, 74, 75, 76, 77, 78}, // softcore hyperbolic chaosmode
-  { 26, 79, 80, 81, 82, 83}, // hardcore hyperbolic chaosmode
-  { 21, 23, 28, 30, 84, 85}, // shmup hyperbolic chaosmode
-  { 32, 86, 87, 88, 89, 90}, // softcore heptagonal hyperbolic chaosmode
-  { 35, 91, 92, 93, 94, 95}, // hardcore heptagonal hyperbolic chaosmode
-  { 33, 34, 36, 37, 96, 97}, // shmup heptagonal hyperbolic chaosmode
-  { 20, 98, 99,100,101,102}, // softcore euclidean chaosmode
-  { 27,103,104,105,106,107}, // hardcore euclidean chaosmode
-  { 22, 24, 29, 31,108,109}, // shmup euclidean chaosmode
-  {182,183,184,185,186,187}, // softcore spherical chaosmode
-  {188,189,190,191,192,193}, // hardcore spherical chaosmode
-  {194,195,196,197,198,199}, // shmup spherical chaosmode
-  {200,201,202,203,204,205}, // softcore heptagonal spherical chaosmode
-  {206,207,208,209,210,211}, // hardcore heptagonal spherical chaosmode
-  {212,213,214,215,216,217}, // shmup heptagonal spherical chaosmode
-  {218,219,220,221,222,223}, // softcore elliptic chaosmode
-  {224,225,226,227,228,229}, // hardcore elliptic chaosmode
-  {230,231,232,233,234,235}, // shmup elliptic chaosmode
-  {236,237,238,239,240,241}, // softcore heptagonal elliptic chaosmode
-  {242,243,244,245,246,247}, // hardcore heptagonal elliptic chaosmode
-  {248,249,250,251,252,253}, // shmup heptagonal elliptic chaosmode
-  };
-// unused codes: 6 (cheat/tampered), 25, 254, 255
-
-modecode_t modecode() {
-  // bit 61: product; 62: rotspace
-  if(hybri) return PIU(modecode()) | (1ll << (prod ? 61 : 62));
-#if CAP_SAVE
-  if(anticheat::tampered || cheater || geometry >= gGUARD) return 6;
-#endif
-
-  // compute the old code
-  int xcode = 0;
-
-  if(shmup::on) xcode += 2;
-  else if(pureHardcore()) xcode ++;
+void save_mode_data(hstream& f) {
+  mapstream::save_geometry(f);
   
-  if(euclid) xcode += 6;
-  else if(!BITRUNCATED) xcode += 3;
-  
-  if(sphere) {
-    xcode += 9;
-    if(elliptic) xcode += 6;
-    }
-  
-  if(chaosmode) xcode += 21;
-  
-  int np = numplayers()-1; if(np<0 || np>5) np=5;
-  
-  // bits: 0 to 7
-  modecode_t mct = modecodetable[xcode][np];
-
-  // bits: 9, 10, 15, 16, 17, 18
-  mct += ginf[geometry].xcode;
-  
-#if CAP_INV
-  if(inv::on) mct += (1<<11);
-#endif
-  if(peace::on) mct += (1<<12);
-#if CAP_TOUR
-  if(tour::on) mct += (1<<13);
-#endif
-  if(numplayers() == 7) mct += (1<<14);
-
-  // daily/Yendor/Tactics/standard are saved separately, but are using the same codes (Daily uses no code)
-  // randompattern never records its scores
-  // no specifics of the advanced configuration of torus/fieldquotient currently recorded
-
-  #if CAP_GP  
-  if(GOLDBERG) { 
-    mct += (1 << 19);
-    auto loc = gp::human_representation(gp::param);
-    mct += loc.first << 21; // 4 bits
-    mct += loc.second << 25; // 4 bits
-    }
+  if(yendor::on || tactic::on) 
+    f.write<char>(0);
+  else
+    f.write<char>(land_structure);
+  f.write<char>(shmup::on);
+  f.write<char>(inv::on);
+  #if CAP_TOUR
+  f.write<char>(tour::on);
+  #else
+  f.write<char>(false);
   #endif
-  
-  #if CAP_IRR
-  if(IRREGULAR) {
-    mct += (1 << 20);
-    mct += irr::density_code() << 21; // 8 bits
+  f.write<char>(peace::on);
+  f.write<char>(peace::otherpuzzles);
+  f.write<char>(peace::explore_other);
+  f.write<char>(multi::players);
+  f.write<char>(xcheat);
+  if(casual) {
+    f.write<char>(1);
     }
-  #endif
+  }
+
+EX modecode_t modecode(int mode) {
+  modecode_t x = legacy_modecode();
+  if(x != UNKNOWN) return x;
+
+  xcheat = (cheater ? 1 : 0);
+  shstream ss;
+  ss.write(ss.vernum);
+  save_mode_data(ss);
   
-  if(DUAL) {
-    mct += (1 << 19);
-    mct += (1 << 20);
-    }
+  if(code_for.count(ss.s)) return code_for[ss.s];
+
+  if(mode == 1) return UNKNOWN;
   
-  typedef long long ll;
+  modecode_t next = 100000;
+  while(meaning.count(next)) next++;
   
-  // 32 bits [29..61) for geometry specifics
-  if(euclid && quotient) {
-    /* todo */
-    }
+  meaning[next] = ss.s;
+  code_for[ss.s] = next;
   
-  #if CAP_FIELD
-  if(geometry == gFieldQuotient) {
-    using namespace fieldpattern;
-    mct += ll(current_extra) << 29;
-    mct += ll(fgeomextras[current_extra].current_prime_id) << 37;
-    }
-  #endif
+  if(mode == 2) return next;
   
-  #if CAP_CRYSTAL
-  if(cryst) {
-    mct += ll(ginf[geometry].sides) << 29;
-    mct += ll(ginf[geometry].vertex) << 37;
-    }
-  #endif
-  
-  #if CAP_ARCM
-  if(geometry == gArchimedean) {
-    unsigned res = 7;
-    for(char c: arcm::current.symbol) res = res * 157 + c;
-    mct += ll(res) << 29;
-    if(PURE) mct ^= (1<<29);
-    }
-  #endif
-  
-  return mct;
+  FILE *f = fopen(scorefile, "at");
+  string s = as_hexstring(ss.s);
+  fprintf(f, "MODE %d %s\n", next, s.c_str());
+  fclose(f);
+
+  return next;
+  }
+
+EX void load_modecode_line(string s) {
+  int code = atoi(&s[5]);
+  int pos = 5;
+  while(s[pos] != ' ' && s[pos]) pos++;
+  if(!s[pos]) return;
+  pos++;
+  string t = from_hexstring(s.substr(pos));
+  code_for[t] = code;
+  meaning[code] = t;
   }
 
 EX namespace peace {
@@ -1190,42 +1023,39 @@ EX namespace peace {
   EX bool on = false;
   EX bool hint = false;
   
-  EX bool otherpuzzles;
+  EX bool otherpuzzles = true;
   
-  eLand simonlevels[] = {
-    laCrossroads, laCrossroads2, laDesert, laCaves, laAlchemist, laRlyeh, laEmerald,
+  EX bool explore_other = false;
+  
+  vector<eLand> simonlevels = {
+    laCrossroads, laCrossroads2, laRlyeh, 
+    laDesert, laCaves, laAlchemist, laEmerald,
     laWineyard, laDeadCaves, laRedRock, laPalace,
-    laLivefjord, laDragon,
-    laNone
+    laLivefjord, laDragon
     };
 
-  eLand explorelevels[] = {
-    laBurial, laTortoise, laCamelot, laPalace,
-    laIce, laJungle, laMirror, laDryForest, laCaribbean, laOcean, laZebra,
-    laOvergrown, laWhirlwind, laWarpCoast, laReptile,
-    laElementalWall, laAlchemist,
-    laNone
+  vector<eLand> puzzlelevels = {
+    laBurial, laTortoise, laCamelot, laPalace
     };                       
 
-  eLand *levellist;
-  int qty;
+  vector<eLand> explorelevels = {
+    laIce, laJungle, laMirror, laDryForest, laCaribbean, laOcean, laZebra,
+    laOvergrown, laWhirlwind, laWarpCoast, laReptile,
+    laElementalWall, laAlchemist
+    };                       
+
+  vector<eLand> levellist;
   
-  void listLevels() {
-    levellist = otherpuzzles ? explorelevels : simonlevels;
- 
-    for(qty = 0; levellist[qty]; qty++);
-    }
-    
   eLand getNext(eLand last) {
     if(!peace::on) return laNone;
-    if(!qty) listLevels();
+    if(levellist.empty()) showMenu();
     if(isElemental(last) && hrand(100) < 90)
       return laNone;
     else if(createOnSea(last))
       return getNewSealand(last);
     else if(isCrossroads(last)) {
       while(isCrossroads(last) || last == laCaribbean || last == laCamelot)
-        last = levellist[hrand(qty)];
+        last = hrand_elt(levellist);
       if(last == laElementalWall) last = laEFire;
       return last;
       }
@@ -1237,19 +1067,6 @@ EX namespace peace {
     return false;
     }
   
-  const char *chelp = 
-    "In the peaceful mode, you just explore the world, "
-    "without any battles; there are also several "
-    "navigational puzzles available. In the memory game, "
-    "you have to collect as many Dodecahedra as you can, "
-    "and return to the starting point -- hyperbolic geometry "
-    "makes this extremely difficult! Other hyperbolic puzzles "
-    "include the Burial Grounds (excavate the treasures " 
-    "using your magical sword), Galápagos (try to find an adult "
-    "tortoise matching the baby), Camelot (find the center of "
-    "a large hyperbolic circle), and Palace (follow the mouse). "
-    "Other places listed are for exploration.";
-    
   EX namespace simon {
 
     vector<cell*> path;
@@ -1325,40 +1142,140 @@ EX namespace peace {
       }
   EX }
   
+  EX bool in_minefield, in_dual;
+
+  void reset_modes() {
+    stop_game();
+    if(in_minefield) {
+      geometry = gNormal;
+      variation = eVariation::bitruncated;
+      in_minefield = false;
+      }
+    if(in_dual) {
+      stop_game_and_switch_mode(rg::dualmode);
+      geometry = gNormal;
+      variation = eVariation::bitruncated;
+      in_dual = false;
+      }
+    }    
+  
   EX void showMenu() {
-    listLevels();
-    dialog::init(XLAT(otherpuzzles ? "puzzles and exploration" : "memory game"), 0x40A040, 150, 100);
+    string title = 
+      !otherpuzzles ? XLAT("memory game") :
+      explore_other ? XLAT("exploration") : 
+      XLAT("puzzles");
+    dialog::init(title, 0x40A040, 150, 100);
 
-    for(int i = 0; i<qty; i++) 
-      dialog::addItem(XLAT1(linf[levellist[i]].name), 'a'+i);
+    int kind = 0;
 
-    dialog::addBreak(100);
-    dialog::addItem(XLAT(otherpuzzles ? "memory game" : "puzzles and exploration"), '1');
+    if(!otherpuzzles) {
+      levellist = simonlevels, kind = 1;
+      dialog::addInfo("Collect as many dodecahedra as you can!");
+      dialog::addInfo("You have to return to the starting location!");
+      dialog::addBreak(50);
+      }
+    else if(explore_other)
+      levellist = explorelevels, kind = 2;
+    else {
+      levellist = puzzlelevels, kind = 0;
+      dialog::addInfo("This mode removes roguelike elements,");
+      dialog::addInfo("focusing on puzzles and exploration");
+      dialog::addBreak(50);
+      }
+    
+    char key = 'a';
+    for(auto lev: levellist) {
+      if(kind == 0) switch(lev) {
+        case laBurial:
+          dialog::addItem("excavate the treasures using your magical shovel", 'a');
+          break;
+        case laTortoise:
+          dialog::addItem("find an adult tortoise matching the baby", 'b');
+          break;
+        case laCamelot:
+          dialog::addItem("find the center of the Round Table in Camelot", 'c');
+          break;
+        case laPalace:
+          dialog::addItem("follow the mouse", 'd');
+          break;
+        default: ;
+        }
+      else
+        dialog::addItem(XLAT1(linf[lev].name), key++);
+      dialog::add_action([lev] {
+        dialog::do_if_confirmed([lev] {
+          reset_modes();
+          firstland = specialland = lev;
+          if(!peace::on)
+            stop_game_and_switch_mode(rg::peace);
+          start_game();
+          popScreenAll();
+          });
+        });
+      }
+
+    if(kind == 1) {
+      dialog::addBreak(100);
+      dialog::addItem(XLAT("other puzzles"), '1');
+      dialog::add_action([] { otherpuzzles = true; explore_other = false; });
+      }
+
+    if(kind == 2) {
+      dialog::addBreak(100);
+      dialog::addItem(XLAT("other puzzles"), '1');
+      dialog::add_action([] { otherpuzzles = true; explore_other = false; });
+      }
+    
+    if(kind == 0) {
+      dialog::addItem(XLAT("hyperbolic Minesweeper"), 'e');
+      dialog::add_action([] { 
+        dialog::do_if_confirmed([] {
+          reset_modes();
+          if(peace::on) stop_game_and_switch_mode(rg::peace);
+          specialland = firstland = laMinefield;
+          if(!bounded) {
+            geometry = gBring;
+            variation = eVariation::goldberg;
+            gp::param = gp::loc(2, 1);
+            mine_adjacency_rule = true;
+            in_minefield = true;
+            bounded_mine_percentage = .2;
+            }
+          start_game();
+          popScreenAll();
+          });
+        });
+      dialog::addItem(XLAT("dual geometry puzzle"), 'f');
+      dialog::add_action([] { 
+        dialog::do_if_confirmed([] {
+          reset_modes();
+          if(peace::on) stop_game_and_switch_mode(rg::peace);
+          restart_game(rg::dualmode);
+          in_dual = true;
+          popScreenAll();
+          pushScreen(dpgen::show_menu);          
+          });
+        });
+      dialog::addItem(XLAT("memory game"), 'g');
+      dialog::add_action([] { otherpuzzles = false; });
+      dialog::addItem(XLAT("exploration"), 'h');
+      dialog::add_action([] { explore_other = true; });
+      }
+
+    dialog::addBreak(100);    
+    
     dialog::addBoolItem(XLAT("display hints"), hint, '2');
+    dialog::add_action([] {
+      hint = !hint; popScreen();
+      });
     dialog::addItem(XLAT("Return to the normal game"), '0');
+    dialog::add_action([] {
+      reset_modes();
+      if(peace::on) stop_game_and_switch_mode(rg::peace);
+      });
 
-    dialog::addBreak(50);
-    dialog::addHelp();
     dialog::addBack();    
     dialog::display();
-    
-    keyhandler = [] (int sym, int uni) {
-      dialog::handleNavigation(sym, uni);
-      
-      if(uni == '1') otherpuzzles = !otherpuzzles;
-      else if(uni >= 'a' && uni < 'a' + qty) dialog::do_if_confirmed([uni] {
-        stop_game();
-        specialland = levellist[uni - 'a'];
-        restart_game(peace::on ? 0 : rg::peace);
-        });
-      else if(uni == '2') { hint = !hint; popScreen(); }
-      else if(uni == '0') {
-        firstland = laIce;
-        if(peace::on) restart_game(rg::peace);
-        }
-      else if(uni == 'h' || sym == SDLK_F1) gotoHelp(chelp);
-      else if(doexiton(sym, uni)) popScreen();
-      };
     }
     
   auto aNext = addHook(hooks_nextland, 100, getNext);

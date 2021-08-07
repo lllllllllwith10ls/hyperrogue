@@ -68,48 +68,204 @@ EX bool checkBarriersBack(cellwalker bb, int q IS(5), bool cross IS(false)) {
 
 /** warp coasts use a different algorithm for nowall barriers when has_nice_dual() is on. Check whether we should use this different algorithm when the lands are l1 and l2 */
 EX bool warped_version(eLand l1, eLand l2) {
-  return (has_nice_dual() && (l1 == laWarpCoast || l1 == laWarpSea || l2 == laWarpSea || l2 == laWarpCoast)) || (valence() == 3);
+  return (has_nice_dual() && (l1 == laWarpCoast || l1 == laWarpSea || l2 == laWarpSea || l2 == laWarpCoast));
   }
 
-EX bool checkBarriersNowall(cellwalker bb, int q, int dir, eLand l1 IS(laNone), eLand l2 IS(laNone)) {
-  if(bb.at->mpdist < BARLEV && l1 == l2) return false;
-  if(bb.cpeek()->bardir != NODIR && l1 == l2) return false;
-  if(bb.at->bardir != NODIR && l1 == l2) return false;
-  // if(bb.at->move(dir) && bb.at->move(dir)->bardir != NODIR && l1 == laNone) return false;
-  // if(bb.at->move(dir) && bb.at->move(dir)->mpdist < BARLEV && l1 == laNone) return false;
-  
-  if(l1 != l2) { 
-    bb.at->bardir = bb.spin; bb.at->barright = l2; bb.at->barleft = NOWALLSEP; 
-    setland(bb.at, l1);
+EX int get_valence(cellwalker bb, int dir, bool& ok) {
+  int steps = 0;
+  cellwalker bb1 = bb;
+  while(bb1 != bb || !steps) {
+    bb1 += dir;
+    bb1 += wstep;
+    steps++;
     }
-  if(q > 20) return true;
-  
-  if(l1 == laNone) for(int i=0; i<bb.at->type; i++) {
-    cell *c1 = bb.at->move(i);
-    if(!c1) continue;
-    for(int j=0; j<c1->type; j++) {
-      cell *c2 = c1->move(j);
-      if(!c2) continue;
-      if(c2 && c2->bardir == NOBARRIERS) 
-        return false;
-      if(c2 && c2->bardir != NODIR && c2->barleft != NOWALLSEP) 
-        return false;
-      // note: "far crashes" between NOWALL lines are allowed
+  return steps;
+  }
+
+EX void set_and_wall(cell *c, eLand l) {
+  setland(c, l);
+  if(c->bardir == NODIR) {
+    c->barleft = NOWALLSEP_USED;
+    c->bardir = NOBARRIERS;
+    }
+  }
+
+EX void surround_by(bool setit, cellwalker bb, int dir, int a, int b, eLand which, bool swapped, bool& ok) {
+  for(int i=0; i<a; i++) {
+    bb += dir;
+    bb += wstep;
+    }
+  for(int i=a; i<b; i++) {
+    if(setit) set_and_wall(bb.at, which);
+    else {
+      if(bb.at->bardir != NODIR) ok = false;
+      if(swapped && bb.at->mpdist < BARLEV) ok = false;
       }
+    bb += dir;
+    bb += wstep;
     }
+  }
+
+EX void spin_around_by(cellwalker& bb, int dir, int q) {
+  for(int i=0; i<q; i++) {
+    bb += dir;
+    bb += wstep;
+    }
+  }
+
+EX bool on_wall(eLand ws) {
+  return among(ws, NOWALLSEP_WALL_CPOS, NOWALLSEP_WALL_CNEG, NOWALLSEP_WALL_EPOS, NOWALLSEP_WALL_ENEG);
+  }
+
+string wsname(eLand ws) {
+  if(ws == NOWALLSEP) return "NO";
+  if(ws == NOWALLSEP_SWAP) return "SWAP";
+  if(ws == NOWALLSEP_USED) return "USED";
+  if(ws == NOWALLSEP_WALL) return "WALL";
+  if(ws == NOWALLSEP_WALL_CPOS) return "CPOS";
+  if(ws == NOWALLSEP_WALL_CNEG) return "CNEG";
+  if(ws == NOWALLSEP_WALL_EPOS) return "EPOS";
+  if(ws == NOWALLSEP_WALL_ENEG) return "ENEG";
+  return dnameof(ws);
+  }
+
+EX bool general_barrier_advance(cellwalker& bb, int& dir, eLand& l1, eLand& l2, eLand& ws, bool setit) {
+  bool ok = true;
+  if(ws == NOWALLSEP_WALL) {
   
-  if(warped_version(l1, l2)) {
-    bb = bb + wstep + (2*dir) + wstep + dir;
+
+    /*
+    if(setit) bb.at->monst = moBug0;
+    if(setit) bb.cpeek()->monst = moBug2;
+    */
+
+    int steps = get_valence(bb, dir, ok);
+    if(steps % 2 == 0) goto again;
+
+    int s = (steps - 1) / 2;
+    surround_by(setit, bb, dir, 1, s, l1, false, ok);
+    surround_by(setit, bb, dir, s+1, steps-1, l2, true, ok);
+    spin_around_by(bb, dir, s);
+
+    ws = dir > 0 ? NOWALLSEP_WALL_CPOS : NOWALLSEP_WALL_CNEG;
+    // goto tile;
+    return ok;
     }
-  else if(valence() > 3) {
-    bb = bb + dir + wstep + dir;
+
+  if(on_wall(ws)) {
+
+    bool at_corner = among(ws, NOWALLSEP_WALL_CPOS, NOWALLSEP_WALL_CNEG);
+
+    cell *current = bb.at;
+
+    // if at_corner: bb is facing the tile 1 before the first inside
+    int t = bb.at->type;
+
+    int q = at_corner ? t/2 : (t-1) / 2;
+    
+    if(1) {
+      auto bb1 = bb;
+      if(at_corner) bb1 += dir;
+      bb1 -= dir;
+      for(int i=1; i<q; i++) {
+        int d = get_valence(bb1, -dir, ok);
+        surround_by(setit, bb1, -dir, 1, d, l1, false, ok);
+        bb1-=dir;
+        }
+      }
+    
+    bb += dir;
+    for(int i=1; i<q; i++) {
+      int d = get_valence(bb, dir, ok);
+      surround_by(setit, bb, dir, 1, d, l2, true, ok);
+      bb+=dir;
+      }
+
+    // bb is now facing the last neighbor inside 
+
+    if(t % 2 == (at_corner ? 1 : 0)) {
+      if(setit) setbarrier(current, l1, l2, at_corner);
+      int d = get_valence(bb, dir, ok);
+      surround_by(setit, bb, dir, 2, d, l2, true, ok);
+
+      bb += dir;
+      bb += wstep;
+
+      d = get_valence(bb, -dir, ok);
+      surround_by(setit, bb, -dir, 2, d-1, l1, false, ok);
+
+      ws = dir > 0 ? NOWALLSEP_WALL_EPOS : NOWALLSEP_WALL_ENEG;
+      return ok;
+      }
+    
+    int steps1 = get_valence(bb, dir, ok);
+    if(setit) setbarrier(current, l1, l2, true);
+
+    if(steps1 % 2 == 0) {
+      int s1 = steps1 / 2;
+      surround_by(setit, bb, dir, 1, s1, l1, false, ok);
+      surround_by(setit, bb, dir, s1+1, steps1-1, l2, true, ok);
+      spin_around_by(bb, dir, s1);
+      ws = dir > 0 ? NOWALLSEP_WALL_CPOS : NOWALLSEP_WALL_CNEG;
+      return ok;
+      }
+
+    int s1 = (steps1 - 1) / 2;
+    surround_by(setit, bb, dir, 1, s1, l1, false, ok);
+    surround_by(setit, bb, dir, s1+2, steps1-1, l2, true, ok);
+    spin_around_by(bb, dir, s1);
+    bb += dir;
+    ws = NOWALLSEP_WALL;
+    }
+  else if(warped_version(l1, l2)) {
+    bb = bb + wstep + (2*dir) + wstep + dir;
     dir = -dir;
     swap(l1, l2);
     }
-  else {
-    bb = bb + (dir>0?3:4) + wstep - (dir>0?3:4);
+  else {    
+    again:
+    cellwalker bb1 = bb;
+    int steps = get_valence(bb, dir, ok);
+    int s = 2;
+    if(ws == NOWALLSEP_SWAP) s = 5 - s;
+    if(dir == -1) s = 5 - s;
+    s = (1 + steps - s) / 2;
+    surround_by(setit, bb, dir, 1, s, l1, false, ok);
+    surround_by(setit, bb, dir, s+2, steps-1, l2, true, ok);
+    spin_around_by(bb, dir, s);
+    bb += dir;
+    if(steps & 1) ws = (ws == NOWALLSEP ? NOWALLSEP_SWAP : NOWALLSEP);
+    if(bb.at == bb1.at) goto again;
     }
-  return checkBarriersNowall(bb, q+1, -dir, l2, l1);
+  return ok;
+  }
+
+EX bool general_barrier_check(cellwalker bb, int q, int dir, eLand ws, eLand l1 IS(laNone), eLand l2 IS(laNone)) {
+
+  if(l1 == l2) {
+    if(bb.at->mpdist < BARLEV || bb.cpeek()->mpdist < BARLEV || bb.cpeek()->bardir != NODIR || bb.at->bardir != NODIR)
+      return false;
+    for(int i=0; i<bb.at->type; i++) {
+      cell *c1 = bb.at->move(i);
+      if(!c1) continue;
+      if(c1->bardir != NODIR) return false;
+      }
+    }
+  
+  if(l1 != l2 && bb.at->barleft != NOWALLSEP_USED) {
+    bb.at->bardir = bb.spin; bb.at->barright = l2; bb.at->barleft = ws; 
+    setland(bb.at, l1);
+    }
+  if(q <= 0) return true;
+  
+  bool b = general_barrier_advance(bb, dir, l1, l2, ws, l1 != l2);
+  if(l1 == l2 && !b) return false;
+  return general_barrier_check(bb, q-1, dir, ws, l1, l2);
+  }
+
+EX bool general_barrier_check_after(cellwalker bb, int steps, int q, int dir, eLand ws, eLand l1 IS(laNone), eLand l2 IS(laNone)) {
+  for(int i=0; i<steps; i++) general_barrier_advance(bb, dir, l1, l2, ws, l1 != l2);
+  return general_barrier_check(bb, q, dir, ws, l1, l2);
   }
 
 EX eWall getElementalWall(eLand l) {
@@ -120,27 +276,26 @@ EX eWall getElementalWall(eLand l) {
   return waNone;
   }
 
-EX void setbarrier(cell *c) {
-  if(isSealand(c->barleft) && isSealand(c->barright)) {
-    bool setbar = ctof(c);
-    if(c->barleft == laKraken || c->barright == laKraken)
-    if(c->barleft != laWarpSea && c->barright != laWarpSea)
+EX void setbarrier(cell *c, eLand l1, eLand l2, bool setbar) {
+  if(isSealand(l1) && isSealand(l2)) {
+    if(l1 == laKraken || l2 == laKraken)
+    if(l1 != laWarpSea && l2 != laWarpSea)
       setbar = !setbar;
     c->wall = setbar ? waBarrier : waSea;
     c->land = laOceanWall;
     }
-  else if(isElemental(c->barleft) && isElemental(c->barright)) {
+  else if(isElemental(l1) && isElemental(l2)) {
     c->land = laElementalWall;
-    c->wall = getElementalWall(c->barleft);
+    c->wall = getElementalWall(l1);
     }
-  else if(c->barleft == laHaunted || c->barright == laHaunted) {
+  else if(l1 == laHaunted || l2 == laHaunted) {
     c->land = laHauntedWall;
     }
-  else if(c->barleft == laMirrored2 || c->barright == laMirrored2)
+  else if(l1 == laMirrored2 || l2 == laMirrored2)
     c->land = laMirrorWall2;
-  else if(c->barleft == laMirrored || c->barright == laMirrored)
+  else if(l1 == laMirrored || l2 == laMirrored)
     c->land = laMirrorWall;
-  else if(c->barleft == laTerracotta && c->barright == laTerracotta) {
+  else if(l1 == laTerracotta && l2 == laTerracotta) {
     c->land = laMercuryRiver;
     c->wall = waMercury;
     }
@@ -148,6 +303,10 @@ EX void setbarrier(cell *c) {
     c->wall = waBarrier;
     c->land = laBarrier;
     }
+  }
+
+EX void setbarrier(cell *c) {
+  setbarrier(c, c->barleft, c->barright, ctof(c));
   }
 
 EX void setland(cell *c, eLand l) {
@@ -253,55 +412,92 @@ EX void extendBarrierBack(cell *c) {
   extendBarrier(bb.at);
   }
 
-EX void extendNowall(cell *c) {
+EX void general_barrier_extend(cell *c) {
+
+  eLand ws = c->barleft;
+  cellwalker cw(c, c->bardir);
 
   c->barleft = NOWALLSEP_USED;
-  cellwalker cw(c, c->bardir);
-  
-  bool warpv = warped_version(c->land, c->barright);
-  
-  if(warpv) {
-    cw += wstep;
-    setland(cw.at, c->barright);
+  eLand l1 = c->land;
+  eLand l2 = c->barright;
+
+  if(!on_wall(ws)) {
+    if(c->bardir == NODIR) {
+      println(hlog, "error: NODIR barrier at ", c);
+      return;
+      }
+    setland(cw.cpeek(), l2);
+    cw.cpeek()->barleft = NOWALLSEP_USED;
     }
-  else if(valence() > 3) {
-    auto cw2 = cw + wstep;
-    setland(cw2.at, c->barright);
-    cw2.at->barleft = NOWALLSEP_USED;
-    cw2.at->barright = c->land;
-    cw2.at->bardir = cw2.spin;
-    }
-  
-  for(int i=-1; i<2; i+=2) {  
-    cellwalker cw0;
-    if(warpv) {
-      cw0 = cw + (2*i) + wstep;
+
+  if(ws == NOWALLSEP_WALL && barrier_cross(l1, l2)) {
+
+    cellwalker p_cw = cw;
+    eLand p_l1 = l1, p_l2 = l2;
+    eLand p_ws = ws;
+    int i = 1;
+    general_barrier_advance(p_cw, i, p_l1, p_l2, p_ws, false);
+
+    cellwalker n_cw = cw;
+    eLand n_l1 = l1, n_l2 = l2;
+    eLand n_ws = ws;
+    i = -1;
+    general_barrier_advance(n_cw, i, n_l1, n_l2, n_ws, false);
+
+    int dir = 0;
+
+    println(hlog, "left ", n_cw, " = ", n_cw.at->barleft, " right ", p_cw, " = ", p_cw.at->barleft, " USED = ", NOWALLSEP_USED);
+
+    if(n_cw.at->barleft == NOWALLSEP_USED && p_cw.at->barleft != NOWALLSEP_USED) dir = 1;
+    if(p_cw.at->barleft == NOWALLSEP_USED && n_cw.at->barleft != NOWALLSEP_USED) dir = -1;
+
+    if(dir) {
+      if(!general_barrier_check_after(cw, 2, 10, 1, NOWALLSEP_WALL_EPOS, l1, l1)) {
+        println(hlog, "failed to check 1");
+        dir = 0;
+        }
+      if(!general_barrier_check_after(cw+wstep, 2, 10, 1, NOWALLSEP_WALL_EPOS, l1, l1)) {
+        println(hlog, "failed to check 2");
+        dir = 0;
+        }
       }
-    else if(valence() > 3) {
-      cw0 = cw + i + wstep + i; 
-      }
-    else {
-      cw0 = cw + (i>0?3:4) + wstep - (i>0?3:4);
-      //cw0 = cw + (3*i) + wstep - (3*i);
-      }
-    if(cw0.at->barleft != NOWALLSEP_USED) {
-      cw0.at->barleft = NOWALLSEP;
-      if(valence() > 3) {
-        cw0.at->barright = c->barright;
-        cw0.at->bardir = cw0.spin;
-        setland(cw0.at, c->land);
+
+    if(dir) {
+      eLand xl1 = oppositeElement(l1, l2);
+      eLand xl2 = oppositeElement(l2, l1);
+
+      if(dir == 1) {
+        general_barrier_check_after(cw, 0, 10, 1, NOWALLSEP_WALL_EPOS, l1, xl2);
+        general_barrier_check_after(cw+wstep, 0, 10, 1, NOWALLSEP_WALL_EPOS, xl1, l2);
         }
       else {
-        setland(cw0.at, c->barright);
-        cw0.at->barright = c->land;
-        if(c->barright == laNone) { 
-          printf("barright\n"); 
-          }// NONEDEBUG
-        setland(cw0.at, c->barright);
-        if(warpv) cw0 += i;
-        cw0.at->bardir = cw0.spin;
-        if(warpv) cw0 -= i;
+        general_barrier_check_after(cw, 0, 10, 1, NOWALLSEP_WALL_EPOS, xl2, l1);
+        general_barrier_check_after(cw+wstep, 0, 10, 1, NOWALLSEP_WALL_EPOS, l2, xl1);
         }
+
+      general_barrier_check(cw, 10, dir, ws, xl2, xl1);
+      return;
+      }
+    }
+
+  for(int i: {-1, 1}) {  
+
+    if(i == -1 && among(ws, NOWALLSEP_WALL_CPOS, NOWALLSEP_WALL_EPOS)) continue;
+    if(i == +1 && among(ws, NOWALLSEP_WALL_CNEG, NOWALLSEP_WALL_ENEG)) continue;
+
+    // general_barrier_check((cw, 10, i, ws, l1, l2);
+
+    cellwalker cw0 = cw;
+    eLand xl1 = l1, xl2 = l2;
+    eLand ws1 = ws;
+    int i1 = i;
+    general_barrier_advance(cw0, i1, xl1, xl2, ws1, true);
+
+    if(cw0.at->barleft != NOWALLSEP_USED) {
+      setland(cw0.at, xl1);
+      cw0.at->barleft = ws1;
+      cw0.at->barright = xl2;
+      cw0.at->bardir = cw0.spin;
       extendcheck(cw0.at);
       extendBarrier(cw0.at);
       }
@@ -326,6 +522,8 @@ EX void extendCR5(cell *c) {
       eLand nland = forbidden;
       for(int i=0; i<10 && (nland == forbidden || nland == forbidden2); i++)
         nland = getNewLand(laCrossroads5);
+      if(ls::single() && specialland == laCrossroads5)
+        nland = laCrossroads5;
       cw.at->barleft = forbidden2 = nland;
       landcount[nland]++;
       extendBarrier(cw.at);
@@ -341,6 +539,12 @@ EX bool isbar4(cell *c) {
     c->land == laMirrorWall || c->land == laMirrorWall2 ||
     c->land == laMercuryRiver;
   }  
+
+EX bool barrier_cross(eLand l, eLand r) {
+  if(l == laCrossroads3 || r == laCrossroads3) return hrand(100) < 66;
+  if(isElemental(l) && isElemental(r)) return hrand(100) < 75;
+  return false;
+  }
 
 EX void extendBarrier(cell *c) {
   limitgen("extend barrier %p\n", hr::voidp(c)); 
@@ -362,12 +566,12 @@ EX void extendBarrier(cell *c) {
     return; // == INFD) return;
     }
 
-  if(c->barleft == NOWALLSEP) {
+  if(c->barleft == NOWALLSEP || c->barleft == NOWALLSEP_SWAP || c->barleft == NOWALLSEP_WALL || on_wall(c->barleft)) {
     #if MAXMDIM >= 4
     if(WDIM == 3) extend3D(c);
     else 
     #endif
-    extendNowall(c);
+    general_barrier_extend(c);
     return;
     }
   
@@ -393,10 +597,7 @@ EX void extendBarrier(cell *c) {
     if(buildBarrier6(cw, 2)) return;    
     }
     
-  if(((c->barleft == laCrossroads3 || c->barright == laCrossroads3) && hrand(100) < 66) ||
-    (isElemental(c->barleft) && isElemental(c->barright) && hrand(100) < 75) 
-    || (firstmirror && hrand(100) < 60)
-    ) {
+  if(barrier_cross(c->barleft, c->barright) || (firstmirror && hrand(100) < 60)) {
     
     cellwalker cw(c, c->bardir);
     if(PURE) {
@@ -448,6 +649,12 @@ EX void buildBarrierForce(cell *c, int d, eLand l) {
   }
 
 EX void buildBarrier(cell *c, int d, eLand l IS(laNone)) {
+  
+  if(!old_nice_walls()) {
+    general_barrier_build(NOWALLSEP_WALL, c, l ? l : getNewLand(c->land), NODIR);
+    return;
+    }
+
   d %= 7;
   cellwalker bb(c, d);
   
@@ -731,7 +938,10 @@ EX void buildCrossroads2(cell *c) {
             oldleft = false;
             
         c->landparam = h;
-        buildBarrierStrong(c, i, oldleft);
+        if(ls::single())
+          buildBarrierStrong(c, i, oldleft, specialland);
+        else
+          buildBarrierStrong(c, i, oldleft);
         c->landparam = h;
         extendBarrier(c);
         }
@@ -740,13 +950,30 @@ EX void buildCrossroads2(cell *c) {
   }
 
 #if MAXMDIM >= 4
+EX bool bufferzone() { return PURE && S7 == 6; }
+EX int basic_tests() { return 50; }
+
+EX bool valid_dir(const vector<char>& ad, int j, cell *c) {
+  bool bch = variation == eVariation::bch;
+  if(!bch) return ad[j] == 1;
+
+  if(ad[j] != 2) return false;
+  auto ad1 = currentmap->get_cellshape(c).dirdist[j];
+  int a = 0;
+  for(auto& dd: ad1) if(dd == 1) a++;
+
+  int a0 = 0;
+  for(auto& dd: ad) if(dd == 1) a0++;
+  return a < 6;
+  }
+
 EX void extend3D(cell *c) {
   eLand l1 = c->land;
   c->barleft = NOWALLSEP_USED;
   
   cellwalker cw(c, c->bardir);
   
-  if(S3 == 5) {
+  if(bufferzone()) {
     cw += wstep; cw += rev;
     cw.at->bardir = NOBARRIERS;
     setland(cw.at, laBarrier);
@@ -760,9 +987,29 @@ EX void extend3D(cell *c) {
     cw1.at->bardir = cw1.spin;
     }
 
-  for(int j=0; j<S7; j++) if(cgi.dirs_adjacent[cw.spin][j]) {
-    cellwalker bb2 = reg3::strafe(cw, j);
-    if(S3 == 5) { bb2 += rev; bb2 += wstep; }
+  bool bch = variation == eVariation::bch;
+
+  auto& ad = currentmap->dirdist(cw);
+  for(int j=0; j<cw.at->type; j++) {
+    
+    if(!valid_dir(ad, j, cw.at)) {
+      if(bch && ad[j] == 1) {
+        cell *c1 = cw.at->cmove(j);
+        c1->bardir = NOBARRIERS;
+        setland(c1, c->barright);
+        }
+  
+      if(bch && ad[j] == 2) {
+        cell *c1 = cw.at->cmove(j);
+        c1->bardir = NOBARRIERS;
+        setland(c1, l1);
+        }
+  
+      continue;
+      }
+    
+    cellwalker bb2 = currentmap->strafe(cw, j);
+    if(bufferzone()) { bb2 += rev; bb2 += wstep; }
 
     if(bb2.at->bardir == NODIR) {
       bb2.at->bardir = bb2.spin;
@@ -779,35 +1026,47 @@ bool built = false;
 
 EX bool buildBarrier3D(cell *c, eLand l2, int forced_dir) {
   if(forced_dir == NODIR) {
-    for(int t=0; t<S7; t++) if((!c->move(t) || c->move(t)->mpdist > c->mpdist) && buildBarrier3D(c, l2, t)) return true;
+    for(int t=0; t<c->type; t++) if((!c->move(t) || c->move(t)->mpdist > c->mpdist) && buildBarrier3D(c, l2, t)) return true;
     return false;
     }
+  bool bch = variation == eVariation::bch;
+  
   cellwalker cw(c, forced_dir);
-  if(S3 == 5) { cw += wstep; cw += rev; }
+
+  if(bch) {
+    auto& ad = currentmap->dirdist(cw);
+    int a = 0;
+    for(auto& dd: ad) if(dd == 1) a++;
+    if(a == 6) return false;
+    }
+  
+  if(bufferzone()) { cw += wstep; cw += rev; }
   set<cell*> listed_cells = { cw.at };
-  vector<cellwalker> to_test { cw };  
+  vector<cellwalker> to_test { cw };
+  int tc = basic_tests();
   for(int i=0; i<isize(to_test); i++) {
     auto bb = to_test[i];
     if(bb.at->mpdist < BARLEV) return false;
     if(bb.cpeek()->mpdist < BARLEV) return false;
     if(bb.cpeek()->bardir != NODIR) return false;
-    if(S3 == 5 && (bb+rev).cpeek()->mpdist < BARLEV) return false;
-    if(S3 == 5 && (bb+rev).cpeek()->bardir != NODIR) return false;
+    if(bufferzone() && (bb+rev).cpeek()->mpdist < BARLEV) return false;
+    if(bufferzone() && (bb+rev).cpeek()->bardir != NODIR) return false;
     if(bb.at->bardir != NODIR) return false;
-    for(int j=0; j<S7; j++) {
-      if(S3 == 5 && i <= 5) bb.at->cmove(j);
-      if(cgi.dirs_adjacent[bb.spin][j] && bb.at->move(j)) {
-        cellwalker bb2 = reg3::strafe(bb, j);
-        if(listed_cells.count(bb2.at)) continue;
-        listed_cells.insert(bb2.at);
-        to_test.push_back(bb2);
-        }
+    auto& ad = currentmap->dirdist(bb);
+    for(int j=0; j<bb.at->type; j++) {
+      if(i < tc) bb.at->cmove(j);
+      if(!bb.at->move(j)) continue;
+      if(!valid_dir(ad, j, bb.at)) continue;
+      cellwalker bb2 = currentmap->strafe(bb, j);
+      if(listed_cells.count(bb2.at)) continue;
+      listed_cells.insert(bb2.at);
+      to_test.push_back(bb2);
       }
     }
 
   for(int i=0; i<isize(to_test); i++) {
     auto bb = to_test[i];
-    if(S3 == 5) { bb.at->bardir = NOBARRIERS; setland(bb.at, laBarrier); bb += rev; bb += wstep; }
+    if(bufferzone()) { bb.at->bardir = NOBARRIERS; setland(bb.at, laBarrier); bb += rev; bb += wstep; }
     bb.at->land = c->land;
     bb.at->bardir = bb.spin;
     bb.at->barleft = NOWALLSEP;
@@ -821,10 +1080,13 @@ EX bool buildBarrier3D(cell *c, eLand l2, int forced_dir) {
 #endif
 
 EX bool buildBarrierNowall(cell *c, eLand l2, int forced_dir IS(NODIR)) {
+  return general_barrier_build(NOWALLSEP, c, l2, forced_dir);
+  }
+
+EX bool general_barrier_build(eLand ws, cell *c, eLand l2, int forced_dir IS(NODIR)) {
 
   if(S3 >= OINF) { c->land = l2; return true; }
 
-  if(geometry == gBinary4) return false;
   #if MAXMDIM >= 4
   // 3D binary tilings create walls using their own methods
   if(WDIM == 3 && bt::in()) return false;
@@ -842,24 +1104,24 @@ EX bool buildBarrierNowall(cell *c, eLand l2, int forced_dir IS(NODIR)) {
   if(warpv && !arcm::in() && !pseudohept(c)) return false;
   
   vector<int> ds = hrandom_permutation(c->type);
+  
+  eLand wsx = warpv ? laWarpCoast : laNone;
+  eLand l1 = c->land;
+  
+  if(forced_dir != NODIR) {
+    cellwalker cw(c, forced_dir);
+    general_barrier_check(cw, 20, -1, ws, l1, l2);
+    general_barrier_check(cw, 20, 1, ws, l1, l2);
+    extendBarrier(c);
+    return true;
+    }
 
-  for(int i=0; i<c->type; i++) {
-    int d = forced_dir != NODIR ? forced_dir : (valence()>3 && !INVERSE) ? (2+(i&1)) : ds[i];
-/*    if(warpv && GOLDBERG) {
-      d = hrand(c->type); */
-    if(warpv && c->move(d) && c->move(d)->mpdist < c->mpdist) continue;
-    if(GOLDBERG && a4 && c->move(d) && c->move(d)->mpdist <= c->mpdist) continue;
-/*      }
-    else 
-      d = (S3>3 && !warpv) ? (2+(i&1)) : dtab[i]; */
-    cellwalker cw(c, d);
-    
-    eLand ws = warpv ? laWarpCoast : laNone;
-    
-    if(forced_dir != NODIR || (checkBarriersNowall(cw, 0, -1, ws, ws) && checkBarriersNowall(cw, 0, 1, ws, ws))) {
-      eLand l1 = c->land;
-      checkBarriersNowall(cw, 0, -1, l1, l2);
-      checkBarriersNowall(cw, 0, 1, l1, l2);
+  for(int d: ds) {
+    if(c->move(d) && c->move(d)->mpdist <= c->mpdist) continue;    
+    cellwalker cw(c, d);    
+    if(general_barrier_check(cw, 20, -1, ws, wsx, wsx) && general_barrier_check(cw, 20, 1, ws, wsx, wsx)) {
+      general_barrier_check(cw, 20, -1, ws, l1, l2);
+      general_barrier_check(cw, 20, 1, ws, l1, l2);
       extendBarrier(c);
       return true;
       }

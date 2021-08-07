@@ -96,11 +96,15 @@ struct hyperpoint : array<ld, MAXMDIM> {
       );
     }
 
-  // inner product
-  inline friend ld operator | (hyperpoint h1, hyperpoint h2) {
+  friend ld dot_d(int c, hyperpoint h1, hyperpoint h2) {
     ld sum = 0;
-    for(int i=0; i<MDIM; i++) sum += h1[i] * h2[i];
+    for(int i=0; i<c; i++) sum += h1[i] * h2[i];
     return sum;
+    }
+
+  // Euclidean inner product
+  inline friend ld operator | (hyperpoint h1, hyperpoint h2) {
+    return dot_d(MXDIM, h1, h2);
     }    
   };
 
@@ -174,6 +178,7 @@ constexpr transmatrix centralsym = diag(-1,-1,-1,-1);
 inline hyperpoint hpxyz(ld x, ld y, ld z) { return MDIM == 3 ? hyperpoint(x,y,z,0) : hyperpoint(x,y,0,z); }
 inline hyperpoint hpxyz3(ld x, ld y, ld z, ld w) { return MDIM == 3 ? hyperpoint(x,y,w,0) : hyperpoint(x,y,z,w); }
 constexpr hyperpoint point3(ld x, ld y, ld z) { return hyperpoint(x,y,z,0); }
+constexpr hyperpoint point30(ld x, ld y, ld z) { return hyperpoint(x,y,z,0); }
 constexpr hyperpoint point31(ld x, ld y, ld z) { return hyperpoint(x,y,z,1); }
 constexpr hyperpoint point2(ld x, ld y) { return hyperpoint(x,y,0,0); }
 
@@ -262,6 +267,8 @@ EX ld wvolarea_auto(ld r) {
 
 EX ld asin_clamp(ld x) { return x>1 ? M_PI/2 : x<-1 ? -M_PI/2 : std::isnan(x) ? 0 : asin(x); }
 
+EX ld acos_clamp(ld x) { return x>1 ? 0 : x<-1 ? M_PI : std::isnan(x) ? 0 : acos(x); }
+
 EX ld asin_auto_clamp(ld x) {
   switch(cgclass) {
     case gcEuclid: return x;
@@ -274,7 +281,8 @@ EX ld asin_auto_clamp(ld x) {
 EX ld acos_auto_clamp(ld x) {
   switch(cgclass) {
     case gcHyperbolic: return x < 1 ? 0 : acosh(x);
-    case gcSphere: return x > 1 ? 0 : x < -1 ? M_PI : acos(x);
+    case gcSL2: return x < 1 ? 0 : acosh(x);
+    case gcSphere: return acos_clamp(x);
     case gcProduct: return PIU(acos_auto_clamp(x));
     default: return x;
     }
@@ -555,6 +563,12 @@ EX transmatrix cpush(int cid, ld alpha) {
   return T;
   }
 
+EX transmatrix cmirror(int cid) {
+  transmatrix T = Id;
+  T[cid][cid] = -1;
+  return T;
+  }
+
 // push alpha units to the right
 EX transmatrix xpush(ld alpha) { return cpush(0, alpha); }
 
@@ -720,6 +734,13 @@ EX void set_column(transmatrix& T, int i, const hyperpoint& H) {
     T[j][i] = H[j];
   }
 
+EX hyperpoint get_column(transmatrix& T, int i) {
+  hyperpoint h;
+  for(int j=0; j<MXDIM; j++)
+    h[j] = T[j][i];
+  return h;
+  }
+
 /** build a matrix using the given vectors as columns */
 EX transmatrix build_matrix(hyperpoint h1, hyperpoint h2, hyperpoint h3, hyperpoint h4) {
   transmatrix T;
@@ -837,12 +858,14 @@ EX ld det(const transmatrix& T) {
     ld det = 1;
     transmatrix M = T;
     for(int a=0; a<MDIM; a++) {
-      for(int b=a; b<=GDIM; b++)
-        if(M[b][a]) {
-          if(b != a)
-            for(int c=a; c<MDIM; c++) tie(M[b][c], M[a][c]) = make_pair(-M[a][c], M[b][c]);
-          break;
-          }
+      int max_at = a;
+      for(int b=a; b<MDIM; b++)
+        if(abs(M[b][a]) > abs(M[max_at][a]))
+          max_at = b;
+      
+      if(max_at != a)
+        for(int c=a; c<MDIM; c++) tie(M[max_at][c], M[a][c]) = make_pair(-M[a][c], M[max_at][c]);
+
       if(!M[a][a]) return 0;
       for(int b=a+1; b<=GDIM; b++) {
         ld co = -M[b][a] / M[a][a];
@@ -932,6 +955,7 @@ EX ld hdist0(const hyperpoint& mh) {
       auto d1 = product_decompose(mh);
       return hypot(PIU(hdist0(d1.second)), d1.first);
       }
+    #if MAXMDIM >= 4
     case gcSL2: {
       auto cosh_r = hypot(mh[2], mh[3]);
       auto phi = atan2(mh[2], mh[3]);
@@ -941,6 +965,7 @@ EX ld hdist0(const hyperpoint& mh) {
       ld bz = mh[0] * mh[1] / 2;
       return hypot(mh[0], mh[1]) + abs(mh[2] - bz);
       }
+    #endif
     default:
       return hypot_d(GDIM, mh);
     }
@@ -1205,9 +1230,13 @@ EX hyperpoint tangent_length(hyperpoint dir, ld length) {
 
 /** exponential function: follow the geodesic given by v */
 EX hyperpoint direct_exp(hyperpoint v) {
+  #if CAP_SOLV
   if(sn::in()) return nisot::numerical_exp(v);
+  #endif
+  #if MAXMDIM >= 4
   if(nil) return nilv::formula_exp(v);
-  if(sl2) return slr::formula_exp(v);
+  if(sl2 || stretch::in()) return stretch::mstretch ? nisot::numerical_exp(v) : rots::formula_exp(v);
+  #endif
   if(prod) return product::direct_exp(v);
   ld d = hypot_d(GDIM, v);
   if(d > 0) for(int i=0; i<GDIM; i++) v[i] = v[i] * sin_auto(d) / d;
@@ -1292,9 +1321,11 @@ EX unsigned bucketer(hyperpoint h) {
     }
   dx += bucketer(h[0]) + 1000 * bucketer(h[1]) + 1000000 * bucketer(h[2]);
   if(MDIM == 4) dx += bucketer(h[3]) * 1000000001;
+  if(elliptic) dx = min(dx, -dx);
   return dx;
   }  
 
+#if MAXMDIM >= 4
 /** @brief project the origin to the triangle [h1,h2,h3] */
 EX hyperpoint project_on_triangle(hyperpoint h1, hyperpoint h2, hyperpoint h3) {
   h1 /= h1[3];
@@ -1311,9 +1342,130 @@ EX hyperpoint project_on_triangle(hyperpoint h1, hyperpoint h2, hyperpoint h3) {
   result[3] = 1;
   return normalize(result);
   }
+#endif
 
 EX hyperpoint lerp(hyperpoint a0, hyperpoint a1, ld x) {
   return a0 + (a1-a0) * x;
   }
+
+EX hyperpoint linecross(hyperpoint a, hyperpoint b, hyperpoint c, hyperpoint d) {  
+  a /= a[LDIM];
+  b /= b[LDIM];
+  c /= c[LDIM];
+  d /= d[LDIM];
+  
+  ld bax = b[0] - a[0];
+  ld dcx = d[0] - c[0];
+  ld cax = c[0] - a[0];
+  ld bay = b[1] - a[1];
+  ld dcy = d[1] - c[1];
+  ld cay = c[1] - a[1];
+  
+  hyperpoint res;
+  res[0] = (cay * dcx * bax + a[0] * bay * dcx - c[0] * dcy * bax) / (bay * dcx - dcy * bax);
+  res[1] = (cax * dcy * bay + a[1] * bax * dcy - c[1] * dcx * bay) / (bax * dcy - dcx * bay);
+  res[2] = 0;
+  res[3] = 0;
+  res[GDIM] = 1;
+  return normalize(res);  
+  }
+
+EX ld inner2(hyperpoint h1, hyperpoint h2) {
+  return 
+    hyperbolic ? h1[LDIM] * h2[LDIM] - h1[0] * h2[0] - h1[1] * h2[1] :
+    sphere ? h1[LDIM] * h2[LDIM] + h1[0] * h2[0] + h1[1] * h2[1] :
+    h1[0] * h2[0] + h1[1] * h2[1];
+  }
+
+EX hyperpoint circumscribe(hyperpoint a, hyperpoint b, hyperpoint c) {
+  hyperpoint h = C0;
+
+  b = b - a;
+  c = c - a;
+  
+  if(euclid) {
+    ld b2 = inner2(b, b)/2;
+    ld c2 = inner2(c, c)/2;
+    
+    ld det = c[1]*b[0] - b[1]*c[0];
+    
+    h = a;
+    
+    h[1] += (c2*b[0] - b2 * c[0]) / det;
+    h[0] += (c2*b[1] - b2 * c[1]) / -det;
+    
+    return h;
+    }
+
+  if(inner2(b,b) < 0) {
+    b = b / sqrt(-inner2(b, b));
+    c = c + b * inner2(c, b);
+    h = h + b * inner2(h, b);
+    }
+  else {
+    b = b / sqrt(inner2(b, b));
+    c = c - b * inner2(c, b);
+    h = h - b * inner2(h, b);
+    }
+  
+  if(inner2(c,c) < 0) {
+    c = c / sqrt(-inner2(c, c));
+    h = h + c * inner2(h, c);
+    }
+  else {
+    c = c / sqrt(inner2(c, c));
+    h = h - c * inner2(h, c);
+    }
+  
+  if(h[LDIM] < 0) h[0] = -h[0], h[1] = -h[1], h[LDIM] = -h[LDIM];
+
+  ld i = inner2(h, h);
+  if(i > 0) h /= sqrt(i);
+  else h /= -sqrt(-i);
+
+  return h;
+  }
+
+EX ld inner3(hyperpoint h1, hyperpoint h2) {
+  return 
+    hyperbolic ? h1[LDIM] * h2[LDIM] - h1[0] * h2[0] - h1[1] * h2[1]  - h1[2]*h2[2]:
+    sphere ? h1[LDIM] * h2[LDIM] + h1[0] * h2[0] + h1[1] * h2[1] + h1[2]*h2[2]:
+    h1[0] * h2[0] + h1[1] * h2[1];
+  }
+
+/** circumscribe for H3 and S3 (not for E3 yet!) */
+EX hyperpoint circumscribe(hyperpoint a, hyperpoint b, hyperpoint c, hyperpoint d) {
+  
+  array<hyperpoint, 4> ds = { b-a, c-a, d-a, C0 };
+  
+  for(int i=0; i<3; i++) {
+  
+    if(inner3(ds[i],ds[i]) < 0) {
+      ds[i] = ds[i] / sqrt(-inner3(ds[i], ds[i]));
+      for(int j=i+1; j<4; j++)
+        ds[j] = ds[j] + ds[i] * inner3(ds[i], ds[j]);
+      }
+    else {
+      ds[i] = ds[i] / sqrt(inner3(ds[i], ds[i]));
+      for(int j=i+1; j<4; j++)
+        ds[j] = ds[j] - ds[i] * inner3(ds[i], ds[j]);          
+      }
+    }
+  
+  hyperpoint& h = ds[3];
+  
+  if(h[3] < 0) h = -h;
+
+  ld i = inner3(h, h);
+  if(i > 0) h /= sqrt(i);
+  else h /= -sqrt(-i);
+
+  return h;
+  }
+
+EX bool clockwise(hyperpoint h1, hyperpoint h2) {
+  return h1[0] * h2[1] > h1[1] * h2[0];
+  }
+
 
 }

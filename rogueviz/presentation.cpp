@@ -9,79 +9,63 @@ namespace rogueviz {
 namespace pres {
 
 /* maks graphs in presentations */
-struct grapher {
-
-  ld minx, miny, maxx, maxy;
+grapher::grapher(ld _minx, ld _miny, ld _maxx, ld _maxy) : minx(_minx), miny(_miny), maxx(_maxx), maxy(_maxy) {
+  auto& cd = *current_display;
   
-  shiftmatrix T;
+  ld xpixels = 2 * min(cd.xcenter - cd.xmin, cd.xmax - cd.xcenter);
+  ld ypixels = 2 * min(cd.ycenter - cd.ymin, cd.ymax - cd.ycenter);
   
-  grapher(ld _minx, ld _miny, ld _maxx, ld _maxy) : minx(_minx), miny(_miny), maxx(_maxx), maxy(_maxy) {
-    auto& cd = *current_display;
-    
-    ld xpixels = 2 * min(cd.xcenter - cd.xmin, cd.xmax - cd.xcenter);
-    ld ypixels = 2 * min(cd.ycenter - cd.ymin, cd.ymax - cd.ycenter);
-    
-    ld sca = min(abs(xpixels / (maxx-minx)), abs(ypixels / (maxy-miny)));
-    
-    ld medx = (minx + maxx) / 2;
-    ld medy = (miny + maxy) / 2;
+  ld sca = min(abs(xpixels / (maxx-minx)), abs(ypixels / (maxy-miny)));
+  
+  ld medx = (minx + maxx) / 2;
+  ld medy = (miny + maxy) / 2;
 
-    hyperpoint zero = atscreenpos(cd.xcenter - sca * medx, cd.ycenter + sca * medy, 1) * C0;
+  hyperpoint zero = atscreenpos(cd.xcenter - sca * medx, cd.ycenter + sca * medy, 1) * C0;
 
-    hyperpoint zero10 = atscreenpos(cd.xcenter - sca * medx + sca, cd.ycenter + sca * medy, 1) * C0;
-    hyperpoint zero01 = atscreenpos(cd.xcenter - sca * medx, cd.ycenter + sca * medy - sca, 1) * C0;
-    
-    T = shiftless(Id);
-    T.T[LDIM] = zero;
-    T.T[0] = zero10 - zero;
-    T.T[1] = zero01 - zero;
-    
-    T.T = transpose(T.T);
-    }
+  hyperpoint zero10 = atscreenpos(cd.xcenter - sca * medx + sca, cd.ycenter + sca * medy, 1) * C0;
+  hyperpoint zero01 = atscreenpos(cd.xcenter - sca * medx, cd.ycenter + sca * medy - sca, 1) * C0;
+  
+  T = shiftless(Id);
+  T.T[LDIM] = zero;
+  T.T[0] = zero10 - zero;
+  T.T[1] = zero01 - zero;
+  
+  T.T = transpose(T.T);
+  }
 
-  void line(hyperpoint h1, hyperpoint h2, color_t col) {
+void grapher::line(hyperpoint h1, hyperpoint h2, color_t col) {
     curvepoint(h1);
     curvepoint(h2);
     queuecurve(T, col, 0, PPR::LINE).flags |= POLY_FORCEWIDE;
     }
   
-  void arrow(hyperpoint h1, hyperpoint h2, ld sca) {
-    line(h1, h2, 0xFF);
-    hyperpoint h = h2 - h1;
-    ld siz = hypot_d(2, h);
-    h *= sca / siz;
-    curvepoint(h2);
-    curvepoint(h2 - spin(15*degree) * h);
-    curvepoint(h2 - spin(-15*degree) * h);
-    curvepoint(h2);
-    queuecurve(T, 0xFF, 0xFF, PPR::LINE);
-    }
+void grapher::arrow(hyperpoint h1, hyperpoint h2, ld sca, color_t col) {
+  line(h1, h2, col);
+  if(!sca) return;
+  hyperpoint h = h2 - h1;
+  ld siz = hypot_d(2, h);
+  h *= sca / siz;
+  curvepoint(h2);
+  curvepoint(h2 - spin(15*degree) * h);
+  curvepoint(h2 - spin(-15*degree) * h);
+  curvepoint(h2);
+  queuecurve(T, col, col, PPR::LINE);
+  }
   
-  shiftmatrix pos(ld x, ld y, ld sca) {
-    transmatrix P = Id;
-    P[0][0] = sca;
-    P[1][1] = sca;
-    P[0][LDIM] = x;
-    P[1][LDIM] = y;
-    return T * P;
-    }
-  
-  };
+shiftmatrix grapher::pos(ld x, ld y, ld sca) {
+  transmatrix P = Id;
+  P[0][0] = sca;
+  P[1][1] = sca;
+  P[0][LDIM] = x;
+  P[1][LDIM] = y;
+  return T * P;
+  }
 
 hyperpoint p2(ld x, ld y) { return LDIM == 2 ? point3(x, y, 1) : point31(x, y, 0); }
 
 /* temporary hooks */
 
 using namespace hr::tour;
-
-template<class T, class U> void add_temporary_hook(int mode, hookset<T>& m, int prio, U&& hook) {
-  if(mode == pmStart) {
-    int p = addHook(m, prio, hook);
-    on_restore([&m, p] { 
-      delHook(m, p); 
-      });
-    }
-  }
 
 void add_stat(presmode mode, const bool_reaction_t& stat) {
   add_temporary_hook(mode, hooks_prestats, 200, stat);
@@ -92,7 +76,7 @@ void no_other_hud(presmode mode) {
   clearMessages();
   }
 
-void empty_screen(presmode mode, color_t col = 0xFFFFFFFF) {
+void empty_screen(presmode mode, color_t col) {
   if(mode == pmStart) {
     tour::slide_backup(nomap, true);
     tour::slide_backup(backcolor, col);
@@ -102,6 +86,16 @@ void empty_screen(presmode mode, color_t col = 0xFFFFFFFF) {
     tour::slide_backup<color_t>(bordcolor, 0xFFFFFFFF);
     tour::slide_backup(vid.aurastr, 0);
     }
+  }
+
+void slide_error(presmode mode, string s) {
+  empty_screen(mode, 0x400000);
+  add_stat(mode, [s] {
+    dialog::init();
+    dialog::addTitle(s, 0xFF0000, 150);
+    dialog::display();
+    return true;
+    });
   }
 
 map<string, texture::texture_data> textures;
@@ -256,14 +250,10 @@ int phooks =
   + addHook(dialog::hooks_display_dialog, 100, [] () {
     if(current_screen_cfunction() == showStartMenu) { 
       dialog::addBreak(100);
-      dialog::addBigItem(XLAT("presentations"), 'p');
+      dialog::addBigItem(XLAT("RogueViz demos"), 'p');
       dialog::add_action([] () { pushScreen(choose_presentation); });
-      dialog::addInfo(XLAT("presentation"));
       }
     });
-
-static ld angle = 0;
-static int dir = -1;
 
 void use_angledir(presmode mode, bool reset) {
   if(mode == pmStart && reset)
@@ -303,28 +293,51 @@ void compare_projections(presmode mode, eModel a, eModel b) {
 
 /* default RogueViz tour */
 
-vector<slide> rvslides;
+vector<slide> rvslides_mixed;
+vector<slide> rvslides_data;
 extern vector<slide> rvslides_default;
 
-slide *gen_rvtour() {
-  rvslides = rvslides_default;
-  callhooks(hooks_build_rvtour, rvslides);
-  rvslides.emplace_back(
-    slide{"THE END", 99, LEGAL::ANY | FINALSLIDE,
+void add_end(vector<slide>& s) {
+  s.emplace_back(
+    slide{"THE END", 99, LEGAL::NONE | FINALSLIDE,
     "Press '5' to leave the presentation.",
     [] (presmode mode) {
-      firstland = specialland = laIce;
+      if(mode == pmStart) firstland = specialland = laIce;
       if(mode == 4) restart_game(rg::tour);
       }
     });
-  return &rvslides[0];
+  }
+  
+slide *gen_rvtour_data() {
+  rvslides_data = rvslides_default;
+
+  callhooks(hooks_build_rvtour, "data", rvslides_data);
+  add_end(rvslides_data);
+
+  return &rvslides_data[0];
+  }
+
+slide *gen_rvtour_mixed() {
+
+  rvslides_mixed.emplace_back(slide{
+    "RogueViz", 999, LEGAL::ANY,
+    "This presentation is mostly composed from various unsorted demos, mostly posted on Twitter and YouTube. Press Enter to continue, ESC to look at other functions of this presentation.",
+    [] (presmode mode) {
+      slide_url(mode, 'y', "YouTube link", "https://www.youtube.com/user/ZenoTheRogue");
+      slide_url(mode, 't', "Twitter link", "https://twitter.com/zenorogue/");
+      }
+    });
+  
+  callhooks(hooks_build_rvtour, "mixed", rvslides_mixed); 
+
+  add_end(rvslides_mixed);
+
+  return &rvslides_mixed[0];
   }
 
 vector<slide> rvslides_default = {
-    {"RogueViz", 999, LEGAL::ANY, 
-      "This is a presentation of RogueViz, which "
-      "is an adaptation of HyperRogue as a visualization tool "
-      "rather than a game. Hyperbolic space is great "
+    {"intro", 999, LEGAL::ANY, 
+      "Hyperbolic space is great "
       "for visualizing some kinds of data because of the vast amount "
       "of space.\n\n"
       "Press '5' to switch to the standard HyperRogue tutorial. "
@@ -346,7 +359,7 @@ vector<slide> rvslides_default = {
       [] (presmode mode) {
        using namespace linepatterns;
        slidecommand = "toggle the Palace lines";
-       if(mode == 4) patPalace.color = 0xFFD500FF;
+       if(mode == 4) patPalace.color = (patPalace.color == 0xFFD500FF ? 0 : 0xFFD500FF);
        if(mode == 3) patPalace.color = 0xFFD50000;
         }
       },
@@ -363,15 +376,24 @@ int pres_hooks =
           "common HyperRogue tutorial first is useful too, "
           "as an introduction to hyperbolic geometry.";         
       if(mode == 4) {
-        slides = gen_rvtour();
         while(tour::on) restart_game(rg::tour);
-        tour::start();
+        pushScreen(choose_presentation);
         }
       }
     }) +
-  addHook(tour::ss::hooks_extra_slideshows, 100, [] (tour::ss::slideshow_callback cb) {
-    if(rogueviz::pres::rvslides.empty()) pres::gen_rvtour();
-    cb(XLAT("RogueViz mixed bag"), &pres::rvslides[0], 'r');
+  addHook(dialog::hooks_display_dialog, 100, [] () {
+    if(current_screen_cfunction() == showMainMenu) {
+      dialog::addItem(XLAT("RogueViz demos"), 'd'); 
+      dialog::add_action_push(choose_presentation);
+      }
+    }) +
+  addHook_slideshows(300, [] (tour::ss::slideshow_callback cb) {
+    if(rogueviz::pres::rvslides_data.empty()) pres::gen_rvtour_data();
+    cb(XLAT("non-Euclidean geometry in data analysis"), &pres::rvslides_data[0], 'd');
+
+    if(rogueviz::pres::rvslides_mixed.empty()) pres::gen_rvtour_mixed();
+
+    cb(XLAT("unsorted RogueViz demos"), &pres::rvslides_mixed[0], 'u');
     }) +
   0;
 

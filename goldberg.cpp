@@ -47,6 +47,11 @@ EX namespace gp {
     loc operator /(int i) {
       return loc(first/i, second/i);
       }
+      
+    loc conj() {
+      if(S3 == 4) return loc(first, -second);
+      return loc(first+second, -second);
+      }
 
     };
 
@@ -58,7 +63,8 @@ EX namespace gp {
     };
   #endif
 
-  EX local_info draw_li;
+  EX local_info current_li;
+  EX cell *li_for;
   
   EX loc eudir(int d) {
     if(S3 == 3) {
@@ -101,12 +107,15 @@ EX namespace gp {
 
   EX int fixg6(int x) { return gmod(x, SG6); }
   
+  const int GOLDBERG_LIMIT_HALF = GOLDBERG_LIMIT/2;
+  const int GOLDBERG_MASK_HALF = GOLDBERG_MASK/2;
+  
   EX int get_code(const local_info& li) {
     return 
-      ((li.relative.first & 15) << 0) +
-      ((li.relative.second & 15) << 4) +
-      ((fixg6(li.total_dir)) << 8) +
-      ((li.last_dir & 15) << 12);
+      ((li.relative.first & GOLDBERG_MASK_HALF) << 0) +
+      ((li.relative.second & GOLDBERG_MASK_HALF) << (GOLDBERG_BITS-1)) +
+      ((fixg6(li.total_dir)) << (2*GOLDBERG_BITS-2)) +
+      ((li.last_dir & 15) << (2*GOLDBERG_BITS+2));
     }
   
   EX local_info get_local_info(cell *c) {
@@ -162,9 +171,9 @@ EX namespace gp {
   // goldberg_map[y][x].cw is the cellwalker in this triangle at position (x,y)
   // facing local direction 0  
   
-  goldberg_mapping_t goldberg_map[32][32];
+  goldberg_mapping_t goldberg_map[GOLDBERG_LIMIT][GOLDBERG_LIMIT];
   void clear_mapping() {
-    for(int y=0; y<32; y++) for(int x=0; x<32; x++) {
+    for(int y=0; y<GOLDBERG_LIMIT; y++) for(int x=0; x<GOLDBERG_LIMIT; x++) {
       goldberg_map[y][x].cw.at = NULL;
       goldberg_map[y][x].rdir = -1;
       goldberg_map[y][x].mindir = 0;
@@ -172,7 +181,7 @@ EX namespace gp {
     }
   
   goldberg_mapping_t& get_mapping(loc c) {
-    return goldberg_map[c.second&31][c.first&31];
+    return goldberg_map[c.second&GOLDBERG_MASK][c.first&GOLDBERG_MASK];
     }
 
   int spawn;
@@ -333,7 +342,7 @@ EX namespace gp {
       set_heptspin(vc[2], hs + wstep - 1 + wstep + 1).mindir = -3;
       }
 
-    do_adjm = quotient;
+    do_adjm = quotient || sphere;
     if(do_adjm) {
       auto m = (hrmap_standard*)currentmap;
       get_mapping(vc[0]).adjm = Id;
@@ -599,14 +608,14 @@ EX namespace gp {
     cgi.gpdata->Tf.resize(S7);
     for(int i=0; i<S7; i++) {
       transmatrix T = dir_matrix(i);
-      for(int x=-16; x<16; x++)
-      for(int y=-16; y<16; y++)
+      for(int x=-GOLDBERG_LIMIT_HALF; x<GOLDBERG_LIMIT_HALF; x++)
+      for(int y=-GOLDBERG_LIMIT_HALF; y<GOLDBERG_LIMIT_HALF; y++)
       for(int d=0; d<(S3==3?6:4); d++) {
         loc at = loc(x, y);
         
         hyperpoint h = atz(T, cgi.gpdata->corners, at, 6);
         hyperpoint hl = atz(T, cgi.gpdata->corners, at + eudir(d), 6);
-        cgi.gpdata->Tf[i][x&31][y&31][d] = rgpushxto0(h) * rspintox(gpushxto0(h) * hl) * spin(M_PI);
+        cgi.gpdata->Tf[i][x&GOLDBERG_MASK][y&GOLDBERG_MASK][d] = rgpushxto0(h) * rspintox(gpushxto0(h) * hl) * spin(M_PI);
         }
       }       
     }
@@ -616,7 +625,7 @@ EX namespace gp {
     if(i == -1) 
       return atz(dir_matrix(cid), cgi.gpdata->corners, li.relative, 0, cf);
     else {
-      auto& cellmatrix = cgi.gpdata->Tf[i][li.relative.first&31][li.relative.second&31][fixg6(li.total_dir)];
+      auto& cellmatrix = cgi.gpdata->Tf[i][li.relative.first&GOLDBERG_MASK][li.relative.second&GOLDBERG_MASK][fixg6(li.total_dir)];
       return inverse(cellmatrix) * atz(dir_matrix(i), cgi.gpdata->corners, li.relative, fixg6(cid + li.total_dir), cf);
       }
     }
@@ -760,10 +769,10 @@ EX namespace gp {
         });
       }
 
-    dialog::lastItem().value = S3 == 3 ? "GP(1,1)" : XLAT(BITRUNCATED ? "ON" : "OFF");
+    dialog::lastItem().value = S3 == 3 ? "GP(1,1)" : ONOFF(BITRUNCATED);
 
     if(min_quality == 0 || min_quality_chess) {
-      dialog::addBoolItem(XLAT(S3 == 3 ? "chamfered" : "expanded"), univ_param() == loc(2,0) && GOLDBERG, 'c');
+      dialog::addBoolItem(S3 == 3 ? XLAT("chamfered") : XLAT("expanded"), univ_param() == loc(2,0) && GOLDBERG, 'c');
       dialog::lastItem().value = "GP(2,0)";
       dialog::add_action_confirmed([] { 
         whirl_set(loc(2, 0));
@@ -1074,6 +1083,14 @@ EX namespace gp {
       return S3 == 3 ? XLAT("chamfered") : XLAT("expanded");
     else if(GOLDBERG && param == loc(3, 0) && S3 == 3)
       return XLAT("2x bitruncated");
+    else if(variation == eVariation::subcubes)
+      return XLAT("subcubed") + "(" + its(reg3::subcube_count) + ")";
+    else if(variation == eVariation::dual_subcubes)
+      return XLAT("dual-subcubed") + "(" + its(reg3::subcube_count) + ")";
+    else if(variation == eVariation::bch)
+      return XLAT("bitruncated-subcubed") + "(" + its(reg3::subcube_count) + ")";
+    else if(variation == eVariation::coxeter)
+      return XLAT("subdivided") + "(" + its(reg3::coxeter_param) + ")";
     else {
       auto p = human_representation(param);
       string s = "GP(" + its(p.first) + "," + its(p.second) + ")";
@@ -1119,6 +1136,16 @@ EX namespace gp {
       return c;
       }
     
+    transmatrix relative_matrixh(heptagon *h2, heptagon *h1, const hyperpoint& hint) override {
+      return in_underlying([&] { return currentmap->relative_matrix(h2, h1, hint); });
+      }
+
+    transmatrix relative_matrixc(cell *c2, cell *c1, const hyperpoint& hint) override {
+      c1 = mapping[c1];
+      c2 = mapping[c2];
+      return in_underlying([&] { return currentmap->relative_matrix(c2, c1, hint); });
+      }
+
     ~hrmap_inverse() {
       in_underlying([this] { delete underlying_map; });
       }
@@ -1193,7 +1220,7 @@ EX namespace gp {
           return cw.at;
           }
         }
-      throw "unimplemented";
+      throw hr_exception("unimplemented");
       }
 
     transmatrix adj(cell *c, int d) override {
@@ -1242,11 +1269,11 @@ EX namespace gp {
         
         in_underlying([&] {
           if(GOLDBERG) {
-            gp::draw_li = gp::get_local_info(c1);
+            gp::current_li = gp::get_local_info(c1);
             }
           else {
-            gp::draw_li.relative.first = shvid(c1);
-            gp::draw_li.relative.second = shift[c];
+            gp::current_li.relative.first = shvid(c1);
+            gp::current_li.relative.second = shift[c];
             }
           });
       
@@ -1261,6 +1288,48 @@ EX namespace gp {
         }
       }
 
+    void find_cell_connection(cell *c, int d) override {
+      inverse_move(c, d);
+      }
+
+    int shvid(cell *c) override {
+      return gp::get_plainshape_id(c);
+      }   
+
+    hyperpoint get_corner(cell *c, int cid, ld cf) override {
+      if(UNTRUNCATED) {
+        cell *c1 = gp::get_mapped(c);
+        cellwalker cw(c1, cid*2);
+        if(!gp::untruncated_shift(c)) cw--;
+        hyperpoint h = UIU(nearcorner(c1, cw.spin));
+        return mid_at_actual(h, 3/cf);
+        }
+      if(UNRECTIFIED) {
+        cell *c1 = gp::get_mapped(c);
+        hyperpoint h = UIU(nearcorner(c1, cid));
+        return mid_at_actual(h, 3/cf);
+        }
+      if(WARPED) {
+        int sh = gp::untruncated_shift(c);
+        cell *c1 = gp::get_mapped(c);
+        if(sh == 2) {
+          cellwalker cw(c, cid);
+          hyperpoint h1 = UIU(tC0(currentmap->adj(c1, cid)));
+          cw--;
+          hyperpoint h2 = UIU(tC0(currentmap->adj(c1, cw.spin)));
+          hyperpoint h = mid(h1, h2);
+          return mid_at_actual(h, 3/cf);
+          }
+        else {
+          cellwalker cw(c1, cid*2);
+          if(!gp::untruncated_shift(c)) cw--;
+          hyperpoint h = UIU(nearcorner(c1, cw.spin));
+          h = mid(h, C0);
+          return mid_at_actual(h, 3/cf);
+          }
+        }
+      return C0;
+      }
     };
   
   EX hrmap* new_inverse() { return new hrmap_inverse; }

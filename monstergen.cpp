@@ -343,6 +343,7 @@ EX void wandering() {
   if(!gen_wandering) return;
   if(racing::on) return;
   if(dpgen::in) return;
+  if(items[itOrbSafety]) return;
   pathdata pd(moYeti);
   int seepcount = getSeepcount();
   int ghostcount = getGhostcount();
@@ -391,7 +392,7 @@ EX void wandering() {
     
     if(smallbounded_generation && !c->item && hrand(5) == 0 && c->land != laHalloween) {
       if(passable(c, NULL, 0) || specialland == laKraken) {
-        if(c->land != laGraveyard && !haveOrbPower() && specialland != laHell) for(int it=0; it<1000 && !c->item; it++)
+        if(c->land != laGraveyard && !in_lovasz() && !haveOrbPower() && specialland != laHell) for(int it=0; it<1000 && !c->item; it++)
           placeLocalOrbs(c);
         if(!c->item) c->item = wanderingTreasure(c);
         if(c->item == itShard) {
@@ -541,10 +542,12 @@ EX void wandering() {
           forCellCM(c3, c2) if(c3->monst || c3->wall != waSea) 
             goto notfound;
           c2->monst = moKrakenH;
+          c2->stuntime = 0;
           playSeenSound(c2);
           for(int i=0; i<c2->type; i++) {
             c2->move(i)->monst = moKrakenT;
             c2->move(i)->hitpoints = 1;
+            c2->move(i)->stuntime = 0;
             c2->move(i)->mondir = c2->c.spin(i);
             }
           goto found;
@@ -607,8 +610,12 @@ EX void wandering() {
     else if(c->land == laDragon && (items[itDragon] >= 8 || items[itOrbYendor]) && wchance(items[itDragon], 20))
       c->monst = moFireElemental;
 
-    else if(c->land == laRedRock && wchance(items[itRedGem], 10))
-      c->monst = (hrand(10) || peace::on) ? moRedTroll : moHexSnake;
+    else if(c->land == laRedRock && wchance(items[itRedGem], 10)) {
+      if (hrand(10) || peace::on)
+        c->monst = moRedTroll;
+      else if (!pseudohept(c))
+        c->monst = moHexSnake, c->hitpoints = 1;
+      }
 
     else if(c->land == laCaves && wchance(items[itGold], 5))
       c->monst = hrand(3) ? moTroll : moGoblin;
@@ -630,6 +637,9 @@ EX void wandering() {
 
     else if(c->land == laJungle && wchance(items[itRuby], 40))
       c->monst = hrand(10) ? moMonkey : moEagle;
+
+    else if(c->land == laCursed && wchance(items[itCursed], 40))
+      c->monst = moHexer;
 
     else if(c->land == laMirrorOld && wchance(items[itShard], 15))
       c->monst = hrand(10) ? moRanger : moEagle;

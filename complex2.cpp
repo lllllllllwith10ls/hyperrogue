@@ -160,6 +160,8 @@ EX namespace brownian {
   EX void build(cell *c, int d) {
   
     if(!hyperbolic) c->wall = waNone, c->landparam = 256;
+    
+    if(c->landparam == 0 && ls::single()) c->land = laOcean;
 
     ONEMPTY {
       if(hrand(10000) < min(250, 100 + 2 * PT(kills[moAcidBird] + kills[moBrownBug], 50)) * (25 + min(items[itBrownian], 100)) / 25 && c->landparam >= 4 && c->landparam < 24)
@@ -318,7 +320,7 @@ array<feature, 21> features {{
       if(buildIvy(c, 0, c->type) && !peace::on) c->item = itVarTreasure;
     }},
   {0x000A08, 0, moNone, VF { if(c->wall == waNone && !c->monst && hrand(5000) < 100) c->wall = waSmallTree; }},
-  {0x100A10, 1, moRagingBull, VF { if(c->wall == waNone && hrand(10000) < 10 + items[itVarTreasure]) c->monst = moSleepBull, c->hitpoints = 3; }},
+  {0x100A10, 1, moRagingBull, VF { if(c->wall == waNone && !c->monst && hrand(10000) < 10 + items[itVarTreasure]) c->monst = moSleepBull, c->hitpoints = 3; }},
   {0x00110C, 0, moNone, VF { if(c->wall == waNone && !c->monst && hrand(5000) < 100) c->wall = waBigTree; }},
   {0x000A28, 1, moNone, VF { if(hrand(500) < 10) build_pool(c, false); } },
   {0x100A00, 2, moVariantWarrior, VF { if(c->wall == waNone && !c->monst && hrand_var(40000)) c->monst = moVariantWarrior; }},
@@ -335,18 +337,22 @@ EX int knighted = 0;
 EX int anthraxBonus = 0;
 
 vector<string> knight_names = {
-  "DivisionByZero", "tricosahedron", "BillSYZ0317", "rjdimo", "Person", "Strange Yeah", "godamnsteemsux", "Allalinor", "Spuddnik", "QETC Crimson", 
-  "cannobeens", "Dylgear", "Patashu", "hotdogPi", "vincent", "Chimera245", "BreedPineapple", "TaeK", "Aliased", "Vipul", "english5040", "marvincast", 
-  "Lord Ignus", "Darth Calculus", "*****-mail", "Wheat Wizard", "xiqnyl", "zelda0x181e", "ad-jones", "mtomato", "Fififionek", "jkvw3", "J Pystynen", 
-  "krstefan11", "green orange", "ZombieGirl1616", "z.chlebicki", "Lokki", "zeno", "Fulgur14", "uqblf", "santagonewrong", "CtrlAltDestroy", "Vee Nought", 
-  "archmageomega", "Wroclaw", "lunaduskjr", "loper", "Sharklilly", "Dasypus Daimon", "Mateusz", "guysige", "MrSprucetree", "Atia", "nerdyjoe", "florrat", 
-  "psychopanda121", "Sprite Guard", "Fluffiest Princess", "no stop", "Kieroshark", "juhdanad", "lllllllllwith10ls", "NattieGilgamesh", "chocokels", "oren", 
-  "sir289", "pringle", "Spicy", "Cheetahs", "xy2", "Heavpoot", "2jjy", "Hirgon", "martradams", "TravelDemon", "The Big Extent", "fones4jenke13", "ekisacik", 
-  "j0eymcgrath", "EatChangmyeong", "craus", "akei_arkay", "__________", "Ichigo Jam", "supernewton", "Westville", "Huja (chat off)", "Just A Witch", "Particles",
-  "The Horrendous Space Kablooie", "ddtizm", "amagikuser", "vkozulya", "gassa", "Factitious", "wonderfullizardofoz", "woofmao", "CandorVelexion", "Toricon", 
-  "Vectis99", "RobotNerd277", "jerrypoons", "MagmaMcFry", "unczane", "glass", "Wegener", "JeLomun", "kip", "Fooruman", "Prezombie", "ashley89", "bjobae", 
-  "MFErtre", "Roaringdragon2", "howilovepi", "Yulgash", "coper", "Tirear", "qoala _", "Tiegon", "Metroid26", "Sklorg", "Fumblestealth", "Toph", "jruderman",
-  "ray", "Deathroll", "Sinquetica", "mootmoot", "Noobinator", "Gunblob", "Snakebird Priestess", "brisingre", "Khashishi", "Berenthas", "Misery", "Altripp", "Aldrenean",
+  "DivisionByZero", "Phoenyx", "tricosahedron", "BillSYZ0317", "rjdimo", "Person", "Strange Yeah", "paradoxica", "godamnsteemsux", "Allalinor", "Spuddnik",
+  "QETC Crimson", "aca", "cannobeens", "Dylgear", "Patashu", "SirLight_XXVII", "Lord Ignus", "Lotho", "hotdogPi", "vincent", "pofoss", "Zekava", "Chimera245",
+  "BreedPineapple", "TaeK", "Aliased", "Vipul", "jkvw3", "english5040", "gregwar69", "marvincast", "Panacea108", "FEDPOL1", "Jenkar", "inakilbss", "*****-mail",
+  "Wheat Wizard", "xiqnyl", "zelda0x181e", "ad-jones", "mtomato", "Fififionek", "J Pystynen", "krstefan11", "green orange", "ZombieGirl1616", "z.chlebicki",
+  "9427", "Lokki", "gabbalis", "The Horrendous Space Kablooie", "zeno", "ETsc2", "Fulgur14", "Roger", "uqblf", "Grep", "Abigail", "Cyberfox VII", "ballom", "CtrlAltDestroy",
+  "RushSecond", "ozir", "Vee Nought", "archmageomega", "Wroclaw", "lunaduskjr", "LucLucLuc", "loper", "RedsToad", "Sharklilly", "Dasypus Daimon", "Mateusz", "joshua", "guysige",
+  "MrSprucetree", "Atia", "nerdyjoe", "florrat", "bderoo121", "Sprite Guard", "fischpferd", "Fluffiest Princess", "no stop", "Kieroshark", "elgan65536", "T-Jski",
+  "martinus de monte", "Inthar", "mj.titze", "thelast19digitsofpi", "abacussssss", "ann_dec", "juhdanad", "lllllllllwith10ls", "rsstein", "The Emerald Derp Leader",
+  "NattieGilgamesh", "chocokels", "oren", "y", "Nathanbananas", "juliuskwan", "wojtekor9", "CoderBro", "RidiculousPyro64", "pringle", "Spicy", "Cheetahs", "ShiningKatana",
+  "xy2", "starchewer", "2jjy", "Nibaw", "Goon in Chief", "the.goosh222", "Toras", "ooshoo", "TravelDemon", "The Big Extent", "droplet739", "AlliterativeAnchovies",
+  "fones4jenke13", "ekisacik", "j0eymcgrath", "EatChangmyeong", "Strichcoder", "jwhirpl", "craus", "akei_arkay", "lilypad", "Ichigo Jam", "supernewton", "Neapolitan Sixth",
+  "Nemo", "Westville", "Huja", "lapinozz", "Just A Witch", "Borador", "Particles", "dewhi100", "nat.mayer", "ddtizm", "Tism Jones", "amagikuser", "vkozulya", "gassa",
+  "Factitious", "wonderfullizardofoz", "woofmao", "CandorVelexion", "Toricon", "Vectis99", "RobotNerd277", "jerrypoons", "MagmaMcFry", "unczane", "glass", "Wegener",
+  "JeLomun", "kip", "Warmonger", "Fooruman", "Zyalin", "Prezombie", "ashley89", "bjobae", "MFErtre", "Roaringdragon2", "howilovepi", "Yulgash", "Sir Endipitous", "Roshlev",
+  "BTernaryTau", "HiGuy", "coper", "Tirear", "qoala _", "Tyzone", "Tiegon", "Airin", "Metroid26", "Sklorg", "Fumblestealth", "Toph", "Tzaphqiel", "jruderman", "ray",
+  "Deathroll", "Sinquetica", "mootmoot", "Noobinator", "freeofme", "Helyea", "Snakebird Priestess", "brisingre", "Khashishi", "Shiny", "kabado", "Berenthas", "Misery", "Altripp", "Aldrenean",
   };
 
 map<cell*, int> knight_id;
@@ -452,7 +458,7 @@ EX void knightFlavorMessage(cell *c2) {
     else if(cryst)
       s = crystal::get_table_boundary();
     #endif
-    else if(!quotient)
+    else if(!quotient && rad)
       s = expansion.get_descendants(rad).get_str(100);
     if(s == "") { msgid++; goto retry; }
     addMessage(XLAT("\"Our Table seats %1 Knights!\"", s));
@@ -464,7 +470,7 @@ EX void knightFlavorMessage(cell *c2) {
     else if(cryst)
       s = crystal::get_table_volume();
     #endif
-    else if(!quotient)
+    else if(!quotient && rad)
       s = expansion.get_descendants(rad-1, expansion.diskid).get_str(100);
     if(s == "") { msgid++; goto retry; }
     addMessage(XLAT("\"There are %1 floor tiles inside our Table!\"", s));
@@ -628,15 +634,15 @@ EX void check(cell *c) {
   if(c->wall == waTerraWarrior && !c->monst && !racing::on) {
     bool live = false;
     if(randterra) {
-      c->landparam++;
-      if((c->landparam == 3 && hrand(3) == 0) ||
-        (c->landparam == 4 && hrand(2) == 0) || 
-        c->landparam == 5)
+      c->wparam++;
+      if((c->wparam == 3 && hrand(3) == 0) ||
+        (c->wparam == 4 && hrand(2) == 0) ||
+        c->wparam == 5)
           live = true;
       }
     else {
-      c->landparam--;
-      live = !c->landparam;
+      c->wparam--;
+      live = !c->wparam;
       }
     if(live)
       c->monst = moTerraWarrior,
@@ -651,8 +657,8 @@ EX void check_around(cell *c) {
   }
 
 EX void check() {
-  for(int i=0; i<numplayers(); i++)
-    forCellEx(c, playerpos(i)) {
+  for(cell *pc: player_positions()) 
+    forCellEx(c, pc) {
       if(shmup::on) {
         forCellEx(c2, c)
           check(c2);
@@ -689,16 +695,16 @@ EX void check_state() {
       }
     if(items[itHunting] > 5 && items[itHunting] <= 22) {
       int q = 0;
-      for(int i=0; i<numplayers(); i++) 
-        forCellEx(c2, playerpos(i))
+      for(cell *pc: player_positions()) 
+        forCellEx(c2, pc)
           if(cl.listed(c2))
             q++;
       if(q == 1) havewhat |= HF_FAILED_AMBUSH;
       if(q == 2) {
-        for(int i=0; i<numplayers(); i++) 
-        forCellEx(c2, playerpos(i))
+        for(cell *pc: player_positions())
+        forCellEx(c2, pc)
           if(cl.listed(c2))
-            forCellEx(c3, playerpos(i)) 
+            forCellEx(c3, pc)
               if(c3 != c2 && isNeighbor(c2,c3))
               if(cl.listed(c3))
                 havewhat |= HF_FAILED_AMBUSH;
@@ -826,7 +832,7 @@ EX void ambush(cell *c, int dogs) {
   int v = valence();
   if(v > 4) {
     for(cell *c: cl.lst) if(cl.getdist(c) == d) around.push_back(c);
-    hrandom_shuffle(&around[0], isize(around));
+    hrandom_shuffle(around);
     }
   else {
     for(int tries=0; tries<10000; tries++) {
@@ -873,6 +879,548 @@ EX void ambush(cell *c, int dogs) {
   if(result)
     addMessage(XLAT("You are ambushed!"));
   }
+
+EX }
+
+EX namespace dice {
+
+  struct die_structure {
+    vector<vector<int>> sides;
+    vector<vector<int>> spins;
+    vector<int> hardness;
+    int faces;
+    int facesides;
+    int order;
+    int highest_hardness;
+    die_structure(int ord, const vector<vector<int>>& v) {
+      sides = v;
+      spins = sides;
+      faces = isize(sides);
+      facesides = isize(sides[0]);
+      order = ord;
+      for(int i=0; i<faces; i++)
+        for(int j=0; j<isize(sides[i]); j++) {
+          int i1 = sides[i][j];
+          spins[i][j] = -1;
+          for(int k=0; k<isize(sides[i1]); k++)
+            if(sides[i1][k] == i)
+              spins[i][j] = k;
+          if(spins[i][j] == -1)
+            println(hlog, "asymmetric");
+          }
+      hardness.resize(faces, 99);
+      hardness.back() = 0;
+      for(int it=0; it<faces; it++)
+      for(int i=0; i<faces; i++)
+        for(int j: sides[i])
+          hardness[i] = min(hardness[i], hardness[j]+1);
+      highest_hardness = 0;
+      for(int i=0; i<faces; i++)
+        highest_hardness = max(highest_hardness, hardness[i]);
+      }
+    };
+  
+  die_structure d20(5, {
+    {13-1, 7-1, 19-1}, {20-1, 12-1, 18-1}, {19-1, 17-1, 16-1}, {14-1, 18-1, 11-1}, {13-1, 18-1, 15-1}, 
+    {14-1, 9-1, 16-1}, { 1-1, 15-1, 17-1}, {20-1, 16-1, 10-1}, {19-1,  6-1, 11-1}, { 8-1, 17-1, 12-1},
+    {13-1, 9-1,  4-1}, { 2-1, 10-1, 15-1}, { 1-1, 11-1,  5-1}, {20-1,  4-1,  6-1}, { 7-1,  5-1, 12-1},
+    { 8-1, 6-1,  3-1}, { 7-1, 10-1,  3-1}, { 2-1,  5-1,  4-1}, { 1-1,  3-1,  9-1}, { 8-1,  2-1, 14-1}
+    });
+  
+  die_structure d8(4, {
+    {1, 3, 5}, {0, 4, 2}, {3, 1, 7}, {2, 6, 0}, {5, 7, 1}, {4, 0, 6}, {7, 5, 3}, {6, 2, 4}
+    });
+
+  die_structure d4(3, {{3,2,1}, {3,0,2}, {1,0,3}, {0,1,2}});
+
+  die_structure d6(3, {{1,2,4,3}, {5,2,0,3}, {5,4,0,1}, {5,1,0,4}, {0,2,5,3}, {4,2,1,3}});
+
+  die_structure d12(3, {
+    {3,5,4,9,1}, {0,9,6,7,3}, {11,10,5,3,7}, {0,1,7,2,5}, {0,5,10,8,9}, {0,3,2,10,4},
+    {11,7,1,9,8}, {11,2,3,1,6}, {11,6,9,4,10}, {0,4,8,6,1}, {11,8,4,5,2}, {8,10,2,7,6}
+    });
+  
+  vector<die_structure*> die_list = {&d4, &d6, &d8, &d12, &d20};
+    
+  #if HDR
+  extern vector<struct die_structure*> die_list;
+
+  struct die_data {
+    struct die_structure *which;
+    int val; /* the current face value */
+    int dir; /* which direction is the first side (which->sides[val][0]) of the current face */
+    bool mirrored;
+    int happy();
+    };
+  #endif
+  
+  EX int shape_faces(die_structure *w) { return w->faces; }
+  
+  EX string die_name(die_structure *w) { return its(w->faces); }
+
+  int die_data::happy() {
+    if(val == which->faces-1) return 1;
+    if(val == 0) return -1;
+    return 0;
+    }
+  
+  EX die_structure *get_by_id(unsigned i) { return die_list[i % isize(die_list)]; }
+  EX int get_die_id(die_structure *ds) { 
+    for(int i=0; i<isize(die_list); i++)
+      if(die_list[i] == ds)
+        return i;
+    return -1;
+    }
+  
+  EX map<cell*, die_data> data;
+        
+  EX void generate_specific(cell *c, die_structure *ds, int min_hardness, int max_hardness) {
+    auto& dd = data[c];
+    dd.which = ds;
+    vector<int> dirs;
+    for(int i=0; i<c->type; i++) createMov(c, i);
+    for(int i=0; i<c->type; i++) 
+    for(int j=0; j<c->type; j++) if(can_roll(ds->facesides, i, movei(c, j)))
+      dirs.push_back(i);
+    if(dirs.empty())
+      dd.dir = hrand(c->type);
+    else
+      dd.dir = hrand_elt(dirs);
+    vector<int> sides;
+    for(int i=0; i<ds->faces; i++) 
+      if(ds->hardness[i] >= min_hardness && ds->hardness[i] <= max_hardness)
+        sides.push_back(i);
+    dd.val = hrand_elt(sides);
+    }
+  
+  EX int die_possible(cell *c) {
+    vector<int> res;
+    for(int i: {3, 4, 5})
+      if((c->type % i) == 0)
+        res.push_back(i);
+    if(res.empty()) return 0;
+    return hrand_elt(res);
+    }
+
+  EX bool can_roll(int sides, int cur, movei mi) {
+    if(mi.t->type % sides) return false;
+    if((cur - mi.d) % (mi.s->type / sides)) return false;
+    return true;
+    }
+  
+  EX bool can_roll(movei mi) {
+    auto& dd = data[mi.s];
+    auto& dw = dd.which;
+    return can_roll(dw->facesides, dd.dir, mi);
+    }
+
+  EX bool generate_random(cell *c) {
+    vector<die_structure*> ds;
+    for(die_structure* pds: {&d4, &d6, &d8, &d12, &d20})
+      if(c->type % pds->facesides == 0)
+        ds.push_back(pds);
+    if(ds.empty()) return false;
+    generate_specific(c, hrand_elt(ds), 0, 99);
+    return true;
+    }
+  
+  EX void generate_full(cell *c, int hard) {  
+    int dp = die_possible(c);
+    if(!dp) return;
+    if(safety) return;
+    int pct = hrand(100);
+    int pct2 = hrand(6000);
+    if(dp == 4) {
+      if(pct < 20) {
+        c->wall = (pct < (items[itOrbLuck] ? 9 : 11)) ? waRichDie : waHappyDie;
+        generate_specific(c, &d6, 1, 2);
+        }
+      else if(pct2 < 40 + hard) {
+        c->monst = moAnimatedDie;
+        generate_specific(c, &d6, 0, 99);
+        }
+      return;
+      }
+    if(dp == 5) {
+      if(pct < 20) {
+        c->wall = (pct < (items[itOrbLuck] ? 9 : 11)) ? waRichDie : waHappyDie;
+        generate_specific(c, &d12, 2, 3);
+        }
+      else if(pct2 < 40 + hard) {
+        c->monst = moAnimatedDie;
+        generate_specific(c, &d12, 0, 99);
+        }
+      return;
+      }
+    if(pct < 3) {
+      c->wall = waHappyDie;
+      generate_specific(c, &d4, 0, 0);
+      }
+    else if(pct < 6) {
+      c->wall = waHappyDie;
+      generate_specific(c, &d8, 0, 1);
+      }
+    else if(pct < (items[itOrbLuck] ? 8 : 9)) {
+      c->wall = waHappyDie;
+      generate_specific(c, &d20, 0, 1);
+      }
+    else if(pct < 14) {
+      c->wall = waRichDie;
+      if(items[itOrbLuck])
+        generate_specific(c, &d20, 2, 3);
+      else
+        generate_specific(c, &d20, 4, 5);
+      }
+    else if(pct < 15) {
+      c->wall = waRichDie;
+      if(items[itOrbLuck])
+        generate_specific(c, &d8, 1, 2);
+      else
+        generate_specific(c, &d8, 2, 3);
+      }
+    else if(pct2 < (items[itOrbLuck] ? 5 : 1)) {
+      c->monst = moAnimatedDie;
+      generate_specific(c, &d4, 0, 99);
+      }
+    else if(pct2 < 40) {
+      c->monst = moAnimatedDie;
+      generate_specific(c, &d8, 0, 99);
+      }
+    else if(pct2 < 40 + hard) {
+      c->monst = moAnimatedDie;
+      generate_specific(c, &d20, 0, 99);
+      }    
+    }
+
+  EX die_data roll_effect(movei mi, die_data dd) {
+    auto &cto = mi.t;
+    auto &th = mi.s;
+    
+    int rdir = mi.dir_force();
+    int t = th->type;
+
+    int val = dd.val;
+    int dir = dd.dir;
+    
+    auto& dw = dd.which;
+    
+    int si = dw->facesides;
+    
+    if(t % si) { println(hlog, "error: bad roll"); return dd; }
+    
+    int sideid = gmod((rdir - dir) * (dd.mirrored?-1:1) * si / t, si);
+    
+    int val1 = dw->sides[val][sideid];
+    
+    int si1 = isize(dw->sides[val1]);
+    
+    int sideid1 = dw->spins[val][sideid];
+    
+    int t1 = cto->type;
+    if(t1 % si1) { println(hlog, "error: bad roll target"); return dd; }
+    
+    int rdir1 = mi.rev_dir_force();
+    
+    bool mirror1 = dd.mirrored ^ mi.mirror();
+    
+    int dir1 = rdir1 - (mirror1?-1:1) * sideid1 * t1 / si1;
+    
+    dir1 = gmod(dir1, t1);
+    
+    dd.mirrored = mirror1;
+    dd.val = val1;
+    dd.dir = dir1;
+    return dd;
+    }
+  
+  EX bool on(cell *c) {
+    return isDie(c->wall) || isDie(c->monst);
+    }
+      
+  EX string describe(cell *c) {
+    if (!data.count(c)) return "BUG: die data missing";
+    else if (!data[c].which) return "BUG: die data default-initialized";
+    else return XLAT("d%1 rolled %2", its(data[c].which->faces), its(data[c].val + 1));
+  }
+
+  EX void roll(movei mi) {
+    auto &cto = mi.t;
+    auto &th = mi.s;
+    
+    changes.map_value(data, cto);
+    changes.map_value(data, th);
+    data[cto] = roll_effect(mi, data[th]);
+    data.erase(th);
+    }
+
+  EX void draw_die(cell *c, const shiftmatrix& V, ld scale, color_t color) {
+    if(!data.count(c)) {
+      queuepoly(V, cgi.shAsymmetric, 0xFF0000FF);
+      return;
+      }
+
+    eGeometry orig = geometry;
+    bool fpp = GDIM == 3;
+
+    auto& dd = data[c];
+    int val = dd.val;
+    int dir = dd.dir;
+    auto& dw = dd.which;
+    
+    int si = dw->facesides;
+
+    if(c == lmouseover_distant) {
+      set<cell*> visited;
+      struct celldata_t {
+        cell* c;
+        die_data dd;
+        shiftmatrix V;
+        };      
+      vector<celldata_t> data;
+      auto visit = [&] (cell *c, die_data dd, shiftmatrix V) {
+        if(visited.count(c)) return;
+        visited.insert(c);
+        data.emplace_back(celldata_t{c, dd, V});
+        };
+      visit(c, dd, V);
+      for(int i=0; i<isize(data); i++) {
+        auto dat = data[i];
+        int wa = dw->hardness[dat.dd.val];
+        int wb = dw->highest_hardness;
+        unsigned int red = ((wa * 0x00) + ((wb-wa) * 0xff)) / wb;
+        color_t col = 0xFF0000FF + (red << 16);
+        queuestr(fpp ? dat.V * zpush(cgi.FLOOR) : dat.V, .5, its(dat.dd.val+1), col);
+        if(i <= 22)
+        forCellIdEx(c2, id, dat.c) if(can_roll(si, dat.dd.dir, movei(dat.c, id)) && !visited.count(c2)) {
+          auto re = roll_effect(movei(dat.c, id), dat.dd);
+          shiftmatrix V2 = dat.V * currentmap->adj(dat.c, id);
+          gridline(dat.V, C0, V2, C0, 0xFF800080, 0);
+          visit(c2, re, V2);
+          }
+        }
+      }
+    else if(!lmouseover_distant || !on(lmouseover_distant)) if(CAP_EXTFONT || vid.usingGL == false) {
+      queuestr(V, .5, its(val+1), 0xFFFFFFFF);
+      auto& side = dw->sides[val];
+      for(int i=0; i<si; i++) {
+        int d = dir + c->type * i / isize(side);
+        d = gmod(d, c->type);
+        hyperpoint nxt = tC0(currentmap->adj(c, d));
+        hyperpoint mid = normalize(C0 * 1.3 + nxt * -.3);
+        queuestr(V * rgpushxto0(mid), .25, its(side[i]+1), 0xFFFFFFFF);
+        }
+      }
+    
+    shiftmatrix V1 = V * ddspin(c, dir) * spin(M_PI);
+    if(dd.mirrored) V1 = V1 * MirrorY;
+    
+    // loop:
+
+    vector<bool> face_drawn(dd.which->faces, false);
+    
+    vector<pair<transmatrix, int> > facequeue;
+    
+    auto add_to_queue = [&] (const transmatrix& T, int d) {
+      if(face_drawn[d]) return;
+      face_drawn[d] = true;
+      facequeue.emplace_back(T, d);
+      };
+    
+    transmatrix S = Id;
+    
+    ld outradius, inradius;
+    
+    if(1) {
+      dynamicval<eGeometry> g(geometry, gSphere);
+      ld alpha = 360 * degree / dw->order;
+      ld beta = 180 * degree / dw->facesides;
+      inradius  = edge_of_triangle_with_angles(alpha, beta, beta);
+      outradius = edge_of_triangle_with_angles(beta, alpha, beta);
+      }
+
+    hyperpoint shift = inverse_shift(V1, tC0(die_target));
+    hyperpoint log_shift = inverse_exp(shiftless(shift)) * (inradius / cgi.hexhexdist);
+    
+    if(1) {
+      dynamicval<eGeometry> g(geometry, gSphere);
+      hyperpoint de = direct_exp(log_shift);
+      S = rgpushxto0(de);
+      if(GDIM == 3) {
+        for(int i=0; i<4; i++) swap(S[i][2], S[i][3]);
+        for(int i=0; i<4; i++) swap(S[2][i], S[3][i]);
+        }
+      for(int i=0; i<4; i++) S[i][1] *= -1;
+      }
+    
+    add_to_queue(S, val);
+
+    ld dieradius = cgi.scalefactor * scale / 2;
+    
+    if(dw->faces == 20) dieradius /= 1.3;
+    if(dw->faces == 8) dieradius /= 1.15;
+    if(dw->faces == 12) dieradius /= 1.15;
+    
+    if(hyperbolic) dieradius /= 1.3;
+    
+    ld base_to_base;
+    
+    bool osphere = sphere && GDIM == 2;
+    bool oeuclid = euclid && GDIM == 2;
+    eGeometry highdim = 
+      (GDIM == 3) ? geometry :
+      hyperbolic ? gSpace534 : gCubeTiling;
+    
+    if(1) {
+      dynamicval<eGeometry> g(geometry, highdim);
+      hyperpoint h = cspin(2, 0, M_PI-outradius) * zpush0(-dieradius);
+      if(osphere || oeuclid)
+        base_to_base = -h[2];
+      else {
+        ld lim = sphere ? 1 : 5;
+        base_to_base = binsearch(-lim, lim, [h] (ld d) {
+          return (zpush(d) * h)[2] >= sin_auto(vid.depth);
+          });
+        }
+      }
+    
+    vector<pair<ld, int> > ordering;
+    
+    for(int i=0; i<dw->faces; i++) {
+    
+      transmatrix T = facequeue[i].first;
+      int ws = facequeue[i].second;
+      
+      for(int d=0; d<si; d++) {
+        dynamicval<eGeometry> g(geometry, highdim);
+        add_to_queue(T * cspin(0, 1, 2*M_PI*d/si) * cspin(2, 0, inradius) * cspin(0, 1, M_PI-2*M_PI*dw->spins[ws][d]/si), dw->sides[ws][d]);
+        }
+      
+      if(1) {
+        dynamicval<eGeometry> g(geometry, highdim);
+        hyperpoint h = zpush(base_to_base) * T * zpush0(dieradius);
+        ld z = fpp ? hdist0(h) : asin_auto(h[2]);
+        ordering.emplace_back(-z, i);
+        }
+      }
+    
+    sort(ordering.begin(), ordering.end());
+    
+    for(auto o: ordering) {
+      int i = o.second;
+      transmatrix T = facequeue[i].first;
+
+      array<hyperpoint, 5> face;
+      
+      hyperpoint dctr;
+      if(1) {
+        dynamicval<eGeometry> g(geometry, highdim);
+        dctr = zpush(base_to_base) * C0;
+        }
+      
+      auto sphere_to_space = [&] (hyperpoint h) {
+        if(fpp) return h;
+        if(osphere) {
+          h[2] = 1 - h[2]; h[3] = 0;
+          return h;
+          }
+        if(oeuclid) { h[2] = 1-h[2]; return h; }
+        ld z = asin_auto(h[2]);
+        h = zpush(-z) * h;
+        h[2] = h[3]; h[3] = 0;
+        dynamicval<eGeometry> g(geometry, orig);
+        return zshift(h, geom3::scale_at_lev(z));
+        };
+
+      for(int d=0; d<=si; d++) {
+        hyperpoint h, hs;
+        if(1) {
+          dynamicval<eGeometry> g(geometry, highdim);
+          h = zpush(base_to_base) * T * cspin(0, 1, 2*M_PI*(d+.5)/si) * cspin(2, 0, outradius) * zpush0(dieradius);
+          if(d < si) face[d] = h;
+          hs = sphere_to_space(h);
+          }
+        curvepoint(hs);
+        }
+      
+      hyperpoint ctr, cx, cy;
+      if(dw->facesides == 3) {
+        dynamicval<eGeometry> g(geometry, highdim);
+        ctr = (face[0] + face[1] + face[2]) / 3;
+        ctr = ctr * 1.01 - dctr * 0.01;
+        cx = face[2] - face[0];
+        cy = face[1] - (face[0] + face[2]) / 2;
+        }
+      if(dw->facesides == 4) {
+        dynamicval<eGeometry> g(geometry, highdim);
+        ctr = (face[0] + face[1] + face[2] + face[3]) / 4;
+        ctr = ctr * 1.01 - dctr * 0.01;
+        cx = face[1] - face[2];
+        cy = face[0] - face[1];
+        }
+      if(dw->facesides == 5) {
+        dynamicval<eGeometry> g(geometry, highdim);
+        ctr = (face[0] + face[1] + face[2] + face[3] + face[4]) / 5;
+        ctr = ctr * 1.01 - dctr * 0.01;
+        cx = (face[2] - face[0]) * .75;
+        cy = face[1] - (face[3] + face[4]) * .4;
+        }
+      
+      queuecurve(V1, 0xFFFFFFFF, color & 0xFFFFFF9F, PPR::WALL);
+      
+      #if !CAP_EXTFONT
+      if(!vid.usingGL) continue;
+      pointfunction pf = [&] (ld x, ld y) {
+        dynamicval<eGeometry> g(geometry, highdim);
+        return sphere_to_space(normalize(ctr + cx * x + cy * y));
+        };
+      
+      if(dw == &d4) {
+        int q = facequeue[i].second;
+        for(int j=0; j<3; j++) {
+          int j1 = (j+1)%3;
+          int j2 = (j+2)%3;
+          if(1) {
+            dynamicval<eGeometry> g(geometry, highdim);
+            ctr = (face[0] + face[1] + face[2] + face[j1] * 3) / 6;
+            ctr = ctr * 1.01 - dctr * 0.01;
+            cx = (face[j2] - face[j]) / 2;
+            cy = face[j1] - (face[j] + face[j2]) / 4;
+            }
+          write_in_space(V1, max_glfont_size, -1.2, its(1+dw->sides[q][j]), 0xFFFFFFFF, 0, 8, PPR::WALL, pf);
+          }
+        }
+      else {
+        int fid = dw->faces - facequeue[i].second;
+        string s;
+        if(fid == 6) s = "6.";
+        else if(fid == 9) s = "9.";
+        else s = its(fid);
+        write_in_space(V1, max_glfont_size, dw->faces < 10 ? -1.2 : -.75, s, 0xFFFFFFFF, 0, 8, PPR::WALL, pf);
+        }
+      #endif
+      }
+    }
+
+  EX bool swap_forbidden(cell *ca, cell *cb) {
+    if(!on(ca)) return false;
+    return cb->type % data[ca].which->facesides;
+    }
+
+  EX void chaos_swap(cellwalker wa, cellwalker wb) {
+    swap_data(data, wa.at, wb.at);
+    if(on(wa.at)) {
+      auto& d = data[wa.at];
+      d.dir = chaos_mirror_dir(d.dir, wb, wa);
+      d.mirrored = !d.mirrored;
+      }
+    if(on(wb.at)) {
+      auto& d = data[wb.at];
+      d.dir = chaos_mirror_dir(d.dir, wa, wb);
+      d.mirrored = !d.mirrored;
+      }
+    }
+
+  int hook = addHook(hooks_clearmemory, 0, [] () { data.clear(); });
 EX }
 
 }

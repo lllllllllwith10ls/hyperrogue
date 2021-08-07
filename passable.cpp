@@ -69,12 +69,13 @@ EX int incline(cell *cfrom, cell *cto) {
 EX bool checkflags(flagtype flags, flagtype x) {
   if(flags & x) return true;
   if(flags & P_ISPLAYER) {
-    if((x & P_WINTER)    && markOrb(itOrbWinter)) return true;
+    if((x & P_WINTER)    && (markOrb(itOrbWinter) || markOrb(itCurseWater))) return true;
     if((x & P_IGNORE37)  && markOrb(itOrb37)) return true;
     if((x & P_FISH)      && markOrb(itOrbFish)) return true;
     if((x & P_MARKWATER) && markOrb(itOrbWater)) return true;
     if((x & P_FLYING)    && markOrb(itOrbColor)) return true;
     if((x & P_AETHER)    && markOrb2(itOrbAether) && !(flags&P_NOAETHER)) return true;
+    if((x & P_WATERCURSE)&& markOrb2(itCurseWater)) return true;
     }
   if(flags & P_ISFRIEND) if(items[itOrbEmpathy]) 
     if(checkflags(flags ^ P_ISPLAYER ^ P_ISFRIEND, x) && markOrb(itOrbEmpathy))
@@ -155,6 +156,7 @@ EX bool anti_alchemy(cell *w, cell *from) {
 #define P_VOID       Flag(32) // void beast
 #define P_PHASE      Flag(33) // phasing movement
 #define P_PULLMAGNET Flag(34) // pull the other part of the magnet
+#define P_WATERCURSE Flag(35) // Curse of Water
 #endif
 
 EX bool passable(cell *w, cell *from, flagtype flags) {
@@ -163,9 +165,10 @@ EX bool passable(cell *w, cell *from, flagtype flags) {
 
   if(from && from != w && nonAdjacent(from, w) && !F(P_IGNORE37 | P_BULLET)) return false;
   
-  for(int i=0; i<numplayers(); i++) {
-    cell *pp = playerpos(i);
-    if(!pp) continue;
+  if((isWateryOrBoat(w) || w->wall == waShallow) && F(P_WATERCURSE))
+    return false;
+  
+  for(cell *pp: player_positions()) {
     if(w == pp && F(P_ONPLAYER)) return true;
     if(from == pp && F(P_ONPLAYER) && F(P_REVDIR)) return true;
 
@@ -185,6 +188,7 @@ EX bool passable(cell *w, cell *from, flagtype flags) {
   if(F(P_ROSE)) {
     if(airdist(w) < 3) return false;
     if(againstWind(w,from)) return false;
+    if(isGravityLand(w)) return false;
     }
   
   if(w->wall == waPlayerBarrier && !(flags & P_ISPLAYER))
@@ -457,6 +461,7 @@ bool sharkpassable(cell *w, cell *c) {
 EX bool canPushStatueOn(cell *c) {
   return passable(c, NULL, P_MONSTER) && !snakelevel(c) &&
     !isWorm(c->monst) && !isReptile(c->wall) && !peace::on && 
+    !cellHalfvine(c) && !isDie(c->wall) &&
     !among(c->wall, waBoat, waFireTrap, waArrowTrap);
   }
 
@@ -589,6 +594,27 @@ EX bool passable_for(eMonster m, cell *w, cell *from, flagtype extra) {
       }
     return !pseudohept(w) && passable(w, from, extra);
     }
+  #if CAP_COMPLEX2
+  if(m == moAnimatedDie) {
+    if(extra & P_ONPLAYER) {
+      if(isPlayerOn(w)) return true;
+      }
+    if(from && isDie(from->monst)) {
+      bool ok = false;
+      for(int i=0; i<from->type; i++) {
+        if(from->move(i) != w) continue;
+        if(dice::can_roll(movei(from, i))) ok = true;
+        }
+      if(!ok) return false;
+      }
+    if(from && !dice::die_possible(from)) 
+      return false;
+    else if(!dice::die_possible(w))
+      return false;
+    else
+      return passable(w, from, extra);
+    }
+  #endif
   if(m == moFrog) {
     return isNeighbor1(from, w) ? passable(w, from, extra) : check_jump(from, w, extra, dummy) == 3;
     }

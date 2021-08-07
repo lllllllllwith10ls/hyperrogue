@@ -51,10 +51,10 @@ void loadOldConfig(FILE *f) {
   if(err == 4) {
     vid.scale = a; pconf.alpha = c; vid.sspeed = d;
     }
-  err=fscanf(f, "%d%d%d%d%d%d%d", &vid.wallmode, &vid.monmode, &vid.axes, &musicvolume, &vid.framelimit, &gl, &vid.antialias);
+  err=fscanf(f, "%d%d%d%d%d%d%d", &vid.wallmode, &vid.monmode, &vid.axes, &musicvolume, &vid.framelimit, &gl, &vid.want_antialias);
   vid.usingGL = gl;
-  if(vid.antialias == 0) vid.antialias = AA_VERSION | AA_LINES | AA_LINEWIDTH;
-  if(vid.antialias == 1) vid.antialias = AA_NOGL | AA_VERSION | AA_LINES | AA_LINEWIDTH | AA_FONT;
+  if(vid.want_antialias == 0) vid.want_antialias = AA_VERSION | AA_LINES | AA_LINEWIDTH;
+  if(vid.want_antialias == 1) vid.want_antialias = AA_NOGL | AA_VERSION | AA_LINES | AA_LINEWIDTH | AA_FONT;
   double jps = vid.joypanspeed;
   err=fscanf(f, "%d%d%d%lf%d%d", &vid.joyvalue, &vid.joyvalue2, &vid.joypanthreshold, &jps, &aa, &vid.flashtime);
   vid.joypanspeed = jps;
@@ -72,7 +72,7 @@ void loadOldConfig(FILE *f) {
 
   shmup::loadConfig(f);
 
-  aa = rug::renderonce; bb = rug::rendernogl; dd = chaosmode; 
+  aa = rug::renderonce; bb = rug::rendernogl; dd = ls::any_chaos();
   int ee = vid.steamscore;
   #if CAP_RUG
   double rs = 2/rug::model_distance;
@@ -81,7 +81,7 @@ void loadOldConfig(FILE *f) {
   #endif
   err=fscanf(f, "%d%d%d%d%lf%d%d", &aa, &bb, &rug::texturesize, &cc, &rs, &ee, &dd);
   rug::renderonce = aa; rug::rendernogl = bb; 
-  chaosmode = dd; vid.steamscore = ee;
+  land_structure = (eLandStructure) dd; vid.steamscore = ee;
   #if CAP_RUG
   rug::model_distance = 2/rs;
   #endif
@@ -143,6 +143,138 @@ void loadOldConfig(FILE *f) {
   err=fscanf(f, "%d%d%d%d%lf\n", &vid.mobilecompasssize, &vid.aurastr, &vid.aurasmoothen, &vid.graphglyph, &jps);
   vid.linewidth = jps;
   }
+#endif
+
+// Identifiers for the current combinations of game modes
+// These are recorded in the save file, so it is somewhat
+// important that they do not change for already existing
+// modes, as otherwise the scores would be lost. 
+// Unfortunately, the codes assigned when HyperRogue had
+// just a few special modes did not really follow a specific
+// rule, so this system has grown rather ugly as the
+// number of special modes kept growing...
+
+// mode codes for 'old' modes, from 0 to 255
+
+int modecodetable[42][6] = {
+  {  0, 38, 39, 40, 41, 42}, // softcore hyperbolic
+  {  7, 43, 44, 45, 46, 47}, // hardcore hyperbolic
+  {  2,  4,  9, 11, 48, 49}, // shmup hyperbolic
+  { 13, 50, 51, 52, 53, 54}, // softcore heptagonal hyperbolic
+  { 16, 55, 56, 57, 58, 59}, // hardcore heptagonal hyperbolic
+  { 14, 15, 17, 18, 60, 61}, // shmup heptagonal hyperbolic
+  {  1, 62, 63, 64, 65, 66}, // softcore euclidean
+  {  8, 67, 68, 69, 70, 71}, // hardcore euclidean
+  {  3,  5, 10, 12, 72, 73}, // shmup euclidean
+  {110,111,112,113,114,115}, // softcore spherical
+  {116,117,118,119,120,121}, // hardcore spherical
+  {122,123,124,125,126,127}, // shmup spherical
+  {128,129,130,131,132,133}, // softcore heptagonal spherical
+  {134,135,136,137,138,139}, // hardcore heptagonal spherical
+  {140,141,142,143,144,145}, // shmup heptagonal spherical
+  {146,147,148,149,150,151}, // softcore elliptic
+  {152,153,154,155,156,157}, // hardcore elliptic
+  {158,159,160,161,162,163}, // shmup elliptic
+  {164,165,166,167,168,169}, // softcore heptagonal elliptic
+  {170,171,172,173,174,175}, // hardcore heptagonal elliptic
+  {176,177,178,179,180,181}, // shmup heptagonal elliptic
+  { 19, 74, 75, 76, 77, 78}, // softcore hyperbolic chaosmode
+  { 26, 79, 80, 81, 82, 83}, // hardcore hyperbolic chaosmode
+  { 21, 23, 28, 30, 84, 85}, // shmup hyperbolic chaosmode
+  { 32, 86, 87, 88, 89, 90}, // softcore heptagonal hyperbolic chaosmode
+  { 35, 91, 92, 93, 94, 95}, // hardcore heptagonal hyperbolic chaosmode
+  { 33, 34, 36, 37, 96, 97}, // shmup heptagonal hyperbolic chaosmode
+  { 20, 98, 99,100,101,102}, // softcore euclidean chaosmode
+  { 27,103,104,105,106,107}, // hardcore euclidean chaosmode
+  { 22, 24, 29, 31,108,109}, // shmup euclidean chaosmode
+  {182,183,184,185,186,187}, // softcore spherical chaosmode
+  {188,189,190,191,192,193}, // hardcore spherical chaosmode
+  {194,195,196,197,198,199}, // shmup spherical chaosmode
+  {200,201,202,203,204,205}, // softcore heptagonal spherical chaosmode
+  {206,207,208,209,210,211}, // hardcore heptagonal spherical chaosmode
+  {212,213,214,215,216,217}, // shmup heptagonal spherical chaosmode
+  {218,219,220,221,222,223}, // softcore elliptic chaosmode
+  {224,225,226,227,228,229}, // hardcore elliptic chaosmode
+  {230,231,232,233,234,235}, // shmup elliptic chaosmode
+  {236,237,238,239,240,241}, // softcore heptagonal elliptic chaosmode
+  {242,243,244,245,246,247}, // hardcore heptagonal elliptic chaosmode
+  {248,249,250,251,252,253}, // shmup heptagonal elliptic chaosmode
+  };
+// unused codes: 6 (cheat/tampered), 25, 254, 255
+
+EX modecode_t legacy_modecode() {
+  if(int(geometry) > 3 || int(variation) > 1) return UNKNOWN;
+  if(!ls::nice_walls() && !ls::std_chaos() && !yendor::on && !tactic::on) return UNKNOWN;
+  // compute the old code
+  int xcode = 0;
+
+  if(shmup::on) xcode += 2;
+  else if(pureHardcore()) xcode ++;
+  
+  if(euclid) xcode += 6;
+  else if(!BITRUNCATED) xcode += 3;
+  
+  if(sphere) {
+    xcode += 9;
+    if(elliptic) xcode += 6;
+    }
+  
+  if(ls::any_chaos()) xcode += 21;
+  
+  int np = numplayers()-1; if(np<0 || np>5) np=5;
+
+  // bits: 0 to 7
+  modecode_t mct = modecodetable[xcode][np];
+
+#if CAP_INV
+  if(inv::on) mct += (1<<11);
+#endif
+  if(peace::on) mct += (1<<12);
+#if CAP_TOUR
+  if(tour::on) mct += (1<<13);
+#endif
+  if(numplayers() == 7) mct += (1<<14);
+  
+  return mct;
+  }
+
+#if CAP_COMMANDLINE
+/* legacy options */
+int read_legacy_args() {
+  using namespace arg;
+  if(0);
+  else if(argis("-chaos-circle")) {
+    PHASEFROM(2);
+    stop_game();
+    land_structure = lsPatchedChaos;
+    }
+  else if(argis("-chaos-total")) {
+    PHASEFROM(2);
+    stop_game();
+    land_structure = lsTotalChaos;
+    }
+  else if(argis("-chaos-random")) {
+    PHASEFROM(2);
+    stop_game();
+    land_structure = lsChaosRW;
+    }
+  else if(argis("-C") || argis("-C1")) {
+    PHASEFROM(2);
+    stop_game();
+    land_structure = lsChaos;
+    }
+  else if(argis("-C0")) {
+    PHASEFROM(2);
+    stop_game();
+    land_structure = lsNiceWalls;
+    }
+  else return 1;
+  return 0;
+  }
+
+auto ah_legacy = addHook(hooks_args, 0, read_legacy_args);
+#endif
+
 
 }
 #endif

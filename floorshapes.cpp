@@ -132,6 +132,11 @@ EX hyperpoint kleinize(hyperpoint h) {
   else return point31(h[0]/h[3], h[1]/h[3], h[2]/h[3]);
   }
 
+EX hyperpoint may_kleinize(hyperpoint h) { 
+  if(do_kleinize()) return kleinize(h);
+  else return h;
+  }
+
 void addmatrix(matrixlist& matrices, hyperpoint o0, hyperpoint o1, hyperpoint o2, hyperpoint n0, hyperpoint n1, hyperpoint n2, int d, int osym, int nsym) {
   if(do_kleinize()) o0 = kleinize(o0), o1 = kleinize(o1), o2 = kleinize(o2), n0 = kleinize(n0), n1 = kleinize(n1), n2 = kleinize(n2);
   matrices.v.push_back(genitem(inverse(spin(2*M_PI*d/osym)*build_matrix(o0, o1, o2,C02)), spin(2*M_PI*d/nsym)*build_matrix(n0, n1, n2,C02), nsym));
@@ -231,8 +236,7 @@ void geometry_information::bshape2(hpcshape& sh, PPR prio, int shapeid, matrixli
 
   for(int r=0; r<nsym; r+=osym/rots) {
     for(hyperpoint h: lst) {
-      hyperpoint nh = h;
-      if(do_kleinize()) nh = kleinize(nh);
+      hyperpoint nh = may_kleinize(h);
       int mapped = 0;
       for(auto& m: matrices) {        
         hyperpoint z = m.first * h;
@@ -295,7 +299,7 @@ void geometry_information::bshape_regular(floorshape &fsh, int id, int sides, ld
         hyperpoint h1 = bt::get_corner_horo_coordinates(c, i+1) * size;
         hyperpoint hd = (h1 - h0) / STEP;
         for(int j=0; j<=STEP; j++)
-          hpcpush(iddspin(c, i) * bt::get_horopoint(h0 + hd * j));
+          hpcpush(iddspin_side(c, i) * bt::get_horopoint(h0 + hd * j));
         chasmifyPoly(dlow_table[k], dhi_table[k], k);
         }
       }
@@ -421,6 +425,48 @@ void geometry_information::generate_floorshapes_for(int id, cell *c, int siid, i
         }
       else {
         for(int i=0; i<cor; i++) cornerlist.push_back(hpxy(0,0));
+        }
+      }
+    
+    else if(arb::in()) {
+      vector<hyperpoint> actual;
+      for(int j=0; j<cor; j++) 
+        actual.push_back(get_corner_position(c, j));
+      
+      ld min_dist = 1e3;
+      for(int j=0; j<cor; j++) 
+      for(int k=0; k<j; k++) {
+        ld dist = hdist(actual[j], actual[k]);
+        if(dist > 1e-6 && dist < min_dist)
+          min_dist = dist;
+        }
+      
+      ld dist = min_dist * (1 - 3 / sca) * arb::current_or_slided().boundary_ratio;
+      
+      ld area = 0;
+      for(int j=0; j<cor; j++) {
+        hyperpoint current = kleinize(actual[j]);
+        hyperpoint last = kleinize(actual[j?j-1:cor-1]);
+        area += current[0] * last[1] - last[0] * current[1];
+        }
+      if(area < 0) dist = -dist;      
+      
+      for(int j=0; j<cor; j++) {
+        hyperpoint last = actual[j?j-1:cor-1];
+        hyperpoint current = ypush(1e-6 * randd()) * xpush(1e-6) * actual[j];
+        hyperpoint next = actual[j<cor-1?j+1:0];
+        auto T = gpushxto0(current);
+        last = T * last;
+        next = T * next;
+        hyperpoint a = rspintox(last) * ypush0(dist);
+        hyperpoint b = rspintox(last) * xpush(hdist0(last)) * ypush0(dist);
+
+        hyperpoint c = rspintox(next) * ypush0(-dist);
+        hyperpoint d = rspintox(next) * xpush(hdist0(next)) * ypush0(-dist);
+        
+        hyperpoint h = linecross(a, b, c, d);
+        
+        cornerlist.push_back(rgpushxto0(current) * h);
         }
       }
   
@@ -557,9 +603,15 @@ void geometry_information::generate_floorshapes_for(int id, cell *c, int siid, i
           int s = fsh.b[id].s;
           int e = fsh.b[id].e-1;        
           for(int t=0; t<e-s; t++) {
-            hyperpoint v1 = hpc[s+t] - C0;
-            hyperpoint v2 = hpc[s+t+1] - C0;
-            texture_order([&] (ld x, ld y) { hpcpush(orthogonal_move(normalize(C0 + v1 * x + v2 * y), dfloor_table[k])); });
+            hyperpoint v1 = may_kleinize(hpc[s+t]) - C0;
+            hyperpoint v2 = may_kleinize(hpc[s+t+1]) - C0;
+            texture_order([&] (ld x, ld y) { 
+              hpcpush(
+                orthogonal_move(
+                  normalize(C0 + v1 * x + v2 * y)
+                  , dfloor_table[k])
+                ); 
+              });
             }
           }
 
@@ -589,8 +641,8 @@ void geometry_information::generate_floorshapes_for(int id, cell *c, int siid, i
           int s = fsh.b[id].s;
           int e = fsh.b[id].e-1;        
           for(int t=0; t<e-s; t++) {
-            hyperpoint v1 = hpc[s+t] - C0;
-            hyperpoint v2 = hpc[s+t+1] - C0;
+            hyperpoint v1 = may_kleinize(hpc[s+t]) - C0;
+            hyperpoint v2 = may_kleinize(hpc[s+t+1]) - C0;
             texture_order([&] (ld x, ld y) { hpcpush(orthogonal_move(normalize(C0 + v1 * x + v2 * y), top + h * (x+y))); });
             }
           }
@@ -725,6 +777,7 @@ void geometry_information::generate_floorshapes() {
     for(int i=0; i<n; i++) {
       auto &ms = models[i];
       auto &mh = modelh[i];
+      mh.fieldval = -1;
       for(auto& t: ms.c.move_table) t = nullptr;
       for(auto& t: mh.c.move_table) t = nullptr;
       }
@@ -743,8 +796,8 @@ void geometry_information::generate_floorshapes() {
       auto& sh = c.shapes[i];
       for(int j=0; j<sh.size(); j++) {
         auto& co = sh.connections[j];
-        mh.c.connect(j, &modelh[get<0>(co)], get<1>(co), get<2>(co));
-        ms.c.connect(j, &models[get<0>(co)], get<1>(co), get<2>(co));
+        mh.c.connect(j, &modelh[co.sid], co.eid, co.mirror);
+        ms.c.connect(j, &models[co.sid], co.eid, co.mirror);
         }
       }
     for(int i=0; i<n; i++) generate_floorshapes_for(i, &models[i], 0, 0);
@@ -770,10 +823,17 @@ void geometry_information::generate_floorshapes() {
     generate_floorshapes_for(0, &model, 1, 0);
     }
 
+  else if(bt::in()) {
+    dynamicval<hrmap*> c(currentmap, bt::new_alt_map(nullptr));
+    model.type = S6; generate_floorshapes_for(0, &model, 0, 0);
+    model.type = S7; generate_floorshapes_for(1, &model, 1, 0);
+    delete currentmap;
+    }
+
   else {
     cell model;
     model.type = S6; generate_floorshapes_for(0, &model, 0, 0);
-    model.type = S7; generate_floorshapes_for(1, &model, bt::in() ? 0 : 1, 0);
+    model.type = S7; generate_floorshapes_for(1, &model, 0, 0);
     }
   }
 
@@ -783,14 +843,15 @@ EX namespace gp {
   EX void clear_plainshapes() {
     for(int m=0; m<3; m++)
     for(int sd=0; sd<8; sd++)
-    for(int i=0; i<32; i++)
-    for(int j=0; j<32; j++)
+    for(int i=0; i<GOLDBERG_LIMIT; i++)
+    for(int j=0; j<GOLDBERG_LIMIT; j++)
     for(int k=0; k<8; k++)
       cgi.gpdata->pshid[m][sd][i][j][k] = -1;
     cgi.gpdata->nextid = 0;
     }
 
   void build_plainshape(int& id, gp::local_info& li, cell *c0, int siid, int sidir) {
+    cgi.require_shapes();
     id = cgi.gpdata->nextid++;
   
     bool master = !(li.relative.first||li.relative.second);
@@ -804,7 +865,11 @@ EX namespace gp {
     cgi.extra_vertices();
     }
   
-  int get_plainshape_id(cell *c) {
+  EX int get_plainshape_id(cell *c) {
+    if(li_for != c) {
+      li_for = c;
+      current_li = get_local_info(c);
+      }
     int siid, sidir;
     cell *c1 = c;
     auto f = [&] {
@@ -838,11 +903,11 @@ EX namespace gp {
       sidir = 0;
       }
     else f();
-    auto& id = cgi.gpdata->pshid[siid][sidir][draw_li.relative.first&31][draw_li.relative.second&31][gmod(draw_li.total_dir, S6)];
+    auto& id = cgi.gpdata->pshid[siid][sidir][current_li.relative.first&GOLDBERG_MASK][current_li.relative.second&GOLDBERG_MASK][gmod(current_li.total_dir, S6)];
     if(id == -1 && sphere && isize(cgi.shFloor.b) > 0) {
       forCellEx(c1, c) if(!gmatrix0.count(c1)) return 0;
       }
-    if(id == -1) build_plainshape(id, draw_li, c, siid, sidir);
+    if(id == -1) build_plainshape(id, current_li, c, siid, sidir);
     return id;
     }
   EX }
@@ -880,30 +945,17 @@ EX void set_floor(const transmatrix& spin, hpcshape& sh) {
   }
 
 EX int shvid(cell *c) {
-  if(hybri) {
-    cell *c1 = hybrid::get_where(c).first; 
-    return PIU( shvid(c1) );
-    }
-  else if(GOLDBERG_INV)
+  return currentmap->shvid(c);
+  }
+
+int hrmap_standard::shvid(cell *c) {
+  if(GOLDBERG)
     return gp::get_plainshape_id(c);
   else if(IRREGULAR)
-    return irr::cellindex[c];
-  else if(arcm::in()) {
-    auto& ac = arcm::current;
-    int id = arcm::id_of(c->master);
-    if(ac.regular && id>=2 && id < 2*ac.N) id &= 1;    
-    return id;
-    }
-  else if(arb::in())
-    return arb::id_of(c->master);
+    return irr::cellindex[c]
+  #endif
   else if(geosupport_football() == 2)
     return pseudohept(c);
-  else if(geometry == gBinaryTiling)
-    return c->type-6;
-  else if(kite::in())
-    return kite::getshape(c->master);
-  else if(geometry == gBinary4 || geometry == gTernary)
-    return c->master->zebraval;
   else if(inforder::mixed()) {
     int t = c->type;
     static vector<bool> computed;
@@ -925,6 +977,7 @@ EX int shvid(cell *c) {
       cgi.tessf = edge_of_triangle_with_angles(0, M_PI/t, M_PI/t);
       cgi.crossf = cgi.tessf;
       
+      cgi.require_shapes();
       println(hlog, "generating floorshapes for ", t);
       cgi.generate_floorshapes_for(t, &model, 0, 0);
       cgi.finishshape();
@@ -942,6 +995,8 @@ EX struct dqi_poly *draw_shapevec(cell *c, const transmatrix& V, const vector<hp
   if(no_wall_rendering) return NULL;
   if(!c) return &queuepolyat(V, shv[0], col, prio);
   else if(WDIM == 3) return NULL;
+  else if(currentmap->strict_tree_rules()) return &queuepolyat(V, shv[shvid(c)], col, prio);
+
   #if CAP_GP
   else if(GOLDBERG) {
     int id = gp::get_plainshape_id(c);
@@ -1027,14 +1082,7 @@ EX void viewmat() {
     }
   }
 
-#if CAP_COMMANDLINE
-auto floor_hook = 
-  addHook(hooks_args, 100, [] () {
-    using namespace arg;             
-    if(argis("-floordebug")) { floorshape_debug = true; return 0; }
-    else return 1;
-    });
-#endif
+auto floor_hook = arg::add1("-floordebug", [] { floorshape_debug = true; });
 #endif
 
 #if MAXMDIM < 4 || !CAP_GL
@@ -1085,7 +1133,19 @@ void draw_shape_for_texture(floorshape* sh) {
     curvepoint(eupush(gx-sd, gy+sd) * C0);
     curvepoint(eupush(gx-sd, gy-sd) * C0);
     curvepoint(eupush(gx+sd, gy-sd) * C0);
-    queuecurve(0x40404000 + sh->fstrength * 192/10, 0, PPR::LINE);
+    queuecurve(shiftless(Id), 0x40404000 + sh->fstrength * 192/10, 0, PPR::LINE);
+    }
+  
+  for(int i=0; i<(ISMOBILE ? 10 : 1000); i++) {
+    hyperpoint h1 = hpxy(sd * (6*randd()-3), sd * (6*randd()-3));
+    hyperpoint h2 = hpxy(sd * (6*randd()-3), sd * (6*randd()-3));
+    ld d = hdist(h1, h2);
+    hyperpoint h3 = h1 + (h2-h1) /d * min(d, .1);
+    for(int a=0; a<4; a++) {
+      curvepoint(eupush(gx,gy) * eupush(spin(90*degree*a) * h1) * C0);
+      curvepoint(eupush(gx,gy) * eupush(spin(90*degree*a) * h3) * C0);
+      queuecurve(shiftless(Id), 0x10101010, 0, PPR::LINE);
+      }
     }
   
   auto& ftv = floor_texture_vertices[sh->id];

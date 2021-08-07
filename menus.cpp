@@ -38,10 +38,10 @@ EX void showOverview() {
       mouseovers += XLAT(" Hyperstone: %1/%2", its(i1), its(i2));
       }
     else
-      mouseovers += XLAT(" Hell: %1/9", its(orbsUnlocked()));
+      mouseovers += XLAT(" Hell: %1/%2", its(orbsUnlocked()), its(lands_for_hell()));
     }
   
-  bool pages;
+  bool pages = false;
   
   {
   dynamicval<int> ds(dual::state, dual::state ? 2 : 0);
@@ -124,9 +124,10 @@ EX void showOverview() {
       if(items[it] >= 10) col = winf[waMirror].color; else col = BLACKISH;
       if(displayfrZH(xr*46, i0, 1, vf-4, XLAT1(winf[waMirror].name), col, 0))
         getcstat = 3000+waMirror;
-      if(getcstat == 3000+waMirror)
-        mouseovers = XLAT(
-          olrDescriptions[getOLR(io, cwt.at->land)], cwt.at->land, it, treasureTypeUnlock(curland, io));
+      if(getcstat == 3000+waMirror) {
+        string olrdesc = olrDescriptions[getOLR(io, cwt.at->land)];
+        mouseovers = XLAT(olrdesc, cwt.at->land, it, treasureTypeUnlock(curland, io));
+        }
       }
     else if(io) {
       if(lv >= 25) col = 0xFFD500;
@@ -139,9 +140,10 @@ EX void showOverview() {
         getcstat = 2000+io;
       if(displayfrZH(xr*46, i0, 1, vf-4, XLAT1(iinf[io].name), col, 0))
         getcstat = 2000+io;
-      if(getcstat == 2000+io)
-        mouseovers = XLAT(
-          olrDescriptions[getOLR(io, curland)], curland, it, treasureTypeUnlock(curland, io));
+      if(getcstat == 2000+io) {
+        string olrdesc = olrDescriptions[getOLR(io, curland)];
+        mouseovers = XLAT(olrdesc, curland, it, treasureTypeUnlock(curland, io));
+        }
       }
     }
 
@@ -184,6 +186,7 @@ EX void showOverview() {
           else checkmove();
           cheater++;
           };
+        dialog::bound_low(0);
         }
       }
     else if(udiv == 3 && umod < walltypes) gotoHelp(generateHelpForWall(eWall(umod)));
@@ -227,22 +230,21 @@ EX void showMainMenu() {
   else dialog::addBreak(100);
   dialog::addItem(XLAT("restart game"), 'r');
 
-  dialog::addItem(XLAT(inSpecialMode() ? "reset special modes" : "back to the start menu"), 'R');
+  dialog::addItem(inSpecialMode() ? XLAT("reset special modes") : XLAT("back to the start menu"), 'R');
   
   string q;
   #if ISMOBILE
   dialog::addItem(XLAT("visit the website"), 'q');
   #else
-  q = quitsaves() ? "save" : "quit"; 
-  q = q + " the game";
-  dialog::addItem(XLAT(q), 'q');
+  q = quitsaves() ? XLAT("save the game") : XLAT("quit the game"); 
+  dialog::addItem(q, 'q');
   #endif
 
-  if(canmove)                                     
-    q = "review your quest";
+  if(canmove)
+    q = XLAT("review your quest");
   else
-    q = "game over screen";
-  dialog::addItem(XLAT(q), SDLK_ESCAPE);
+    q = XLAT("game over screen");
+  dialog::addItem(q, SDLK_ESCAPE);
   dialog::addItem(get_o_key().first, 'o');    
 
   if(inv::on)
@@ -258,11 +260,11 @@ EX void showMainMenu() {
   dialog::addItem("SHARE", 's'-96);
 #endif
 
-  if(!canmove) q = "review the scene";
-  else if(turncount > 0) q = "continue game";
-  else q = "play the game!";
+  if(!canmove) q = XLAT("review the scene");
+  else if(turncount > 0) q = XLAT("continue game");
+  else q = XLAT("play the game!");
   
-  dialog::addItem(XLAT(q), ' ');
+  dialog::addItem(q, ' ');
   dialog::display();
   
   keyhandler = [] (int sym, int uni) {
@@ -328,30 +330,23 @@ EX void editScale() {
   dialog::scaleSinh();
   }
 
+EX const char *wdmodes[7] = {"ASCII", "black", "plain", "Escher", "plain/3D", "Escher/3D", "ASCII/3D"};
+EX const char *mdmodes[6] = {"ASCII", "items only", "items and monsters", "3D", "?", "?"};
+EX const char *hlmodes[3] = {"press Alt", "highlight", "super-highlight"};
+
 EX void showGraphQuickKeys() {
   cmode = sm::SIDE | sm::MAYDARK;
   gamescreen(0);
 
   dialog::init(XLAT("quick options"));
+  
+  dialog::addItem("quick projection", '1');
 
-  if(GDIM == 2) {
-    dialog::addBoolItem(XLAT("orthogonal projection"), vpconf.alpha >= 500, '1');
-    dialog::addBoolItem(XLAT(sphere ? "stereographic projection" : euclid ? "zoomed out" : "small Poincaré model"), vpconf.alpha == 1 && vpconf.scale < 1, '2');
-    dialog::addBoolItem(XLAT(sphere ? "zoomed stereographic projection" : euclid ? "zoomed in" : "big Poincaré model"), vpconf.alpha == 1 && vpconf.scale >= 1, '3');
-    dialog::addBoolItem(XLAT((sphere || euclid) ? "gnomonic projection" : "Klein-Beltrami model"), vpconf.alpha == 0, '4');
-    }
-  else {
-    dialog::addBoolItem(XLAT("first person perspective"), vid.yshift == 0 && vid.sspeed > -5, '1');
-    dialog::addBoolItem(XLAT("fixed point of view"), vid.sspeed <= -5, '2');
-    dialog::addBoolItem(XLAT("third person perspective"), vid.yshift > 0 && vid.sspeed > -5, '3');
-    }
-
-  const char *wdmodes[7] = {"ASCII", "black", "plain", "Escher", "plain/3D", "Escher/3D", "ASCII/3D"};
   dialog::addSelItem(XLAT("wall display mode"), XLAT(wdmodes[vid.wallmode]), '5');
 
-  const char *mdmodes[6] = {"ASCII", "items only", "items and monsters", "high contrast",
-    "3D", "high contrast/3D"};
   dialog::addSelItem(XLAT("monster display mode"), XLAT(mdmodes[vid.monmode]), '8');
+
+  dialog::addSelItem(XLAT("highlight stuff"), XLAT(hlmodes[vid.highlightmode]), 508);
 
   dialog::addBoolItem(XLAT("draw the grid"), (vid.grid), '6');
   dialog::addBoolItem(XLAT("mark heptagons"), (vid.darkhepta), '7');
@@ -404,10 +399,27 @@ EX void switchHardcore() {
   else if(hardcore && canmove) { hardcore = false; }
   else { hardcore = true; canmove = true; hardcoreAt = turncount; }
   if(hardcore)
-      addMessage("One wrong move, and it is game over!");
+      addMessage(XLAT("One wrong move and it is game over!"));
   else
-      addMessage("Not so hardcore?");
+      addMessage(XLAT("Not so hardcore?"));
   if(pureHardcore()) popScreenAll();
+  }
+
+EX void switch_casual() {
+  if(savecount > 0) {
+    dialog::push_confirm_dialog([] {
+      restart_game();
+      casual = !casual;
+      }, XLAT("Switching casual allowed only before saving the game. Do you want to restart?"));
+    return;
+    }
+  else
+    casual = !casual;
+  if(casual) {
+    addMessage(XLAT("You are in the casual mode! Achievements are disabled.")); 
+    addMessage(XLAT("Collect an Orb of Safety to save a checkpoint."));
+    }
+  popScreenAll();
   }
 
 EX void showCreative() {
@@ -431,6 +443,7 @@ EX void showCreative() {
   dialog::addItem(XLAT("shape editor"), 'g');
   dialog::add_action([] {
     mapeditor::drawing_tool = false;
+    mapeditor::intexture = false;
     pushScreen(mapeditor::showDrawEditor);
     mapeditor::initdraw(cwt.at);
     });
@@ -441,6 +454,7 @@ EX void showCreative() {
   dialog::add_action([] {
     dialog::cheat_if_confirmed([] {
       mapeditor::drawing_tool = true;
+      mapeditor::intexture = false;
       pushScreen(mapeditor::showDrawEditor);
       mapeditor::initdraw(cwt.at);
       });
@@ -487,7 +501,7 @@ EX void showCreative() {
 
 EX void show_chaos() {
   gamescreen(3);
-  dialog::init(XLAT("Chaos mode"));
+  dialog::init(XLAT("land structure"));
   chaosUnlocked = chaosUnlocked || autocheat;
 
   dialog::addHelp(
@@ -499,30 +513,212 @@ EX void show_chaos() {
   
   dialog::addBreak(100);
   
-  dialog::addBoolItem(XLAT("Chaos mode") + " " + ONOFF(false), !chaosmode, 'A');
-  dialog::add_action([] { dialog::do_if_confirmed([] { if(chaosUnlocked) restart_game(rg::chaos); }); });
-  
-  if(chaosUnlocked) for(int a=1; a<5; a++) {
-    if(a > 1 && ISWEB) continue;
-    if(a == 1 && walls_not_implemented()) continue;
-    dialog::addBoolItem(
-      a == 1 ? XLATN("Crossroads IV") : 
-      a == 2 ? XLATN("Palace") : 
-      a == 3 ? XLAT("total chaos") :
-      XLAT("random walk"), 
-      chaosmode == a, 'A' + a);
-    dialog::add_action([a] { dialog::do_if_confirmed([a] { 
-      int cm = chaosmode;
-      stop_game_and_switch_mode(rg::chaos); 
-      if(!chaosmode && cm != a) switch_game_mode(rg::chaos); 
-      if(chaosmode) chaosmode = a; 
-      start_game(); 
-      }); });
+  char key = 'a';
+  for(int i=0; i<lsGUARD; i++) {
+    dynamicval<eLandStructure> dls(land_structure);
+    auto li = eLandStructure(i);
+    land_structure = li;
+    fix_land_structure_choice();
+    if(ls::any_chaos() && !chaosUnlocked) continue;
+    if(li == lsNoWalls && geometry == gNormal && !chaosUnlocked) continue;
+    if(land_structure == i) {
+      dialog::addBoolItem(land_structure_name(false), land_structure == dls.backup, key + i);
+      dialog::add_action(dual::mayboth([li] {
+        dialog::do_if_confirmed([li] {
+          stop_game();
+          land_structure = li;
+          start_game();
+          });
+        }));
+      }
     }
+  
+  dialog::addBreak(100);
+  dialog::addSelItem(XLAT("land"), XLAT1(linf[specialland].name), 'l');
+  dialog::add_action(activate_ge_land_selection);
+
+  dialog::addBreak(100);
+  if(ineligible_starting_land)
+    dialog::addInfo("this starting land is not eligible for achievements");
+  else if(land_structure == lsNiceWalls)
+    dialog::addInfo("eligible for most achievements");
+  else if(land_structure == lsChaos)
+    dialog::addInfo("eligible for Chaos mode achievements");
+  else if(land_structure == lsSingle)
+    dialog::addInfo("eligible for special achievements");
+  else
+    dialog::addInfo("not eligible for achievements");
+  if(cheater) dialog::addInfo("(but the cheat mode is on)");
+  if(casual) dialog::addInfo("(but the casual mode is on)");
 
   dialog::addBreak(100);
   dialog::addBack();
   dialog::display();
+  }
+
+EX void mode_higlights() {
+  gamescreen(3);
+  dialog::init(XLAT("highlights & achievements"));
+  
+  dialog::addBigItem(XLATN("Space Rocks"), 'r');
+  dialog::add_action(dialog::add_confirmation([] {
+    popScreenAll();
+    stop_game();
+    resetModes();
+    specialland = laAsteroids;
+    set_geometry(gKleinQuartic);
+    set_variation(eVariation::bitruncated);
+    land_structure = lsSingle;
+    shmup::on = true;
+    start_game();
+    }));
+  dialog::addInfo(XLAT("classic game except hyperbolic"));
+  dialog::extend();
+
+  #if CAP_RACING && MAXMDIM >= 4
+  dialog::addBigItem(XLAT("Racing in Thurston geometries"), 't'-96);
+  dialog::add_action(dialog::add_confirmation(racing::start_thurston));
+  dialog::addInfo(XLAT("race through a maze in exotic 3D geometry!"));
+  dialog::extend();
+  #endif
+
+  dialog::addBigItem(XLAT1("Halloween"), 'Z');
+  dialog::add_action(dialog::add_confirmation(halloween::start_all));
+  dialog::addInfo(XLAT("Halloween mini-game"));
+  dialog::extend();
+
+  dialog::addBigItem(XLAT1("heptagonal mode"), 'H');
+  dialog::add_action(dialog::add_confirmation([] {
+    popScreenAll();
+    resetModes('7');
+    land_structure = lsNiceWalls;
+    start_game();
+    clearMessages();
+    welcomeMessage();
+    }));
+  dialog::addInfo(XLAT("can you find the Heptagonal Grail?"));
+  dialog::extend();
+
+  dialog::addBreak(100);
+  dialog::addBigItem(XLAT1("other achievements:"), 0);
+  dialog::addItem(XLAT("General Euclid"), 'e');
+  dialog::add_action(dialog::add_confirmation([] {
+    popScreenAll();
+    resetModes();
+    set_geometry(gEuclid);
+    firstland = specialland = laMirrorOld;
+    land_structure = lsSingle;
+    start_game();
+    clearMessages();
+    welcomeMessage();
+    }));
+
+  dialog::addItem(XLAT("Worm of the World"), 'w');
+  dialog::add_action(dialog::add_confirmation([] {
+    popScreenAll();
+    resetModes();
+    set_geometry(gZebraQuotient);
+    firstland = specialland = laDesert;
+    land_structure = lsSingle;
+    start_game();
+    clearMessages();
+    welcomeMessage();
+    }));
+
+  dialog::addItem(XLAT("Lovász Conjecture"), 'L');
+  dialog::add_action(dialog::add_confirmation([] {
+    popScreenAll();
+    resetModes();
+    set_geometry(gKleinQuartic);
+    gp::param = gp::loc(1, 1);
+    set_variation(eVariation::untruncated);
+    
+    firstland = specialland = laMotion;
+    land_structure = lsSingle;
+    start_game();
+    clearMessages();
+    welcomeMessage();
+    }));
+
+  #if CAP_CRYSTAL
+  if(hiitemsMax(itHolyGrail) || cheater || autocheat) {
+    dialog::addItem(XLAT("Knight of the 16-Cell Table"), '1');
+    dialog::add_action(dialog::add_confirmation([] {
+      popScreenAll();
+      resetModes();
+      crystal::set_crystal(8);
+      firstland = specialland = laCamelot;
+      land_structure = lsSingle;
+      start_game();
+      clearMessages();
+      welcomeMessage();
+      pushScreen(crystal::crystal_knight_help);
+      }));
+  
+    dialog::addItem(XLAT("Knight of the 3-Spherical Table"), '3');
+    dialog::add_action(dialog::add_confirmation([] {
+      popScreenAll();
+      resetModes();
+      crystal::set_crystal(8);
+      set_variation(eVariation::bitruncated);
+      set_variation(eVariation::bitruncated);
+      land_structure = lsSingle;
+      firstland = specialland = laCamelot;
+      start_game();
+      clearMessages();
+      welcomeMessage();
+      pushScreen(crystal::crystal_knight_help);
+      }));
+    }
+  else {
+    dialog::addItem("(locked until you find a Holy Grail)", 0);
+    }
+  #endif
+
+  #if MAXMDIM >= 4
+  dialog::addBreak(100);
+  dialog::addBigItem(XLAT1("some cool visualizations"), 0);
+  dialog::addItem(XLAT("Emerald Mine in {5,3,4}"), '5');
+  dialog::add_action(dialog::add_confirmation([] {
+    popScreenAll();
+    resetModes();
+    specialland = laEmerald;
+    land_structure = lsSingle;
+    set_geometry(gSpace534);
+    check_cgi();
+    cgi.require_basics();
+    cgi.require_shapes();
+    fieldpattern::field_from_current();
+    set_geometry(gFieldQuotient);
+    int p = 2;
+    for(;; p++) { currfp.Prime = p; currfp.force_hash = 0x72414D0C; if(!currfp.solve()) break; }
+    start_game();
+    clearMessages();
+    welcomeMessage();
+    }));
+  #endif
+
+  dialog::addBreak(100);
+  dialog::addBack();
+  dialog::display();
+  }  
+
+EX eLandStructure default_land_structure() {
+  if(bounded) return lsSingle;
+  if(tactic::on || princess::challenge) return lsSingle;
+  if(yendor::on) return yendor::get_land_structure();
+  if(specialland == laCanvas) return lsSingle;
+  if(nice_walls_available()) return lsNiceWalls;
+  return lsNoWalls;
+  }
+
+EX void menuitem_land_structure(char key) {
+
+  if(default_land_structure() == land_structure && !ineligible_starting_land)
+    dialog::addBoolItem(XLAT("land structure"), false, key);
+  else
+    dialog::addSelItem(XLAT("land structure"), land_structure_name(true), key);
+  dialog::add_action_push(show_chaos);
   }
   
 EX void showChangeMode() {
@@ -532,110 +728,96 @@ EX void showChangeMode() {
 
 #if CAP_TOUR
   dialog::addBoolItem(XLAT("guided tour"), tour::on, 'T');
+  dialog::add_action_confirmed(tour::start);
 #endif
+
   dialog::addBoolItem(XLAT("creative mode"), (false), 'c');
   dialog::add_action_push(showCreative);
+
   dialog::addBoolItem(XLAT("experiment with geometry"), geometry || CHANGED_VARIATION || viewdists, 'e');
+  dialog::add_action(runGeometryExperiments);
 
   dialog::addBreak(100);
 
   dialog::addBoolItem(XLAT(SHMUPTITLE), shmup::on, 's');
+  dialog::add_action_confirmed(shmup::switch_shmup);
+
   dialog::addBoolItem(XLAT("multiplayer"), multi::players > 1, 'm');
   dialog::add_action_push(multi::showConfigureMultiplayer);
-  if(!shmup::on) dialog::addSelItem(XLAT("hardcore mode"),
+
+  #if CAP_SAVE
+  dialog::addSelItem(XLAT("casual mode"), ONOFF(casual), 'C');
+  dialog::add_action(switch_casual);
+  #endif
+  
+  if(!shmup::on) {
+    dialog::addSelItem(XLAT("hardcore mode"),
     hardcore && !pureHardcore() ? XLAT("PARTIAL") : ONOFF(hardcore), 'h');
+    dialog::add_action(switchHardcore);
+    }
   if(getcstat == 'h')
     mouseovers = XLAT("One wrong move and it is game over!");
   
   multi::cpid = 0;
-  dialog::addBoolItem(XLAT("Chaos mode"), (chaosmode), 'C');
-  dialog::add_action_push(show_chaos);
-  dialog::addBoolItem(XLAT("peaceful mode"), peace::on, 'p');
+  menuitem_land_structure('l');
+
+  dialog::addBoolItem(XLAT("puzzle/exploration mode"), peace::on, 'p');
+  dialog::add_action_push(peace::showMenu);
+
   dialog::addBoolItem(XLAT("Orb Strategy mode"), (inv::on), 'i');
+  dialog::add_action_confirmed([] { restart_game(rg::inv); });
+
   dialog::addBoolItem(XLAT("pure tactics mode"), (tactic::on), 't');
+  dialog::add_action(tactic::start);
+
   dialog::addBoolItem(XLAT("Yendor Challenge"), (yendor::on), 'y');
+  dialog::add_action([] {
+    clearMessages();
+    if(yendor::everwon || autocheat)
+      pushScreen(yendor::showMenu);
+    else gotoHelp(yendor::chelp);
+    });
+
   dialog::addBoolItem(XLAT("%1 Challenge", moPrincess), (princess::challenge), 'P');
+  dialog::add_action_confirmed([] {
+    if(!princess::everSaved)
+      addMessage(XLAT("Save %the1 first to unlock this challenge!", moPrincess));
+    else restart_game(rg::princess);
+    });  
+  
   dialog::addBoolItem(XLAT("random pattern mode"), (randomPatternsMode), 'r');
+  dialog::add_action_confirmed([] { 
+    stop_game();
+    firstland = laIce;
+    restart_game(rg::randpattern); 
+    });
+
 #if CAP_RACING
   dialog::addBoolItem(XLAT("racing mode"), racing::on, 'R');
+  dialog::add_action(racing::configure_race);
 #endif
 #if CAP_ARCM && !ISWEB
   if(multi::players == 1) {
     dialog::addBoolItem(XLAT("dual geometry mode"), dual::state, 'D');
-    dialog::add_action([] { dialog::do_if_confirmed([] { restart_game(rg::dualmode); }); });
+    dialog::add_action_confirmed([] { restart_game(rg::dualmode); });
     }
   if(dual::state) {
     dialog::addBoolItem(XLAT("dual geometry puzzle"), dpgen::in, 'G');
-    dialog::add_action([] { dialog::do_if_confirmed([] { pushScreen(dpgen::show_menu); }); });
+    dialog::add_action_confirmed([] { pushScreen(dpgen::show_menu); });
     }
 #endif
 #if CAP_DAILY
   dialog::addBoolItem(XLAT("Strange Challenge"), daily::on, 'z');
+  dialog::add_action_push(daily::showMenu);    
 #endif
 
   dialog::addBreak(50);
+
+  dialog::addItem(XLAT("highlights & achievements"), 'h');
+  dialog::add_action_push(mode_higlights);
   
   dialog::addBack();
-  dialog::display();
-  
-  keyhandler = [] (int sym, int uni) {
-    dialog::handleNavigation(sym, uni);    
-    char xuni = uni;
-
-    if(xuni == ' ' || sym == SDLK_ESCAPE) popScreen();
-    
-    #if CAP_DAILY
-    else if(uni == 'z')
-      pushScreen(daily::showMenu);
-    #endif
-    
-    else if(xuni == 'e') 
-      runGeometryExperiments();
-    else if(xuni == 't') {
-      clearMessages();
-      pushScreen(tactic::showMenu);
-    }
-    else if(xuni == 'y') {
-      clearMessages();
-      if(yendor::everwon || autocheat)
-        pushScreen(yendor::showMenu);
-      else gotoHelp(yendor::chelp);
-      }
-    else if(xuni == 'p')
-      pushScreen(peace::showMenu);
-    #if CAP_RACING
-    else if(xuni == 'R')
-      racing::configure_race();
-    #endif
-    else if(xuni == 'i') dialog::do_if_confirmed([] {
-      restart_game(rg::inv);
-      });
-  #if CAP_TOUR
-    else if(uni == 'T') dialog::do_if_confirmed([] {
-      tour::start();
-      });
-  #endif
-    else if(xuni == 'P') {
-      if(!princess::everSaved)
-        addMessage(XLAT("Save %the1 first to unlock this challenge!", moPrincess));
-      else
-        dialog::do_if_confirmed([] { restart_game(rg::princess); });
-      }
-    else if(xuni == 's') 
-      dialog::do_if_confirmed(shmup::switch_shmup);
-
-    else if(xuni == 'h' && !shmup::on) 
-      switchHardcore();
-    else if(xuni == 'r') {
-      dialog::do_if_confirmed([] { 
-        stop_game();
-        firstland = laIce;
-        restart_game(rg::randpattern); 
-        });
-      }
-    else if(doexiton(sym, uni))
-      popScreen();
-    };
+  dialog::display();  
   }
 
 EX bool showstartmenu;
@@ -842,7 +1024,7 @@ EX void showStartMenu() {
       pushScreen(texture::showMenu);
       resetModes('c');
       stop_game();
-      firstland = specialland = laCanvas;
+      enable_canvas();
       cheater = true;
       patterns::canvasback = 0xFFFFFF;
       mapeditor::drawplayer = false;
@@ -873,19 +1055,8 @@ EX void showStartMenu() {
       if(uni == 's') 
         multi::configure();
       }
-    else if(uni == 'Z') {
-      popScreenAll();
-      resetModes('g');
-      stampbase = ticks;
-      if(!sphere) {
-        stop_game();
-        specialland = laHalloween;
-        set_geometry(gSphere);
-        start_game();
-        pconf.alpha = 999;
-        pconf.scale = 998;
-        }
-      }
+    else if(uni == 'Z') 
+      halloween::start_all();
 #if CAP_RACING && MAXMDIM >= 4
     else if(uni == 'r' - 96) {
       popScreenAll();
@@ -906,13 +1077,8 @@ EX void showStartMenu() {
       vid.use_smart_range = 1;
       vid.smart_range_detail = 3;
       }
-    else if(uni == 't' - 96) {
-      stop_game();
-      resetModes();
-      start_game();
-      pushScreen(showStartMenu);
-      pushScreen(racing::thurston_racing);
-      }
+    else if(uni == 't' - 96) 
+      racing::start_thurston();
 #endif
 #if CAP_TOUR
     else if(uni == 't') {
@@ -975,7 +1141,7 @@ EX named_functionality get_o_key() {
   vector<named_functionality> res;
   callhooks(hooks_o_key, res);
 
-  if(in_full_game())
+  if(in_full_game() && !yendor::on)
     res.push_back(named_dialog(XLAT("world overview"), showOverview));
   
 #if CAP_DAILY
@@ -990,7 +1156,7 @@ EX named_functionality get_o_key() {
     res.push_back(named_functionality(XLAT("experiment with geometry"), runGeometryExperiments));
 
   if(tactic::on)
-    res.push_back(named_dialog(XLAT("Pure Tactics mode"), tactic::showMenu));
+    res.push_back(named_dialog(XLAT("pure tactics mode"), tactic::showMenu));
     
   if(yendor::on)
     res.push_back(named_dialog(XLAT("Yendor Challenge"), yendor::showMenu));
@@ -1013,6 +1179,7 @@ EX named_functionality get_o_key() {
   if(isize(res) == 1) return res[0];
   
   return named_dialog(res[0].first + "/...", [res] {
+    emptyscreen();
     dialog::init();
     char id = 'o';
     for(auto& r: res) {
@@ -1100,6 +1267,9 @@ int read_menu_args() {
     }
   else if(argis("-d:mode")) {
     PHASEFROM(2); launch_dialog(showChangeMode);
+    }
+  else if(argis("-d:history")) {
+    PHASEFROM(2); launch_dialog(history::history_menu);
     }
   else if(argis("-d:shmup")) {
     PHASEFROM(2); launch_dialog(); multi::configure();

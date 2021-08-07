@@ -53,6 +53,7 @@ EX int asteroids_generated, asteroid_orbs_generated;
 EX time_t timerstart, savetime;
 EX bool timerstopped;
 EX int savecount;
+EX int save_turns;
 EX bool doCross = false;
 
 EX bool gamegen_failure;
@@ -66,13 +67,6 @@ EX bool verless(string v, string cmp) {
   if(isdigit(cmp[0]) && isdigit(cmp[1]))
     cmp = "A" + cmp;
   return v < cmp;
-  }
-
-/** \brief should we set the starting land to specialland */
-bool do_use_special_land() {
-  return
-    !safety &&
-    (peace::on || tactic::on || geometry || NONSTDVAR || randomPatternsMode || yendor::on || racing::on);
   }
 
 /** \brief Hooks for welcomeMessage. Return true to capture. */
@@ -130,7 +124,7 @@ EX void welcomeMessage() {
   else
     addMessage(XLAT("Welcome to HyperRogue!"));
 
-  if(do_use_special_land() || firstland != laIce) if(!daily::on) {
+  if(!safety && !daily::on) {
     auto lv = land_validity(specialland);
     if(lv.flags & lv::display_error_message)
       addMessage(XLAT(lv.msg));
@@ -146,10 +140,17 @@ EX void welcomeMessage() {
 /** \brief These hooks are called at the start of initgame. */
 EX hookset<void()> hooks_initgame;
 
+/** \brief These hooks are called at the end of initgame. */
+EX hookset<void()> hooks_post_initgame;
+
+EX bool ineligible_starting_land;
+
 /** \brief initialize the game */
 EX void initgame() {
   DEBBI(DF_INIT, ("initGame"));
   callhooks(hooks_initgame); 
+  
+  if(!safety) fix_land_structure_choice();
 
   if(multi::players < 1 || multi::players > MAXPLAYER)
     multi::players = 1;
@@ -167,16 +168,17 @@ EX void initgame() {
   if(racing::on) racing::apply_seed();
   #endif
   
-  bool use_special_land = do_use_special_land();
-    
-  if(use_special_land) firstland = specialland;
+  if(!safety) {
+    firstland = specialland;
+    ineligible_starting_land = !landUnlocked(specialland);
+    }
   
   if(firstland == laNone || firstland == laBarrier)
     firstland = laCrossroads;
 
-  if(firstland == laCrossroads5 && !tactic::on) firstland = laCrossroads2; // could not fit!
   if(firstland == laOceanWall) firstland = laOcean; 
   if(firstland == laHauntedWall) firstland = laGraveyard; 
+  if(firstland == laHaunted && !tactic::on) firstland = laGraveyard;
   if(firstland == laMercuryRiver) firstland = laTerracotta;
   if(firstland == laMountain && !tactic::on) firstland = laJungle;
   if(firstland == laPrincessQuest) firstland = laPalace;
@@ -184,7 +186,7 @@ EX void initgame() {
   if((isGravityLand(firstland) && !isCyclic(firstland)) || (firstland == laOcean && !safety && !yendor::on)) 
     firstland = weirdhyperbolic ? laCrossroads4 : laCrossroads;
   
-  clear_euland(specialland);
+  clear_euland(firstland);
 
   cwt.at = currentmap->gamestart(); cwt.spin = 0; cwt.mirrored = false;
   cwt.at->land = firstland;
@@ -195,6 +197,7 @@ EX void initgame() {
 
   clearing::direct = 0;
   clearing::imputed = 0;
+  rosephase = 0;
 
   if(firstland == laElementalWall) cwt.at->land = randomElementalLand();
   
@@ -204,19 +207,21 @@ EX void initgame() {
   pregen();  
   setdist(cwt.at, BARLEV, NULL);
 
-  if(!use_special_land && !safety) {
-    if(firstland != (princess::challenge ? laPalace : laIce)) cheater++;
-    }
-
-  if((tactic::on || yendor::on || peace::on) && isCyclic(firstland)) {
+  if(isCyclic(specialland) || specialland == laCanvas) {
+    #if CAP_COMPLEX2
     camelot::anthraxBonus = items[itHolyGrail];
     cwt.at->move(0)->land = firstland;
     if(firstland == laWhirlpool) cwt.at->move(0)->wall = waSea;
     
     setdist(cwt.at->move(0), BARLEV-1, cwt.at);
-    if(!sphere && !eubinary && !quotient) {
-      heptagon *h = createAlternateMap(cwt.at, 2, hsA);
-      if(!h) printf("FAIL\n");
+
+    if(horo_ok()) {
+      if(specialland == laCamelot) 
+        start_camelot(cwt.at);
+      else {
+        heptagon *h = create_altmap(cwt.at, 2, hsA);
+        if(!h) printf("FAIL\n");
+        }
       }
     }
   
@@ -317,17 +322,20 @@ EX void initgame() {
 #endif
   
   if(multi::players > 1 && !shmup::on) {
-    for(int i=0; i<numplayers(); i++) 
-      makeEmpty(playerpos(i));
+    for(cell *pc: player_positions())
+      makeEmpty(pc);
     }
   else {
-    for(int i=0; i<numplayers(); i++) 
-      makeEmpty(cwt.at);
+    makeEmpty(cwt.at);
     }
   
   if(specialland == laMinefield && bounded) {
     bfs();
     generate_mines();
+    }
+  
+  if(in_lovasz()) {
+    cwt.at->item = itOrbInvis;
     }
   
   princess::squeaked = false;
@@ -362,9 +370,7 @@ EX void initgame() {
     if(inv::on) inv::init();
 #endif
     mine::auto_teleport_charges();
-    if(!use_special_land) {
-      if(firstland != (princess::challenge ? laPalace : laIce)) cheater++;
-      }
+#endif
     welcomeMessage();
     }
   else {
@@ -389,6 +395,7 @@ EX void initgame() {
     if(vid.use_smart_range == 2) vid.use_smart_range = 1;
     }
   if(!allowIncreasedSight()) vid.use_smart_range = 0;
+  callhooks(hooks_post_initgame); 
   }
 
 bool havesave = true;
@@ -406,7 +413,7 @@ EX namespace scores {
 /** \brief the amount of boxes reserved for each hr::score item */
 #define MAXBOX 500
 /** \brief currently used boxes in hr::score */
-#define POSSCORE 398 // update this when new boxes are added!
+#define POSSCORE 411
 /** \brief a struct to keep local score from an earlier game */
 struct score {
   /** \brief version used */
@@ -719,7 +726,9 @@ EX void applyBoxes() {
   applyBoxM(moFalsePrincess);
   applyBoxM(moRoseLady);
   applyBoxM(moRoseBeauty);
-  applyBoxNum(chaosmode, "Chaos mode");
+  int ls = (int) land_structure;
+  applyBoxNum(ls, "land structure");
+  land_structure = (eLandStructure) ls;
   applyBoxNum(multi::players, "shmup players");
   if(multi::players < 1 || multi::players > MAXPLAYER)
     multi::players = 1;
@@ -885,7 +894,27 @@ EX void applyBoxes() {
   
   applyBoxI(itThunderStone);
   applyBoxM(moStormElemental);
+  applyBoxNum(saved_modecode, "modecode");
+  applyBoxBool(ineligible_starting_land, "ineligible_starting_land");
+  
+  applyBoxNum(yasc_code, "YASC code");
+  applyBoxBool(casual, "casual mode");
+  
+  applyBoxI(itCursed);
+  applyBoxI(itDice);
+  applyBoxOrb(itOrbPurity);
+  applyBoxOrb(itOrbWoods);
+  applyBoxM(moHexer);
+  applyBoxM(moAngryDie);
+  applyBoxM(moAnimatedDie);
+  applyBoxI(itCurseWeakness, true);
+  applyBoxI(itCurseFatigue, true);
+  applyBoxI(itCurseDraining, true);
+  applyBoxI(itCurseRepulsion, true);
+  applyBoxI(itCurseGluttony, true);
+  applyBoxI(itCurseWater, true);
   list_invorb();
+
   if(POSSCORE != boxid) printf("ERROR: %d boxes\n", boxid);
   if(isize(invorb)) { println(hlog, "ERROR: Orbs not taken into account"); exit(1); }
   }
@@ -907,7 +936,7 @@ void loadBoxHigh() {
   dynamicval<int> sp1(multi::players, save.box[197]);
   dynamicval<eGeometry> sp2(geometry, (eGeometry) save.box[116]);
   dynamicval<bool> sp3(shmup::on, save.box[119]);
-  dynamicval<int> sp4(chaosmode, save.box[196]);
+  dynamicval<eLandStructure> sp4(land_structure, (eLandStructure) save.box[196]);
   dynamicval<eVariation> sp5(variation, (eVariation) save.box[186]);
   dynamicval<int> sp7(gp::param.first, save.box[342]);
   dynamicval<int> sp8(gp::param.second, save.box[343]);
@@ -962,6 +991,8 @@ EX void remove_emergency_save() {
     }
 #endif
   }
+
+scores::score scorebox;
 
 EX void saveStats(bool emergency IS(false)) {
   DEBBI(DF_INIT, ("saveStats [", scorefile, "]"));
@@ -1050,6 +1081,7 @@ EX void saveStats(bool emergency IS(false)) {
     scores::saveBox();
     
     for(int i=0; i<scores::boxid; i++) fprintf(f, " %d", scores::save.box[i]);
+    scorebox = scores::save;
     anticheat::save(f);
 
     fprintf(f, "\n");
@@ -1061,7 +1093,10 @@ EX void saveStats(bool emergency IS(false)) {
   fprintf(f, "cells generated: %d\n", cellcount);
   if(pureHardcore()) fprintf(f, "Pure hardcore mode\n");
   if(geometry) fprintf(f, "Geometry: %s/%s/%s\n", gp::operation_name().c_str(), ginf[geometry].tiling_name.c_str(), ginf[geometry].quotient_name.c_str());
-  if(chaosmode) fprintf(f, "Chaos mode\n");
+
+  if(!ls::nice_walls())
+    fprintf(f, "land structure: %s\n", land_structure_name(true).c_str());
+  
   if(shmup::on) fprintf(f, "Shoot-em up mode\n");
   if(inv::on) fprintf(f, "Inventory mode\n");
   if(multi::players > 1) fprintf(f, "Multi-player (%d players)\n", multi::players);
@@ -1089,6 +1124,8 @@ EX void saveStats(bool emergency IS(false)) {
   fclose(f);
   }
 
+bool tamper = false;
+
 // load the save
 EX void loadsave() {
   if(autocheat) return;
@@ -1100,10 +1137,9 @@ EX void loadsave() {
   FILE *f = fopen(scorefile, "rt");
   havesave = f;
   if(!f) return;
-  scores::score sc;
   bool ok = false;
-  bool tamper = false;
   int coh = counthints();
+  auto& sc = scorebox;
   while(!feof(f)) {
     char buf[120];
     if(fgets(buf, 120, f) == NULL) break;
@@ -1191,32 +1227,45 @@ EX void loadsave() {
 
     }
   fclose(f);
-  if(ok && sc.box[65 + 4 + itOrbSafety - itOrbLightning]) {
-    anticheat::tampered = tamper;
+  if(ok && sc.box[65 + 4 + itOrbSafety - itOrbLightning]) 
+    load_last_save();
+  }
+
+EX void load_last_save() {
+  auto& sc = scorebox;
+  anticheat::tampered = tamper;
 //  printf("box = %d (%d)\n", sc.box[65 + 4 + itOrbSafety - itOrbLightning], boxid);
 //  printf("boxid = %d\n", boxid);
-    using namespace scores;
-    for(int i=0; i<boxid; i++) save.box[i] = sc.box[i];
-    for(int i=boxid; i<MAXBOX; i++) save.box[i] = 0;
+  using namespace scores;
+  for(int i=0; i<boxid; i++) save.box[i] = sc.box[i];
+  for(int i=boxid; i<MAXBOX; i++) save.box[i] = 0;
 //  for(int i=160; i<200; i++) printf("%d: %d ", i, save.box[i]);
-    loadBox();
-//  printf("boxid = %d\n", boxid);
-    if(items[itHolyGrail]) {
-      items[itHolyGrail]--;
-      camelot::knighted = newRoundTableRadius();
-      items[itHolyGrail]++;
-      }
-    else camelot::knighted = 0;
-    safety = true;
-    if(items[itSavedPrincess] < 0) items[itSavedPrincess] = 0;
-    addMessage(XLAT("Game loaded."));
-    showstartmenu = false;
-    // reset unsavable special modes just in case
-    peace::on = false;
-    randomPatternsMode = false;
-    yendor::on = false;
-    tour::on = false;
+
+  if(meaning.count(sc.box[MODECODE_BOX])) {
+    shstream ss;
+    ss.s = meaning[sc.box[MODECODE_BOX]];
+    ss.read(ss.vernum);
+    mapstream::load_geometry(ss);
     }
+
+  loadBox();
+//  printf("boxid = %d\n", boxid);
+  if(items[itHolyGrail]) {
+    items[itHolyGrail]--;
+    camelot::knighted = newRoundTableRadius();
+    items[itHolyGrail]++;
+    }
+  else camelot::knighted = 0;
+  safety = true;
+  if(items[itSavedPrincess] < 0) items[itSavedPrincess] = 0;
+  addMessage(XLAT("Game loaded."));
+  showstartmenu = false;
+  // reset unsavable special modes just in case
+  peace::on = false;
+  randomPatternsMode = false;
+  yendor::on = false;
+  tour::on = false;
+  save_turns = turncount;
   }
 #endif
 
@@ -1226,7 +1275,8 @@ EX void stop_game() {
   DEBBI(DF_INIT, ("stop_game"));
   achievement_final(true);
 #if CAP_SAVE
-  saveStats();
+  if(!casual)
+    saveStats();
 #endif
   for(int i=0; i<ittypes; i++) items[i] = 0;
   lastkills = 0; for(int i=0; i<motypes; i++) kills[i] = 0;
@@ -1234,9 +1284,8 @@ EX void stop_game() {
   for(int i=0; i<10; i++) for(int l=0; l<landtypes; l++)
     exploreland[i][l] = 0;
 
-  for(int i=0; i<numplayers(); i++)
-    if(multi::playerActive(i)) 
-      multi::deaths[i]++;
+  for(int i: player_indices()) 
+    multi::deaths[i]++;
 
 #if CAP_SAVE
   anticheat::tampered = false; 
@@ -1277,10 +1326,7 @@ EX void set_geometry(eGeometry target) {
       hybrid::configure(target);
       }
     geometry = target;
-  
-    if(chaosmode && bounded) chaosmode = 0;
-    if(chaosmode == 1 && walls_not_implemented()) chaosmode = 0;
-
+    
     #if CAP_IRR
     if(IRREGULAR) variation = eVariation::bitruncated;
     #endif
@@ -1308,13 +1354,35 @@ EX void set_geometry(eGeometry target) {
     if(prod) { pmodel = mdPerspective; if(vid.texture_step < 4) vid.texture_step = 4; }
     if(WDIM == 3 && (cgflags & qIDEAL) && vid.texture_step < 4) vid.texture_step = 4;
     if(sl2) nisot::geodesic_movement = true;
+    
+    if(geometry == gArbitrary) {
+      arb::convert::base_geometry = geometry;
+      arb::convert::base_variation = variation;
+      }
+
+    if(rotspace) {
+      check_cgi(); cgi.require_basics();            
+      hybrid::csteps = cgi.psl_steps;
+      }
     }
   }
 
 EX void set_variation(eVariation target) {
   if(variation != target) {
     stop_game();
-    if(bt::in() || sol || kite::in() || WDIM == 3) if(!prod) geometry = gNormal;
+    if(is_subcube_based(target)) {
+      if(!reg3::in()) geometry = hyperbolic ? gSpace435 : gCell8;
+      variation = target;
+      return;
+      }
+    if(is_reg3_variation(target)) {
+      if(!reg3::in()) geometry = hyperbolic ? gSpace435 : gCell8;
+      variation = target;
+      return;
+      }
+    if(target != eVariation::pure) {
+      if(bt::in() || sol || kite::in() || WDIM == 3) if(!prod) geometry = gNormal;
+      }
     auto& cd = ginf[gCrystal];
     if(target == eVariation::bitruncated && cryst && cd.sides == 8 && cd.vertex == 4) {
       cd.vertex = 3;
@@ -1361,7 +1429,7 @@ EX void switch_game_mode(char switchWhat) {
     case rg::chaos:
       if(tactic::on) firstland = laIce;
       yendor::on = tactic::on = princess::challenge = false;
-      chaosmode = !chaosmode;
+      land_structure = ls::any_chaos() ? lsNiceWalls : lsChaos;
       if(bounded) set_geometry(gNormal);
       racing::on = false;
       break;
@@ -1372,7 +1440,8 @@ EX void switch_game_mode(char switchWhat) {
       geometry = gNormal;
       yendor::on = tactic::on = princess::challenge = peace::on = inv::on = false;
       dual::disable();
-      chaosmode = randomPatternsMode = false;
+      land_structure = lsNiceWalls;
+      randomPatternsMode = false;
       variation = eVariation::bitruncated;
       #if CAP_GP
       gp::param = gp::loc(1, 1);
@@ -1390,7 +1459,7 @@ EX void switch_game_mode(char switchWhat) {
       inv::on = false;
       princess::challenge = false;
       randomPatternsMode = false;
-      chaosmode = false;
+      land_structure = lsNiceWalls;
       racing::on = false;
       if(!yendor::on) firstland = laIce;
       dual::disable();
@@ -1403,7 +1472,7 @@ EX void switch_game_mode(char switchWhat) {
       peace::on = false;
       tour::on = false;
       inv::on = false;
-      chaosmode = false;
+      land_structure = lsSingle;
       princess::challenge = false;
       dual::disable();
       break;
@@ -1417,7 +1486,7 @@ EX void switch_game_mode(char switchWhat) {
       randomPatternsMode = false;
       princess::challenge = false;
       racing::on = false;
-      chaosmode = false;
+      land_structure = tactic::on ? lsSingle : lsNiceWalls;
       if(!tactic::on) firstland = laIce;
       dual::disable();
       break;
@@ -1442,7 +1511,7 @@ EX void switch_game_mode(char switchWhat) {
       shmup::on = false;
       tactic::on = false;
       yendor::on = false;
-      chaosmode = false;
+      land_structure = princess::challenge ? lsSingle : lsNiceWalls;
       inv::on = false;
       racing::on = false;
       dual::disable();
@@ -1471,7 +1540,9 @@ EX void start_game() {
   ignored_memory_warning = false;
   check_cgi();
   cgi.require_basics();
-  arcm::current.compute_geometry();
+  #if CAP_ARCM
+  arcm::current_or_fake().compute_geometry();
+  #endif
   initcells();
   expansion.reset();
 
@@ -1545,7 +1616,7 @@ EX void initAll() {
   firstland0 = firstland;
   
   // initlanguage();
-  initgraph();
+  initialize_all();
 #if CAP_SAVE
   loadsave();
   if(IRREGULAR) irr::auto_creator();
@@ -1569,11 +1640,12 @@ EX void finishAll() {
   achievement_final(!items[itOrbSafety]);
   
 #if CAP_SAVE
-  saveStats();
+  if(!casual)
+    saveStats();
 #endif
   clearMemory();
 #if !ISMOBILE
-  cleargraph();
+  quit_all();
 #endif
   
   achievement_close();  
@@ -1622,6 +1694,6 @@ addHook(hooks_removecells, 0, [] () {
   eliminate_if(buggycells, is_cell_removed);
   eliminate_if(butterflies, [] (pair<cell*,int>& p) { return is_cell_removed(p.first); });
   for(int i=0; i<SHSIZE; i++) for(int p=0; p<MAXPLAYER; p++)
-    set_if_removed(shpos[p][i], NULL);
+    set_if_removed(shpos[i][p], NULL);
   });
 }

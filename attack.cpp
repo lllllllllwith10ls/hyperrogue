@@ -57,6 +57,7 @@ int* killtable[] = {
     &kills[moBrownBug], &kills[moAcidBird],
     &kills[moFallingDog], &kills[moVariantWarrior], &kills[moWestHawk],
     &kills[moPike], &kills[moRusalka], &kills[moFrog], &kills[moPhaser], &kills[moVaulter],
+    &kills[moHexer], &kills[moAnimatedDie], &kills[moAngryDie],
     NULL
     };
 
@@ -89,7 +90,9 @@ EX bool canAttack(cell *c1, eMonster m1, cell *c2, eMonster m2, flagtype flags) 
   if(!m2) return false;
   
   if(m2 == moPlayer && peace::on) return false;
-  
+
+  if((flags & AF_WEAK) && isIvy(c2)) return false;
+
   if((flags & AF_MUSTKILL) && attackJustStuns(c2, flags, m1))
     return false;
   
@@ -101,6 +104,8 @@ EX bool canAttack(cell *c1, eMonster m1, cell *c2, eMonster m2, flagtype flags) 
     return false;
   
   if(m1 == moArrowTrap && arrow_stuns(m2)) return true;
+  
+  if(isDie(m2) && !(flags & (AF_MAGIC | AF_CRUSH))) return false;
   
   if(among(m2, moAltDemon, moHexDemon, moPair, moCrusher, moNorthPole, moSouthPole, moMonk) && !(flags & (AF_EAT | AF_MAGIC | AF_BULL | AF_CRUSH)))
     return false;
@@ -148,7 +153,7 @@ EX bool canAttack(cell *c1, eMonster m1, cell *c2, eMonster m2, flagtype flags) 
     if(c1 && c2 && againstRose(c1, c2) && !ignoresSmell(m1))
       return false;
   
-  if(m2 == moShadow && !(flags & AF_SWORD)) return false;
+  if(m2 == moShadow && !(flags & (AF_SWORD | AF_SWORD_INTO | AF_CRUSH))) return false;
   if(isWorm(m2) && m2 != moTentacleGhost && !isDragon(m2)) return false;
   
   // dragon can't attack itself, or player who mounted it
@@ -353,9 +358,10 @@ EX void stunMonster(cell *c2, eMonster killer, flagtype flags) {
     c2->monst == moFlailer ? 1 :
     c2->monst == moSalamander ? 6 :
     c2->monst == moBrownBug ? 3 :
+    ((flags & AF_WEAK) && !attackJustStuns(c2, flags &~ AF_WEAK, killer)) ? min(5+c2->stuntime, 15) :
     3);
   if(killer == moArrowTrap) newtime = min(newtime + 3, 7);
-  if(!isMetalBeast(c2->monst) && !among(c2->monst, moSkeleton, moReptile, moSalamander, moTortoise, moWorldTurtle, moBrownBug)) {
+  if(!(flags & AF_WEAK) && !isMetalBeast(c2->monst) && !among(c2->monst, moSkeleton, moReptile, moSalamander, moTortoise, moWorldTurtle, moBrownBug)) {
     c2->hitpoints--;
     if(c2->monst == moPrincess)
       playSound(c2, princessgender() ? "hit-princess" : "hit-prince");
@@ -366,6 +372,8 @@ EX void stunMonster(cell *c2, eMonster killer, flagtype flags) {
   }
 
 EX bool attackJustStuns(cell *c2, flagtype f, eMonster attacker) {
+  if(f & AF_WEAK)
+    return true;
   if(f & AF_HORNS)
     return hornStuns(c2);
   else if(attacker == moArrowTrap && arrow_stuns(c2->monst))
@@ -449,7 +457,8 @@ EX void killMonster(cell *c, eMonster who, flagtype deathflags IS(0)) {
   bool fallanim = (deathflags & AF_FALL) &&  m != moMimic;
 
   int pcount = fallanim ? 0 : 16; 
-  if(m == moShadow) return;
+  if(m == moShadow)
+    kill_shadow_at(c);
 
 #if CAP_HISTORY
   if(!isBug(m) && !isAnyIvy(m)) {
@@ -503,8 +512,8 @@ EX void killMonster(cell *c, eMonster who, flagtype deathflags IS(0)) {
   
   if(m == moPrincess) {
     princess::info *i = princess::getPrincessInfo(c);
-    changes.value_keep(*i);
     if(i) {
+      changes.value_keep(*i);
       i->princess = NULL;
       if(i->bestdist == OUT_OF_PALACE) {
         items[itSavedPrincess]--;
@@ -518,7 +527,7 @@ EX void killMonster(cell *c, eMonster who, flagtype deathflags IS(0)) {
           princess::reviveAt = gold(NO_LOVE) + 20;
           }
         }
-      if(princess::challenge) showMissionScreen();
+      if(princess::challenge) changes.at_commit([] { showMissionScreen(); });
       }
     }
 
@@ -558,7 +567,8 @@ EX void killMonster(cell *c, eMonster who, flagtype deathflags IS(0)) {
     forCellEx(c1, c) {
       changes.ccell(c1);
       c1->item = itNone;
-      if(c1->wall == waDeadwall || c1->wall == waDeadfloor2) c1->wall = waCavewall;
+      if(c1->wall == waDeadwall) c1->wall = waCavewall;
+      if(c1->wall == waDeadfloor2 && !c1->monst && !isPlayerOn(c1)) c1->wall = waCavewall;
       if(c1->wall == waDeadfloor) c1->wall = waCavefloor;
       }
     }
@@ -1022,6 +1032,8 @@ EX void killFriendlyIvy() {
   }
 
 EX bool monsterPushable(cell *c2) {
+  if(markOrb(itCurseWeakness) && (c2->stuntime < 2 || attackJustStuns(c2, 0, moPlayer))) return false;
+  if(isMultitile(c2->monst)) return false;
   return (c2->monst != moFatGuard && !(isMetalBeast(c2->monst) && c2->stuntime < 2) && c2->monst != moTortoise && c2->monst != moTerraWarrior && c2->monst != moVizier && c2->monst != moWorldTurtle);
   }  
 
@@ -1029,14 +1041,18 @@ EX bool should_switchplace(cell *c1, cell *c2) {
   if(isPrincess(c2->monst) || among(c2->monst, moGolem, moIllusion, moMouse, moFriendlyGhost))
     return true;
   
-  if(peace::on) return c2->monst && !isMultitile(c2->monst);
+  if(peace::on) return c2->monst;
   return false;
   }
 
-EX bool switchplace_prevent(cell *c1, cell *c2, bool checkonly) {
+EX bool switchplace_prevent(cell *c1, cell *c2, struct pcmove& m) {
   if(!should_switchplace(c1, c2)) return false;
+  if(peace::on && (isMultitile(c2->monst) || saved_tortoise_on(c2) || isDie(c2->monst))) {
+    if(m.vmsg(miRESTRICTED)) addMessage(XLAT("Cannot switch places with %the1!", c2->monst));
+    return true;
+    }
   if(c1->monst && c1->monst != moFriendlyIvy) {
-    if(!checkonly) addMessage(XLAT("There is no room for %the1!", c2->monst));
+    if(m.vmsg(miRESTRICTED)) addMessage(XLAT("There is no room for %the1!", c2->monst));
     return true;
     }
   if(passable(c1, c2, P_ISFRIEND | (c2->monst == moTameBomberbird ? P_FLYING : 0))) return false;
@@ -1071,6 +1087,7 @@ EX bool flashWouldKill(cell *c, flagtype extra) {
     for(int u=0; u<c2->type; u++) {
       cell *c3 = c2->move(u);
       if(isWorm(c3)) continue; // immune to Flash
+      if(isFriendly(c3)) continue; // player's allies and mounts don't count
       if(c3->monst == moEvilGolem) continue; // evil golems don't count
       if(c3 != c && (c3->monst || isPlayerOn(c3))) {
         bool b = canAttack(NULL, moWitchFlash, c3, c3->monst, AF_MAGIC | extra);
@@ -1160,9 +1177,9 @@ EX void killThePlayer(eMonster m, int id, flagtype flags) {
   }
 
 EX void killThePlayerAt(eMonster m, cell *c, flagtype flags) {
-  for(int i=0; i<numplayers(); i++) 
-    if(playerpos(i) == c) 
-      killThePlayer(m, i, flags);
+  for(int i: player_indices())
+    if(playerpos(i) == c)
+     killThePlayer(m, i, flags);
   }
 
 #if HDR
@@ -1278,7 +1295,7 @@ EX void stabbingAttack(cell *mf, cell *mt, eMonster who, int bonuskill IS(0)) {
   
     if(numsh == 2) {
       if(lastdouble == turncount-1) achievement_count("STAB", 4, 0);
-      lastdouble = turncount;
+      changes.value_set(lastdouble, turncount);
       }
     }
   }

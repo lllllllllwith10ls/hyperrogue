@@ -70,15 +70,45 @@ string get_value(string name) {
   return res;
   }
 
-// -- demo --
+EX void offer_download(string sfilename, string smimetype) {
 
-#if CAP_URL
-EX void open_url(string s) {
-  EM_ASM_({
-    window.open(UTF8ToString($0, 1000));
-    }, s.c_str());
+  EM_ASM({
+    var name = UTF8ToString($0, $1);
+    var mime = UTF8ToString($2, $3);
+
+    let content = Module.FS.readFile(name);
+    console.log(`Offering download of "${name}", with ${content.length} bytes...`);
+  
+    var a = document.createElement('a');
+    a.download = name;
+    a.href = URL.createObjectURL(new Blob([content], {type: mime}));
+    a.style.display = 'none';
+
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    }, 2000);
+    }, sfilename.c_str(), isize(sfilename), smimetype.c_str(), isize(smimetype)
+    );
+
   }
-#endif
+
+reaction_t on_use_file = [] {};
+
+extern "C" {
+  void use_file() { 
+    on_use_file();
+    }
+  }
+
+EX void offer_choose_file(reaction_t r) {
+  on_use_file = r;
+  EM_ASM({
+    fileElem.click();
+    });
+  }
 
 //    window.open(Pointer_stringify($0));
 bool demoanim;
@@ -181,7 +211,8 @@ EM_BOOL fsc_callback(int eventType, const EmscriptenFullscreenChangeEvent *fulls
 
 void initweb() {
   // toggleanim(false);
-  emscripten_set_fullscreenchange_callback(0, NULL, false, fsc_callback);
+  emscripten_set_fullscreenchange_callback(EMSCRIPTEN_EVENT_TARGET_DOCUMENT, NULL, false, fsc_callback);
+  emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, NULL, false, resize_callback);
   printf("showstartmenu = %d\n", showstartmenu);
   if(showstartmenu) pushScreen(showDemo);
   }

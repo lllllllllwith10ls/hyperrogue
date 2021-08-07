@@ -44,6 +44,10 @@
 #define ISANDROID 0
 #endif
 
+#ifndef CAP_EXTFONT
+#define CAP_EXTFONT (ISIOS || ISANDROID || ISFAKEMOBILE)
+#endif
+
 #ifndef ISSTEAM
 #define ISSTEAM 0
 #endif
@@ -77,6 +81,10 @@
 
 #ifndef CAP_GMP
 #define CAP_GMP 0
+#endif
+
+#ifndef CAP_URL
+#define CAP_URL 1
 #endif
 
 #define CAP_FRAMELIMIT (!ISMOBWEB)
@@ -119,6 +127,14 @@
 
 #ifndef CAP_SDL
 #define CAP_SDL (!ISMOBILE)
+#endif
+
+#ifndef CAP_SDL2
+#define CAP_SDL2 0
+#endif
+
+#ifndef CAP_TIMEOFDAY
+#define CAP_TIMEOFDAY (!CAP_SDL)
 #endif
 
 #ifndef CAP_COMPASS
@@ -325,27 +341,61 @@
 #define hyper fake_hyper // avoid "hyper" typedef in <_mingw.h>
 #define WIN32_LEAN_AND_MEAN // avoid "rad1" macro in <windows.h>
 #define NOMINMAX // avoid "min" and "max" macros in <windows.h>
+#include <windows.h>
+#include <shellapi.h>
 #endif
 
 #include <stdio.h>
 
 #if CAP_SDL
+#if CAP_SDL2
+#include <SDL2/SDL.h>
+#define SDL12(x,y) y
+#define SDLK_KP1 SDLK_KP_1
+#define SDLK_KP2 SDLK_KP_2
+#define SDLK_KP3 SDLK_KP_3
+#define SDLK_KP4 SDLK_KP_4
+#define SDLK_KP5 SDLK_KP_5
+#define SDLK_KP6 SDLK_KP_6
+#define SDLK_KP7 SDLK_KP_7
+#define SDLK_KP8 SDLK_KP_8
+#define SDLK_KP9 SDLK_KP_9
+#define SDLK_KP0 SDLK_KP_0
+#define SDL12_GetKeyState SDL_GetKeyboardState
+#define KEYSTATES SDL_NUM_SCANCODES
+#else
 #include <SDL/SDL.h>
+#define SDL12(x,y) x
+#define SDL12_GetKeyState SDL_GetKeyState
+#define KEYSTATES SDLK_LAST
+#endif
 
 #if !ISMAC
 #undef main
 #endif
 
 #if CAP_SDLAUDIO
+#if CAP_SDL2
+#include <SDL2/SDL_mixer.h>
+#else
 #include <SDL/SDL_mixer.h>
+#endif
 #endif
 
 #if CAP_SDLTTF
+#if CAP_SDL2
+#include <SDL2/SDL_ttf.h>
+#else
 #include <SDL/SDL_ttf.h>
+#endif
 #endif
 
 #if CAP_SDLGFX
+#if CAP_SDL2
+#include <SDL2/SDL2_gfxPrimitives.h>
+#else
 #include <SDL/SDL_gfxPrimitives.h>
+#endif
 #endif
 
 #elif !ISFAKEMOBILE
@@ -467,15 +517,15 @@ typedef unsigned GLuint;
 #endif
 
 #if CAP_THREAD
-//#if OLD_MINGW
+#if OLD_MINGW
 #include "mingw.thread.h"
 #include "mingw.mutex.h"
 #include "mingw.condition_variable.h"
-/*#else
+#else
 #include <thread>
 #include <mutex>
 #include <condition_variable>
-#endif*/
+#endif
 #endif
 
 #ifdef USE_UNORDERED_MAP
@@ -565,7 +615,7 @@ union SDL_Event;
 #endif
 
 #ifndef CAP_SOLV
-#define CAP_SOLV (MAXMDIM >= 4 && !ISWEB)
+#define CAP_SOLV (MAXMDIM >= 4 && !ISWEB && !ISMOBILE)
 #endif
 
 #ifndef CAP_FIELD
@@ -573,7 +623,7 @@ union SDL_Event;
 #endif
 
 #ifndef CAP_RAY
-#define CAP_RAY (MAXMDIM >= 4 && !ISWEB && !ISMOBILE && CAP_GL)
+#define CAP_RAY (MAXMDIM >= 4 && CAP_GL && !ISMOBILE && !ISWEB)
 #endif
 
 #ifndef CAP_MEMORY_RESERVE

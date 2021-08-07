@@ -61,23 +61,6 @@ const ld kite_center = up;
 
 EX pshape getshape(heptagon *h) { return pshape(h->s); }
 
-EX hyperpoint get_corner(cell *c, int d, ld cf) {
-  bool kite = getshape(c->master) == pKite;
-  int t = kite ? 1 : -1;
-  ld shf = kite ? kite_center : dart_center;
-  
-  ld mul = 3/cf;
-  
-  switch(d & 3) {
-    case 0: return mhpxy(-mul, (shf)*mul);
-    case 1: return mhpxy(0, (shf-down)*mul);
-    case 2: return mhpxy(+mul, shf*mul);
-    case 3: return mhpxy(0, (shf + t*up)*mul);
-    }
-  
-  return C0; /* unreachable! */
-  }
-
 EX pair<vector<vector<hyperpoint>>, vector<vector<ld>>> make_walls() {
   
   vector<vector<hyperpoint>> kv;
@@ -148,19 +131,37 @@ struct hrmap_kite : hrmap {
   
   heptagon *getOrigin() override { return origin; }
 
+  void find_cell_connection(cell *c, int d) override { 
+    kite::find_cell_connection(c, d); 
+    }
+
+  hyperpoint get_corner(cell *c, int cid, ld cf) override {
+    bool kite = getshape(c->master) == pKite;
+    int t = kite ? 1 : -1;
+    ld shf = kite ? kite_center : dart_center;
+    
+    ld mul = 3/cf;
+    
+    switch(cid & 3) {
+      case 0: return mhpxy(-mul, (shf)*mul);
+      case 1: return mhpxy(0, (shf-down)*mul);
+      case 2: return mhpxy(+mul, shf*mul);
+      case 3: return mhpxy(0, (shf + t*up)*mul);
+      }
+    
+    return C0; /* unreachable! */
+    }
+
+  int shvid(cell *c) override {
+    return kite::getshape(c->master);
+    }
+
   heptagon *newtile(pshape s, int dist) {
-    heptagon *h = tailored_alloc<heptagon> (8);
+    heptagon *h = init_heptagon(8);
     h->s = hstate(s);
     h->dm4 = h->distance = dist;
     if(bt::in() || dist == 0)
       h->c7 = newCell(euclid ? 4 : s == pKite ? 12 : 10, h);
-    else
-      h->c7 = NULL;
-    h->zebraval = 0;
-    h->emeraldval = 0;
-    h->fieldval = 0;
-    h->cdata = NULL;
-    h->alt = NULL;
     return h;
     }
   
@@ -325,7 +326,7 @@ struct hrmap_kite : hrmap {
       }
     }
 
-  transmatrix relative_matrix(heptagon *h2, heptagon *h1, const hyperpoint& hint) override {
+  transmatrix relative_matrixh(heptagon *h2, heptagon *h1, const hyperpoint& hint) override {
     if(gmatrix0.count(h2->c7) && gmatrix0.count(h1->c7))
       return inverse(gmatrix0[h1->c7]) * gmatrix0[h2->c7];
     transmatrix gm = Id, where = Id;
@@ -336,6 +337,13 @@ struct hrmap_kite : hrmap {
         gm = gm * get_tmatrix(h1, 0, false), h1 = h1->cmove(0);
       }
     return gm * where;
+    }
+
+  int wall_offset(cell *c) override {
+    if(WDIM == 3)
+      return kite::getshape(c->master) == kite::pKite ? 10 : 0;
+    else
+      return hrmap::wall_offset(c);
     }
   
   hrmap_kite() {

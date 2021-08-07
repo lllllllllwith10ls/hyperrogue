@@ -27,14 +27,11 @@ struct hrmap_spherical : hrmap_standard {
 
   hrmap_spherical() {
     for(int i=0; i<spherecells(); i++) {
-      heptagon& h = *(dodecahedron[i] = tailored_alloc<heptagon> (S7));
+      heptagon& h = *(dodecahedron[i] = init_heptagon(S7));
       h.s = hsOrigin;
       h.emeraldval = i;
       h.zebraval = i;
       h.fiftyval = i;
-      h.rval0 = h.rval1 = 0;
-      h.alt = NULL;
-      h.cdata = NULL;
       h.c.fullclear();
       h.fieldval = i;
       if(!IRREGULAR) h.c7 = newCell(S7, &h);
@@ -142,14 +139,14 @@ struct hrmap_spherical : hrmap_standard {
     #endif
     }
 
-  heptagon *getOrigin() { return dodecahedron[0]; }
+  heptagon *getOrigin() override { return dodecahedron[0]; }
 
   ~hrmap_spherical() {
     for(int i=0; i<spherecells(); i++) clearHexes(dodecahedron[i]);
     for(int i=0; i<spherecells(); i++) tailored_delete(dodecahedron[i]);
     }    
 
-  void verify() {
+  void verify() override {
     for(int i=0; i<spherecells(); i++) for(int k=0; k<S7; k++) {
       heptspin hs(dodecahedron[i], k, false);
       heptspin hs2 = hs + wstep + (S7-1) + wstep + (S7-1) + wstep + (S7-1);
@@ -159,32 +156,26 @@ struct hrmap_spherical : hrmap_standard {
     for(int i=0; i<spherecells(); i++) verifycells(dodecahedron[i]);
     }
   
-  transmatrix relative_matrix(cell *c2, cell *c1, const hyperpoint& hint) {
-    if(!gmatrix0.count(c2) || !gmatrix0.count(c1)) {
-      printf("building gmatrix0 (size=%d)\n", isize(gmatrix0));
-      #if CAP_GP
-      auto bak = gp::draw_li;
-      #endif
-      swap(gmatrix, gmatrix0);
-      just_gmatrix = true;
-      dynamicval<cell*> cco(centerover, gamestart());
-      draw();
-      just_gmatrix = false;
-      swap(gmatrix, gmatrix0);
-      #if CAP_GP
-      gp::draw_li = bak;
-      #endif
-      }
-    if(gmatrix0.count(c2) && gmatrix0.count(c1)) {
-      transmatrix T = inverse(gmatrix0[c1]) * gmatrix0[c2];
-      if(elliptic && T[LDIM][LDIM] < 0)
-        T = centralsym * T;
-      return T;
-      }
-    else {
-      printf("error: gmatrix0 not known\n");
-      return Id;
-      }
+  map<cell*, transmatrix> where;
+  
+  transmatrix get_where(cell *c) {
+    if(where.count(c)) return where[c];
+    int d = celldist(c);
+    if(d == 0) return where[c] = Id;
+    else forCellIdCM(c1, i, c) 
+      if(celldist(c1) < d) {
+        transmatrix T = get_where(c1);
+        T = T * iadj(c, i);
+        where[c] = T;
+        return T;
+        }
+    return Id;
+    }
+  
+  transmatrix relative_matrixc(cell *c2, cell *c1, const hyperpoint& hint) override {
+    transmatrix T = iso_inverse(get_where(c1)) * get_where(c2);
+    if(elliptic) fixelliptic(T);
+    return T;
     }
   };
 

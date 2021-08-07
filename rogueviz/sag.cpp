@@ -11,8 +11,8 @@ namespace rogueviz {
 
 namespace sag {
 
-  int sag_id;
-
+  bool turn(int delta);
+  
   int sagpar = 0;
 
   enum eSagmode { sagOff, sagHC, sagSA };
@@ -116,6 +116,10 @@ namespace sag {
     snake_enabled = true;
     }
   
+  ld hub_penalty;
+  string hub_filename;
+  vector<int> hubval;
+  
   double costat(int vid, int sid) {
     if(vid < 0) return 0;
     double cost = 0;
@@ -125,6 +129,19 @@ namespace sag {
       int t2 = vd.edges[j].first;
       if(snakeid[t2] != -1) cost += snakedist(sid, snakeid[t2]) * ei->weight2;
       }
+    
+    if(!hubval.empty()) {
+      cell *c = snakecells[sid];
+      for(int i=0; i<c->type; i++) {
+        cell *c2 = c->move(i);
+        if(c2 && c2->wparam == INSNAKE) {
+          int vid2 = snakenode[c2->landparam];
+          if(vid2 >= 0 && (hubval[vid] & hubval[snakenode[c2->landparam]]) == 0)
+            cost += hub_penalty;
+          }
+        }
+      }
+    
     /* cell *c = snakecells[id];
     for(int i=0; i<c->type; i++) {
       cell *c2 = c->move(i);
@@ -250,8 +267,8 @@ namespace sag {
       while(true) {
         int c = fgetc(sf);
         if(c == EOF) goto afterload;
-        else if(c == 10 || c == 13 || c == 32 || c == 9) ;
         else if(c == ',' || c == ';') break;
+        else if(rv_ignore(c)) ;
         else lab += c;
         }
       int sid = -1;
@@ -383,6 +400,35 @@ namespace sag {
     
     println(hlog, "loglikelihood = ", fts(loglik));
     }
+
+  void read_hubs(const string& fname) {
+    hubval.resize(isize(vdata), -1);
+    fhstream f(fname, "rt");
+    if(!f.f) { printf("Failed to open hub file: %s\n", fname.c_str()); exit(1); }
+    println(hlog, "loading hubs: ", fname);
+    while(!feof(f.f)) {
+      string l1, l2;
+      while(true) {
+        int c = fgetc(f.f);
+        if(c == EOF) return;
+        else if(c == ';') break;
+        else if(rv_ignore(c)) ;
+        else l1 += c;
+        }
+      while(true) {
+        int c = fgetc(f.f);
+        if(c == EOF) return;
+        else if(c == ';') return;
+        else if(rv_ignore(c)) break;
+        else l2 += c;
+        }
+      if(!id_known(l1)) {
+        printf("label unknown: %s\n", l1.c_str());
+        exit(1);
+        }
+      hubval[getid(l1)] = atoi(l2.c_str());
+      }
+    }
   
   void readsag(const char *fname) {
     maxweight = 0;
@@ -396,14 +442,14 @@ namespace sag {
         int c = fgetc(f.f);
         if(c == EOF) return;
         else if(c == ';') break;
-        else if(c == 10 || c == 13 || c == 32 || c == 9) ;
+        else if(rv_ignore(c)) ;
         else l1 += c;
         }
       while(true) {
         int c = fgetc(f.f);
         if(c == EOF) return;
         else if(c == ';') break;
-        else if(c == 10 || c == 13 || c == 32 || c == 9) ;
+        else if(rv_ignore(c)) ;
         else l2 += c;
         }
       ld wei;
@@ -420,10 +466,24 @@ namespace sag {
 
   void read(string fn) {
     fname = fn;
-    init(&sag_id, RV_GRAPH | RV_WHICHWEIGHT | RV_AUTO_MAXWEIGHT | RV_HAVE_WEIGHT);
+    init(RV_GRAPH | RV_WHICHWEIGHT | RV_AUTO_MAXWEIGHT | RV_HAVE_WEIGHT);
+
+    rv_hook(rogueviz::hooks_close, 100, [] { sag::sagedges.clear(); });
+    rv_hook(shmup::hooks_turn, 100, turn);
+    rv_hook(rogueviz::hooks_rvmenu, 100, [] { 
+      dialog::addSelItem(XLAT("temperature"), fts(sag::temperature), 't');
+      dialog::add_action([] {
+        dialog::editNumber(sag::temperature, sag::lowtemp, sag::hightemp, 1, 0, XLAT("temperature"), "");
+        });
+      dialog::addSelItem(XLAT("SAG mode"), sag::sagmodes[sag::sagmode], 'm'); 
+      dialog::add_action([] { sag::sagmode = sag::eSagmode( (1+sag::sagmode) % 3 ); });
+      });
+
     weight_label = "min weight";
     temperature = 0; sagmode = sagOff;
     readsag(fname.c_str());
+    if(hub_filename != "")
+      read_hubs(hub_filename);
     
     N = isize(vdata);
     // totwei.resize(N);
@@ -515,6 +575,12 @@ int readArgs() {
     PHASE(3); 
     shift(); sag::read(args());
     }
+  else if(argis("-saghubs")) {
+    println(hlog, "HUBS");
+    PHASE(3); 
+    shift_arg_formula(sag::hub_penalty);
+    shift(); hub_filename = args();
+    }
 // (3) load the initial positioning
   else if(argis("-gload")) {
     PHASE(3); shift(); sag::loadsnake(args());
@@ -537,7 +603,6 @@ int readArgs() {
   }
 
 bool turn(int delta) {
-  if(vizid == &sag_id) sag::iterate(), timetowait = 0;
   return false;
   // shmup::pc[0]->rebase();
   }
@@ -549,20 +614,10 @@ string cname() {
   }
 
 int ah = addHook(hooks_args, 100, readArgs)
-  + addHook(shmup::hooks_turn, 100, turn)
-  + addHook(rogueviz::hooks_close, 100, [] { sag::sagedges.clear(); })
-  + addHook(rogueviz::hooks_rvmenu, 100, [] { 
-    if(vizid != &sag_id) return;
-    dialog::addSelItem(XLAT("temperature"), fts(sag::temperature), 't');
-    dialog::add_action([] {
-      dialog::editNumber(sag::temperature, sag::lowtemp, sag::hightemp, 1, 0, XLAT("temperature"), "");
-      });
-    dialog::addSelItem(XLAT("SAG mode"), sag::sagmodes[sag::sagmode], 'm'); 
-    dialog::add_action([] { sag::sagmode = sag::eSagmode( (1+sag::sagmode) % 3 ); });
-    })
-  + addHook(rvtour::hooks_build_rvtour, 120, [] (vector<tour::slide>& v) {
-    using namespace rvtour;
-    string sagf = "hyperbolic geometry and data/SAG/";
+  + addHook_rvslides(120, [] (string s, vector<tour::slide>& v) {
+    if(s != "data") return;
+    using namespace pres;
+    string sagf = "SAG/";
     v.push_back(
       slide{sagf+"Roguelikes", 63, LEGAL::UNLIMITED | QUICKGEO,
         "A visualization of roguelikes, based on discussion on /r/reddit. "

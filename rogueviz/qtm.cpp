@@ -1,4 +1,4 @@
-#include "../hyper.h"
+#include "rogueviz.h"
 
 // Copyright (C) 2011-2019 Zeno Rogue, see 'hyper.cpp' for details
 
@@ -21,38 +21,9 @@ namespace hybrid { extern hrmap *pmap; }
 
 namespace qtm {
 
-int mode;
+int qmode;
 
-color_t rcolor() {
-  color_t res;
-  part(res, 0) = hrand(0x80);
-  part(res, 1) = hrand(256);
-  part(res, 2) = hrand(0x80) + 128;
-  swap(part(res, 1), part(res, rand() % 2));
-  swap(part(res, 2), part(res, rand() % 3));
-  return res;
-  }
-
-color_t rainbow_color(ld sat, ld hue) {
-  hue = frac(hue);
-  
-  if(hue < 0) hue++;
-  
-  hue *= 6;
-  
-  color_t res = 0;
-  
-  if(hue<1) res = gradient(0xFF0000, 0xFFFF00, 0, hue, 1);
-  else if(hue<2) res = gradient(0x00FF00, 0xFFFF00, 2, hue, 1);
-  else if(hue<3) res = gradient(0x00FF00, 0x00FFFF, 2, hue, 3);
-  else if(hue<4) res = gradient(0x0000FF, 0x00FFFF, 4, hue, 3);
-  else if(hue<5) res = gradient(0x0000FF, 0xFF00FF, 4, hue, 5);
-  else if(hue<6) res = gradient(0xFF0000, 0xFF00FF, 6, hue, 5);
-  
-  return gradient(0xFFFFFF, res, 0, sat, 1);
-  }
-
-color_t rainbow_color(hyperpoint h) {
+color_t rainbow_color_at(hyperpoint h) {
   ld sat = 1 - 1 / h[2];
   ld hue = atan2(h[0], h[1]) / (2 * M_PI);
   return rainbow_color(sat, hue);
@@ -67,11 +38,11 @@ void set_cell(cell *c) {
     c->landparam = c1->landparam;
     c->item = itNone;
     c->monst = moNone;
-    if(mode == 1) {
+    if(qmode == 1) {
       if(hybrid::get_where(c).second == 0)
         c->landparam = 0xFFFFFF;
       }
-    if(mode == 2) {
+    if(qmode == 2) {
       if(hybrid::get_where(c).second != 0)
         c->wall = waNone;
       }
@@ -81,7 +52,7 @@ void set_cell(cell *c) {
     color_t col;
     if(hyperbolic) {
       hyperpoint h = calc_relative_matrix(c, currentmap->gamestart(), C0) * C0;
-      col = rainbow_color(h);
+      col = rainbow_color_at(h);
       }
     else if(nil) {
       part(col, 0) = 128 + c->master->zebraval * 50;
@@ -102,11 +73,13 @@ void set_cell(cell *c) {
     }
   }
 
-bool qtm_on;
-
-bool may_set_cell(cell *c, const transmatrix& T) {
-  if(qtm_on) set_cell(c);
+bool may_set_cell(cell *c, int d, cell *from) {
+  set_cell(c);
   return false;
+  }
+
+void enable() {
+  rogueviz::rv_hook(hooks_cellgen, 100, may_set_cell);
   }
 
 int args() {
@@ -114,17 +87,17 @@ int args() {
            
   if(0) ;
   else if(argis("-qtm-stripe")) {
-    mode = 1;
+    qmode = 1;
     }
   else if(argis("-qtm-no-stripe")) {
-    mode = 0;
+    qmode = 0;
     }
   else if(argis("-qtm-stripe-only")) {
-    mode = 2;
+    qmode = 2;
     }
   else if(argis("-qtm")) {
     PHASEFROM(2);
-    qtm_on = true;
+    enable();
     }
 
   else if(argis("-spheredemo")) {
@@ -217,10 +190,71 @@ int args() {
   return 0;
   }
 
-
-
-auto hooks = addHook(hooks_drawcell, 100, may_set_cell)
-  + addHook(hooks_args, 100, args);
+auto hooks = 
+    addHook(hooks_args, 100, args)
+  + addHook_rvslides(180, [] (string s, vector<tour::slide>& v) {
+      if(s != "mixed") return;
+      using namespace tour;
+      for(int m: {1,2}) {
+        string ex = m == 1 ? " (A)" : " (B)";
+        string bonus = m == 2 ? "\n\nTo make stretching more interesting, only the 'stripes' are filled now." : "";
+        v.push_back(slide{
+          "rotations/isometries of 2-sphere"+ex, 10, LEGAL::NONE | QUICKGEO,
+          "3D engines often represent rotations as unit quaternions. These form a 3D elliptic space. What if we could fly through this space of rotations?\n\n"
+          "Rotation matching the current camera position shown in the corner. Beams in the rotation space correspond to bumps on the sphere.\n\n"
+          "You can also obtain a different geometry (Berger sphere) by stretching along the fibers. Press 5 to stretch."+bonus
+          ,
+          [m] (presmode mode) {
+            setCanvas(mode, '0');
+            slide_url(mode, 't', "Twitter link", "https://twitter.com/ZenoRogue/status/1166723332840001536");
+            slide_url(mode, 's', "stretched Twitter link", "https://twitter.com/ZenoRogue/status/1258035231996682244");
+            if(mode == pmStart) {
+              set_geometry(gSphere);
+              set_variation(eVariation::bitruncated);
+              set_geometry(gRotSpace);
+              slide_backup(rots::underlying_scale, .25);
+              slide_backup(qmode, m);
+              #if CAP_RAY
+              slide_backup(ray::max_cells, 32768);
+              slide_backup(ray::fixed_map, true);
+              #endif
+              slide_backup(smooth_scrolling, true);
+              slide_backup(camera_speed, .1);
+              enable();
+              start_game();
+              }
+            if(mode == pmKey)
+              edit_stretch();
+            }});
+        v.push_back(slide{
+          "rotations/isometries of the hyperbolic plane"+ex, 10, LEGAL::NONE | QUICKGEO,
+          "The hyperbolic analog of the previous slide. The space is PSL(2,R) now, which has a non-isotropic geometry. It can be represented using split quaternions.\n\n"
+          "Again, press 5 to stretch."+bonus
+          ,
+          [m] (presmode mode) {
+            setCanvas(mode, '0');
+            slide_url(mode, 's', "stretched Twitter link", "https://twitter.com/ZenoRogue/status/1259143275115687936");
+            if(mode == pmStart) {
+              set_geometry(gKleinQuartic);
+              set_variation(eVariation::bitruncated);
+              set_geometry(gRotSpace);
+              slide_backup(rots::underlying_scale, .25);
+              slide_backup(qmode, m);
+              #if CAP_RAY
+              slide_backup(ray::max_cells, 32768);
+              slide_backup(ray::fixed_map, true);
+              slide_backup(ray::want_use, 2);
+              #endif
+              slide_backup(smooth_scrolling, true);
+              slide_backup(camera_speed, .1);
+              enable();
+              start_game();
+              }
+            if(mode == pmKey)
+              edit_stretch();
+            }});
+        }
+      });
 
 }
 

@@ -13,8 +13,8 @@
 #define _HYPER_H_
 
 // version numbers
-#define VER "11.3r"
-#define VERNUM_HEX 0xA832
+#define VER "12.0f"
+#define VERNUM_HEX 0xA906
 
 #include "sysconfig.h"
 
@@ -26,8 +26,8 @@ namespace hr {
 
 /** \brief A helper structure that acts as a boolean which is always false. Helpful when disabling stuff with compiler flags. */
 struct always_false {
-  operator bool() const { return false; };
-  bool operator = (bool b) const { return b; };
+  operator bool() const { return false; }
+  bool operator = (bool b) const { return b; }
   };
 
 /** \brief placate GCC's overzealous -Wunused-result */
@@ -99,8 +99,12 @@ using std::asinh;
 using std::acosh;
 #endif
 
-struct hr_exception: std::exception { hr_exception() {} };
-struct hr_shortest_path_exception: hr_exception { };
+struct hr_exception : std::runtime_error {
+    explicit hr_exception() : std::runtime_error("hr_exception") {}
+    explicit hr_exception(const std::string& s) : std::runtime_error(s.c_str()) {}
+};
+
+struct hr_shortest_path_exception { };
 
 // genus (in grammar)
 #define GEN_M 0
@@ -204,7 +208,7 @@ void addMessage(string s, char spamtype = 0);
 
 #define LB_YENDOR_CHALLENGE 40
 #define LB_PURE_TACTICS 41
-#define NUMLEADER 85
+#define NUMLEADER 87
 #define LB_PURE_TACTICS_SHMUP 49
 #define LB_PURE_TACTICS_COOP 50
 #define LB_RACING 81
@@ -268,6 +272,8 @@ struct projection_configuration {
     }
   };
 
+enum eThreatLevel { tlNoThreat, tlSpam, tlNormal, tlHighThreat };
+
 struct videopar {
   projection_configuration projection_config, rug_config;
   ld yshift;
@@ -283,7 +289,12 @@ struct videopar {
   
   int linequality;
 
+  bool want_fullscreen;
   bool full;
+  bool change_fullscr;
+  bool relative_window_size;
+  bool want_vsync;
+  bool current_vsync;
   
   int graphglyph; // graphical glyphs
   bool darkhepta;
@@ -293,10 +304,15 @@ struct videopar {
   
   int xscr, yscr;
   
+  int fullscreen_x, fullscreen_y;
+  int window_x, window_y;
+  ld window_rel_x, window_rel_y;
+  
   bool grid;
   bool particles;
   
-  int fsize;
+  bool relative_font;
+  int fsize, abs_fsize, fontscale;
   int flashtime;
   
   int wallmode, monmode, axes;
@@ -305,13 +321,16 @@ struct videopar {
   
   int msgleft, msglimit;
 
+  bool wantGL;
+  int want_antialias;
+  bool fineline;
+  
   bool usingGL;
   int antialias;
   #define AA_NOGL      1
   #define AA_VERSION   2
   #define AA_LINES     4
   #define AA_POLY      8
-  #define AA_LINEWIDTH 16
   #define AA_FONT      32
   #define AA_MULTI     64
   #define AA_MULTI16   128 // not configurable
@@ -371,6 +390,9 @@ struct videopar {
   ld plevel_factor;
   bool bubbles_special, bubbles_threshold, bubbles_all;
   int joysmooth;
+  
+  eThreatLevel faraway_highlight; // draw attention to monsters on the horizon
+  int faraway_highlight_color; // 0 = monster color, 100 = red-green oscillation
   };
 
 extern videopar vid;
@@ -387,7 +409,7 @@ extern videopar vid;
 
 #define BUGCOLORS 3
 
-#define big_unlock (inv::on && !chaosmode)
+#define big_unlock (inv::on && !ls::any_chaos())
 
 // land completion for shared unlocking
 #define U5 (big_unlock ? 10 : 5)
@@ -562,6 +584,7 @@ typedef function<int(struct cell*)> cellfunction;
 #define AF_CRUSH             Flag(31)   // Crusher's delayed attack
 #define AF_PLAGUE            Flag(32)   // Orb of Plague (do not check adjacency)
 #define AF_PSI               Flag(33)   // Orb of the Mind
+#define AF_WEAK              Flag(34)   // Curse of Weakness
 
 #if CAP_SDL
 
@@ -584,9 +607,15 @@ template<class T> struct dynamicval {
   ~dynamicval() { where = backup; }
   };
 
+struct finalizer {
+  reaction_t f;
+  finalizer(reaction_t r) : f(r) {}
+  ~finalizer() { f(); }
+  };
+  
 static const int MAXPLAYER = 7;
 
-#define DEFAULTCONTROL (multi::players == 1 && !shmup::on && !multi::alwaysuse && !(rug::rugged && rug::renderonce))
+#define DEFAULTCONTROL (multi::players == 1 && !shmup::on && !multi::alwaysuse)
 #define DEFAULTNOR(sym) (DEFAULTCONTROL || multi::notremapped(sym))
 
 #define CAP_MENUSCALING (ISPANDORA || ISMOBILE)
@@ -698,8 +727,6 @@ enum orbAction { roMouse, roKeyboard, roCheck, roMouseForce, roMultiCheck, roMul
 #endif
 #define pmodel (pconf.model)
 
-color_t darkena(color_t c, int lev, int a);
-
 static const int DISTANCE_UNKNOWN = 127;
 
 template<class T, class U> int addHook(hookset<T>& m, int prio, U&& hook) {
@@ -717,13 +744,6 @@ template<class T, class V, class... U> V callhandlers(V zero, const hookset<T>& 
 string XLAT(string);
 
 #define GLERR(call) glError(call, __FILE__, __LINE__)
-
-struct colortable: vector<color_t> {
-  color_t& operator [] (int i) { i %= size(); if(i<0) i += size(); return ((vector<color_t>&)(*this)) [i]; }
-  const color_t& operator [] (int i) const { i %= size(); if(i<0) i += size(); return ((vector<color_t>&)(*this)) [i]; }
-  colortable(std::initializer_list<color_t> v) : vector(v) {}
-  colortable() : vector({0}) {}
-  };
 
 #define SHMUPTITLE "shoot'em up mode"
 
@@ -791,6 +811,13 @@ template<class T> array<T, 4> make_array(T a, T b, T c, T d) { array<T,4> x; x[0
 template<class T> array<T, 3> make_array(T a, T b, T c) { array<T,3> x; x[0] = a; x[1] = b; x[2] = c; return x; }
 template<class T> array<T, 2> make_array(T a, T b) { array<T,2> x; x[0] = a; x[1] = b; return x; }
 
+// Find in a std::map or std::unordered_map, or return null.
+template<class Map, class Key>
+const typename Map::mapped_type *at_or_null(const Map& map, const Key& key) {
+  auto it = map.find(key);
+  return (it == map.end()) ? nullptr : &it->second;
+  }
+
 namespace daily {
   extern bool on;
   extern int daily_id;
@@ -841,8 +868,6 @@ template<class T> ld binsearch(ld dmin, ld dmax, const T& f) {
     }
   return dmin;
   } 
-
-static const color_t NOCOLOR = 0;
 
   static const int max_vec = (1<<14);
   extern bool needConfirmationEvenIfSaved();

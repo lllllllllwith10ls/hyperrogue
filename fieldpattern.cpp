@@ -11,6 +11,10 @@ namespace hr {
 
 EX namespace fieldpattern {
 
+EX bool use_rule_fp = false;
+
+EX bool use_quotient_fp = false;
+
 int limitsq = 10;
 int limitp = 10000;
 int limitv = 100000;
@@ -74,6 +78,10 @@ EX int btspin(int id, int d) {
 #if HDR
 
 static const int ERR = -99;
+
+struct triplet_info {
+  int i, j, size;
+  };
 
 struct fpattern {
 
@@ -224,6 +232,13 @@ struct fpattern {
   
   int gmul(int a, int b) { return matcode[mmul(matrices[a], matrices[b])]; }
   int gpow(int a, int N) { return matcode[mpow(matrices[a], N)]; }
+  
+  int gorder(int a) {
+    int b = a;
+    int q = 1;
+    while(b) b = gmul(b, a), q++;
+    return q;
+    }
 
   pair<int,bool> gmul(pair<int, bool> a, int b) { 
     return make_pair(gmul(a.first,b), a.second); 
@@ -300,6 +315,8 @@ struct fpattern {
   unsigned compute_hash();
 
   void set_field(int p, int sq);
+  
+  unsigned hashv;
 
   #if MAXMDIM >= 4
   // general 4D
@@ -310,11 +327,14 @@ struct fpattern {
   vector<matrix> generate_isometries3();
   int solve3();
   bool generate_all3();
-
+  
   #if CAP_THREAD
   struct discovery *dis;
   #endif
   #endif
+
+  vector<triplet_info> find_triplets();
+  void generate_quotientgroup();
   };
 
 #if CAP_THREAD && MAXMDIM >= 4
@@ -492,9 +512,76 @@ bool fpattern::generate_all3() {
       for(int j=0; j<local_group; j++) add1(mmul(E, matrices[j]));
     if(isize(matrices) >= limitv) { println(hlog, "limitv exceeded"); return false; }
     }
-  unsigned hashv = compute_hash();
+  hashv = compute_hash();
   DEBB(DF_FIELD, ("all = ", isize(matrices), "/", local_group, " = ", isize(matrices) / local_group, " hash = ", hashv, " count = ", ++hash_found[hashv]));
+  
+  if(use_quotient_fp) 
+    generate_quotientgroup();
   return true;
+  }
+
+void fpattern::generate_quotientgroup() {
+  int MS = isize(matrices);
+  int best_p = 0, best_i = 0;
+  for(int i=0; i<MS; i++) {
+    int j = i, p = 1;
+    while(j >= local_group) 
+      j = gmul(j, i), p++;
+    if(j == 0 && p > best_p) {
+      bool okay = true;
+
+      vector<bool> visited(MS, false);
+      for(int ii=0; ii<MS; ii++) if(!visited[ii]) {
+        int jj = ii;
+        for(int k=0; k<p; k++) {
+          if(k && jj/local_group == ii/local_group) okay = false;
+          visited[jj] = true;
+          jj = gmul(i, jj);
+          }
+        }
+      
+      if(okay) {
+        bool chk = (MS/p) % local_group;
+        println(hlog, "quotient by ", i, " : ", p, " times less, ", (MS/p/local_group), " tiles, check ", chk);
+        best_p = p; best_i = i;
+        if(chk) {
+          exit(1);
+          }
+        }
+      }
+    }
+  
+  if(best_p > 1) {
+    vector<int> new_id(MS, -1);
+    vector<int> orig_id(MS, -1);
+    vector<matrix> new_matrices;
+    int nv = 0;
+    for(int i=0; i<MS; i++) if(new_id[i] == -1) {
+      int prode = i;
+      for(int l=0; l<local_group; l++) {
+        new_matrices.push_back(matrices[i+l]);
+        }
+      for(int k=0; k<best_p; k++) {
+        for(int l=0; l<local_group; l++) {
+          new_id[gmul(prode, l)] = nv + l;
+          }
+        prode = gmul(best_i, prode);
+        }
+      nv += local_group;
+      }
+    println(hlog, "got nv = ", nv, " / ", local_group);
+    
+    for(int i=0; i<MS; i++)
+      matcode[matrices[i]] = new_id[i];
+    matrices = std::move(new_matrices);
+    println(hlog, "size matrices = ", isize(matrices), " size matcode = ", isize(matcode));
+    println(hlog, tie(P, R, X));
+    
+    /*println(hlog, "TRY AGAIN");
+    generate_quotientgroup();
+    exit(1);*/
+    }  
+  
   }
 
 int fpattern::solve3() {
@@ -545,7 +632,7 @@ int fpattern::solve3() {
     #if CAP_THREAD && MAXMDIM >= 4
     if(dis) { dis->discovered(); continue; }
     #endif
-    if(force_hash && compute_hash() != force_hash) continue;
+    if(force_hash && hashv != force_hash) continue;
     cmb++;
     goto ok;
     bad: ;
@@ -671,6 +758,84 @@ int fpattern::order(const matrix& M) {
   return cnt;
   }
 
+EX int triplet_id = 0;
+
+vector<triplet_info> fpattern::find_triplets() {
+  int N = isize(matrices);
+  auto compute_transcript = [&] (int i, int j) {
+
+    vector<int> indices(N, -1);
+    vector<int> transcript;
+    vector<int> q;
+    
+    int qty = 0;
+    
+    auto visit = [&] (int id) {
+      transcript.push_back(indices[id]);
+      if(indices[id] == -1) {
+        indices[id] = isize(q);
+        q.push_back(id);
+        qty++;
+        }
+      };
+    
+    visit(0);
+    for(int x=0; x<isize(q); x++) {
+      int at = q[x];
+      visit(gmul(at, i));
+      visit(gmul(at, j));
+      }
+    
+    transcript.push_back(qty);
+    
+    return transcript;
+    };
+  
+  DEBB(DF_FIELD, ("looking for alternate solutions"));
+  auto orig_transcript = compute_transcript(1, S7);
+  
+  set<vector<int>> transcripts_seen;
+  transcripts_seen.insert(orig_transcript);
+  
+  set<int> conjugacy_classes;
+  vector<int> cc;
+  
+  for(int i=0; i<N; i++) conjugacy_classes.insert(i);
+  for(int i=0; i<N; i++) {
+    if(!conjugacy_classes.count(i)) continue;
+    vector<int> removals;
+    for(int j=0; j<N; j++) {
+      int c = gmul(inverses[j], gmul(i, j));
+      if(c > i) removals.push_back(c);
+      }
+    for(auto r: removals) conjugacy_classes.erase(r);
+    cc.push_back(i);
+    }    
+  
+  DEBB(DF_FIELD, ("conjugacy_classes = ", cc));
+  
+  vector<triplet_info> tinf;
+  triplet_info ti;
+  ti.i = 1; ti.j = S7; ti.size = orig_transcript.back();
+  tinf.push_back(ti);
+  
+  for(int i: conjugacy_classes) if(gorder(i) == S7) {
+    DEBB(DF_FIELD, ("checking i=", i));
+    for(int j=1; j<N; j++) if(gorder(j) == 2 && gorder(gmul(i, j)) == S3) {
+      auto t = compute_transcript(i, j);    
+      if(!transcripts_seen.count(t)) {
+        transcripts_seen.insert(t);
+        triplet_info ti;
+        ti.i = i; ti.j = j; ti.size = t.back();
+        tinf.push_back(ti);
+        }
+      }
+    }
+  
+  DEBB(DF_FIELD, ("solutions found = ", isize(transcripts_seen)));
+  return tinf;
+  }
+
 void fpattern::build() {
 
   if(WDIM == 3) return;
@@ -732,6 +897,20 @@ void fpattern::build() {
   if(0) for(int i=0; i<isize(matrices); i++) {
     printf("%5d/%4d", connections[i], inverses[i]);
     if(i%S7 == S7-1) printf("\n");       
+    }
+  
+  DEBB(DF_FIELD, ("triplet_id = ", triplet_id, " N = ", N));
+  if(triplet_id) {  
+    auto triplets = find_triplets();
+    if(triplet_id >= 0 && triplet_id < isize(triplets)) {
+      auto ti = triplets[triplet_id];
+      R = matrices[ti.i];
+      P = matrices[ti.j];
+      dynamicval<int> t(triplet_id, 0);
+      build();
+      DEBB(DF_FIELD, ("triplet built successfully"));
+      return;
+      }
     }
   
   DEBB(DF_FIELD, ("Built.\n"));
@@ -1043,7 +1222,7 @@ void fpattern::findsubpath() {
       }
   }
 
-fpattern fp43(43);
+fpattern *fp43;
 
 EX void info() {
   fpattern fp(0);
@@ -1098,12 +1277,14 @@ EX struct fpattern& getcurrfp() {
     static fpattern fp(0);
     if(fp.Prime) return fp;
     // fp.Prime = 5; fp.force_hash = 0x72414D0C; fp.solve();
-    #ifdef FP_RULES
-    fp.Prime = 11; fp.force_hash = 0x5FC4CFF0; fp.solve();
-    #else
-    shstream ins(STR("\x05\x00\x00\x00\x02\x00\x00\x00\x03\x00\x00\x00\xfc\xff\xff\xff\x01\x00\x00\x00\x04\x00\x00\x00\xfc\xff\xff\xff\x04\x00\x00\x00\xfe\xff\xff\xff\x00\x00\x00\x00\x01\x00\x00\x00\xfe\xff\xff\xff\x04\x00\x00\x00\x02\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x03\x00\x00\x00\x04\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\xff\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00\xfc\xff\xff\xff\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\xfc\xff\xff\xff\x02\x00\x00\x00\x00\x00\x00\x00\xfc\xff\xff\xff\x01\x00\x00\x00\xfd\xff\xff\xff\x00\x00\x00\x00\x02\x00\x00\x00\xfd\xff\xff\xff\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00"));
-    hread_fpattern(ins, fp);
-    #endif
+    
+    if(use_rule_fp) {
+      fp.Prime = 11; fp.force_hash = 0x5FC4CFF0; fp.solve();
+      }
+    else {
+      shstream ins(STR("\x05\x00\x00\x00\x02\x00\x00\x00\x03\x00\x00\x00\xfc\xff\xff\xff\x01\x00\x00\x00\x04\x00\x00\x00\xfc\xff\xff\xff\x04\x00\x00\x00\xfe\xff\xff\xff\x00\x00\x00\x00\x01\x00\x00\x00\xfe\xff\xff\xff\x04\x00\x00\x00\x02\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x03\x00\x00\x00\x04\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\xff\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00\xfc\xff\xff\xff\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\xfc\xff\xff\xff\x02\x00\x00\x00\x00\x00\x00\x00\xfc\xff\xff\xff\x01\x00\x00\x00\xfd\xff\xff\xff\x00\x00\x00\x00\x02\x00\x00\x00\xfd\xff\xff\xff\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00"));
+      hread_fpattern(ins, fp);
+      }
     return fp;
     }
   if(geometry == gSpace435) {
@@ -1112,12 +1293,21 @@ EX struct fpattern& getcurrfp() {
     if(fp.Prime) return fp;
     // fp.Prime = 5; fp.force_hash = 0xEB201050; fp.solve();
     // what is 0x72414D0C??
-    #ifdef FP_RULES
-    fp.Prime = 11; fp.force_hash = 0x65CE0C00; fp.solve();
-    #else
-    shstream ins(STR("\x05\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\xfc\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff\xfc\xff\xff\xff\x04\x00\x00\x00\x02\x00\x00\x00\x04\x00\x00\x00\xff\xff\xff\xff\x02\x00\x00\x00\x03\x00\x00\x00\x03\x00\x00\x00\xfd\xff\xff\xff\x01\x00\x00\x00\x02\x00\x00\x00\x03\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\xfc\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\xfd\xff\xff\xff\xfd\xff\xff\xff\x00\x00\x00\x00\xfd\xff\xff\xff\x02\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\xfd\xff\xff\xff\x03\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00"));
+    
+    if(use_rule_fp) {
+      fp.Prime = 11; fp.force_hash = 0x65CE0C00; fp.solve();
+      }
+    else {
+      shstream ins(STR("\x05\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\xfc\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff\xfc\xff\xff\xff\x04\x00\x00\x00\x02\x00\x00\x00\x04\x00\x00\x00\xff\xff\xff\xff\x02\x00\x00\x00\x03\x00\x00\x00\x03\x00\x00\x00\xfd\xff\xff\xff\x01\x00\x00\x00\x02\x00\x00\x00\x03\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\xfc\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\xfd\xff\xff\xff\xfd\xff\xff\xff\x00\x00\x00\x00\xfd\xff\xff\xff\x02\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\xfd\xff\xff\xff\x03\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00"));
+      hread_fpattern(ins, fp);
+      }
+    return fp;
+    }
+  if(geometry == gSpace436) {
+    static fpattern fp(0);
+    // FF82A214
+    shstream ins(STR("\x05\x00\x00\x00\x02\x00\x00\x00\x01\x00\x00\x00\xfd\xff\xff\xff\x00\x00\x00\x00\xfe\xff\xff\xff\xfd\xff\xff\xff\x01\x00\x00\x00\x01\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x04\x00\x00\x00\xfd\xff\xff\xff\x02\x00\x00\x00\x01\x00\x00\x00\x02\x00\x00\x00\x02\x00\x00\x00\xfc\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\xfd\xff\xff\xff\xfd\xff\xff\xff\x00\x00\x00\x00\xfd\xff\xff\xff\x02\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\xfd\xff\xff\xff\x03\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00"));
     hread_fpattern(ins, fp);
-    #endif
     return fp;
     }
   if(geometry == gSpace336) {
@@ -1198,16 +1388,18 @@ EX struct fpattern& getcurrfp() {
     return fp;
     }
   if(sphere || euclid) return fp_invalid;
-  if(S7 == 7 && S3 == 3 && !bt::in())
-    return fp43;
+  if(S7 == 7 && S3 == 3 && !bt::in()) {
+    if(!fp43) fp43 = new fpattern(43);
+    return *fp43;
+    }
   return fp_invalid;
   }
 
 #undef STR
 
 // todo undefined behavior
-EX int subpathid = currfp.matcode[currfp.strtomatrix("RRRPRRRRRPRRRP")];
-EX int subpathorder = currfp.order(currfp.matrices[subpathid]);
+EX int subpathid = -1; 
+EX int subpathorder = -1; 
 
 // extra information for field quotient extra configuration
 
@@ -1229,6 +1421,7 @@ EX int current_extra = 0;
 
 EX void nextPrime(fgeomextra& ex) {
   dynamicval<eGeometry> g(geometry, ex.base);
+  dynamicval<int> t(triplet_id, 0);
   int nextprime;
   if(isize(ex.primes))
     nextprime = ex.primes.back().p + 1;
@@ -1258,10 +1451,13 @@ EX void enableFieldChange() {
   fieldpattern::quotient_field_changed = true;
   nextPrimes(gxcur);
   dynamicval<eGeometry> g(geometry, gFieldQuotient);
+  ginf[geometry].g = ginf[gxcur.base].g;
   ginf[geometry].sides = ginf[gxcur.base].sides;
   ginf[geometry].vertex = ginf[gxcur.base].vertex;
   ginf[geometry].distlimit = ginf[gxcur.base].distlimit;
   ginf[geometry].tiling_name = ginf[gxcur.base].tiling_name;
+  ginf[geometry].default_variation = ginf[gxcur.base].default_variation;
+  ginf[geometry].flags = qFIELD | qANYQ | qBOUNDED;
   fieldpattern::current_quotient_field.init(gxcur.primes[gxcur.current_prime_id].p);
   }
 
@@ -1304,7 +1500,7 @@ void discovery::activate() {
 void discovery::discovered() {
   std::unique_lock<std::mutex> lk(lock);
   auto& e = experiment;
-  hashes_found[e.compute_hash()] = make_tuple(e.Prime, e.wsquare, e.R, e.P, e.X, isize(e.matrices) / e.local_group);
+  hashes_found[e.hashv] = make_tuple(e.Prime, e.wsquare, e.R, e.P, e.X, isize(e.matrices) / e.local_group);
   }
 
 void discovery::suspend() { is_suspended = true; }
@@ -1320,11 +1516,13 @@ discovery::~discovery() { schedule_destruction(); if(discoverer) discoverer->joi
 
 int hk = 
 #if CAP_THREAD
+#if MAXMDIM >= 4
   + addHook(hooks_on_geometry_change, 100, [] { for(auto& d:discoveries) if(!d.second.is_suspended) d.second.suspend(); })
   + addHook(hooks_final_cleanup, 100, [] { 
       for(auto& d:discoveries) { d.second.schedule_destruction(); if(d.second.is_suspended) d.second.activate(); }
       discoveries.clear();
       })
+#endif
 #endif
 #if CAP_COMMANDLINE
   + addHook(hooks_args, 0, [] {

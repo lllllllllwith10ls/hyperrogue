@@ -14,6 +14,12 @@ enum eCentering { face, edge, vertex };
 
 EX eCentering centering;
 
+EX function<bool()> auto_restrict;
+
+EX void add_to_changed(struct setting *f);
+
+EX bool return_false() { return false; }
+
 #if HDR
 struct supersaver {
   string name;
@@ -21,21 +27,181 @@ struct supersaver {
   virtual void load(const string& s) = 0;
   virtual bool dosave() = 0;
   virtual void reset() = 0;
-  virtual ~supersaver() {};
+  virtual bool affects(void* v) { return false; }
+  virtual void set_default() = 0;
+  virtual ~supersaver() = default;
   };
 
 typedef vector<shared_ptr<supersaver>> saverlist;
 
 extern saverlist savers;
 
+struct setting {
+  function<bool()> restrict;
+  string parameter_name;
+  string config_name;
+  string menu_item_name;
+  string help_text;
+  reaction_t reaction;
+  char default_key;
+  cld last_value;
+  bool is_editable;
+  virtual bool available() { if(restrict) return restrict(); return true; }
+  virtual bool affects(void *v) { return false; }
+  virtual void add_as_saver() {}
+  void show_edit_option() { show_edit_option(default_key); }
+  virtual void show_edit_option(char key) {
+    println(hlog, "default called!"); }
+  virtual string search_key() { 
+    return parameter_name + "|" + config_name + "|" + menu_item_name + "|" + help_text;
+    }
+  virtual cld get_cld() = 0;
+  explicit setting() { restrict = auto_restrict; is_editable = false; }
+  virtual void check_change() {
+    cld val = get_cld();
+    if(val != last_value) {
+      last_value = val;
+      add_to_changed(this);
+      }
+    }
+  reaction_t sets;
+  setting *set_sets(const reaction_t& s) { sets = s; return this; }
+  setting *set_extra(const reaction_t& r);
+  setting *set_reaction(const reaction_t& r);
+  virtual ~setting() = default;
+  virtual void load_from(const string& s) {
+    println(hlog, "cannot load this parameter");
+    exit(1);
+    }
+  };
+#endif
+
+setting *setting::set_extra(const reaction_t& r) {
+  auto s = sets; set_sets([s, r] { if(s) s(); dialog::extra_options = r; }); return this;
+  }
+
+setting *setting::set_reaction(const reaction_t& r) {
+  reaction = r; return this;
+  }
+
+EX map<string, std::unique_ptr<setting>> params;
+
+EX void show_edit_option_enum(char* value, const string& name, const vector<pair<string, string>>& options, char key, setting *s);
+
+#if HDR
+struct list_setting : setting {
+  virtual int get_value() = 0;
+  virtual void set_value(int i) = 0;
+  vector<pair<string, string> > options;
+  list_setting* editable(const vector<pair<string, string> >& o, string menu_item_name, char key) {
+    is_editable = true;
+    options = o;
+    this->menu_item_name = menu_item_name;
+    default_key = key;
+    return this;
+    }
+  void show_edit_option(char key) override;
+  };
+
+template<class T> struct enum_setting : list_setting {
+  T *value;
+  T dft;
+  int get_value() override { return (int) *value; }
+  void set_value(int i) override { *value = (T) i; }
+  bool affects(void* v) override { return v == value; }
+  void add_as_saver() override;
+  cld get_cld() override { return get_value(); }
+  void load_from(const string& s) override {
+    *value = (T) parseint(s);
+    }
+  };
+
+struct float_setting : public setting {
+  ld *value;
+  ld dft;
+  ld min_value, max_value, step;
+  string unit;
+  float_setting *editable(ld min_value, ld max_value, ld step, string menu_item_name, string help_text, char key) {
+    is_editable = true;
+    this->min_value = min_value;
+    this->max_value = max_value;
+    this->menu_item_name = menu_item_name;
+    this->help_text = help_text;
+    this->step = step;
+    default_key = key;
+    return this;
+    }
+  function<void(float_setting*)> modify_me;
+  float_setting *modif(const function<void(float_setting*)>& r) { modify_me = r; return this; }
+  void add_as_saver() override;
+  bool affects(void *v) override { return v == value; }
+  void show_edit_option(char key) override;
+  cld get_cld() override { return *value; }
+  void load_from(const string& s) override;
+  };
+
+struct int_setting : public setting {
+  int *value;
+  int dft;
+  int min_value, max_value;
+  ld step;
+  void add_as_saver() override;
+  function<void(int_setting*)> modify_me;
+  int_setting *modif(const function<void(int_setting*)>& r) { modify_me = r; return this; }
+  bool affects(void *v) override { return v == value; }
+  void show_edit_option(char key) override;
+  cld get_cld() override { return *value; }
+  int_setting *editable(int min_value, int max_value, ld step, string menu_item_name, string help_text, char key) {
+    this->min_value = min_value;
+    this->max_value = max_value;
+    this->menu_item_name = menu_item_name;
+    this->help_text = help_text;
+    this->step = step;
+    default_key = key;
+    return this;
+    }
+
+  void load_from(const string& s) override {
+    *value = parseint(s);
+    }
+  };
+
+struct bool_setting : public setting {
+  bool *value;
+  bool dft;
+  void add_as_saver() override;
+  reaction_t switcher;
+  bool_setting* editable(string cap, char key ) {
+    is_editable = true;
+    menu_item_name = cap; default_key = key; return this; 
+    } 
+  bool affects(void *v) override { return v == value; }
+  void show_edit_option(char key) override;
+  cld get_cld() override { return *value ? 1 : 0; }
+  void load_from(const string& s) override {
+    *value = parseint(s);
+    }
+  };
+
+struct custom_setting : public setting {  
+  function<void(char)> custom_viewer;
+  function<cld()> custom_value;
+  function<bool(void*)> custom_affect;
+  void show_edit_option(char key) override { custom_viewer(key); }
+  cld get_cld() override { return custom_value(); }
+  bool affects(void *v) override { return custom_affect(v); }
+  };
+  
 #if CAP_CONFIG
 
 template<class T> struct dsaver : supersaver {
   T& val;
   T dft;
-  bool dosave() { return val != dft; }
-  void reset() { val = dft; }
-  dsaver(T& val) : val(val) { }
+  bool dosave() override { return val != dft; }
+  void reset() override { val = dft; }
+  explicit dsaver(T& val) : val(val) { }
+  bool affects(void* v) override { return v == &val; }
+  void set_default() override { dft = val; }
   };
 
 template<class T> struct saver : dsaver<T> {};
@@ -54,11 +220,13 @@ template<class T> void addsaver(T& i, string name) {
 template<class T> struct saverenum : supersaver {
   T& val;
   T dft;
-  bool dosave() { return val != dft; }
-  void reset() { val = dft; }
-  saverenum<T>(T& v) : val(v) { }
-  string save() { return its(int(val)); }
-  void load(const string& s) { val = (T) atoi(s.c_str()); }
+  explicit saverenum(T& v) : val(v) { }
+  bool dosave() override { return val != dft; }
+  void reset() override { val = dft; }
+  string save() override { return its(int(val)); }
+  void load(const string& s) override { val = (T) atoi(s.c_str()); }
+  bool affects(void* v) override { return v == &val; }
+  void set_default() override { dft = val; }
   };
 
 template<class T, class U> void addsaverenum(T& i, U name, T dft) {
@@ -73,56 +241,233 @@ template<class T, class U> void addsaverenum(T& i, U name) {
   }
 
 template<> struct saver<int> : dsaver<int> {
-  saver<int>(int& val) : dsaver<int>(val) { }
-  string save() { return its(val); }
-  void load(const string& s) { val = atoi(s.c_str()); }
+  explicit saver(int& val) : dsaver<int>(val) { }
+  string save() override { return its(val); }
+  void load(const string& s) override { val = atoi(s.c_str()); }
   };
 
 template<> struct saver<char> : dsaver<char> {
-  saver<char>(char& val) : dsaver<char>(val) { }
-  string save() { return its(val); }
-  void load(const string& s) { val = atoi(s.c_str()); }
+  explicit saver(char& val) : dsaver<char>(val) { }
+  string save() override { return its(val); }
+  void load(const string& s) override { val = atoi(s.c_str()); }
   };
 
 template<> struct saver<bool> : dsaver<bool> {
-  saver<bool>(bool& val) : dsaver<bool>(val) { }
-  string save() { return val ? "yes" : "no"; }
-  void load(const string& s) { val = isize(s) && s[0] == 'y'; }
+  explicit saver(bool& val) : dsaver<bool>(val) { }
+  string save() override { return val ? "yes" : "no"; }
+  void load(const string& s) override { val = isize(s) && s[0] == 'y'; }
   };
 
 template<> struct saver<unsigned> : dsaver<unsigned> {
-  saver<unsigned>(unsigned& val) : dsaver<unsigned>(val) { }
-  string save() { return itsh(val); }
-  void load(const string& s) { val = (unsigned) strtoll(s.c_str(), NULL, 16); }
+  explicit saver(unsigned& val) : dsaver<unsigned>(val) { }
+  string save() override { return itsh(val); }
+  void load(const string& s) override { val = (unsigned) strtoll(s.c_str(), NULL, 16); }
   };
 
 template<> struct saver<string> : dsaver<string> {
-  saver<string>(string& val) : dsaver<string>(val) { }
-  string save() { return val; }
-  void load(const string& s) { val = s; }
+  explicit saver(string& val) : dsaver<string>(val) { }
+  string save() override { return val; }
+  void load(const string& s) override { val = s; }
   };
 
 template<> struct saver<ld> : dsaver<ld> {
-  saver<ld>(ld& val) : dsaver<ld>(val) { }
-  string save() { return fts(val, 10); }
-  void load(const string& s) { 
+  explicit saver(ld& val) : dsaver<ld>(val) { }
+  string save() override { return fts(val, 10); }
+  void load(const string& s) override {
     if(s == "0.0000000000e+000") ; // ignore!
     else val = atof(s.c_str()); 
     }
   };
 #endif
-
-void addparam(ld& val, const string s);
 #endif
 
+void float_setting::add_as_saver() { 
 #if CAP_CONFIG
-void addparam(ld& val, const string s) {
-  addsaver(val, s);
-  params.insert({s, val});
+  addsaver(*value, config_name, dft);
+#endif
   }
-#else
-void addparam(ld& val, const string s) {
-  params.insert({s, val});
+
+void int_setting::add_as_saver() { 
+#if CAP_CONFIG
+  addsaver(*value, config_name, dft);
+#endif
+  }
+
+void bool_setting::add_as_saver() { 
+#if CAP_CONFIG
+  addsaver(*value, config_name, dft);
+#endif
+  }
+
+void float_setting::load_from(const string& s) {
+  anims::animate_parameter(*value, s, reaction);
+  }
+
+void non_editable() {
+  dialog::addHelp("Warning: editing this value through this menu may not work correctly");
+  }
+
+void float_setting::show_edit_option(char key) {
+  if(modify_me) modify_me(this);
+  dialog::addSelItem(XLAT(menu_item_name), fts(*value) + unit, key);
+  dialog::add_action([this] () {
+    add_to_changed(this);
+    dialog::editNumber(*value, min_value, max_value, step, dft, XLAT(menu_item_name), help_text); 
+    if(sets) sets();
+    if(reaction) dialog::reaction = reaction;
+    if(!is_editable) dialog::extra_options = non_editable;
+    });
+  }
+
+void int_setting::show_edit_option(char key) {
+  if(modify_me) modify_me(this);
+  dialog::addSelItem(XLAT(menu_item_name), its(*value), key);
+  dialog::add_action([this] () {
+    add_to_changed(this);
+    dialog::editNumber(*value, min_value, max_value, step, dft, XLAT(menu_item_name), help_text); 
+    if(sets) sets();
+    if(reaction) dialog::reaction = reaction;
+    if(!is_editable) dialog::extra_options = non_editable;
+    });
+  }
+
+void bool_setting::show_edit_option(char key) {
+  dialog::addBoolItem(XLAT(menu_item_name), *value, key);
+  dialog::add_action([this] () {
+    add_to_changed(this);
+    switcher(); if(sets) sets();
+    if(reaction) reaction();
+    });
+  }
+
+EX float_setting *param_f(ld& val, const string p, const string s, ld dft) {
+  unique_ptr<float_setting> u ( new float_setting );
+  u->parameter_name = p;
+  u->config_name = s;
+  u->menu_item_name = s;
+  u->value = &val;
+  u->last_value = dft;
+  if(dft == 0) {
+    u->min_value = -100;
+    u->max_value = +100;
+    }
+  else {
+    u->min_value = 0;
+    u->max_value = 2 * dft;
+    }
+  u->step = dft / 10;
+  u->dft = dft;
+  val = dft;
+  u->add_as_saver();
+  auto f = &*u;
+  params[u->parameter_name] = std::move(u);
+  return f;
+  }
+
+EX string param_esc(string s) {
+  string out;
+  for(char c: s)
+    if(c == ' ' || c == '-' || c == ':')
+      out += '_';
+    else
+      out += c;
+  return out;
+  }
+
+EX int_setting *param_i(int& val, const string s, int dft) {
+  unique_ptr<int_setting> u ( new int_setting );
+  u->parameter_name = param_esc(s);
+  u->config_name = s;
+  u->menu_item_name = s;
+  u->value = &val;
+  u->last_value = dft;
+  u->dft = dft;
+  val = dft;
+  if(dft == 0) {
+    u->min_value = -100;
+    u->max_value = +100;
+    }
+  else {
+    u->min_value = 0;
+    u->max_value = 2 * dft;
+    }
+  u->add_as_saver();
+  auto f = &*u;
+  params[u->parameter_name] = std::move(u);
+  return f;
+  }
+
+EX int_setting *param_i(int& val, const string s) { return param_i(val, s, val); }
+
+EX bool_setting *param_b(bool& val, const string s, bool dft) {
+  unique_ptr<bool_setting> u ( new bool_setting );
+  u->parameter_name = param_esc(s);
+  u->config_name = s;
+  u->menu_item_name = s;
+  u->value = &val;
+  u->last_value = dft;
+  u->dft = dft;
+  u->switcher = [&val] { val = !val; };
+  val = dft;
+  u->add_as_saver();
+  auto f = &*u;
+  params[u->parameter_name] = std::move(u);
+  return f;
+  }
+
+EX bool_setting *param_b(bool& val, const string s) { return param_b(val, s, val); }
+
+#if HDR
+template<class T> void enum_setting<T>::add_as_saver() { 
+#if CAP_CONFIG
+  addsaverenum(*value, config_name, dft);
+#endif
+  }
+
+template<class T> enum_setting<T> *param_enum(T& val, const string p, const string s, T dft) {
+  unique_ptr<enum_setting<T>> u ( new enum_setting<T> );
+  u->parameter_name = p;
+  u->config_name = s;
+  u->menu_item_name = s;
+  u->value = &val;
+  u->dft = dft;
+  val = dft;
+  u->last_value = u->get_cld();
+  u->add_as_saver();
+  auto f = &*u;
+  params[p] = std::move(u);
+  return f;
+  }
+#endif
+
+EX float_setting* param_f(ld& val, const string s) {
+  return param_f(val, param_esc(s), s, val);
+  }
+
+EX float_setting* param_f(ld& val, const string p, const string s) {
+  return param_f(val, p, s, val);
+  }
+
+EX float_setting* param_f(ld& val, const string s, ld dft) {
+  return param_f(val, param_esc(s), s, dft);
+  }
+
+#if HDR
+template<class T>
+custom_setting* param_custom(T& val, const string& s, function<void(char)> menuitem, char key) {
+  unique_ptr<custom_setting> u ( new custom_setting );
+  u->parameter_name = param_esc(s);
+  u->config_name = s;
+  u->menu_item_name = s;
+  u->last_value = (int) val;
+  u->custom_viewer = menuitem;
+  u->custom_value = [&val] () { return (int) val; };
+  u->custom_affect = [&val] (void *v) { return &val == v; };
+  u->default_key = key;
+  u->is_editable = true;
+  auto f = &*u;
+  params[s] = std::move(u);
+  return f;  
   }
 #endif
 
@@ -138,11 +483,11 @@ EX videopar vid;
 #define DEFAULT_WALLMODE (ISMOBILE ? 3 : 5)
 #define DEFAULT_MONMODE  (ISMOBILE ? 2 : 4)
 
-#if ISANDROID
-#define ANDROID_SETTINGS settingsChanged = true;
-#else
-#define ANDROID_SETTINGS ;
-#endif
+EX void android_settings_changed() {
+  #if ISANDROID
+  settingsChanged = true;
+  #endif
+  }
 
 extern color_t floorcolors[landtypes];
 
@@ -275,56 +620,142 @@ EX purehookset hooks_configfile;
 EX void initConfig() {
   
   // basic config
-  addsaver(vid.flashtime, "flashtime", 8);
-  addsaver(vid.msgleft, "message style", 2);
-  addsaver(vid.msglimit, "message limit", 5);
-  addsaver(vid.timeformat, "message log time format", 0);
-  addsaver(fontscale, "fontscale", 100);
+  param_i(vid.flashtime, "flashtime", 8);
+  param_enum(vid.msgleft, "message_style", "message style", 2)
+    -> editable({{"centered", ""}, {"left-aligned", ""}, {"line-broken", ""}}, "message style", 'a');
 
-  addsaver(vid.mobilecompasssize, "mobile compass size", 0); // ISMOBILE || ISPANDORA ? 30 : 0);
-  addsaver(vid.radarsize, "radarsize size", 120);
+  param_i(vid.msglimit, "message limit", 5);
+  param_i(vid.timeformat, "message log time format", 0);
+  
+  param_b(resizable, "resizable", true)
+  -> editable("resizable window", 'r');
+
+  param_b(display_yasc_codes, "yasc", false)
+  -> editable("YASC codes", 'Y')
+  -> set_reaction([] { 
+    addMessage(XLAT("YASC codes: Sides-Entity-Restrict-Threat-Wall"));  
+    });
+
+  param_b(vid.relative_font, "relative_font", true)
+  -> editable("set relative font size", 'r')
+  -> set_reaction(compute_fsize);
+  param_i(vid.fontscale, "fontscale", 100)
+  -> editable(25, 400, 10, "font scale", "", 'b')
+  -> set_reaction(compute_fsize)
+  -> set_sets([] { dialog::bound_low(0); });
+
+  param_i(vid.abs_fsize, "fsize", 12)
+  -> editable(1, 72, 1, "font size", "", 'b')
+  -> set_reaction(compute_fsize)
+  -> set_sets([] { dialog::bound_low(0); });
+
+  param_i(vid.mobilecompasssize, "mobile compass size", 0); // ISMOBILE || ISPANDORA ? 30 : 0);
+  param_i(vid.radarsize, "radarsize size", 120);
   addsaver(vid.radarrange, "radarrange", 2.5);
-  addsaver(vid.axes, "movement help", 1);
-  addsaver(vid.axes3, "movement help3", true);
-  addsaver(vid.shifttarget, "shift-targetting", 2);
+  param_i(vid.axes, "movement help", 1);
+  param_b(vid.axes3, "movement help3", true);
+  param_i(vid.shifttarget, "shift-targetting", 2);
   addsaver(vid.steamscore, "scores to Steam", 1);
   initcs(vid.cs); addsaver(vid.cs, "single");
-  addsaver(vid.samegender, "princess choice", false);
+  param_b(vid.samegender, "princess choice", false);
   addsaver(vid.language, "language", -1);  
-  addsaver(vid.drawmousecircle, "mouse circle", ISMOBILE || ISPANDORA);
-  addsaver(vid.revcontrol, "reverse control", false);
-  addsaver(musicvolume, "music volume");
+  param_b(vid.drawmousecircle, "mouse circle", ISMOBILE || ISPANDORA);
+  param_b(vid.revcontrol, "reverse control", false);
+  #if CAP_AUDIO
+  param_i(musicvolume, "music volume")
+  ->editable(0, 128, 10, "background music volume", "", 'b')
+  ->set_sets(sets_music_volume);
+  #endif
   #if CAP_SDLAUDIO
   addsaver(music_out_of_focus, "music out of focus", false);
   #endif
-  addsaver(effvolume, "sound effect volume");
-  addsaverenum(glyphsortorder, "glyph sort order");
+  #if CAP_AUDIO
+  param_i(effvolume, "sound effect volume")
+  ->editable(0, 128, 10, "sound effects volume", "", 'e')
+  ->set_sets(sets_sfx_volume);
+  #endif
+
+  param_enum(vid.faraway_highlight, "faraway_highlight", "highlight faraway monsters", tlNoThreat)
+    ->editable({{"off", ""}, {"spam", ""}, {"normal monsters", ""}, {"high-threat monsters only", ""}}, "highlight faraway monsters", 'h');
+
+  param_i(vid.faraway_highlight_color, "faraway_highlight_color", 50)
+  -> editable(0, 100, 10, "faraway highlight color", "0 = monster color, 100 = red-light oscillation", 'c');
+
+  param_enum(glyphsortorder, "glyph_sort", "glyph sort order", glyphsortorder)
+    ->editable({
+      {"first on top", ""},
+      {"first on bottom", ""},
+      {"last on top", ""},
+      {"last on bottom", ""},
+      {"by land", ""},
+      {"by number", ""}
+      }, "inventory/kill sorting", 'k');
   
   // basic graphics
   
-  addsaver(vid.usingGL, "usingGL", true);
-  addsaver(vid.antialias, "antialias", AA_NOGL | AA_FONT | (ISWEB ? AA_MULTI : AA_LINES) | AA_LINEWIDTH | AA_VERSION);
-  addsaver(vid.linewidth, "linewidth", 1);
+  param_b(vid.wantGL, "usingGL", true)
+  ->editable("openGL mode", 'o');
+  
+  addsaver(vid.want_antialias, "antialias", AA_NOGL | AA_FONT | (ISWEB ? AA_MULTI : AA_LINES) | AA_VERSION);
+  addsaver(vid.fineline, "fineline", true);
+  param_f(vid.linewidth, "linewidth", 1);
   addsaver(precise_width, "precisewidth", .5);
   addsaver(perfect_linewidth, "perfect_linewidth", 1);
-  addsaver(linepatterns::width, "pattern-linewidth", 1);
+  param_f(linepatterns::width, "lpwidth", "pattern-linewidth", 1);
   addsaver(fat_edges, "fat-edges");
-  addsaver(pconf.scale, "scale", 1);
-  addsaver(pconf.xposition, "xposition", 0);
-  addsaver(pconf.yposition, "yposition", 0);
-  addsaver(pconf.alpha, "projection", 1);
-  addsaver(vid.sspeed, "scrollingspeed", 0);
-  addsaver(vid.mspeed, "movement speed", 1);
-  addsaver(vid.full, "fullscreen", false);
+  param_f(vid.sspeed, "sspeed", "scrollingspeed", 0);
+  param_f(vid.mspeed, "mspeed", "movement speed", 1);
   addsaver(vid.aurastr, "aura strength", ISMOBILE ? 0 : 128);
   addsaver(vid.aurasmoothen, "aura smoothen", 5);
-  addsaver(vid.graphglyph, "graphical items/kills", 1);
+  param_enum(vid.graphglyph, "graphglyph", "graphical items/kills", 1)
+  -> editable({{"letters", ""}, {"auto", ""}, {"images", ""}}, "inventory/kill mode", 'd');
+
+  param_f(vid.binary_width, "bwidth", "binary-tiling-width", 1);
+  param_custom(vid.binary_width, "binary tiling width", menuitem_binary_width, 'v');
+ 
   addsaver(vid.particles, "extra effects", 1);
-  addsaver(vid.framelimit, "frame limit", 75);
-  addsaver(vid.xres, "xres");
-  addsaver(vid.yres, "yres");
-  addsaver(vid.fsize, "font size");
-  addsaver(vid.darkhepta, "mark heptagons", false);
+  param_i(vid.framelimit, "frame limit", 999);
+
+  #if !ISMOBWEB
+  param_b(vid.want_vsync, "vsync", true)
+  ->editable("vsync", 'v');
+  #endif
+  
+  param_b(vid.want_fullscreen, "fullscreen", false)
+  ->editable("fullscreen mode", 'f');
+  param_b(vid.change_fullscr, "fullscreen_change", false)
+  ->editable("use specific fullscreen resolution", 'g');
+  param_b(vid.relative_window_size, "window_relative", true)
+  ->editable("specify relative window size", 'g');
+
+  param_custom(vid.xres, "xres", [] (char ch) {}, 0)->restrict = return_false;
+  param_custom(vid.yres, "yres", [] (char ch) {}, 0)->restrict = return_false;
+  
+  param_i(vid.fullscreen_x, "fullscreen_x", 1280)
+  -> editable(640, 3840, 640, "fullscreen resolution to use (X)", "", 'x')
+  -> set_sets([] { dialog::bound_low(640); });
+  
+  param_i(vid.fullscreen_y, "fullscreen_y", 1024)
+  -> editable(480, 2160, 480, "fullscreen resolution to use (Y)", "", 'x')
+  -> set_sets([] { dialog::bound_low(480); });
+
+  param_i(vid.window_x, "window_x", 1280)
+  -> editable(160, 3840, 160, "window resolution to use (X)", "", 'x')
+  -> set_sets([] { dialog::bound_low(160); });
+
+  param_i(vid.window_y, "window_y", 1024)
+  -> editable(120, 2160, 120, "window resolution to use (Y)", "", 'x')
+  -> set_sets([] { dialog::bound_low(120); });
+
+  param_f(vid.window_rel_x, "window_rel_x", .9)
+  -> editable(.1, 1, .1, "screen size percentage to use (X)", "", 'x')
+  -> set_sets([] { dialog::bound_low(.1); });
+
+  param_f(vid.window_rel_y, "window_rel_y", .9)
+  -> editable(.1, 1, .1, "screen size percentage to use (Y)", "", 'x')
+  -> set_sets([] { dialog::bound_low(.1); });
+
+  param_b(vid.darkhepta, "mark heptagons", false);
   
   for(auto& lp: linepatterns::patterns) {
     addsaver(lp->color, "lpcolor-" + lp->lpname);
@@ -333,120 +764,51 @@ EX void initConfig() {
   
   // special graphics
 
-  addsaver(pconf.ballangle, "ball angle", 20);
-  addsaver(vid.yshift, "Y shift", 0);
-  addsaver(vid.use_wall_radar, "wallradar", true);
-  addsaver(vid.fixed_facing, "fixed facing", 0);
-  addsaver(vid.fixed_facing_dir, "fixed facing dir", 90);
-  addsaver(vid.fixed_yz, "fixed YZ", true);
-  addsaver(pconf.camera_angle, "camera angle", 0);
-  addsaver(pconf.ballproj, "ballproj", 1);
   addsaver(vid.monmode, "monster display mode", DEFAULT_MONMODE);
   addsaver(vid.wallmode, "wall display mode", DEFAULT_WALLMODE);
 
-  addsaver(vid.depth, "3D depth", 1);
-  addsaver(vid.camera, "3D camera level", 1);
-  addsaver(vid.wall_height, "3D wall height", .3);
-  addsaver(vid.rock_wall_ratio, "3D rock-wall ratio", .9);
-  addsaver(vid.human_wall_ratio, "3D human-wall ratio", .7);
-  addsaver(vid.lake_top, "3D lake top", .25);
-  addsaver(vid.lake_bottom, "3D lake bottom", .9);
-  addsaver(vid.tc_depth, "3D TC depth", 1);
-  addsaver(vid.tc_camera, "3D TC camera", 2);
-  addsaver(vid.tc_alpha, "3D TC alpha", 3);
-  addsaver(vid.highdetail, "3D highdetail", 8);
-  addsaver(vid.middetail, "3D middetail", 8);
-  addsaver(vid.gp_autoscale_heights, "3D Goldberg autoscaling", true);
   addsaver(vid.always3, "3D always", false);
   
-  addsaver(vid.eye, "eyelevel", 0);
-  addsaver(vid.auto_eye, "auto-eyelevel", false);
-  
   addsaver(memory_saving_mode, "memory_saving_mode", (ISMOBILE || ISPANDORA || ISWEB) ? 1 : 0);
-  addsaver(reserve_limit, "memory_reserve", 128);
+  param_i(reserve_limit, "memory_reserve", 128);
   addsaver(show_memory_warning, "show_memory_warning");
 
-  auto& rconf = vid.rug_config;
-  addsaverenum(rconf.model, "rug-projection", mdEquidistant);
-  addsaver(rconf.scale, "rug-projection-scale", 1);
-  addsaver(rconf.alpha, "rug-projection-alpha", 1);
-  addsaver(rconf.clip_min, "rug-projection-clip-min", -100);
-  addsaver(rconf.clip_max, "rug-projection-clip-max", +10);
-  addsaver(rconf.stretch, "rug-projection-stretch", 1);
-  addsaver(rconf.halfplane_scale, "rug-projection-halfplane scale", 1);
-  addsaver(rconf.collignon_parameter, "rug-collignon-parameter", 1);
-  addsaver(rconf.collignon_reflected, "rug-collignon-reflect", false);
-  addsaver(rconf.euclid_to_sphere, "rug-euclid to sphere projection", 1.5);
-  addsaver(rconf.twopoint_param, "rug-twopoint parameter", 1);
-  addsaver(rconf.fisheye_param, "rug-fisheye parameter", 1);
-  addsaver(rconf.model_transition, "rug-model transition", 1);
   addsaver(rug::renderonce, "rug-renderonce");
   addsaver(rug::rendernogl, "rug-rendernogl");
   addsaver(rug::texturesize, "rug-texturesize");
 #if CAP_RUG
-  addsaver(rug::model_distance, "rug-model-distance");
+  param_f(rug::model_distance, "rug_model_distance", "rug-model-distance");
 #endif
 
-  addsaverenum(pmodel, "used model", mdDisk);
-  addsaver(polygonal::SI, "polygon sides");
-  addsaver(polygonal::STAR, "polygon star factor");
-  addsaver(polygonal::deg, "polygonal degree");
-  addsaver(history::autobandhistory, "include history"); // check!
-  addsaver(history::lvspeed, "lineview speed");
-  addsaver(history::extra_line_steps, "lineview extension");
-  
-  addsaver(polygonal::maxcoef, "polynomial degree");
-  for(int i=0; i<polygonal::MSI; i++) {
-    addsaver(polygonal::coefr[i], "polynomial "+its(i)+".real");
-    addsaver(polygonal::coefi[i], "polynomial "+its(i)+".imag");
-    }
-  
-  addsaver(history::bandhalf, "band width");
-  addsaver(history::bandsegment, "band segment");
-  addsaver(models::rotation, "conformal rotation");
-  addsaver(models::rotation_xz, "conformal rotation_xz");
-  addsaver(models::rotation_xy2, "conformal rotation_2");
-  addsaver(models::do_rotate, "conformal rotation mode", 1);
-  addsaver(pconf.model_orientation, "model orientation", 0);
-  addsaver(pconf.model_orientation_yz, "model orientation-yz", 0);
-  addsaver(pconf.top_z, "topz", 5);
-  addsaver(pconf.model_transition, "model transition", 1);
-  addsaver(pconf.halfplane_scale, "halfplane scale", 1);
-  addsaver(history::autoband, "automatic band");
-  addsaver(history::autobandhistory, "automatic band history");
-  addsaver(history::dospiral, "do spiral");
-  addsaver(pconf.clip_min, "clip-min", -1);
-  addsaver(pconf.clip_max, "clip-max", +1);
-  
-  addsaver(vid.backeffects, "background particle effects", (ISMOBILE || ISPANDORA) ? false : true);
+  param_b(vid.backeffects, "background particle effects", (ISMOBILE || ISPANDORA) ? false : true);
   // control
   
-  addsaver(vid.joyvalue, "vid.joyvalue", 4800);
-  addsaver(vid.joyvalue2, "vid.joyvalue2", 5600);
-  addsaver(vid.joysmooth, "vid.joysmooth", 200);
-  addsaver(vid.joypanthreshold, "vid.joypanthreshold", 2500);
-  addsaver(vid.joypanspeed, "vid.joypanspeed", ISPANDORA ? 0.0001 : 0);
+  param_i(vid.joyvalue, "vid.joyvalue", 4800);
+  param_i(vid.joyvalue2, "vid.joyvalue2", 5600);
+  param_i(vid.joysmooth, "vid.joysmooth", 200);
+  param_i(vid.joypanthreshold, "vid.joypanthreshold", 2500);
+  param_f(vid.joypanspeed, "vid.joypanspeed", ISPANDORA ? 0.0001 : 0);
   addsaver(autojoy, "autojoy");
     
   vid.killreduction = 0;
   
-  addsaver(vid.skipstart, "skip the start menu", false);
-  addsaver(vid.quickmouse, "quick mouse", !ISPANDORA);
+  param_b(vid.skipstart, "skip the start menu", false);
+  param_b(vid.quickmouse, "quick mouse", !ISPANDORA);
   
   // colors
 
-  addsaver(crosshair_size, "size:crosshair");
+  param_f(crosshair_size, "size:crosshair");
   addsaver(crosshair_color, "color:crosshair");
   
   addsaver(backcolor, "color:background");
   addsaver(forecolor, "color:foreground");
   addsaver(bordcolor, "color:borders");
   addsaver(ringcolor, "color:ring");
-  addsaver(vid.multiplier_ring, "mult:ring", 1);
+  param_f(vid.multiplier_ring, "mring", "mult:ring", 1);
   addsaver(modelcolor, "color:model");
   addsaver(periodcolor, "color:period");
   addsaver(stdgridcolor, "color:stdgrid"); 
-  addsaver(vid.multiplier_grid, "mult:grid", 1);
+  param_f(vid.multiplier_grid, "mgrid", "mult:grid", 1);
   addsaver(dialog::dialogcolor, "color:dialog");
   for(auto& p: colortables)
     savecolortable(p.second, s0+"canvas"+p.first);
@@ -470,7 +832,8 @@ EX void initConfig() {
   addsaverenum(geometry, "mode-geometry");
   addsaver(shmup::on, "mode-shmup", false);
   addsaver(hardcore, "mode-hardcore", false);
-  addsaver(chaosmode, "mode-chaos");
+  addsaverenum(land_structure, "mode-chaos");
+  #if CAP_INV
   addsaver(inv::on, "mode-Orb Strategy");
   addsaverenum(variation, "mode-variation", eVariation::bitruncated);
   addsaver(peace::on, "mode-peace");
@@ -478,34 +841,30 @@ EX void initConfig() {
   addsaverenum(specialland, "land for special modes");
   
   addsaver(viewdists, "expansion mode");
-  addsaver(backbrightness, "brightness behind sphere");
+  param_f(backbrightness, "back", "brightness behind sphere");
 
-  addsaver(vid.ipd, "interpupilar-distance", 0.05);
-  addsaver(vid.lr_eyewidth, "eyewidth-lr", 0.5);
-  addsaver(vid.anaglyph_eyewidth, "eyewidth-anaglyph", 0.1);
-  addsaver(vid.fov, "field-of-vision", 90);
+  param_f(vid.ipd, "ipd", "interpupilar-distance", 0.05);
+  param_f(vid.lr_eyewidth, "lr", "eyewidth-lr", 0.5);
+  param_f(vid.anaglyph_eyewidth, "anaglyph", "eyewidth-anaglyph", 0.1);
+  param_f(vid.fov, "fov", "field-of-vision", 90);
   addsaver(vid.desaturate, "desaturate", 0);
-  addsaverenum(vid.stereo_mode, "stereo-mode");
-  addsaver(pconf.euclid_to_sphere, "euclid to sphere projection", 1.5);
-  addsaver(pconf.twopoint_param, "twopoint parameter", 1);
-  addsaver(pconf.fisheye_param, "fisheye parameter", 1);
-  addsaver(pconf.stretch, "stretch", 1);
-  addsaver(vid.binary_width, "binary-tiling-width", 1);
-  addsaver(pconf.collignon_parameter, "collignon-parameter", 1);
-  addsaver(pconf.collignon_reflected, "collignon-reflect", false);
+  
+  param_enum(vid.stereo_mode, "stereo_mode", "stereo-mode", vid.stereo_mode)
+    ->editable({{"OFF", ""}, {"anaglyph", ""}, {"side-by-side", ""}
+    #if CAP_ODS
+    , {"ODS", ""}
+    #endif
+    }, "stereo mode", 'm');
 
-  addsaver(vid.plevel_factor, "plevel_factor", 0.7);
-
-  addsaver(vid.creature_scale, "3d-creaturescale", 1);
-  addsaver(vid.height_width, "3d-heightwidth", 1.5);
+  param_f(vid.plevel_factor, "plevel_factor", 0.7);
 
   #if CAP_GP
   addsaver(gp::param.first, "goldberg-x", gp::param.first);
   addsaver(gp::param.second, "goldberg-y", gp::param.second);
   #endif
   
-  addsaver(nohud, "no-hud", false);
-  addsaver(nofps, "no-fps", false);
+  param_b(nohud, "no-hud", false);
+  param_b(nofps, "no-fps", false);
   
   #if CAP_IRR
   addsaver(irr::density, "irregular-density", 2);
@@ -516,45 +875,35 @@ EX void initConfig() {
   addsaver(irr::rearrange_less, "irregular-rearrangeless", 10);
   #endif
   
-  addsaver(vid.linequality, "line quality", 0);
+  param_i(vid.linequality, "line quality", 0);
   
   #if CAP_FILES && CAP_SHOT && CAP_ANIMATIONS
   addsaver(anims::animfile, "animation file format");
   #endif
-  #if CAP_ANIMATIONS
-  addsaver(anims::period, "animation period");
-  addsaver(anims::noframes, "animation frames");
-  addsaver(anims::cycle_length, "animation cycle length");
-  addsaver(anims::parabolic_length, "animation parabolic length");
-  addsaver(anims::rug_angle, "animation rug angle");
-  addsaver(anims::circle_radius, "animation circle radius");
-  addsaver(anims::circle_spins, "animation circle spins");
+
+  #if CAP_RUG
+  addsaver(rug::move_on_touch, "rug move on touch");
   #endif
   
   #if CAP_CRYSTAL
-  addsaver(crystal::compass_probability, "compass-probability");
+  param_f(crystal::compass_probability, "cprob", "compass-probability");
   addsaver(crystal::view_coordinates, "crystal-coordinates");
   #endif
   
-  #if CAP_SHOT
-  addsaver(shot::shotx, "shotx");
-  addsaver(shot::shoty, "shoty");
-  addsaverenum(shot::format, "shotsvg");
-  addsaver(shot::transparent, "shottransparent");
-  addsaver(shot::gamma, "shotgamma");
-  addsaver(shot::caption, "shotcaption");
-  addsaver(shot::fade, "shotfade");
-  #endif
-
 #if CAP_TEXTURE  
-  addsaver(texture::texture_aura, "texture-aura", false);
+  param_b(texture::texture_aura, "texture-aura", false);
 #endif
 
   addsaver(vid.use_smart_range, "smart-range", 0);
-  addsaver(vid.smart_range_detail, "smart-range-detail", 8);
-  addsaver(vid.smart_range_detail_3, "smart-range-detail", 30);
-  addsaver(vid.cells_drawn_limit, "limit on cells drawn", 10000);
-  addsaver(vid.cells_generated_limit, "limit on cells generated", 250);
+  param_f(vid.smart_range_detail, "smart-range-detail", 8)
+  ->editable(1, 50, 1, "minimum visible cell in pixels", "", 'd');
+
+  param_f(vid.smart_range_detail_3, "smart-range-detail-3", 30)
+  ->editable(1, 50, 1, "minimum visible cell in pixels", "", 'd');
+
+  param_b(vid.smart_area_based, "smart-area-based", false);
+  param_i(vid.cells_drawn_limit, "limit on cells drawn", 10000);
+  param_i(vid.cells_generated_limit, "limit on cells generated", 250);
   
   #if CAP_SOLV
   addsaver(sn::solrange_xy, "solrange-xy");
@@ -562,12 +911,8 @@ EX void initConfig() {
   #endif
   addsaver(slr::steps, "slr-steps");
   addsaver(slr::range_xy, "slr-range-xy");
-  
-  addsaver(pconf.skiprope, "mobius", 0);
-  
-  addsaver(pconf.formula, "formula");
-  addsaverenum(pconf.basic_model, "basic model");
-  addsaver(pconf.use_atan, "use_atan");
+
+  param_f(arcm::euclidean_edge_length, "arcm-euclid-length");
   
   addsaver(arcm::current.symbol, "arcm-symbol", "4^5");
   addsaverenum(hybrid::underlying, "product-underlying");
@@ -589,6 +934,11 @@ EX void initConfig() {
   
   ld bonus = 0;
   ld emul = 1;
+  
+  param_b(dialog::onscreen_keyboard, "onscreen_keyboard")
+  ->editable("onscreen keyboard", 'k');
+  
+  param_b(context_fog, "coolfog");
 
   addsaver(sightranges[gBinary3], "sight-binary3", 3.1 + bonus);
   addsaver(sightranges[gCubeTiling], "sight-cubes", 10);
@@ -625,37 +975,27 @@ EX void initConfig() {
   addsaver(sightranges[gSpace344], "sight-344", 4.5);
   addsaver(sightranges[gSpace336], "sight-336", 4);
 
-  addsaver(vid.sloppy_3d, "sloppy3d", true);
+  param_b(vid.sloppy_3d, "sloppy3d", true);
 
-  addsaver(vid.texture_step, "wall-quality", 1);
+  param_i(vid.texture_step, "wall-quality", 4);
   
-  addsaver(smooth_scrolling, "smooth-scrolling", false);
+  param_b(smooth_scrolling, "smooth-scrolling", false);
   addsaver(mouseaim_sensitivity, "mouseaim_sensitivity", 0.01);
 
-  addsaver(vid.consider_shader_projection, "shader-projection", true);
+  param_b(vid.consider_shader_projection, "shader-projection", true);
   
-#if CAP_RACING
-  addsaver(racing::race_advance, "race_advance");
-  addsaver(racing::race_angle, "race_angle");
-  addsaver(racing::ghosts_to_show, "race_ghosts_to_show");
-  addsaver(racing::ghosts_to_save, "race_ghosts_to_save");
-  addsaver(racing::guiding, "race_guiding");
-  addsaver(racing::player_relative, "race_player_relative");
-  addsaver(racing::standard_centering, "race_standard_centering");
-#endif
-
-  addsaver(tortoise::shading_enabled, "tortoise_shading", true);
+  param_b(tortoise::shading_enabled, "tortoise_shading", true);
 
   addsaver(bounded_mine_percentage, "bounded_mine_percentage");
 
-  addsaver(nisot::geodesic_movement, "solv_geodesic_movement", true);
+  param_b(nisot::geodesic_movement, "solv_geodesic_movement", true);
 
   addsaver(s2xe::qrings, "s2xe-rings");
   addsaver(rots::underlying_scale, "rots-underlying-scale");
   
-  addsaver(vid.bubbles_special, "bubbles-special", 1);
-  addsaver(vid.bubbles_threshold, "bubbles-special", 1);
-  addsaver(vid.bubbles_all, "bubbles-special", 0);
+  param_b(vid.bubbles_special, "bubbles-special", 1);
+  param_b(vid.bubbles_threshold, "bubbles-threshold", 1);
+  param_b(vid.bubbles_all, "bubbles-all", 0);
 
 #if CAP_SHMUP  
   multi::initConfig();
@@ -667,23 +1007,50 @@ EX void initConfig() {
   addsaver(nilv::nilperiod[1], "nilperiod_y");
   addsaver(nilv::nilperiod[2], "nilperiod_z");
   
-  addsaverenum(neon_mode, "neon_mode");
+  param_enum(neon_mode, "neon_mode", "neon_mode", neon_mode)
+    ->editable(
+        {{"OFF", ""}, {"standard", ""}, {"no boundary mode", ""}, {"neon mode II", ""}, {"illustration mode", ""}}, 
+        "neon mode", 'M'
+        );
+
   addsaverenum(neon_nofill, "neon_nofill");
-  addsaver(noshadow, "noshadow");
-  addsaver(bright, "bright");
-  addsaver(cblind, "cblind");
+  param_b(noshadow, "noshadow");
+  param_b(bright, "bright");
+  param_b(cblind, "cblind");
   
   addsaverenum(centering, "centering");
+  
+  param_f(camera_speed, "camspd", "camera-speed", 1);
+  param_f(camera_rot_speed, "camrot", "camera-rot-speed", 1);
+
+  param_f(panini_alpha, "panini_alpha", 0);
+  param_f(stereo_alpha, "stereo_alpha", 0);
 
   callhooks(hooks_configfile);
+  
+  #if CAP_SHOT
+  addsaver(levellines, "levellines");
+  #endif
 
 #if CAP_CONFIG
   for(auto s: savers) s->reset();
 #endif
+
+  param_custom(sightrange_bonus, "sightrange_bonus", menuitem_sightrange_bonus, 'r');
+  param_custom(vid.use_smart_range, "sightrange_style", menuitem_sightrange_style, 's');
+  
+  param_custom(gp::param.first, "Goldberg x", menuitem_change_variation, 0);
+  param_custom(gp::param.second, "Goldberg y", menuitem_change_variation, 0);
+  param_custom(variation, "variation", menuitem_change_variation, 'v')
+  ->help_text = "variation|dual|bitruncated";
+  param_custom(geometry, "geometry", menuitem_change_geometry, 0)
+  ->help_text = "hyperbolic|spherical|Euclidean";
+  
+  param_i(stamplen, "stamplen");
   }
 
 EX bool inSpecialMode() {
-  return chaosmode || !BITRUNCATED || peace::on || 
+  return !ls::nice_walls() || ineligible_starting_land || !BITRUNCATED || peace::on || 
   #if CAP_TOUR
     tour::on ||
   #endif
@@ -700,7 +1067,7 @@ EX bool have_current_settings() {
 #if CAP_TOUR
   if(tour::on) modecount += 10;
 #endif
-  if(chaosmode) modecount += 10;
+  if(!ls::nice_walls()) modecount += 10;
   if(!BITRUNCATED) modecount += 10;
   if(peace::on) modecount += 10;
   if(yendor::on) modecount += 10;
@@ -743,7 +1110,14 @@ EX void resetModes(char leave IS('c')) {
     }
   if(shmup::on != (leave == rg::shmup)) stop_game_and_switch_mode(rg::shmup);
   if(inv::on != (leave == rg::inv)) stop_game_and_switch_mode(rg::inv);
-  if(chaosmode != (leave == rg::chaos)) stop_game_and_switch_mode(rg::chaos);
+
+  /* we do this twice to make sure that stop_game_and_switch_mode switches to the correct land_structure */
+  for(int i=0; i<2; i++) {
+    if(leave == rg::chaos && !ls::std_chaos()) stop_game_and_switch_mode(rg::chaos);
+    if(leave != rg::chaos && !ls::nice_walls()) stop_game_and_switch_mode(rg::chaos);
+    }
+
+  if((!!dual::state) != (leave == rg::dualmode)) stop_game_and_switch_mode(rg::dualmode);
 
   if(peace::on != (leave == rg::peace)) stop_game_and_switch_mode(rg::peace);
 #if CAP_TOUR
@@ -852,7 +1226,7 @@ EX void loadNewConfig(FILE *f) {
 EX void loadConfig() {
  
   DEBB(DF_INIT, ("load config"));
-  vid.xres = 9999; vid.yres = 9999; vid.framelimit = 300;
+  vid.xres = 9999; vid.yres = 9999; vid.framelimit = 999;
   FILE *f = fopen(conffile, "rt");
   if(f) {
     int err;
@@ -881,7 +1255,6 @@ EX void loadConfig() {
 EX void add_cells_drawn(char c IS('C')) {
   dialog::addSelItem(XLAT("cells drawn"), (noclipped ? its(cells_drawn) + " (" + its(noclipped) + ")" : its(cells_drawn)) + " / " + its(vid.cells_drawn_limit), c);
   dialog::add_action([] () { 
-    popScreen();
     dialog::editNumber(vid.cells_drawn_limit, 100, 1000000, log(10), 10000, XLAT("limit on cells drawn"), 
       XLAT("This limit exists to protect the engine from freezing when too many cells would be drawn according to the current options.")
       );
@@ -910,27 +1283,9 @@ string solhelp() {
 #endif
   }
 
-EX void edit_sightrange() {
-  #if CAP_RUG
-  USING_NATIVE_GEOMETRY_IN_RUG;
-  #endif
-  if(vid.use_smart_range) {
-    ld& det = WDIM == 2 ? vid.smart_range_detail : vid.smart_range_detail_3;
-    dialog::editNumber(det, 1, 50, 1, WDIM == 2 ? 8 : 30, XLAT("minimum visible cell in pixels"), "");
-    }
-  else if(WDIM == 3) {
-    dialog::editNumber(sightranges[geometry], 0, 2 * M_PI, 0.5, M_PI, XLAT("3D sight range"),
-      (pmodel == mdGeodesic && sol) ? solhelp() : XLAT(
-        "Sight range for 3D geometries is specified in the absolute units. This value also affects the fog effect.\n\n"
-        "In spherical geometries, the sight range of 2? will let you see things behind you as if they were in front of you, "
-        "and the sight range of ? (or more) will let you see things on the antipodal point just as if they were close to you.\n\n"
-        "In hyperbolic geometries, the number of cells to render depends exponentially on the sight range. More cells to drawn "
-        "reduces the performance.\n\n"
-        "Sight range affects the gameplay, and monsters act iff they are visible. Monster generation takes this into account."
-        )
-      );
-    }
-  else {
+EX void menuitem_sightrange_bonus(char c) {
+  dialog::addSelItem(XLAT("sight range bonus"), its(sightrange_bonus), c);
+  dialog::add_action([]{
     dialog::editNumber(sightrange_bonus, -5, allowIncreasedSight() ? 3 : 0, 1, 0, XLAT("sight range"), 
       XLAT("Roughly 42% cells are on the edge of your sight range. Reducing "
       "the sight range makes HyperRogue work faster, but also makes "
@@ -938,111 +1293,166 @@ EX void edit_sightrange() {
     dialog::reaction = doOvergenerate;
     dialog::bound_low(1-getDistLimit());
     dialog::bound_up(allowIncreasedSight() ? euclid ? 99 : gp::dist_2() * 5 : 0);
-    }
-  dialog::extra_options = [] () {
-    if(pmodel == mdGeodesic && sol) {
-      #if CAP_SOLV
-      dialog::addSelItem(XLAT("fog effect"), fts(sightranges[geometry]), 'R');
-      dialog::add_action([] {
-        auto xo = dialog::extra_options;
-        dialog::editNumber(sightranges[geometry], 0, 10, 0.5, M_PI, solhelp(), "");
-        dialog::extra_options = xo; popScreen();
-        });
-      dialog::addSelItem(XLAT("max difference in X/Y coordinates"), fts(sn::solrange_xy), 'X');
-      dialog::add_action([] {
-        auto xo = dialog::extra_options;
-        dialog::editNumber(sn::solrange_xy, 0.01, 200, 0.1, 50, XLAT("max difference in X/Y coordinates"), solhelp()), dialog::scaleLog();
-        dialog::extra_options = xo; popScreen();
-        });
-      dialog::addSelItem(XLAT("max difference in Z coordinate"), fts(sn::solrange_z), 'Z');
-      dialog::add_action([] {
-        auto xo = dialog::extra_options;
-        dialog::editNumber(sn::solrange_z, 0, 20, 0.1, 6, XLAT("max difference in Z coordinates"), solhelp());
-        dialog::extra_options = xo; popScreen();
-        });
-      #endif
-      }
-    else if(pmodel == mdGeodesic && sl2) {
-      dialog::addSelItem(XLAT("fog effect"), fts(sightranges[geometry]), 'R');
-      dialog::add_action([] {
-        auto xo = dialog::extra_options;
-        dialog::editNumber(sightranges[geometry], 0, 10, 0.5, M_PI, "", "");
-        dialog::extra_options = xo; popScreen();
-        });
-      dialog::addSelItem(XLAT("max difference in X/Y coordinates"), fts(slr::range_xy), 'X');
-      dialog::add_action([] {
-        auto xo = dialog::extra_options;
-        dialog::editNumber(slr::range_xy, 0, 10, 0.5, 4, XLAT("max difference in X/Y coordinates"), "");
-        dialog::extra_options = xo; popScreen();
-        });
-      dialog::addSelItem(XLAT("steps"), its(slr::steps), 'Z');
-      dialog::add_action([] {
-        auto xo = dialog::extra_options;
-        dialog::editNumber(slr::steps, 0, 50, 1, 10, "", "");
-        dialog::extra_options = xo; popScreen();
-        });
-      }
-    else {
-      dialog::addBoolItem(XLAT("draw range based on distance"), vid.use_smart_range == 0, 'D');
-      dialog::add_action([] () { vid.use_smart_range = 0; popScreen(); edit_sightrange(); });
-      if(WDIM == 2 && allowIncreasedSight()) {
-        dialog::addBoolItem(XLAT("draw based on size in the projection (no generation)"), vid.use_smart_range == 1, 'N');
-        dialog::add_action([] () { vid.use_smart_range = 1; popScreen(); edit_sightrange(); });
-        }
-      if(allowChangeRange() && allowIncreasedSight()) {
-        dialog::addBoolItem(XLAT("draw based on size in the projection (generation)"), vid.use_smart_range == 2, 'G');
-        dialog::add_action([] () { vid.use_smart_range = 2; popScreen(); edit_sightrange(); });
-        }
-      if(vid.use_smart_range == 0 && allowChangeRange() && WDIM == 2) {
-        dialog::addSelItem(XLAT("generation range bonus"), its(genrange_bonus), 'O');
-        dialog::add_action([] () { genrange_bonus = sightrange_bonus; doOvergenerate(); });
-        dialog::addSelItem(XLAT("game range bonus"), its(gamerange_bonus), 'S');
-        dialog::add_action([] () { gamerange_bonus = sightrange_bonus; doOvergenerate(); });
-        }      
-      if(!allowChangeRange() || !allowIncreasedSight()) {
-        dialog::addItem(XLAT("enable the cheat mode for additional options"), 'X');
-        dialog::add_action(enable_cheat);
-        }
-      if(WDIM == 3 && !vid.use_smart_range) {
-        dialog::addBoolItem_action(XLAT("sloppy range checking"), vid.sloppy_3d, 'S');
-        }
-      if(GDIM == 3 && !vid.use_smart_range) {
-        dialog::addSelItem(XLAT("limit generation"), fts(extra_generation_distance), 'E');
+    });
+  }
+
+EX void edit_sightrange() {
+  #if CAP_RUG
+  USING_NATIVE_GEOMETRY_IN_RUG;
+  #endif
+  gamescreen(0);
+  dialog::init("sight range settings");
+  add_edit(vid.use_smart_range);
+  if(vid.use_smart_range)
+    add_edit(WDIM == 2 ? vid.smart_range_detail : vid.smart_range_detail_3);
+  else {
+    if(WDIM == 2) {
+      add_edit(sightrange_bonus);
+      if(GDIM == 3) {
+        dialog::addSelItem(XLAT("3D sight range for the fog effect"), fts(sightranges[geometry]), 'r');
         dialog::add_action([] {
-          auto xo = dialog::extra_options;
-          dialog::editNumber(extra_generation_distance, 0, 999, 0.5, 999, XLAT("limit generation"), 
-            "Cells over this distance will not be generated, but they will be drawn if they are already generated and in the sight range."
-            );
-          dialog::extra_options = xo; popScreen();
+          dialog::editNumber(sightranges[geometry], 0, 2 * M_PI, 0.5, M_PI, XLAT("fog effect"), "");
           });
         }
       }
-    add_cells_drawn('C');
-    if(GDIM == 3 && WDIM == 2 && pmodel == mdPerspective) {
-      dialog::addSelItem(XLAT("fog effect"), fts(sightranges[geometry]), 'R');
+    if(WDIM == 3) {
+      dialog::addSelItem(XLAT("3D sight range"), fts(sightranges[geometry]), 'r');
       dialog::add_action([] {
-        auto xo = dialog::extra_options;
-        dialog::editNumber(sightranges[geometry], 0, 2 * M_PI, 0.5, M_PI, XLAT("fog effect"), "");
-        dialog::extra_options = xo; popScreen();
+      dialog::editNumber(sightranges[geometry], 0, 2 * M_PI, 0.5, M_PI, XLAT("3D sight range"),
+        XLAT(
+          "Sight range for 3D geometries is specified in the absolute units. This value also affects the fog effect.\n\n"
+          "In spherical geometries, the sight range of 2π will let you see things behind you as if they were in front of you, "
+          "and the sight range of π (or more) will let you see things on the antipodal point just as if they were close to you.\n\n"
+          "In hyperbolic geometries, the number of cells to render depends exponentially on the sight range. More cells to drawn "
+          "reduces the performance.\n\n"
+          "Sight range affects the gameplay, and monsters act iff they are visible. Monster generation takes this into account."
+          )
+        );
         });
-      };
-    };
+      }
+    }
+  #if CAP_SOLV
+  if(pmodel == mdGeodesic && sol) {
+    dialog::addSelItem(XLAT("max difference in X/Y coordinates"), fts(sn::solrange_xy), 'x');
+    dialog::add_action([] {
+      dialog::editNumber(sn::solrange_xy, 0.01, 200, 0.1, 50, XLAT("max difference in X/Y coordinates"), solhelp()), dialog::scaleLog();
+      });
+    dialog::addSelItem(XLAT("max difference in Z coordinate"), fts(sn::solrange_z), 'z');
+    dialog::add_action([] {
+      dialog::editNumber(sn::solrange_z, 0, 20, 0.1, 6, XLAT("max difference in Z coordinates"), solhelp());
+      });
+    }
+  #endif
+  if(pmodel == mdGeodesic && sl2) {
+    dialog::addSelItem(XLAT("max difference in X/Y coordinates"), fts(slr::range_xy), 'x');
+    dialog::add_action([] {
+      dialog::editNumber(slr::range_xy, 0, 10, 0.5, 4, XLAT("max difference in X/Y coordinates"), "");
+      });
+    dialog::addSelItem(XLAT("steps"), its(slr::steps), 'z');
+    dialog::add_action([] {
+      dialog::editNumber(slr::steps, 0, 50, 1, 10, "", "");
+      });
+    }
+  if(vid.use_smart_range && WDIM == 2) {
+    dialog::addBoolItem_action(XLAT("area-based range"), vid.smart_area_based, 'a');
+    }
+  if(vid.use_smart_range == 0 && allowChangeRange() && WDIM == 2) {
+    dialog::addSelItem(XLAT("generation range bonus"), its(genrange_bonus), 'o');
+    dialog::add_action([] () { genrange_bonus = sightrange_bonus; doOvergenerate(); });
+    dialog::addSelItem(XLAT("game range bonus"), its(gamerange_bonus), 's');
+    dialog::add_action([] () { gamerange_bonus = sightrange_bonus; doOvergenerate(); });
+    }
+  if(WDIM == 3 && !vid.use_smart_range) {
+    dialog::addBoolItem_action(XLAT("sloppy range checking"), vid.sloppy_3d, 's');
+    }
+  if(GDIM == 3 && !vid.use_smart_range) {
+    dialog::addSelItem(XLAT("limit generation"), fts(extra_generation_distance), 'e');
+    dialog::add_action([] {
+      dialog::editNumber(extra_generation_distance, 0, 999, 0.5, 999, XLAT("limit generation"), 
+        "Cells over this distance will not be generated, but they will be drawn if they are already generated and in the sight range."
+        );
+      });
+    }
+  add_cells_drawn('c');
+  dialog::display();
+  }
+
+EX void menuitem_sightrange_style(char c IS('c')) {
+  dialog::addSelItem(XLAT("draw range based on"), 
+    vid.use_smart_range == 0 ? XLAT("distance") :
+    vid.use_smart_range == 1 ? XLAT("size (no gen)") :
+    XLAT("size"),
+    c
+    );
+  dialog::add_action_push([] {
+    dialog::init(XLAT("draw range based on"));
+    dialog::addBoolItem(XLAT("draw range based on distance"), vid.use_smart_range == 0, 'd');
+    dialog::add_action([] () { vid.use_smart_range = 0; popScreen(); edit_sightrange(); });
+    if(WDIM == 2 && allowIncreasedSight()) {
+      dialog::addBoolItem(XLAT("draw based on size in the projection (no generation)"), vid.use_smart_range == 1, 'n');
+      dialog::add_action([] () { vid.use_smart_range = 1; popScreen(); edit_sightrange(); });
+      }
+    if(allowChangeRange() && allowIncreasedSight()) {
+      dialog::addBoolItem(XLAT("draw based on size in the projection (generation)"), vid.use_smart_range == 2, 'g');
+      dialog::add_action([] () { vid.use_smart_range = 2; popScreen(); edit_sightrange(); });
+      }
+    if(!allowChangeRange() || !allowIncreasedSight()) {
+      dialog::addItem(XLAT("enable the cheat mode for additional options"), 'X');
+      dialog::add_action(enable_cheat);
+      }
+    dialog::display();
+    });
   }
 
 EX void menuitem_sightrange(char c IS('c')) {
-  if(vid.use_smart_range)
-    dialog::addSelItem(XLAT("minimum visible cell in pixels"), fts(WDIM == 3 ? vid.smart_range_detail_3 : vid.smart_range_detail), c);
   #if CAP_SOLV
-  else if(pmodel == mdGeodesic && sol)
-    dialog::addSelItem(XLAT("3D sight range"), fts(sn::solrange_xy) + "x" + fts(sn::solrange_z), c);
-  #endif
-  else if(WDIM == 3)
-    dialog::addSelItem(XLAT("3D sight range"), fts(sightranges[geometry]), c);
+  if(pmodel == mdGeodesic && sol)
+    dialog::addSelItem(XLAT("sight range settings"), fts(sn::solrange_xy) + "x" + fts(sn::solrange_z), c);
   else
-    dialog::addSelItem(XLAT("sight range"), its(sightrange_bonus), c);
-  dialog::add_action(edit_sightrange);
+  #endif
+  if(vid.use_smart_range)
+    dialog::addSelItem(XLAT("sight range settings"), fts(WDIM == 3 ? vid.smart_range_detail_3 : vid.smart_range_detail) + " px", c);
+  else if(WDIM == 3)
+    dialog::addSelItem(XLAT("sight range settings"), fts(sightranges[geometry]) + "au", c);
+  else
+    dialog::addSelItem(XLAT("sight range settings"), format("%+d", sightrange_bonus), c);
+  dialog::add_action_push(edit_sightrange);
   }
-  
+
+EX void sets_sfx_volume() {
+#if CAP_AUDIO
+  dialog::numberdark = dialog::DONT_SHOW;
+  #if ISANDROID
+  dialog::reaction = [] () {
+    settingsChanged = true;
+    };
+  #endif
+  dialog::bound_low(0);
+  dialog::bound_up(MIX_MAX_VOLUME);
+#endif
+  }
+
+EX void sets_music_volume() {
+#if CAP_AUDIO
+  dialog::numberdark = dialog::DONT_SHOW;
+  dialog::reaction = [] () {
+    #if CAP_SDLAUDIO
+    Mix_VolumeMusic(musicvolume);
+    #endif
+    #if ISANDROID
+    settingsChanged = true;
+    #endif
+    };
+  dialog::bound_low(0);
+  dialog::bound_up(MIX_MAX_VOLUME);
+  #if CAP_SDLAUDIO
+  dialog::extra_options = [] {
+    dialog::addBoolItem_action(XLAT("play music when out of focus"), music_out_of_focus, 'A');
+    };
+  #endif
+#endif
+  }
+
 EX void showSpecialEffects() {
   cmode = vid.xres > vid.yres * 1.4 ? sm::SIDE : sm::MAYDARK;
   gamescreen(0);
@@ -1059,40 +1469,147 @@ EX void showSpecialEffects() {
   dialog::display();
   }
 
+EX void show_vector_settings() {
+  cmode = vid.xres > vid.yres * 1.4 ? sm::SIDE : sm::MAYDARK;
+  gamescreen(0);
+  dialog::init(XLAT("vector settings"));
+
+  dialog::addSelItem(XLAT("line width"), fts(vid.linewidth), 'w');
+  dialog::add_action([] {
+     dialog::editNumber(vid.linewidth, 0, 10, 0.1, 1, XLAT("line width"), 
+       vid.usingGL ? "" : XLAT("Line width setting is only taken into account in OpenGL."));
+     });
+
+  dialog::addSelItem(XLAT("line quality"), its(vid.linequality), 'l');
+  dialog::add_action([] {
+    dialog::editNumber(vid.linequality, -3, 5, 1, 1, XLAT("line quality"), 
+      XLAT("Higher numbers make the curved lines smoother, but reduce the performance."));
+    });
+
+  dialog::addBoolItem("perfect width", perfect_linewidth == 2, 'p');
+  if(perfect_linewidth == 1) 
+    dialog::lastItem().value = XLAT("shots only");
+  dialog::add_action([] { perfect_linewidth = (1 + perfect_linewidth) % 3; });
+
+  dialog::addBoolItem_action("finer lines at the boundary", vid.fineline, 'O');
+
+  if(vid.fineline) {
+    dialog::addSelItem("variable width", fts(precise_width), 'm');
+    dialog::add_action([] () {
+      dialog::editNumber(precise_width, 0, 2, 0.1, 0.5, 
+        XLAT("variable width"), XLAT("lines longer than this value will be split into shorter lines, with width computed separately for each of them.")
+        );
+      });
+    }
+  else dialog::addBreak(100);
+  
+  add_edit(neon_mode);        
+  dialog::addBreak(100);
+  dialog::addInfo(XLAT("hint: press Alt while testing modes"));
+  dialog::addBreak(100);
+  dialog::addBoolItem_action(XLAT("disable shadows"), noshadow, 'f');
+  dialog::addBoolItem_action(XLAT("bright mode"), bright, 'g');
+  dialog::addBoolItem_action(XLAT("colorblind simulation"), cblind, 'h');
+
+  dialog::addBoolItem_action(XLAT("no fill in neon mode"), neon_nofill, 'n');
+
+  dialog::addBreak(50);
+  dialog::addBack();
+  dialog::display();
+  }
+
 EX void showGraphConfig() {
   cmode = vid.xres > vid.yres * 1.4 ? sm::SIDE : sm::MAYDARK;
   gamescreen(0);
 
   dialog::init(XLAT("graphics configuration"));
+  
+#if !ISIOS && !ISWEB
+  add_edit(vid.want_fullscreen);
+  
+  #if !ISANDROID && !ISFAKEMOBILE
+  if(vid.want_fullscreen) {
+    add_edit(vid.change_fullscr);
+    if(vid.change_fullscr)
+      add_edit(vid.fullscreen_x), add_edit(vid.fullscreen_y);
+    else
+      dialog::addBreak(200);
+    }
+  else {
+    add_edit(vid.relative_window_size);
+    if(vid.relative_window_size)
+      add_edit(vid.window_rel_x), add_edit(vid.window_rel_y);
+    else
+      add_edit(vid.window_x), add_edit(vid.window_y);
+    }
+  #endif
+#endif
 
   #if CAP_GLORNOT
-  dialog::addBoolItem(XLAT("openGL mode"), vid.usingGL, 'o');
+  add_edit(vid.wantGL);  
   #endif
 
-  if(!vid.usingGL)
-    dialog::addBoolItem(XLAT("anti-aliasing"), vid.antialias & AA_NOGL, 'O');
-
-  if(vid.usingGL)
+  #if !ISIOS && !ISANDROID && !ISFAKEMOBILE
+  if(!vid.usingGL) {
+    dialog::addBoolItem(XLAT("anti-aliasing"), vid.want_antialias & AA_NOGL, 'O');
+    dialog::add_action([] {
+      if(!vid.usingGL)
+        vid.want_antialias ^= AA_NOGL | AA_FONT;
+      });
+    }
+  else {
     dialog::addSelItem(XLAT("anti-aliasing"), 
-      (vid.antialias & AA_POLY) ? "polygons" :
-      (vid.antialias & AA_LINES) ? "lines" :
-      (vid.antialias & AA_MULTI) ? "multisampling" :
+      (vid.want_antialias & AA_POLY) ? "polygons" :
+      (vid.want_antialias & AA_LINES) ? "lines" :
+      (vid.want_antialias & AA_MULTI) ? "multisampling" :
       "NO", 'O');
+    dialog::add_action([] {
+      if(vid.want_antialias & AA_MULTI)
+        vid.want_antialias ^= AA_MULTI;
+      else if(vid.want_antialias & AA_POLY)
+        vid.want_antialias ^= AA_POLY | AA_LINES | AA_MULTI;
+      else if(vid.want_antialias & AA_LINES) 
+        vid.want_antialias |= AA_POLY;
+      else 
+        vid.want_antialias |= AA_LINES;
+      });
+    }
+  #endif
 
-  dialog::addSelItem(XLAT("vector graphics modes"), XLAT("width") + " " + fts(vid.linewidth), 'w');
+  #if !ISIOS && !ISANDROID && !ISFAKEMOBILE
+  if(vid.usingGL) {
+    if(vrhr::active())
+      dialog::addInfo(XLAT("(vsync disabled in VR)"));
+    else
+      add_edit(vid.want_vsync);
+    }
+  else
+    dialog::addBreak(100);
+  #endif
+
+  if(need_to_apply_screen_settings()) {
+    dialog::addItem(XLAT("apply changes"), 'A');
+    dialog::add_action(apply_screen_settings);
+    dialog::addBreak(100);
+    }
+  else
+    dialog::addBreak(200);  
+
+  add_edit(vid.relative_font);
+  if(vid.relative_font) 
+    add_edit(vid.fontscale);
+  else
+    add_edit(vid.abs_fsize);
+
+  dialog::addSelItem(XLAT("vector settings"), XLAT("width") + " " + fts(vid.linewidth), 'w');
+  dialog::add_action_push(show_vector_settings);
   
-  dialog::addSelItem(XLAT("line quality"), its(vid.linequality), 'L');
-
   #if CAP_FRAMELIMIT
   dialog::addSelItem(XLAT("framerate limit"), its(vid.framelimit), 'l');
   if(getcstat == 'l') 
     mouseovers = XLAT("Reduce the framerate limit to conserve CPU energy");
   #endif
-
-#if !ISIOS && !ISWEB
-  dialog::addBoolItem(XLAT("fullscreen mode"), (vid.full), 'f');
-#endif
-
+  
   dialog::addSelItem(XLAT("scrolling speed"), fts(vid.sspeed), 'a');
     
   dialog::addSelItem(XLAT("movement animation speed"), fts(vid.mspeed), 'm');
@@ -1106,8 +1623,6 @@ EX void showGraphConfig() {
   keyhandler = [] (int sym, int uni) {
     dialog::handleNavigation(sym, uni);
   
-    if(uni == 'O') uni = 'o', shiftmul = -1;
-    
     char xuni = uni | 96;
   
     if((uni >= 32 && uni < 64) || uni == 'L' || uni == 'C') xuni = uni;
@@ -1124,80 +1639,6 @@ EX void showGraphConfig() {
       XLAT("movement animation speed"),
       XLAT("+5 = move instantly"));
   
-    else if(xuni == 'f') switchFullscreen();
-  
-  #if CAP_GLORNOT
-    else if(xuni == 'o' && shiftmul > 0) switchGL();
-  #endif
-  
-    else if(xuni == 'o' && shiftmul < 0) {
-      if(!vid.usingGL)
-        vid.antialias ^= AA_NOGL | AA_FONT;
-      else if(vid.antialias & AA_MULTI)
-        vid.antialias ^= AA_MULTI;
-      else if(vid.antialias & AA_POLY)
-        vid.antialias ^= AA_POLY | AA_LINES | AA_MULTI;
-      else if(vid.antialias & AA_LINES) 
-        vid.antialias |= AA_POLY;
-      else 
-        vid.antialias |= AA_LINES;
-#if CAP_SDL
-      setvideomode();
-#endif
-      }
-    
-    // if(xuni == 'b') vid.antialias ^= AA_LINEWIDTH;
-   
-    else if(xuni == 'w') {
-      dialog::editNumber(vid.linewidth, 0, 10, 0.1, 1, XLAT("line width"), 
-        vid.usingGL ? "" : XLAT("Line width setting is only taken into account in OpenGL."));
-      dialog::extra_options = [] () {
-        dialog::addBoolItem("finer lines at the boundary", vid.antialias & AA_LINEWIDTH, 'O');
-        dialog::add_action([] () { 
-          vid.antialias ^= AA_LINEWIDTH; 
-          });
-
-        dialog::addBoolItem("perfect width", perfect_linewidth == 2, 'P');
-        if(perfect_linewidth == 1) 
-          dialog::lastItem().value = XLAT("shots only");
-        dialog::add_action([] { perfect_linewidth = (1 + perfect_linewidth) % 3; });
-
-        if(vid.antialias & AA_LINEWIDTH) {
-          dialog::addSelItem("variable width", fts(precise_width), 'M');
-          dialog::add_action([] () {
-            popScreen();
-            dialog::editNumber(precise_width, 0, 2, 0.1, 0.5, 
-              XLAT("variable width"), XLAT("lines longer than this value will be split into shorter lines, with width computed separately for each of them.")
-              );
-            });
-          }
-        else dialog::addBreak(100);
-        
-        auto neon_option = [&] (string s, eNeon val, char key) {
-          dialog::addBoolItem(XLAT(s), neon_mode == val, key);
-          dialog::add_action([val] { neon_mode = (neon_mode == val) ? eNeon::none : val; });
-          };
-        
-        neon_option("neon mode", eNeon::neon, 'B');
-        neon_option("no boundary mode", eNeon::no_boundary, 'C');
-        neon_option("neon mode II", eNeon::neon2, 'D');
-        neon_option("illustration mode", eNeon::illustration, 'E');
-        dialog::addBreak(100);
-        dialog::addInfo(XLAT("hint: press Alt while testing modes"));
-        dialog::addBreak(100);
-        dialog::addBoolItem_action(XLAT("disable shadows"), noshadow, 'F');
-        dialog::addBoolItem_action(XLAT("bright mode"), bright, 'G');
-        dialog::addBoolItem_action(XLAT("colorblind simulation"), cblind, 'H');
-
-        dialog::addBoolItem_action(XLAT("no fill in neon mode"), neon_nofill, 'N');
-        };
-      }
-    
-    else if(xuni == 'L') {
-      dialog::editNumber(vid.linequality, -3, 5, 1, 1, XLAT("line quality"), 
-        XLAT("Higher numbers make the curved lines smoother, but reduce the performance."));
-      }
-  
   #if CAP_FRAMELIMIT    
     else if(xuni == 'l') {
       dialog::editNumber(vid.framelimit, 5, 300, 10, 300, XLAT("framerate limit"), "");
@@ -1212,36 +1653,6 @@ EX void showGraphConfig() {
     };
   }
   
-EX void switchFullscreen() {
-  vid.full = !vid.full;
-#if ISANDROID
-  addMessage(XLAT("Reenter HyperRogue to apply this setting"));
-  ANDROID_SETTINGS
-#endif
-#if CAP_SDL
-  if(true) {
-    vid.xres = vid.full ? vid.xscr : 9999;
-    vid.yres = vid.full ? vid.yscr : 9999;
-    extern bool setfsize;
-    setfsize = true;
-    }
-  setvideomode();
-#endif
-  }
-
-EX void switchGL() {
-  vid.usingGL = !vid.usingGL;
-  if(vid.usingGL) addMessage(XLAT("openGL mode enabled"));
-  if(!vid.usingGL) addMessage(XLAT("openGL mode disabled"));
-  ANDROID_SETTINGS;
-#if CAP_SDL
-  setvideomode();
-  if(vid.usingGL) {
-    glhr::be_textured(); glhr::be_nontextured();
-    }
-#endif
-  }
-
 EX void edit_whatever(char type, int index) {
   if(type == 'f') {
     dialog::editNumber(whatever[index], -10, 10, 1, 0, XLAT("whatever"), 
@@ -1281,39 +1692,15 @@ EX void configureOther() {
   // dialog::addBoolItem_action(XLAT("forget faraway cells"), memory_saving_mode, 'y');
   
 #if CAP_AUDIO
-  dialog::addSelItem(XLAT("background music volume"), its(musicvolume), 'b');
-  dialog::add_action([] {
-    dialog::editNumber(musicvolume, 0, 128, 10, 60, XLAT("background music volume"), "");
-    dialog::reaction = [] () {
-#if CAP_SDLAUDIO
-      Mix_VolumeMusic(musicvolume);
-#endif
-#if ISANDROID
-      settingsChanged = true;
-#endif
-      };
-    dialog::bound_low(0);
-    dialog::bound_up(MIX_MAX_VOLUME);
-    dialog::extra_options = [] {
-      dialog::addBoolItem_action(XLAT("play music when out of focus"), music_out_of_focus, 'A');
-      };
-    });
-
-  dialog::addSelItem(XLAT("sound effects volume"), its(effvolume), 'e');
-  dialog::add_action([] {
-    dialog::editNumber(effvolume, 0, 128, 10, 60, XLAT("sound effects volume"), "");
-    dialog::reaction = [] () {
-#if ISANDROID
-      settingsChanged = true;
-#endif
-      };
-    dialog::bound_low(0);
-    dialog::bound_up(MIX_MAX_VOLUME);
-    });
+  add_edit(musicvolume);
+  add_edit(effvolume);
 #endif
 
   menuitem_sightrange('r');
 
+  add_edit(vid.faraway_highlight);
+  add_edit(vid.faraway_highlight_color);
+  
 #ifdef WHATEVER
   dialog::addSelItem(XLAT("whatever"), fts(whatever[0]), 'j');
   dialog::add_action([] { edit_whatever('f', 0); });
@@ -1352,36 +1739,12 @@ EX void configureInterface() {
     dialog::bound_low(0);
     });
   
-  const char* msgstyles[3] = {"centered", "left-aligned", "line-broken"};
+  add_edit(vid.msgleft);
   
-  dialog::addSelItem(XLAT("message style"), XLAT(msgstyles[vid.msgleft]), 'a');
-  dialog::add_action([] {
-    vid.msgleft = (1+vid.msgleft) % 3;
-    });
+  add_edit(glyphsortorder);
+  add_edit(vid.graphglyph);
 
-  dialog::addSelItem(XLAT("font scale"), its(fontscale), 'b');
-  dialog::add_action([] {
-    dialog::editNumber(fontscale, 25, 400, 10, 100, XLAT("font scale"), "");
-    const int minfontscale = ISMOBILE ? 50 : 25;
-    dialog::reaction = [] () { setfsize = true; do_setfsize(); };
-    dialog::bound_low(minfontscale);
-    });  
-
-  const char *glyphsortnames[6] = {
-    "first on top", "first on bottom", 
-    "last on top", "last on bottom",
-    "by land", "by number"
-    };
-  dialog::addSelItem(XLAT("inventory/kill sorting"), XLAT(glyphsortnames[glyphsortorder]), 'k');
-  dialog::add_action([] {
-    glyphsortorder = eGlyphsortorder((glyphsortorder+6+(shiftmul>0?1:-1)) % gsoMAX);
-    });
-
-  const char *glyphmodenames[3] = {"letters", "auto", "images"};
-  dialog::addSelItem(XLAT("inventory/kill mode"), XLAT(glyphmodenames[vid.graphglyph]), 'd');
-  dialog::add_action([] {
-    vid.graphglyph = (1+vid.graphglyph)%3;
-    });    
+  add_edit(display_yasc_codes);
 
   dialog::addSelItem(XLAT("draw crosshair"), crosshair_size > 0 ? fts(crosshair_size) : ONOFF(false), 'x');
   dialog::add_action([] () { 
@@ -1411,7 +1774,7 @@ EX void showJoyConfig() {
   dialog::addSelItem(XLAT("first joystick position (movement)"), its(joyx)+","+its(joyy), 0);
   dialog::addSelItem(XLAT("second joystick position (panning)"), its(panjoyx)+","+its(panjoyy), 0);
   
-  dialog::addSelItem(XLAT("joystick mode"), XLAT(autojoy ? "automatic" : "manual"), 'p');
+  dialog::addSelItem(XLAT("joystick mode"), autojoy ? XLAT("automatic") : XLAT("manual"), 'p');
   if(getcstat == 'p') {
     if(autojoy) 
       mouseovers = XLAT("joystick mode: automatic (release the joystick to move)");
@@ -1457,12 +1820,10 @@ EX void showJoyConfig() {
 EX void projectionDialog() {
   vid.tc_alpha = ticks;
   dialog::editNumber(vpconf.alpha, -5, 5, .1, 1,
-    XLAT("projection"),
+    XLAT("projection distance"),
     XLAT("HyperRogue uses the Minkowski hyperboloid model internally. "
     "Klein and Poincaré models can be obtained by perspective, "
     "and the Gans model is obtained by orthogonal projection. "
-//  "This parameter specifies the distance from the hyperboloid center "
-//  "to the eye. "
     "See also the conformal mode (in the special modes menu) "
     "for more models."));
   dialog::extra_options = [] () {
@@ -1488,6 +1849,11 @@ EX void projectionDialog() {
     };
   }
 
+EX void menuitem_projection_distance(char key) {
+  dialog::addSelItem(XLAT("projection distance"), fts(vpconf.alpha) + " (" + current_proj_name() + ")", key);
+  dialog::add_action(projectionDialog);
+  }
+
 EX void explain_detail() {
   dialog::addHelp(XLAT(
     "Objects at distance less than %1 absolute units "
@@ -1497,17 +1863,67 @@ EX void explain_detail() {
     ));
   }
 
-EX void add_edit_fov(char key IS('f')) {
-  dialog::addSelItem(XLAT("field of view"), fts(vid.fov) + "°", key);
-  dialog::add_action([] {
-    dialog::editNumber(vid.fov, 1, 170, 1, 45, "field of view", 
+EX ld max_fov_angle() {
+  auto& p = panini_alpha ? panini_alpha : stereo_alpha;
+  if(p >= 1 || p <= -1) return 360;
+  return acos(-p) * 2 / degree;
+  }
+
+EX void add_edit_fov(char key IS('f'), bool pop IS(false)) {
+
+  string sfov = fts(vid.fov) + "°";
+  if(panini_alpha || stereo_alpha) {
+    sfov += " / " + fts(max_fov_angle()) + "°";
+    }
+  dialog::addSelItem(XLAT("field of view"), sfov, key);
+  dialog::add_action([=] {
+    if(pop) popScreen();
+    dialog::editNumber(vid.fov, 1, max_fov_angle(), 1, 90, "field of view", 
       XLAT(
         "Horizontal field of view, in angles. "
         "This affects the Hypersian Rug mode (even when stereo is OFF) "
         "and non-disk models.")
         );
     dialog::bound_low(1e-8);
-    dialog::bound_up(179);
+    dialog::bound_up(max_fov_angle() - 0.01);
+    string quick = 
+      XLAT(
+        "HyperRogue uses "
+        "a quick implementation, so parameter values too close to 1 may "
+        "be buggy (outside of raycasting); try e.g. 0.9 instead."
+        );
+    dialog::extra_options = [quick] {
+      dialog::addSelItem(XLAT("Panini projection"), fts(panini_alpha), 'P');
+      dialog::add_action([quick] {
+        popScreen();
+        dialog::editNumber(panini_alpha, 0, 1, 0.1, 0, "Panini parameter", 
+          XLAT(
+            "The Panini projection is an alternative perspective projection "
+            "which allows very wide field-of-view values.\n\n") + quick
+            );
+        #if CAP_GL
+        dialog::reaction = reset_all_shaders;
+        #endif
+        dialog::extra_options = [] {
+          add_edit_fov('F', true);
+          };
+        });
+      dialog::addSelItem(XLAT("spherical perspective projection"), fts(stereo_alpha), 'S');
+      dialog::add_action([quick] {
+        popScreen();
+        dialog::editNumber(stereo_alpha, 0, 1, 0.1, 0, "spherical perspective parameter", 
+          XLAT(
+            "Set to 1 to get stereographic projection, "
+            "which allows very wide field-of-view values.\n\n") + quick
+            );
+        #if CAP_GL
+        dialog::reaction = reset_all_shaders;
+        #endif
+        dialog::extra_options = [] {
+          add_edit_fov('F', true);
+          };
+        });
+      };
     });
   }
 
@@ -1521,9 +1937,8 @@ EX void showStereo() {
   gamescreen(0);
   dialog::init(XLAT("stereo vision config"));
 
-  string modenames[4] = { "OFF", "anaglyph", "side-by-side", "ODS" };
+  add_edit(vid.stereo_mode);
   
-  dialog::addSelItem(XLAT("stereo mode"), XLAT(modenames[vid.stereo_mode]), 'm');
   dialog::addSelItem(XLAT("pupillary distance"), fts(vid.ipd), 'e');
   
   switch(vid.stereo_mode) {
@@ -1588,17 +2003,6 @@ EX void showStereo() {
     };
   }
 
-EX void config_camera_rotation() {
-  dialog::editNumber(pconf.ballangle, 0, 90, 5, 0, XLAT("camera rotation in 3D models"), 
-    "Rotate the camera in 3D models (ball model, hyperboloid, and hemisphere). "
-    "Note that hyperboloid and hemisphere models are also available in the "
-    "Hypersian Rug surfaces menu, but they are rendered differently there -- "
-    "by making a flat picture first, then mapping it to a surface. "
-    "This makes the output better in some ways, but 3D effects are lost. "
-    "Hypersian Rug model also allows more camera freedom."
-    );
-  }
-
 EX void add_edit_wall_quality(char c) {
   dialog::addSelItem(XLAT("wall quality"), its(vid.texture_step), c);
   dialog::add_action([] {
@@ -1659,42 +2063,43 @@ EX void show3D() {
     }
 #endif
   if(vid.use_smart_range == 0 && GDIM == 2) {
-    dialog::addSelItem(XLAT("High detail range"), fts(vid.highdetail), 'n');
-    dialog::addSelItem(XLAT("Mid detail range"), fts(vid.middetail), 'm');
+    add_edit(vid.highdetail);
+    add_edit(vid.middetail);
     dialog::addBreak(50);
     }
   
   if(WDIM == 2) {
-    dialog::addSelItem(XLAT(GDIM == 2 ? "Camera level above the plane" : "Z shift"), fts(vid.camera), 'c');
+    add_edit(vid.camera);
     if(GDIM == 3)
-      dialog::addSelItem(XLAT("Eye level"), fts(vid.eye), 'E');
+      add_edit(vid.eye);
 
-    dialog::addSelItem(XLAT("Ground level below the plane"), fts(vid.depth), 'g');
-    
-  
-    if(GDIM == 2)
+    add_edit(vid.depth);
+      
+    if(GDIM == 2) {
       dialog::addSelItem(XLAT("Projection at the ground level"), fts(pconf.alpha), 'p');
+      dialog::add_action(projectionDialog);
+      }
     else if(!in_perspective())
-      dialog::addSelItem(XLAT("Projection distance"), fts(pconf.alpha), 'p');
+      dialog::addSelItem(XLAT("projection distance"), fts(pconf.alpha), 'p');
     
     dialog::addBreak(50);
-    dialog::addSelItem(XLAT("Height of walls"), fts(vid.wall_height), 'w');
+    add_edit(vid.wall_height);
     
-    dialog::addSelItem(XLAT("Rock-III to wall ratio"), fts(vid.rock_wall_ratio), 'r');
-    dialog::addSelItem(XLAT("Human to wall ratio"), fts(vid.human_wall_ratio), 'h');
-    dialog::addSelItem(XLAT("Level of water surface"), fts(vid.lake_top), 'l');
-    dialog::addSelItem(XLAT("Level of water bottom"), fts(vid.lake_bottom), 'k');  
+    add_edit(vid.rock_wall_ratio);
+    add_edit(vid.human_wall_ratio);
+    add_edit(vid.lake_top);
+    add_edit(vid.lake_bottom);
     if(scale_used())
-      dialog::addSelItem(XLAT("Creature scale"), fts(vid.creature_scale), 'C');
+      add_edit(vid.creature_scale);
     }
   else {
-    dialog::addSelItem(XLAT("Creature scale"), fts(vid.creature_scale), 'c');
-    dialog::addSelItem(XLAT("Height to width"), fts(vid.height_width), 'h');
+    add_edit(vid.creature_scale);
+    add_edit(vid.height_width);
     menuitem_sightrange('s');
     }
 
   dialog::addBreak(50);
-  dialog::addSelItem(XLAT(GDIM == 3 && WDIM == 2 ? "Y shift" : "third person perspective"), fts(vid.yshift), 'y');
+  add_edit(vid.yshift);
   if(GDIM == 3) {
     dialog::addSelItem(XLAT("mouse aiming sensitivity"), fts(mouseaim_sensitivity), 'a');
     dialog::add_action([] () { 
@@ -1718,6 +2123,7 @@ EX void show3D() {
   if(true) {
     dialog::addBreak(50);
     dialog::addSelItem(XLAT("projection"), current_proj_name(), 'M');
+    dialog::add_action_push(models::model_menu);  
     }
   #if MAXMDIM >= 4
   if(GDIM == 3) add_edit_fov('f');
@@ -1776,55 +2182,59 @@ EX void show3D() {
   else if(GDIM == 2 && !spatial_graphics)
     dialog::addInfo(XLAT("set 3D monsters or walls in basic config first"));
   else if(geom3::invalid != "")
-    dialog::addInfo(XLAT("error: "+geom3::invalid), 0xC00000);
+    dialog::addInfo(XLAT("error: ")+geom3::invalid, 0xC00000);
   else
     dialog::addInfo(XLAT("parameters set correctly"));
   dialog::addBreak(50);
   dialog::addItem(XLAT("stereo vision config"), 'e');
+  dialog::add_action_push(showStereo);
+  
+  #if CAP_VR
+  dialog::addBoolItem(XLAT("VR settings"), vrhr::active(), 'v');
+  dialog::add_action_push(vrhr::show_vr_settings);
+  #endif
+
   dialog::addBack();
   dialog::display();
-  
-  keyhandler = [] (int sym, int uni) {
-    using namespace geom3;
-    dialog::handleNavigation(sym, uni);
+  }
+
+EX int config3 = addHook(hooks_configfile, 100, [] {
+  param_f(vid.eye, "eyelevel", 0)
+    ->editable(-5, 5, .1, "eye level", "", 'E')
+    ->set_extra([] {
+      dialog::dialogflags |= sm::CENTER;
+      vid.tc_depth = ticks;
     
-    if(uni == 'n' && GDIM == 2) {
-      dialog::editNumber(vid.highdetail, 0, 5, .5, 7, XLAT("High detail range"), "");
-      dialog::extra_options = explain_detail;
-      dialog::reaction = [] () {
-        if(vid.highdetail > vid.middetail) vid.middetail = vid.highdetail;
-        };
-      }
-    else if(uni == 'm' && GDIM == 2) {
-      dialog::editNumber(vid.middetail, 0, 5, .5, 7, XLAT("Mid detail range"), "");
-      dialog::extra_options = explain_detail;
-      dialog::reaction = [] () {
-        if(vid.highdetail > vid.middetail) vid.highdetail = vid.middetail;
-        };
-      }
-    else if(uni == 'c' && WDIM == 2) 
-      vid.tc_camera = ticks,
-      dialog::editNumber(vid.camera, 0, 5, .1, 1, XLAT(GDIM == 2 ? "Camera level above the plane" : "Z shift"), ""),
-      dialog::extra_options = [] {
-        dialog::addHelp(GDIM == 2 ? XLAT(
-          "Camera is placed %1 absolute units above a plane P in a three-dimensional "
-          "world. Ground level is actually an equidistant surface, %2 absolute units "
-          "below the plane P. The plane P (as well as the ground level or any "
-          "other equidistant surface below it) is viewed at an angle of %3 "
-          "(the tangent of the angle between the point in "
-          "the center of your vision and a faraway location is 1/cosh(c) = %4).",
-          fts(vid.camera),
-          fts(vid.depth),
-          fts(atan(1/cosh(vid.camera))*2/degree),
-          fts(1/cosh(vid.camera))) : XLAT("Look from behind."));
-        if(GDIM == 3 && pmodel == mdPerspective) dialog::extra_options = [] () {
-          dialog::addBoolItem_action(XLAT("reduce if walls on the way"), vid.use_wall_radar, 'R');
-          };
-        };
-    else if(uni == 'g' && WDIM == 2) 
-      vid.tc_depth = ticks,
-      dialog::editNumber(vid.depth, 0, 5, .1, 1, XLAT("Ground level below the plane"), ""),
-      dialog::extra_options = [] {
+      dialog::addHelp(XLAT("In the FPP mode, the camera will be set at this altitude (before applying shifts)."));
+
+      dialog::addBoolItem(XLAT("auto-adjust to eyes on the player model"), vid.auto_eye, 'O');
+      dialog::reaction = [] { vid.auto_eye = false; };
+      dialog::add_action([] () {
+        vid.auto_eye = !vid.auto_eye;
+        geom3::do_auto_eye();
+        });
+      });
+  
+  addsaver(vid.auto_eye, "auto-eyelevel", false);
+
+  param_f(vid.creature_scale, "creature_scale", "3d-creaturescale", 1)
+    ->editable(0, 1, .1, "Creature scale", "", 'C');
+  param_f(vid.height_width, "heiwi", "3d-heightwidth", 1.5)
+    ->editable(0, 1, .1, "Height to width", "", 'h');
+  param_f(vid.yshift, "yshift", "Y shift", 0)
+    ->editable(0, 1, .1, "Y shift", "Don't center on the player character.", 'y')
+    ->set_extra([] {
+      if(WDIM == 3 && pmodel == mdPerspective) 
+        dialog::addBoolItem_action(XLAT("reduce if walls on the way"), vid.use_wall_radar, 'R');
+      });
+  addsaver(vid.use_wall_radar, "wallradar", true);
+  addsaver(vid.fixed_facing, "fixed facing", 0);
+  addsaver(vid.fixed_facing_dir, "fixed facing dir", 90);
+  addsaver(vid.fixed_yz, "fixed YZ", true);
+  param_f(vid.depth, "depth", "3D depth", 1)
+    ->editable(0, 5, .1, "Ground level below the plane", "", 'd')
+    ->set_extra([] {
+        vid.tc_depth = ticks;
         help = XLAT(
           "Ground level is actually an equidistant surface, "
           "%1 absolute units below the plane P. "
@@ -1854,95 +2264,86 @@ EX void show3D() {
               "with parameter %2.", fts(current_camera_level), fts(tan_auto(vid.depth) / tan_auto(current_camera_level)));
           }
         dialog::addHelp(help);
-        };
-    else if(uni == 'E' && WDIM == 2 && GDIM == 3) 
-      vid.tc_depth = ticks,
-      dialog::editNumber(vid.eye, -5, 5, .1, 0, XLAT("eye level"), ""),
-      dialog::dialogflags |= sm::CENTER,
-      dialog::extra_options = [] {
-      
-        dialog::addHelp(XLAT("In the FPP mode, the camera will be set at this altitude (before applying shifts)."));
-
-        dialog::addBoolItem(XLAT("auto-adjust to eyes on the player model"), vid.auto_eye, 'O');
-        dialog::reaction = [] { vid.auto_eye = false; };
-        dialog::add_action([] () {
-          vid.auto_eye = !vid.auto_eye;
-          geom3::do_auto_eye();
-          });
-        };
-    else if(uni == 'p' && WDIM == 2) 
-      projectionDialog();
-    else if(uni == 'w' && WDIM == 2) {
-      dialog::editNumber(vid.wall_height, 0, 1, .1, .3, XLAT("Height of walls"), "");
-      dialog::extra_options = [] () {
+        });
+  param_f(vid.camera, "camera", "3D camera level", 1)
+    ->editable(0, 5, .1, "", "", 'c')
+    ->modif([] (float_setting* x) { x->menu_item_name = (GDIM == 2 ? "Camera level above the plane" : "Z shift"); })
+    ->set_extra([] {    
+       vid.tc_camera = ticks;
+       if(GDIM == 2)
+       dialog::addHelp(XLAT(
+         "Camera is placed %1 absolute units above a plane P in a three-dimensional "
+         "world. Ground level is actually an equidistant surface, %2 absolute units "
+         "below the plane P. The plane P (as well as the ground level or any "
+         "other equidistant surface below it) is viewed at an angle of %3 "
+         "(the tangent of the angle between the point in "
+         "the center of your vision and a faraway location is 1/cosh(c) = %4).",
+         fts(vid.camera),
+         fts(vid.depth),
+         fts(atan(1/cosh(vid.camera))*2/degree),
+         fts(1/cosh(vid.camera))));
+       if(GDIM == 3) 
+         dialog::addHelp(XLAT("Look from behind."));
+       if(GDIM == 3 && pmodel == mdPerspective) 
+         dialog::addBoolItem_action(XLAT("reduce if walls on the way"), vid.use_wall_radar, 'R');
+       });
+  param_f(vid.wall_height, "wall_height", "3D wall height", .3)
+    ->editable(0, 1, .1, "Height of walls", "", 'w')
+    ->set_extra([] () {
         dialog::addHelp(GDIM == 3 ? "" : XLAT(
           "The height of walls, in absolute units. For the current values of g and c, "
           "wall height of %1 absolute units corresponds to projection value of %2.",
-          fts(actual_wall_height()), fts(factor_to_projection(cgi.WALL))));
+          fts(geom3::actual_wall_height()), fts(geom3::factor_to_projection(cgi.WALL))));
         dialog::addBoolItem(XLAT("auto-adjust in Goldberg grids"), vid.gp_autoscale_heights, 'O');
         dialog::add_action([] () {
           vid.gp_autoscale_heights = !vid.gp_autoscale_heights;
           });
-        };
-      }
-    else if(uni == 'l' && WDIM == 2) 
-      dialog::editNumber(vid.lake_top, 0, 1, .1, .25, XLAT("Level of water surface"), "");
-    else if(uni == 'k' && WDIM == 2) 
-      dialog::editNumber(vid.lake_bottom, 0, 1, .1, .9, XLAT("Level of water bottom"), "");
-    else if(uni == 'r' && WDIM == 2) 
-      dialog::editNumber(vid.rock_wall_ratio, 0, 1, .1, .9, XLAT("Rock-III to wall ratio"), ""),
-      dialog::extra_options = [] { dialog::addHelp(XLAT(
+        });
+  param_f(vid.rock_wall_ratio, "rock_wall_ratio", "3D rock-wall ratio", .9)
+    ->editable(0, 1, .1, "Rock-III to wall ratio", "", 'r')
+    ->set_extra([] { dialog::addHelp(XLAT(
         "The ratio of Rock III to walls is %1, so Rock III are %2 absolute units high. "
         "Length of paths on the Rock III level is %3 of the corresponding length on the "
         "ground level.",
         fts(vid.rock_wall_ratio), fts(vid.wall_height * vid.rock_wall_ratio),
         fts(cosh(vid.depth - vid.wall_height * vid.rock_wall_ratio) / cosh(vid.depth))));
-        };
-    else if(uni == 'h' && WDIM == 2)
-      dialog::editNumber(vid.human_wall_ratio, 0, 1, .1, .7, XLAT("Human to wall ratio"), ""),
-      dialog::extra_options = [] { dialog::addHelp(XLAT(
+        });
+  param_f(vid.human_wall_ratio, "human_wall_ratio", "3D human-wall ratio", .7)
+    ->editable(0, 1, .1, "Human to wall ratio", "", 'h')
+    ->set_extra([] { dialog::addHelp(XLAT(
         "Humans are %1 "
         "absolute units high. Your head travels %2 times the distance travelled by your "
         "feet.",
         fts(vid.wall_height * vid.human_wall_ratio),
         fts(cosh(vid.depth - vid.wall_height * vid.human_wall_ratio) / cosh(vid.depth)))
         );
-        };
-    else if(uni == 'h' && WDIM == 3)
-      dialog::editNumber(vid.height_width, 0, 1, .1, .7, XLAT("Height to width"), "");
-    else if(uni == 'c' && WDIM == 3)
-      dialog::editNumber(vid.creature_scale, 0, 1, .1, .7, XLAT("Creature scale"), "");
-    else if(uni == 'C' && WDIM == 2 && scale_used())
-      dialog::editNumber(vid.creature_scale, 0, 1, .1, .7, XLAT("Creature scale"), "");
-
-    else if(uni == 'e')
-      pushScreen(showStereo);
-    
-    else if(uni == 'y') {
-      dialog::editNumber(vid.yshift, 0, 1, .1, 0, XLAT("Y shift"), 
-        XLAT("Don't center on the player character.")
-        );
-      if(WDIM == 3 && pmodel == mdPerspective) dialog::extra_options = [] () {
-        dialog::addBoolItem_action(XLAT("reduce if walls on the way"), vid.use_wall_radar, 'R');
-        };
-      }
-    else if(uni == 's') 
-      dialog::editNumber(vpconf.camera_angle, -180, 180, 5, 0, XLAT("camera rotation"), 
-        XLAT("Rotate the camera. Can be used to obtain a first person perspective, "
-        "or third person perspective when combined with Y shift.")
-        );
-    else if(uni == 'b') 
-      config_camera_rotation();
-    else if(uni == 'M') 
-      pushScreen(models::model_menu);  
-    else if(doexiton(sym, uni)) 
-      popScreen();
-    };
-  }
+        });
+  param_f(vid.lake_top, "lake_top", "3D lake top", .25)
+    ->editable(0, 1, .1, "Level of water surface", "", 'l');
+  param_f(vid.lake_bottom, "lake_bottom", "3D lake bottom", .9)
+    ->editable(0, 1, .1, "Level of water bottom", "", 'k');
+  addsaver(vid.tc_depth, "3D TC depth", 1);
+  addsaver(vid.tc_camera, "3D TC camera", 2);
+  addsaver(vid.tc_alpha, "3D TC alpha", 3);
+  param_f(vid.highdetail, "highdetail", "3D highdetail", 8)
+    ->editable(0, 5, .5, "High detail range", "", 'n')
+    ->set_extra(explain_detail)
+    ->set_reaction([] {
+      if(vid.highdetail > vid.middetail) vid.middetail = vid.highdetail;
+      });  
+  param_f(vid.middetail, "middetail", "3D middetail", 8)
+    ->editable(0, 5, .5, "Mid detail range", "", 'm')
+    ->set_extra(explain_detail)
+    ->set_reaction([] {
+      if(vid.highdetail > vid.middetail) vid.highdetail = vid.middetail;
+      });
+  addsaver(vid.gp_autoscale_heights, "3D Goldberg autoscaling", true);  
+  });
 
 EX void switchcolor(unsigned int& c, unsigned int* cs) {
   dialog::openColorDialog(c, cs);
   }
+
 
 double cc_footphase;
 int lmousex, lmousey;
@@ -2244,12 +2645,12 @@ EX void selectLanguageScreen() {
     
     if(uni == '0') {
       vid.language = -1;
-      ANDROID_SETTINGS;
+      android_settings_changed();
       }
 
     else if(uni >= 'a' && uni < 'a'+NUMLAN) {
       vid.language = uni - 'a';
-      ANDROID_SETTINGS;
+      android_settings_changed();
       }
     
     else if(doexiton(sym, uni))
@@ -2300,6 +2701,120 @@ EX void configureMouse() {
   dialog::display();
   }
 
+vector<setting*> last_changed;
+
+EX void add_to_changed(setting *f) {
+  auto orig_f = f;
+  for(int i=0; i<isize(last_changed); i++) {
+    if(last_changed[i] == f)
+      return;
+    swap(last_changed[i], f);
+    if(f == orig_f) return;
+    }
+  last_changed.push_back(f);
+  }
+
+EX setting *find_edit(void *val) {
+  for(auto& fs: params) {
+    fs.second->check_change();
+    if(fs.second->affects(val))
+      return &*fs.second;
+    }
+  return nullptr;
+  }
+
+EX void add_edit_ptr(void *val) {
+  int found = 0;
+  for(auto& fs: params) {
+    fs.second->check_change();
+    if(fs.second->affects(val))
+      fs.second->show_edit_option(), found++;
+    }
+  if(found != 1) println(hlog, "found = ", found);
+  }
+
+#if HDR
+template<class T> void add_edit(T& val) {
+  add_edit_ptr(&val);
+  }
+#endif
+
+EX void find_setting() {
+  gamescreen(1); 
+
+  dialog::init(XLAT("find a setting"));
+  if(dialog::infix != "") mouseovers = dialog::infix;
+  
+  vector<setting*> found;
+  
+  for(auto& p: params) {
+    auto& fs = p.second;
+    string key = fs->search_key();
+    if(fs->available() && dialog::hasInfix(key))
+      found.push_back(&*fs);
+    }
+
+  for(int i=0; i<9; i++) {
+    if(i < isize(found)) {
+      found[i]->show_edit_option('1' + i);
+      }
+    else dialog::addBreak(100);
+    }
+
+  dialog::addBreak(100);
+  dialog::addInfo(XLAT("press letters to search"));
+  dialog::addSelItem(XLAT("matching items"), its(isize(found)), 0);
+  dialog::display();
+  
+  keyhandler = [] (int sym, int uni) {
+    dialog::handleNavigation(sym, uni);    
+    if(dialog::editInfix(uni)) ;
+    else if(doexiton(sym, uni)) popScreen();
+    };
+  }
+
+EX void edit_all_settings() {
+  gamescreen(1);
+  dialog::init(XLAT("recently changed settings"));
+
+  for(auto &fs: params) fs.second->check_change();
+
+  int id = 0;
+  for(auto l: last_changed) 
+    if(l->available() && id < 10)
+    l->show_edit_option('a'+(id++));
+
+  dialog::addBreak(100);
+  dialog::addItem(XLAT("find a setting"), '/');
+  dialog::add_action_push(find_setting);
+  dialog::addBack();
+  dialog::display();
+  }
+
+void list_setting::show_edit_option(char key) {
+  string opt = options[get_value()].first;
+  dialog::addSelItem(XLAT(menu_item_name), XLAT(opt), key);
+  dialog::add_action_push([this] {
+    add_to_changed(this);
+    gamescreen(2);
+    dialog::init(XLAT(menu_item_name));
+    dialog::addBreak(100);
+    int q = isize(options);
+    for(int i=0; i<q; i++) {
+      dialog::addBoolItem(XLAT(options[i].first), get_value() == i, 'a'+i);
+      dialog::add_action([this, i] { set_value(i); popScreen(); });
+      dialog::addBreak(100);
+      if(options[i].second != "") {
+        dialog::addHelp(XLAT(options[i].second));
+        dialog::addBreak(100);
+        }
+      }
+    dialog::addBreak(100);
+    dialog::addBack();
+    dialog::display();
+    });
+  }
+
 EX void showSettings() {
   gamescreen(1);
   dialog::init(XLAT("settings"));
@@ -2317,7 +2832,7 @@ EX void showSettings() {
   dialog::add_action_push(showGraphQuickKeys);
 
   dialog::addItem(XLAT("models & projections"), 'p');
-  dialog::add_action_push(models::model_menu);
+  dialog::add_action_push(models::quick_model);
 
   dialog::addItem(XLAT("colors & aura"), 'c');
   dialog::add_action_push(show_color_dialog);
@@ -2336,6 +2851,9 @@ EX void showSettings() {
   dialog::addBreak(100);
 
 #if CAP_CONFIG
+  dialog::addItem(XLAT("recently changed settings"), '/');
+  dialog::add_action_push(edit_all_settings);
+
   dialog::addItem(XLAT("save the current config"), 's');
   dialog::add_action(saveConfig);
 
@@ -2399,7 +2917,7 @@ EX int read_config_args() {
 
   if(argis("-c")) { PHASE(1); shift(); conffile = argcs(); }
 // change the configuration from the command line
-  else if(argis("-aa")) { PHASEFROM(2); shift(); vid.antialias = argi(); }
+  else if(argis("-aa")) { PHASEFROM(2); shift(); vid.want_antialias = argi(); apply_screen_settings(); }
   else if(argis("-lw")) { PHASEFROM(2); shift_arg_formula(vid.linewidth); }
   else if(argis("-wm")) { PHASEFROM(2); shift(); vid.wallmode = argi(); }
   else if(argis("-mm")) { PHASEFROM(2); shift(); vid.monmode = argi(); }
@@ -2411,10 +2929,8 @@ EX int read_config_args() {
 
 // non-configurable options
   else if(argis("-vsync_off")) {
-    #if CAP_SDL && CAP_GL
-    vsync_off = true;
-    if(curphase == 3) setvideomode();
-    #endif
+    vid.want_vsync = false;
+    apply_screen_settings();
     }
   else if(argis("-aura")) {
     PHASEFROM(2);
@@ -2432,6 +2948,10 @@ EX int read_config_args() {
   else if(argis("-nomenu")) {
     PHASEFROM(2);
     nomenukey = true;
+    }
+  else if(argis("-nomsg")) {
+    PHASEFROM(2);
+    nomsg = true;
     }
 #if MAXMDIM >= 4
   else if(argis("-switch-fpp")) {
@@ -2476,7 +2996,7 @@ EX int read_config_args() {
     sscanf(argcs(), "%dx%dx%d", &clWidth, &clHeight, &clFont);
     if(clWidth) vid.xres = clWidth;
     if(clHeight) vid.yres = clHeight;
-    if(clFont) vid.fsize = clFont;
+    if(clFont) vid.abs_fsize = clFont, vid.relative_font = true;
     }    
   else if(argis("-msm")) {
     PHASEFROM(2); memory_saving_mode = true;
@@ -2522,8 +3042,8 @@ EX int read_config_args() {
   else if(argis("-msens")) {
     PHASEFROM(2); shift_arg_formula(mouseaim_sensitivity);
     }
-  TOGGLE('o', vid.usingGL, switchGL())
-  TOGGLE('f', vid.full, switchFullscreen())
+  TOGGLE('o', vid.wantGL, { vid.wantGL = !vid.wantGL; apply_screen_settings();})
+  TOGGLE('f', vid.want_fullscreen, { vid.want_fullscreen = !vid.want_fullscreen; apply_screen_settings(); })
   else if(argis("-noshaders")) {
     PHASE(1);
     glhr::noshaders = true; 
@@ -2568,13 +3088,79 @@ EX int read_config_args() {
     PHASEFROM(2);
     shift_arg_formula(precise_width);
     }
+  else if(argis("-d:all")) {
+    PHASEFROM(2); launch_dialog(edit_all_settings);
+    }
   else if(argis("-char")) {
     auto& cs = vid.cs;
-    shift(); cs.charid = argi();
-    cs.lefthanded = cs.charid >= 10;
-    cs.charid %= 10;
+    shift();
+    string s = args();
+    if(s == "dodek") {
+      cs.charid = 4;
+      cs.lefthanded = false;
+      cs.skincolor = 0x202020FF;
+      cs.eyecolor = 0x20C000FF;
+      cs.haircolor = 0x202020FF;
+      cs.dresscolor =0x424242FF;
+      cs.swordcolor = 0xF73333FF;      
+      }
+    else if(s == "rudy") {
+      cs.charid = 4;
+      cs.lefthanded = false;
+      cs.skincolor = 0xA44139FF;
+      cs.eyecolor = 0xD59533FF;
+      cs.haircolor = 0xC6634AFF;
+      cs.dresscolor =0xC6634AFF;
+      cs.swordcolor = 0x3CBB33FF;      
+      }
+    else if(s == "running") {
+      cs.charid = 6;
+      cs.lefthanded = false;
+      cs.skincolor = 0xFFFFFFFF;
+      cs.eyecolor = 0xFF;
+      cs.haircolor = 0xFFFFFFFF;
+      cs.dresscolor =0xFFFFFFFF;
+      cs.swordcolor = 0xFF0000FF;
+      }
+    else if(s == "princess") {
+      cs.charid = 3;
+      cs.lefthanded = true;
+      cs.skincolor  = 0xEFD0C9FF;
+      cs.haircolor  = 0x301800FF;
+      cs.eyecolor   = 0xC000FF;
+      cs.dresscolor = 0x408040FF;
+      cs.swordcolor = 0xFFFFFFFF;
+      }
+    else if(s == "worker") {
+      cs.charid = 2;
+      cs.skincolor = 0xC77A58FF;
+      cs.haircolor = 0x502810FF;
+      cs.dresscolor = 0xC0C000FF;
+      cs.eyecolor = 0x500040FF;
+      cs.swordcolor = 0x808080FF;
+      }
+    else {
+      cs.charid = argi();
+      cs.lefthanded = cs.charid >= 10;
+      cs.charid %= 10;
+      }
     }
   else return 1;
+  return 0;
+  }
+
+EX int read_param_args() {
+  const string& s = arg::args();
+  auto pos = s.find("=");
+  if(pos == string::npos) return 1;
+  string name = s.substr(0, pos);
+  string value = s.substr(pos+1);
+  PHASEFROM(2);
+  if(!params.count(name))  {
+    println(hlog, "parameter unknown: ", name);
+    exit(1);
+    }
+  params[name]->load_from(value);
   return 0;
   }
 
@@ -2588,7 +3174,6 @@ EX int read_gamemode_args() {
     stop_game_and_switch_mode(rg::nothing);
     multi::players = argi();
     }
-  TOGGLE('C', chaosmode, stop_game_and_switch_mode(rg::chaos))
   TOGGLE('S', shmup::on, stop_game_and_switch_mode(rg::shmup))
   TOGGLE('H', hardcore, switchHardcore())
   TOGGLE('R', randomPatternsMode, stop_game_and_switch_mode(rg::randpattern))
@@ -2598,79 +3183,10 @@ EX int read_gamemode_args() {
   return 0;
   }
 
-auto ah_config = addHook(hooks_args, 0, read_config_args) + addHook(hooks_args, 0, read_gamemode_args) + addHook(hooks_args, 0, read_color_args);
+auto ah_config = 
+  addHook(hooks_args, 0, read_config_args) + 
+  addHook(hooks_args, 0, read_param_args) + 
+  addHook(hooks_args, 0, read_gamemode_args) + addHook(hooks_args, 0, read_color_args);
 #endif
-
-EX unordered_map<string, ld&> params = {
-  {"linewidth", vid.linewidth},
-  {"patternlinewidth", linepatterns::width},
-  {"scale", pconf.scale},
-  {"xposition", pconf.xposition},
-  {"yposition", pconf.yposition},
-  {"projection", pconf.alpha},
-  {"sspeed", vid.sspeed},
-  {"mspeed", vid.mspeed},
-  {"ballangle", pconf.ballangle},
-  {"yshift", vid.yshift},
-  {"cameraangle", pconf.camera_angle},
-  {"eye", vid.eye},
-  {"depth", vid.depth},
-  {"camera", vid.camera},
-  {"wall_height", vid.wall_height},
-  {"highdetail", vid.highdetail},
-  {"middetail", vid.middetail},
-  {"rock_wall_ratio", vid.rock_wall_ratio},
-  {"human_wall_ratio", vid.human_wall_ratio},
-  {"lake_top", vid.lake_top},
-  {"lake_bottom", vid.lake_bottom},
-  #if CAP_RUG
-  {"rug_model_distance", rug::model_distance},
-  #endif
-  {"star", polygonal::STAR},
-  {"lvspeed", history::lvspeed},
-  {"rotation", models::rotation},
-  {"mori", pconf.model_orientation},
-  {"mori_yz", pconf.model_orientation_yz},
-  {"clipmin", pconf.clip_min},
-  {"clipmax", pconf.clip_max},
-  {"topz", pconf.top_z},
-  {"mtrans", pconf.model_transition},
-  {"hp", pconf.halfplane_scale},
-  {"back", backbrightness},
-  {"ipd", vid.ipd},
-  {"lr", vid.lr_eyewidth},
-  {"anaglyph", vid.anaglyph_eyewidth},
-  {"fov", vid.fov},
-  {"ets", pconf.euclid_to_sphere},
-  {"stretch", pconf.stretch},
-  {"twopoint", pconf.twopoint_param},
-  {"fisheye", pconf.fisheye_param},
-  {"bwidth", vid.binary_width},
-  #if CAP_ANIMATIONS
-  {"aperiod", anims::period},
-  {"acycle", anims::cycle_length},
-  {"aparabolic", anims::parabolic_length},
-  {"arugangle", anims::rug_angle},
-  {"acradius", anims::circle_radius},
-  {"acspins", anims::circle_spins},
-  {"a", anims::a},
-  {"b", anims::b},
-  #endif
-  {"mobius", pconf.skiprope},
-  {"sang", pconf.spiral_angle},
-  {"spiralx", pconf.spiral_x},
-  {"spiraly", pconf.spiral_y},
-  #if CAP_CRYSTAL
-  {"cprob", crystal::compass_probability},
-  #endif
-  #if CAP_SHOT
-  {"gamma", shot::gamma},
-  {"fade", shot::fade},
-  {"mgrid", vid.multiplier_grid},
-  {"mring", vid.multiplier_ring},
-  {"collignon", pconf.collignon_parameter},
-  {"levellines", levellines},
-  #endif
-  };
 
 }

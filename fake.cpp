@@ -22,6 +22,8 @@ EX namespace fake {
   EX int ordered_mode = 0;
   
   EX bool in() { return geometry == gFake; }
+
+  EX void on_dim_change() { pmap->on_dim_change(); }
   
   /** like in() but takes slided arb into account */
   EX bool split() { return in() || arb::in_slided(); }
@@ -32,6 +34,7 @@ EX namespace fake {
     if(arcm::in() && PURE) return true;
     if(WDIM == 2) return false;
     if(among(geometry, gBitrunc3)) return false;
+    if(reg3::in() && !among(variation, eVariation::pure, eVariation::subcubes, eVariation::coxeter, eVariation::bch_oct)) return false;
     return euc::in() || reg3::in();
     }
   
@@ -61,6 +64,10 @@ EX namespace fake {
       if(currentmap == u) currentmap = this;
       }
 
+    void find_cell_connection(cell *c, int d) override { 
+      FPIU(createMov(c, d));
+      }
+  
     hrmap_fake() {
       in_underlying([this] { initcells(); underlying_map = currentmap; });
       for(hrmap*& m: allmaps) if(m == underlying_map) m = NULL;
@@ -73,22 +80,96 @@ EX namespace fake {
       }
     
     heptagon *create_step(heptagon *parent, int d) override {
-      parent->c.connect(d, parent, d, false);
-      return parent;
+      return FPIU(currentmap->create_step(parent, d));
+      }
+
+    hyperpoint get_corner(cell *c, int cid, ld cf=3) override { 
+
+      if(arcm::in()) {
+        return underlying_map->get_corner(c, cid, cf);
+        }
+
+      hyperpoint h;
+      h = FPIU(currentmap->get_corner(c, cid, cf));
+      return befake(h);
       }
 
     transmatrix adj(cell *c, int d) override {
+      if(variation == eVariation::coxeter) {
+        array<int, 3> which;
+        in_underlying([&which, c, d] {
+          auto T = currentmap->adj(c, d);
+          auto& f1 = currentmap->get_cellshape(c).faces_local[d];
+          auto& f2 = currentmap->get_cellshape(c->move(d)).faces_local[c->c.spin(d)];
+          for(int i=0; i<3; i++) {
+            which[i] = -1;
+            for(int j=0; j<isize(f2); j++)
+              if(hdist(T * f2[j], f1[i]) < 1e-6)
+                which[i] = j;
+            }
+          });
+        auto& f1 = get_cellshape(c).faces_local[d];
+        auto& f2 = get_cellshape(c->move(d)).faces_local[c->c.spin(d)];
+        vector<ld> d1;
+        for(auto& v: f1) d1.push_back(hdist0(normalize(v)));
+        vector<hyperpoint> cf2(3);
+        for(int i=0; i<3; i++)
+          cf2[i] = f2[which[i]];
+        transmatrix F2, F1;
+        for(int i=0; i<3; i++) set_column(F2, i, cf2[i]);
+        for(int i=0; i<3; i++) set_column(F1, i, f1[i]);
+
+        auto dtang = [] (vector<hyperpoint> v) {
+          if(euclid) return (v[1] - v[0]) ^ (v[2] - v[0]);
+          transmatrix T = gpushxto0(normalize(v[0]));
+          hyperpoint h = iso_inverse(T) * ((T*v[1]) ^ (T*v[2]));
+          return h;
+          };
+
+        set_column(F2, 3, dtang(cf2));
+        set_column(F1, 3, dtang(f1));
+        transmatrix T = F1 * inverse(F2);
+        return T;
+        }
       transmatrix S1, S2;
       ld dist;
-      in_underlying([c, d, &S1, &S2, &dist] {
+      bool impure = reg3::in() && !PURE;
+      vector<int> mseq;
+      if(impure) {
+        mseq = FPIU ( currentmap->get_move_seq(c, d) );
+        if(mseq.empty()) {
+          auto& s1 = get_cellshape(c);
+          auto& s2 = get_cellshape(c->move(d));
+          return s1.from_cellcenter * s2.to_cellcenter;
+          }
+        if(isize(mseq) > 1)
+          throw hr_exception("fake adj not implemented for isize(mseq) > 1");
+        }
+      in_underlying([c, d, &S1, &S2, &dist, &impure, &mseq] {
+        #if CAP_ARCM
         dynamicval<bool> u(arcm::use_gmatrix, false);
-        transmatrix T = currentmap->adj(c, d);
+        #endif
+        transmatrix T;
+        if(impure) {
+          T = currentmap->adj(c->master, mseq[0]);
+          }
+        else {
+          T = currentmap->adj(c, d);
+          }
         S1 = rspintox(tC0(T));
         transmatrix T1 = spintox(tC0(T)) * T;
         dist = hdist0(tC0(T1));
         S2 = xpush(-dist) * T1;
         });
       
+      if(impure) {
+        auto& s1 = get_cellshape(c);
+        auto& s2 = get_cellshape(c->move(d));
+        S1 = s1.from_cellcenter * S1;
+        S2 = S2 * s2.to_cellcenter;
+        }
+
+      #if CAP_ARCM
       if(arcm::in()) {
         int t = arcm::id_of(c->master);
         int t2 = arcm::id_of(c->move(d)->master);
@@ -168,7 +249,7 @@ EX namespace fake {
         }
       }
 
-    transmatrix relative_matrix(cell *h2, cell *h1, const hyperpoint& hint) override {
+    transmatrix relative_matrixc(cell *h2, cell *h1, const hyperpoint& hint) override {
       if(arcm::in()) return underlying_map->relative_matrix(h2, h1, hint);
       if(h1 == h2) return Id;
   
@@ -178,7 +259,7 @@ EX namespace fake {
       return Id;
       }
 
-    transmatrix relative_matrix(heptagon *h2, heptagon *h1, const hyperpoint& hint) override {
+    transmatrix relative_matrixh(heptagon *h2, heptagon *h1, const hyperpoint& hint) override {
       if(arcm::in()) return underlying_map->relative_matrix(h2, h1, hint);
       return relative_matrix(h2->c7, h1->c7, hint);
       }
@@ -280,6 +361,25 @@ EX namespace fake {
     ld spin_angle(cell *c, int d) override {
       return underlying_map->spin_angle(c,d);
       }
+
+    int shvid(cell *c) override {
+      return FPIU( currentmap->shvid(c) );
+      }
+
+    subcellshape& get_cellshape(cell *c) override {
+      return *FPIU( (cgip = pcgip, &(currentmap->get_cellshape(c))) );
+      }
+
+    transmatrix ray_iadj(cell *c, int i) override {
+      if(WDIM == 2)
+        return to_other_side(get_corner(c, i), get_corner(c, i+1));
+      if(PURE) return iadj(c, i);      
+      auto& v = get_cellshape(c).faces_local[i];
+      hyperpoint h = 
+        project_on_triangle(v[0], v[1], v[2]);
+      transmatrix T = rspintox(h);
+      return T * xpush(-2*hdist0(h)) * spintox(h);
+      }
     };
   
   EX hrmap* new_map() { return new hrmap_fake; }
@@ -289,6 +389,7 @@ EX namespace fake {
   #if HDR
   template<class T> auto in_underlying_geometry(const T& f) -> decltype(f()) {
     if(!fake::in()) return f();
+    pcgip = cgip; 
     dynamicval<eGeometry> g(geometry, underlying);
     dynamicval<eGeometry> gag(actual_geometry, geometry);
     dynamicval<geometry_information*> gc(cgip, underlying_cgip);
@@ -301,8 +402,8 @@ EX namespace fake {
   #endif
 
 EX hyperpoint befake(hyperpoint h) {
-  auto h1 = h / h[WDIM] * scale;
-  h1[WDIM] = 1;
+  auto h1 = h / h[LDIM] * scale;
+  h1[LDIM] = 1;
   if(material(h1) > 1e-3)
     h1 = normalize(h1);
   return h1;
@@ -314,18 +415,24 @@ EX vector<hyperpoint> befake(const vector<hyperpoint>& v) {
   return res;
   }
 
+EX vector<vector<hyperpoint>> befake(const vector<vector<hyperpoint>>& v) {
+  vector<vector<hyperpoint>> res;
+  for(auto& h: v) res.push_back(befake(h));
+  return res;
+  }
+
 EX ld compute_around(bool setup) {
   auto &ucgi = *underlying_cgip;
   
-  auto fcs = befake(ucgi.cellshape);
+  auto fcs = befake(ucgi.heptshape->faces);
   
   if(setup) {
-    cgi.cellshape = fcs;
-    cgi.vertices_only = befake(ucgi.vertices_only);
+    cgi.heptshape->faces = fcs;
+    cgi.heptshape->compute_hept();
     }
   
   hyperpoint h = Hypc;
-  for(int i=0; i<ucgi.face; i++) h += fcs[i];
+  for(int i=0; i<ucgi.face; i++) h += fcs[0][i];
   if(material(h) > 0)
     h = normalize(h);
   
@@ -335,8 +442,8 @@ EX ld compute_around(bool setup) {
   hyperpoint h2 = rspintox(h) * xpush0(2 * hdist0(h));
   
   auto kh= kleinize(h);
-  auto k0 = kleinize(fcs[0]);
-  auto k1 = kleinize(fcs[1]);
+  auto k0 = kleinize(fcs[0][0]);
+  auto k1 = kleinize(fcs[0][1]);
   
   auto vec = k1 - k0;
   
@@ -379,17 +486,29 @@ EX void generate() {
   cgi.face = ucgi.face;
   cgi.schmid = ucgi.schmid;
 
-  for(int a=0; a<16; a++)
-  for(int b=0; b<16; b++) {
-    cgi.dirs_adjacent[a][b] = ucgi.dirs_adjacent[a][b];
-    cgi.next_dir[a][b] = ucgi.next_dir[a][b];
-    }
+  auto& hsh = get_hsh();
+  
+  hsh = *ucgi.heptshape;
 
-  for(int b=0; b<12; b++)
+  for(int b=0; b<32; b++)
     cgi.spins[b] = ucgi.spins[b];
   
   compute_around(true);
-  reg3::compute_ultra();  
+  hsh.compute_hept();
+  reg3::compute_ultra();
+  
+  reg3::generate_subcells();
+  if(variation == eVariation::coxeter) {
+    for(int i=0; i<isize(cgi.subshapes); i++) {
+      auto& s = cgi.subshapes[i];
+      s.faces_local = ucgi.subshapes[i].faces_local;
+      for(auto &face: s.faces_local) for(auto& v: face) {
+        v = kleinize(v);
+        for(int i=0; i<3; i++) v[i] *= scale;
+        }
+      reg3::make_vertices_only(s.vertices_only, s.faces_local);
+      }
+    }
   #endif
   }
 
@@ -409,6 +528,8 @@ EX ld compute_euclidean() {
   if(underlying == gRhombic3) return 3;
   if(underlying == gBitrunc3) return 2.55208;
   int middle = get_middle();
+
+  if(!fake::in()) underlying_cgip = cgip;
     
   return M_PI / asin(cos(M_PI/middle) / sin(M_PI/underlying_cgip->face));
   }
@@ -468,7 +589,7 @@ EX void compute_scale() {
     }
   else if(euclid) scale = 1;
   else if(have_ideal) {
-    hyperpoint h0 = underlying_cgip->cellshape[0];
+    hyperpoint h0 = underlying_cgip->heptshape->faces[0][0];
     auto s = kleinize(h0);
     ld d = hypot_d(LDIM, s);
     scale = 1/d;
@@ -498,7 +619,7 @@ EX void compute_scale() {
     
     /* ultra a bit earlier */    
     if(underlying == gRhombic3 || underlying == gBitrunc3) {
-      auto fcs = befake(underlying_cgip->cellshape[0]);
+      auto fcs = befake(underlying_cgip->heptshape->faces[0][0]);
       set_flag(ginf[gFake].flags, qULTRA, material(fcs) < 0);
       }
     }
@@ -614,6 +735,11 @@ int readArgs() {
   using namespace arg;
            
   if(0) ;
+  else if(argis("-gfake-euc")) {
+    start_game();
+    around = compute_euclidean();
+    change_around();
+    }
   else if(argis("-gfake")) {
     start_game();
     shift_arg_formula(around, change_around);
