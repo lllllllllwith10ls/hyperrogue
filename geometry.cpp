@@ -99,6 +99,7 @@ struct escher_floorshape : floorshape {
 struct basic_textureinfo {
   int texture_id;
   vector<glvertex> tvertices; 
+  vector<glvertex> colors; 
   };
 
 /** additional modules can add extra shapes etc. */
@@ -207,8 +208,8 @@ struct geometry_information {
   ld plevel;
   /** level for a z-step */
   int single_step;
-  /** the number of levels in SL2 */
-  int steps;
+  /** the number of levels in PSL */
+  int psl_steps;
 
   /** for binary tilings */
   transmatrix direct_tmatrix[14];
@@ -275,8 +276,6 @@ hpcshape
   shHumanFoot, shHumanLeg, shHumanGroin, shHumanNeck, shSkeletalFoot, shYetiFoot,
   shMagicSword, shMagicShovel, shSeaTentacle, shKrakenHead, shKrakenEye, shKrakenEye2,
   shArrow,
-  shBrushHandle, shBrushBrush,
-  shPalette, shPaletteCol1, shPaletteCol2, shPaletteCol3, shPaletteCol4,
   shPHead, shPFace, shGolemhead, shHood, shArmor, 
   shAztecHead, shAztecCap,
   shSabre, shTurban1, shTurban2, shVikingHelmet, shRaiderHelmet, shRaiderArmor, shRaiderBody, shRaiderShirt,
@@ -605,6 +604,8 @@ void geometry_information::prepare_basics() {
   if(elliptic && S7 == 4 && !fake::in()) tessf = M_PI/2;
   
   hcrossf = euclid ? tessf / 2 / sin(M_PI/s3) : edge_of_triangle_with_angles(M_PI/2, M_PI/S7, beta/2);
+  
+  if(S3 >= OINF) hcrossf = 10;
 
   crossf = BITRUNCATED ? hcrossf : tessf;
   
@@ -650,7 +651,7 @@ void geometry_information::prepare_basics() {
   for(int d=0; d<S7; d++) 
     hexmove[d] = spin(hexshift-d * ALPHA) * xpush(-crossf)* spin(M_PI);  
 
-  for(int d=0; d<S7; d++) invhexmove[d] = inverse(hexmove[d]);
+  for(int d=0; d<S7; d++) invhexmove[d] = iso_inverse(hexmove[d]);
 
   hexvdist = hdist(xpush0(hexf), xspinpush0(ALPHA/2, hcrossf));
 
@@ -760,19 +761,23 @@ void geometry_information::prepare_basics() {
     }
   
   plevel = vid.plevel_factor * scalefactor;
-  steps = product::csteps;
   single_step = 1;
   if(hybri && !prod) {
+    #if CAP_ARCM
     if(hybrid::underlying == gArchimedean) 
-      arcm::current.get_step_values(steps, single_step);
+      arcm::current.get_step_values(psl_steps, single_step);
+    #else
+    if(0) ;
+    #endif
     else {
       single_step = S3 * S7 - 2 * S7 - 2 * S3;
-      steps = 2 * S7;    
-      if(BITRUNCATED) steps *= S3;
+      psl_steps = 2 * S7;    
+      if(BITRUNCATED) psl_steps *= S3;
+      if(inv) psl_steps = 2 * S3;
       if(single_step < 0) single_step = -single_step;
       }
-    DEBB(DF_GEOM | DF_POLY, ("steps = ", steps, " / ", single_step));
-    plevel = M_PI * single_step / steps;
+    DEBB(DF_GEOM | DF_POLY, ("steps = ", psl_steps, " / ", single_step));
+    plevel = M_PI * single_step / psl_steps;
     }
   
   if(hybri) {
@@ -1010,7 +1015,7 @@ EX void apply_always3() {
   #if MAXMDIM >= 4
 EX void switch_always3() {
     if(dual::split(switch_always3)) return;
-    #if CAP_GL
+    #if CAP_GL && CAP_RUG
     if(rug::rugged) rug::close();
     #endif
     vid.always3 = !vid.always3;
@@ -1043,12 +1048,12 @@ EX void switch_always3() {
     
   EX void switch_fpp() {
 #if MAXMDIM >= 4
-    #if CAP_GL
+    #if CAP_GL && CAP_RUG
     if(rug::rugged) rug::close();
     #endif
     if(dual::split(switch_fpp)) return;
     check_cgi(); cgi.require_basics();
-    View = inverse(models::rotmatrix()) * View;
+    View = iso_inverse(models::rotmatrix()) * View;
     if(!vid.always3) {
       vid.always3 = true;
       apply_always3();
@@ -1131,7 +1136,9 @@ EX string cgi_string() {
   if(is_subcube_based(variation)) V("SC", its(reg3::subcube_count));
   if(variation == eVariation::coxeter) V("COX", its(reg3::coxeter_param));
 
+  #if CAP_ARCM
   if(arcm::in()) V("ARCM", arcm::current.symbol);
+  #endif
 
   if(arb::in()) V("ARB", its(arb::current.order));
   
@@ -1139,12 +1146,13 @@ EX string cgi_string() {
   
   if(bt::in() || GDIM == 3) V("WQ", its(vid.texture_step));
   
-  if(hybri) V("U", its(int(hybrid::underlying)));
+  if(hybri) {
+    V("U", PIU(cgi_string()));
+    // its(int(hybrid::underlying)));
+    }
   
   if(prod) V("PL", fts(vid.plevel_factor));
 
-  if(prod) V("PS", its(product::csteps));
-  
   if(geometry == gFieldQuotient) { V("S3=", its(S3)); V("S7=", its(S7)); }
   if(nil) V("NIL", its(S7));
   

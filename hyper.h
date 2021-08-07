@@ -48,7 +48,6 @@ template<class T, class V, class... U> bool among(T x, V y, U... u) { return x==
 using std::vector;
 using std::map;
 using std::array;
-using std::unordered_map;
 using std::sort;
 using std::multimap;
 using std::set;
@@ -200,7 +199,7 @@ void addMessage(string s, char spamtype = 0);
 #define STDVAR (PURE || BITRUNCATED)
 #define NONSTDVAR (!STDVAR)
 
-//#define VALENCE current_valence()
+#define VALENCE current_valence()
 
 #define NUMWITCH 7
 
@@ -245,6 +244,8 @@ struct projection_configuration {
   ld clip_min, clip_max;
   ld model_orientation, halfplane_scale, model_orientation_yz;  
   ld collignon_parameter; 
+  ld aitoff_parameter, miller_parameter, loximuthal_parameter, winkel_parameter;
+  bool show_hyperboloid_flat;
   bool collignon_reflected;
   string formula;
   eModel basic_model;
@@ -260,15 +261,31 @@ struct projection_configuration {
   ld spiral_cone;
   ld skiprope;
   ld product_z_scale;
+  ld rotational_nil;
+  
+  ld depth_scaling;
+  ld hyperboloid_scaling;
+  ld vr_angle, vr_zshift, vr_scale_factor;
 
   projection_configuration() { 
     formula = "z^2"; top_z = 5; model_transition = 1; spiral_angle = 70; spiral_x = 10; spiral_y = 7; 
+    rotational_nil = 1;
     right_spiral_multiplier = 1;
     any_spiral_multiplier = 1;
     sphere_spiral_multiplier = 2;
     spiral_cone = 360;
     use_atan = false;
     product_z_scale = 1;
+    aitoff_parameter = .5;
+    miller_parameter = .8;
+    loximuthal_parameter = 0;
+    winkel_parameter = .5;
+    show_hyperboloid_flat = true;
+    depth_scaling = 1;
+    vr_angle = 0;
+    hyperboloid_scaling = 1;
+    vr_zshift = 0;
+    vr_scale_factor = 1;
     }
   };
 
@@ -315,7 +332,7 @@ struct videopar {
   int fsize, abs_fsize, fontscale;
   int flashtime;
   
-  int wallmode, monmode, axes;
+  int wallmode, monmode, axes, highlightmode;
   bool axes3;
   bool revcontrol;
   
@@ -360,6 +377,7 @@ struct videopar {
   int use_smart_range;  // 0 = distance-based, 1 = model-based, 2 = model-based and generate
   ld smart_range_detail;// minimum visible cell for modes 1 and 2
   ld smart_range_detail_3;// minimum visible cell in 3D (for mode 2, there is no mode 1)
+  bool smart_area_based;// based on area or length?
   int cells_drawn_limit;
   int cells_generated_limit; // limit on cells generated per frame
   
@@ -397,15 +415,22 @@ struct videopar {
 
 extern videopar vid;
 
+/** \brief How many dimensional is the gameplay. In the FPP mode of a 2D geometry, WDIM is 2 */
 #define WDIM cginf.g.gameplay_dimension
+/** \brief How many dimensional is the graphical representation. In the FPP mode of a 2D geometry, MDIM is 3 */
 #define GDIM cginf.g.graphical_dimension
+/** \brief How many dimensions of the matrix representation are used. It is usually 3 in 2D geometries (not FPP) and in product geometries, 4 in 3D geometries */
 #define MDIM (MAXMDIM == 3 ? 3 : cginf.g.homogeneous_dimension)
+/** \brief What dimension of matrices is used in loops (the 'extra' dimensions have values 0 or 1 as in Id)
+ *  Even if MDIM==3, it may be faster to keep 4x4 matrices and perform computations using them (rather than having another condition due to the variable loop size). 
+ *  The experiments on my computer show it to be the case, but the effect is not significant, and it may be different on another computer.
+ */
+#define MXDIM (CAP_MDIM_FIXED ? MAXMDIM : MDIM)
+/** \brief The 'homogeneous' dimension index */
 #define LDIM (MDIM-1)
 #define cclass g.kind
 
 #define self (*this)
-
-// #define MODFIXER (2*10090080*17)
 
 #define BUGCOLORS 3
 
@@ -477,8 +502,12 @@ public:
             prio++;
         }
         map_->emplace(prio, static_cast<U&&>(hook));
-        return 0;
+        return prio;
     }
+
+    void del(int prio) {
+        map_->erase(prio);
+        }
 
     template<class... U>
     void callhooks(U&&... args) const {
@@ -505,6 +534,8 @@ static const int NOHINT = -1;
 
 typedef function<void()> reaction_t;
 typedef function<bool()> bool_reaction_t;
+
+void offer_choose_file(reaction_t r);
 
 #define HELPFUN(x) (help_delegate = x, "HELPFUN")
 
@@ -733,6 +764,10 @@ template<class T, class U> int addHook(hookset<T>& m, int prio, U&& hook) {
   return m.add(prio, static_cast<U&&>(hook));
   }
 
+template<class T> void delHook(hookset<T>& m, int prio) {
+  m.del(prio);
+  }
+
 template<class T, class... U> void callhooks(const hookset<T>& h, U&&... args) {
   return h.callhooks(static_cast<U&&>(args)...);
   }
@@ -887,9 +922,9 @@ static inline void set_flag(flagtype& f, flagtype which, bool b) {
 
 // assert macro
 #ifdef NDEBUG
-#define hassert(condition) if(!condition) __builtin_unreachable()
+#define hassert(condition) if(!(condition)) __builtin_unreachable()
 #else
-#define hassert(condition) if(condition) println(hlog, __FILE__, ":", __LINE__, ":", __func__, ": assertion failed: ", condition)
+#define hassert(condition) if(!(condition)) printf("%s:%d:%s: assertion failed: %s\n", __FILE__, __LINE__, __func__, #condition)
 #endif
 
 #define IS(z) = z

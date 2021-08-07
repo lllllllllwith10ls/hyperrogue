@@ -182,7 +182,7 @@
 #endif
 
 #ifndef CAP_EDIT
-#define CAP_EDIT (CAP_FILES && !ISWEB && !ISMINI)
+#define CAP_EDIT (CAP_FILES && !ISMINI)
 #endif
 
 #ifndef CAP_SHOT
@@ -199,6 +199,10 @@
 
 #ifndef MAXMDIM
 #define MAXMDIM 4
+#endif
+
+#ifndef CAP_MDIM_FIXED
+#define CAP_MDIM_FIXED 0
 #endif
 
 #ifndef CAP_TEXTURE
@@ -222,7 +226,7 @@
 #endif
 
 #ifndef CAP_TOUR
-#define CAP_TOUR (!ISWEB && !ISMINI)
+#define CAP_TOUR (!ISMINI)
 #endif
 
 #ifndef CAP_ROGUEVIZ
@@ -236,6 +240,8 @@
 #define PSEUDOKEY_WHEELDOWN 2501
 #define PSEUDOKEY_WHEELUP 2502
 #define PSEUDOKEY_RELEASE 2503
+#define PSEUDOKEY_EXIT 2504
+#define PSEUDOKEY_MENU 2505
 
 #ifndef CAP_PNG
 #define CAP_PNG (!ISMOBWEB)
@@ -301,7 +307,7 @@
 #endif
 
 #ifndef CAP_SHMUP
-#define CAP_SHMUP 1
+#define CAP_SHMUP (!ISWEB)
 #endif
 
 #ifndef CAP_BITFIELD
@@ -322,6 +328,10 @@
 
 #ifndef CAP_RACING
 #define CAP_RACING (!ISMOBWEB && !ISMINI)
+#endif
+
+#ifndef CAP_VR
+#define CAP_VR (ISSTEAM && !ISMAC)
 #endif
 
 #ifndef CAP_LEGACY
@@ -453,6 +463,10 @@ extern "C" {
 #define CAP_GLEW (CAP_GL && !ISMOBILE && !ISMAC && !ISLINUX && !ISWEB)
 #endif
 
+#if ISWEB
+#define GLES_ONLY
+#endif
+
 #if CAP_GL
 #if CAP_GLEW
   #include <GL/glew.h>
@@ -504,12 +518,25 @@ typedef unsigned GLuint;
 #include <new>
 #include <limits.h>
 
+#if CAP_VR
+#ifdef __MINGW32__
+#include "openvr_mingw.hpp"
+#else
+#include "openvr.h"
+#endif
+#endif
+
 #if CAP_VIDEO
 #include <sys/wait.h>
 #endif
 
 #if CAP_ZLIB
 #include <zlib.h>
+#endif
+
+#if ISWEB
+#include <emscripten.h>
+#include <emscripten/html5.h>
 #endif
 
 #if CAP_GMP
@@ -526,14 +553,6 @@ typedef unsigned GLuint;
 #include <mutex>
 #include <condition_variable>
 #endif
-#endif
-
-#ifdef USE_UNORDERED_MAP
-#include <unordered_map>
-#include <unordered_set>
-#else
-#define unordered_map map
-#define unordered_set set
 #endif
 
 #include <stdint.h>

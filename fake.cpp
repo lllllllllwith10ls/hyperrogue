@@ -176,6 +176,9 @@ EX namespace fake {
         auto& cof = arcm::current_or_fake();
         cgi.adjcheck = cof.inradius[t/2] + cof.inradius[t2/2];
         }
+      #else
+      if(0) ;
+      #endif
       
       else if(WDIM == 2) {
       
@@ -200,8 +203,7 @@ EX namespace fake {
       return S1 * xpush(cgi.adjcheck) * S2;
       }
     
-    void draw_recursive(cell *c, const transmatrix& V, ld a0, ld a1, cell *parent, int depth) {
-      band_shift = 0;
+    void draw_recursive(cell *c, const shiftmatrix& V, ld a0, ld a1, cell *parent, int depth) {
       if(!do_draw(c, V)) return;
       drawcell(c, V);
       
@@ -217,7 +219,7 @@ EX namespace fake {
         curvepoint(spin(-a1) * xpush0(d+.2));
         curvepoint(spin(-a1) * xpush0(d));
         curvepoint(spin(-a0) * xpush0(d));
-        queuecurve(0xFF0000FF, 0, PPR::LINE);
+        queuecurve(shiftless(Id), 0xFF0000FF, 0, PPR::LINE);
         }
 
 
@@ -225,11 +227,11 @@ EX namespace fake {
       for(int i=0; i<c->type; i++) if(c->move(i) && c->move(i) != parent) {
         auto h0 = V * befake(FPIU(get_corner_position(c, i)));
         auto h1 = V * befake(FPIU(get_corner_position(c, (i+1) % c->type)));
-        ld b0 = atan2(h0);
-        ld b1 = atan2(h1);
+        ld b0 = atan2(unshift(h0));
+        ld b1 = atan2(unshift(h1));
         while(b1 < b0) b1 += 2 * M_PI;
         if(a0 == -1) {
-          draw_recursive(c->move(i), V * adj(c, i), b0, b1, c, depth+1);
+          draw_recursive(c->move(i), optimized_shift(V * adj(c, i)), b0, b1, c, depth+1);
           }
         else {
           if(b1 - b0 > M_PI) continue;
@@ -244,7 +246,7 @@ EX namespace fake {
           
           if(b0 > b1) continue;
           
-          draw_recursive(c->move(i), V * adj(c, i), b0, b1, c, depth+1);
+          draw_recursive(c->move(i), optimized_shift(V * adj(c, i)), b0, b1, c, depth+1);
           }
         }
       }
@@ -264,13 +266,13 @@ EX namespace fake {
       return relative_matrix(h2->c7, h1->c7, hint);
       }
 
-    void draw() override {
+    void draw_at(cell *at, const shiftmatrix& where) override {
       sphereflip = Id;
       
       // for(int i=0; i<S6; i++) queuepoly(ggmatrix(cwt.at), shWall3D[i], 0xFF0000FF);
       
       if(pmodel == mdDisk && WDIM == 2 && recursive_draw) {
-        draw_recursive(centerover, cview(), -1, -1, nullptr, 0);
+        draw_recursive(at, where, -1, -1, nullptr, 0);
         return;
         }
       
@@ -282,7 +284,7 @@ EX namespace fake {
         limit = INT_MAX;
         
       if(ordered_mode && !(multiple && multiple_special_draw)) {
-        using pct = pair<cell*, transmatrix>;
+        using pct = pair<cell*, shiftmatrix>;
         auto comparer = [] (pct& a1, pct& a2) { 
           if(ordered_mode > 2) {
             auto val = [] (pct& a) {
@@ -296,7 +298,7 @@ EX namespace fake {
           };
         std::priority_queue<pct, std::vector<pct>, decltype(comparer)> myqueue(comparer);
         
-        auto enq = [&] (cell *c, const transmatrix& V) {
+        auto enq = [&] (cell *c, const shiftmatrix& V) {
           if(!c) return;
           if(ordered_mode == 1 || ordered_mode == 3) {
             if(dq::visited_c.count(c)) return;
@@ -310,8 +312,8 @@ EX namespace fake {
         while(!myqueue.empty()) {
           auto& p = myqueue.top();
           id++;
-          cell *c = get<0>(p);
-          transmatrix V = get<1>(p);
+          cell *c = p.first;
+          shiftmatrix V = p.second;
           myqueue.pop();
           
           if(ordered_mode == 2 || ordered_mode == 4) {
@@ -327,7 +329,7 @@ EX namespace fake {
           if(id > limit) continue;
     
           for(int i=0; i<c->type; i++) if(c->move(i)) {
-            enq(c->move(i), V * adj(c, i));
+            enq(c->move(i), optimized_shift(V * adj(c, i)));
             }
           }
         
@@ -335,15 +337,13 @@ EX namespace fake {
         }
 
       auto enqueue = (multiple && multiple_special_draw ? dq::enqueue_by_matrix_c : dq::enqueue_c);
-      enqueue(centerover, cview());      
+      enqueue(at, where);
       
       while(!dq::drawqueue_c.empty()) {
         auto& p = dq::drawqueue_c.front();
         id++;
-        cell *c = get<0>(p);
-        transmatrix V = get<1>(p);
-        dynamicval<ld> b(band_shift, get<2>(p));
-        bandfixer bf(V);
+        cell *c = p.first;
+        shiftmatrix V = p.second;
         dq::drawqueue_c.pop();
 
         if(!do_draw(c, V)) continue;
@@ -353,7 +353,7 @@ EX namespace fake {
         if(id > limit) continue;
     
         for(int i=0; i<c->type; i++) if(c->move(i)) {
-          enqueue(c->move(i), V * adj(c, i));
+          enqueue(c->move(i), optimized_shift(V * adj(c, i)));
           }
         }
       }
@@ -522,7 +522,9 @@ EX ld around;
 
 /** @brief the value of 'around' which makes the tiling Euclidean */
 EX ld compute_euclidean() {
+  #if CAP_ARCM
   if(arcm::in()) return arcm::current.N * 2 / arcm::current.euclidean_angle_sum;
+  #endif
   if(WDIM == 2) return 4 / (S7-2.) + 2;
 
   if(underlying == gRhombic3) return 3;
@@ -535,8 +537,10 @@ EX ld compute_euclidean() {
   }
 
 EX ld around_orig() {
+  #if CAP_ARCM
   if(arcm::in())
     return arcm::current.N;
+  #endif
   if(WDIM == 2)
     return S3;
   if(underlying == gRhombic3)
@@ -642,8 +646,6 @@ void set_gfake(ld _around) {
   check_cgi();
   cgi.require_basics();
   
-  ginf[gFake].xcode = no_code;
-  
   if(currentmap) new hrmap_fake(currentmap);
   }
 
@@ -651,7 +653,7 @@ EX void change_around() {
   if(around >= 0 && around <= 2) return;
 
   ld t = in() ? scale : 1;
-  hyperpoint h = inverse_exp(tC0(View));
+  hyperpoint h = inverse_exp(shiftless(tC0(View)));
   transmatrix T = gpushxto0(tC0(View)) * View;
   
   ld range = sightranges[geometry];
@@ -731,6 +733,7 @@ EX void configure() {
     };
   }
   
+#if CAP_COMMANDLINE
 int readArgs() {
   using namespace arg;
            
@@ -752,8 +755,8 @@ int readArgs() {
   }
 
 auto fundamentalhook = addHook(hooks_args, 100, readArgs);
+#endif
 
 EX }
 
 }
-

@@ -16,9 +16,9 @@ EX namespace nisot {
   
   EX bool geodesic_movement = true;
 
-  EX transmatrix translate(hyperpoint h) {
-    if(sl2)
-      return slr::translate(h);
+  EX transmatrix translate(hyperpoint h, ld co IS(1)) {
+    if(sl2 || sphere)
+      return co > 0 ? stretch::translate(h) : stretch::itranslate(h);
     transmatrix T = Id;
     for(int i=0; i<GDIM; i++) T[i][LDIM] = h[i];
     if(sol && nih) {
@@ -35,6 +35,7 @@ EX namespace nisot {
       }
     if(nil) 
       T[2][1] = h[0];
+    if(co < 0) return iso_inverse(T);
     return T;
     }
 
@@ -235,8 +236,8 @@ EX namespace sn {
   struct hrmap_solnih : hrmap {
     hrmap *binary_map;
     hrmap *ternary_map; /* nih only */
-    unordered_map<pair<heptagon*, heptagon*>, heptagon*> at;
-    unordered_map<heptagon*, pair<heptagon*, heptagon*>> coords;
+    map<pair<heptagon*, heptagon*>, heptagon*> at;
+    map<heptagon*, pair<heptagon*, heptagon*>> coords;
     
     heptagon *origin;
     
@@ -427,7 +428,7 @@ EX namespace sn {
     transmatrix relative_matrixh(heptagon *h2, heptagon *h1, const hyperpoint& hint) override { 
       for(int i=0; i<h1->type; i++) if(h1->move(i) == h2) return adjmatrix(i, h1->c.spin(i));
       if(gmatrix0.count(h2->c7) && gmatrix0.count(h1->c7))
-        return inverse(gmatrix0[h1->c7]) * gmatrix0[h2->c7];
+        return inverse_shift(gmatrix0[h1->c7], gmatrix0[h2->c7]);
       
       transmatrix front = Id, back = Id;
       
@@ -446,31 +447,6 @@ EX namespace sn {
       while(coords[h1].second != coords[h2].second) front = front * adj(h1, up), back = iadj(h2, up) * back, h1 = h1->cmove(up), h2 = h2->cmove(up);
       return front * back;
       }
-
-    void draw() override {
-      dq::visited.clear();
-
-      dq::enqueue(centerover->master, cview());
-      
-      while(!dq::drawqueue.empty()) {
-        auto& p = dq::drawqueue.front();
-        heptagon *h = get<0>(p);
-        transmatrix V = get<1>(p);
-        dq::drawqueue.pop();
-        
-        cell *c = h->c7;
-        if(!do_draw(c, V)) continue;
-        drawcell(c, V);
-        if(in_wallopt() && isWall3(c) && isize(dq::drawqueue) > 1000) continue;
-  
-        for(int i=0; i<S7; i++) {
-          // note: need do cmove before c.spin
-          heptagon *h1 = h->cmove(i);
-          dq::enqueue(h1, V * adjmatrix(i, h->c.spin(i)));
-          }
-        }
-      }
-
     };
 
   EX pair<heptagon*,heptagon*> getcoord(heptagon *h) {
@@ -610,7 +586,7 @@ EX namespace sn {
     "if(iz < 0.05 && ix > .85 && iy > .45 && iy < .75) ok = false;"
     "if(iz < 0.025 && ix > .65 && iy > .65 && ix < .8 && iy < .8) ok = false;"
 
-    "if(!ok) res = vec4(0,0,0,1);"
+    "if(!ok) res = vec4(0./0.,0./0.,0./0.,1);"
     "else "
 
     "\n#endif\n"
@@ -935,8 +911,8 @@ EX namespace nilv {
      }
     
   struct hrmap_nil : hrmap {
-    unordered_map<mvec, heptagon*> at;
-    unordered_map<heptagon*, mvec> coords;
+    map<mvec, heptagon*> at;
+    map<heptagon*, mvec> coords;
     
     heptagon *getOrigin() override { return get_at(mvec_zero); }
     
@@ -973,38 +949,8 @@ EX namespace nilv {
       for(int a=0; a<3; a++) p[a] = szgmod(p[a], nilperiod[a]);     
       return nisot::translate(mvec_to_point(p));
       }
-
-    void draw() override {
-      dq::visited_by_matrix.clear();
-
-      dq::enqueue_by_matrix(centerover->master, cview());
-      
-      while(!dq::drawqueue.empty()) {
-        auto& p = dq::drawqueue.front();
-        heptagon *h = get<0>(p);
-        transmatrix V = get<1>(p);
-        dq::drawqueue.pop();
-        
-        cell *c = h->c7;
-        if(!do_draw(c, V)) continue;
-        drawcell(c, V);
-        if(in_wallopt() && isWall3(c) && isize(dq::drawqueue) > 1000) continue;
-
-        if(0) for(int t=0; t<c->type; t++) {
-          if(!c->move(t)) continue;
-          dynamicval<color_t> g(poly_outline, darkena((0x142968*t) & 0xFFFFFF, 0, 255) );
-          queuepoly(V, cgi.shWireframe3D[t], 0);
-          }
-  
-        for(int i=0; i<S7; i++) {
-          // note: need do cmove before c.spin
-          heptagon *h1 = h->cmove(i);
-          dq::enqueue_by_matrix(h1, V * adjmatrix(i));
-          }
-        }
-      }
     };
-  
+
   EX mvec get_coord(heptagon *h) { return ((hrmap_nil*)currentmap)->coords[h]; }
 
   EX heptagon *get_heptagon_at(mvec m) { return ((hrmap_nil*)currentmap)->get_at(m); }
@@ -1018,7 +964,7 @@ EX namespace nilv {
     }
 
   EX hyperpoint on_geodesic(hyperpoint s0, hyperpoint s1, ld x) {
-    hyperpoint local = inverse(nisot::translate(s0)) * s1;
+    hyperpoint local = nisot::translate(s0, -1) * s1;
     hyperpoint h = get_inverse_exp(local);
     return nisot::translate(s0) * formula_exp(h * x);
     }
@@ -1128,7 +1074,6 @@ EX namespace hybrid {
     auto keep = ginf[g].menu_displayed_name;
     ginf[g] = ginf[underlying];
     ginf[g].menu_displayed_name = keep;
-    ginf[g].xcode = no_code;
     if(g == gRotSpace) {
       ginf[g].g = sph ? giSphere3 : giSL2;
       ginf[g].tiling_name = "Iso(" + ginf[g].tiling_name + ")";
@@ -1152,7 +1097,7 @@ EX namespace hybrid {
       ginf[g].g.gameplay_dimension++;
       ginf[g].g.graphical_dimension++;
       ginf[g].tiling_name += "xZ";
-      if(product::csteps) ginf[g].flags |= qANYQ, ginf[g].tiling_name += its(product::csteps);
+      if(csteps) ginf[g].flags |= qANYQ, ginf[g].tiling_name += its(csteps);
       }
     ginf[g].flags |= qHYBRID;
     }
@@ -1189,12 +1134,135 @@ EX namespace hybrid {
     map<cell*, pair<cell*, int>> where;
     
     heptagon *getOrigin() override { return underlying_map->getOrigin(); }
+
+    const int SHIFT_UNKNOWN = 30000;
+    map<cell*, vector<int>> shifts;
+  
+    EX vector<int>& make_shift(cell *c) {
+      auto& res = shifts[c];
+      if(res.empty()) res = vector<int> (c->type+1, SHIFT_UNKNOWN);
+      return res;
+      }
+    
+    EX int& get_shift_current(cellwalker cw) {
+      return make_shift(cw.at)[cw.spin];
+      }
+    
+    EX bool have_shift(cellwalker cw) {
+      return shifts.count(cw.at) && get_shift_current(cw) != SHIFT_UNKNOWN;
+      }
+    
+    EX int get_shift(cellwalker cw0) {
+      if(S3 >= OINF) return 0;
+      auto& v = get_shift_current(cw0);
+      if(v != SHIFT_UNKNOWN) return v;
+      
+      vector<int> candidates;
+      
+      for(int a: {1, -1}) {
+        cellwalker cw = cw0;
+        cw += wstep; cw += a;
+        int s = 0;
+        while(cw != cw0) {
+          if(!have_shift(cw)) goto next;
+          s += shifts[cw.at][cw.spin];
+          cw += wstep;
+          cw += a;
+          }
+        candidates.push_back(-a * cgi.single_step * (sphere ? -1 : 1) - s);
+        next: ;
+        }
+      
+      if(candidates.size() == 2 && candidates[0] != candidates[1]) {
+        int val = candidates[0] - candidates[1];
+        if(disc_quotient == 0) disc_quotient = val;
+        disc_quotient = gcd(val, disc_quotient);
+        if(disc_quotient < 0) disc_quotient = -disc_quotient;
+        }
+  
+      int val = 0;
+      
+      auto cw1 = cw0+wstep;
+      if(1) {
+        /* the value from PSL, helps to draw the underlying space correctly */
+        auto ps = cgi.psl_steps;
+        val = cw0.spin*ps / cw0.at->type - cw1.spin*ps / cw1.at->type + ps/2;
+        }
+      if(!candidates.empty()) val = candidates[0];
+      
+      v = val;
+      get_shift_current(cw1) = -val;
+            
+      return val;
+      }  
+    
+    EX void ensure_shifts(cell *c) {
+      if(S3 >= OINF) return;
+      if(!make_shift(c)[c->type]) return;
+      forCellEx(c1, c)
+      for(int a=0; a<c->type; a++) {
+        cellwalker cw0(c, a);
+        cellwalker cw = cw0;
+        while(cw != cw0) {
+          get_shift(cw);
+          cw += wstep;
+          cw += a;
+          }
+        }
+      make_shift(c)[c->type] = 0;
+      }
+    
+    EX int cycle_discrepancy(cellwalker cw0) {
+      int total = 0;
+      auto cw = cw0;
+      do {
+        total += get_shift(cw);
+        cw += wstep;
+        cw++;
+        }
+      while(cw != cw0);
+      return total + cgi.single_step * (sphere ? -1 : 1);
+      }
+    
+    EX void fix_bounded_cycles() {
+      if(!rotspace) return;
+      if(!bounded) return;
+      in_underlying([&] {
+        cellwalker final(currentmap->gamestart(), 0);
+        auto& ac = currentmap->allcells();
+        for(cell *c: ac) for(int i=0; i<c->type; i++) {
+          cellwalker cw(c, i);
+          int cd = cycle_discrepancy(cw);
+          if(!cd) continue;
+          while(cw != final) {
+            if(celldist(cw.peek()) < celldist(cw.at)) {
+              cw += wstep;
+              cw++;
+              }              
+            else {
+              get_shift_current(cw) -= cd;
+              get_shift_current(cw+wstep) += cd;
+              cw++;
+              }
+            }
+          }
+
+        disc_quotient = abs(cycle_discrepancy(final));
+
+        if(debugflags & DF_GEOM) for(cell *c: ac) for(int i=0; i<c->type; i++) {
+          cellwalker cw(c, i);
+          if(cycle_discrepancy(cw)) println(hlog, cw, cycle_discrepancy(cw));
+          }
+        });
+      }
     
     template<class T> auto in_underlying(const T& t) -> decltype(t()) {
       pcgip = cgip; 
       dynamicval<hrmap*> gpm(pmap, this);
       dynamicval<eGeometry> gag(actual_geometry, geometry);
       dynamicval<eGeometry> g(geometry, underlying);
+      dynamicval<int> gss(underlying_cgip->single_step, cgi.single_step);
+      dynamicval<int> gsp(underlying_cgip->psl_steps, cgi.psl_steps);
       dynamicval<geometry_information*> gc(cgip, underlying_cgip);
       dynamicval<hrmap*> gu(currentmap, underlying_map);
       return t();
@@ -1205,11 +1273,11 @@ EX namespace hybrid {
         if(!spins.count(u))
           println(hlog, "link missing: ", u);
         else {
-          while(h >= cgi.steps) h -= cgi.steps, u = spins[u].first.at;
-          while(h < 0) h += cgi.steps, u = spins[u].second.at;
+          while(h >= csteps) h -= csteps, u = spins[u].first.at;
+          while(h < 0) h += csteps, u = spins[u].second.at;
           }
         }
-      h = zgmod(h, cgi.steps);
+      h = zgmod(h, csteps);
       cell*& c = at[make_pair(u, h)];
       if(!c) { c = newCell(u->type+2, u->master); where[c] = {u, h}; }
       return c;
@@ -1219,8 +1287,10 @@ EX namespace hybrid {
   
     hrmap_hybrid() {
       twisted = false;
+      disc_quotient = 0;
       in_underlying([this] { initcells(); underlying_map = currentmap; });
       for(hrmap*& m: allmaps) if(m == underlying_map) m = NULL;
+      fix_bounded_cycles();
       }
     
     ~hrmap_hybrid() {
@@ -1253,19 +1323,25 @@ EX namespace hybrid {
     }
   
   EX pair<cell*, int> get_where(cell *c) { return hmap()->where[c]; }
-
+  
   EX void find_cell_connection(cell *c, int d) {
     auto m = hmap();
     if(d >= c->type - 2) {
       int s = cgi.single_step;
-      cell *c1 = get_at(m->where[c].first, m->where[c].second + (d == c->type-1 ? s : -s));
+      int lev = m->where[c].second + (d == c->type-1 ? s : -s);
+      cell *c1 = get_at(m->where[c].first, lev);
       c->c.connect(d, c1, c1->type - 3 + c->type - d, false);
       }
     else {
       auto cu = m->where[c].first;
       auto cu1 = m->in_underlying([&] { return cu->cmove(d); });
       int d1 = cu->c.spin(d);
-      int s = (geometry == gRotSpace && cgi.steps) ? d*cgi.steps / cu->type - d1*cgi.steps / cu1->type + cgi.steps/2 : 0;
+      int s = 0;
+      if(geometry == gRotSpace) {
+        auto cm = (hrmap_hybrid*)currentmap;
+        m->in_underlying([&] { cm->ensure_shifts(cu); });
+        s = ((hrmap_hybrid*)currentmap)->get_shift(cellwalker(cu, d));
+        }
       cell *c1 = get_at(cu1, m->where[c].second + s);
       c->c.connect(d, c1, d1, cu->c.mirror(d));
       }
@@ -1278,6 +1354,8 @@ EX namespace hybrid {
     if(!hybri) return f();
     dynamicval<eGeometry> g(geometry, underlying);
     dynamicval<eGeometry> gag(actual_geometry, geometry);
+    dynamicval<int> gss(underlying_cgip->single_step, cgi.single_step);
+    dynamicval<int> gsp(underlying_cgip->psl_steps, cgi.psl_steps);
     dynamicval<geometry_information*> gc(cgip, underlying_cgip);
     dynamicval<hrmap*> gpm(pmap, currentmap);
     dynamicval<hrmap*> gm(currentmap, get_umap());
@@ -1369,7 +1447,7 @@ EX namespace hybrid {
       auto w1 = hybrid::get_where(c1), w2 = hybrid::get_where(c2); 
       return PIU (hr::celldistance(w1.first, w2.first));
       }
-    else if(cgi.steps == 0) {
+    else if(csteps == 0) {
       auto w1 = hybrid::get_where(c1), w2 = hybrid::get_where(c2); 
       return PIU (hr::celldistance(w1.first, w2.first)) + abs(w1.second - w2.second);
       }
@@ -1382,7 +1460,7 @@ EX namespace hybrid {
         if(w1.second == w2.second) {
           int d = PIU(hr::celldistance(w1.first, w2.first));
           a = min(s+d, a);
-          b = max(s-d, a);
+          b = max(s-d, b);
           }
         c = c->cmove(c1->type-1); s++;
         }
@@ -1449,7 +1527,7 @@ EX namespace product {
       }
 
     transmatrix adj(cell *c, int i) override {
-      if(twisted && i == c->type-1 && where[c].second == cgi.steps-1) {
+      if(twisted && i == c->type-1 && where[c].second == hybrid::csteps-1) {
         auto b = spins[where[c].first].first;
         transmatrix T = mscale(Id, cgi.plevel);
         T = T * spin(2 * M_PI * b.spin / b.at->type);
@@ -1471,6 +1549,7 @@ EX namespace product {
   
     hrmap_product() {
       current_spin_invalid = false;
+      using hybrid::csteps;
       if((cspin || cmirror) && csteps) {
         in_underlying([&] {
           twisted = validate_spin();
@@ -1504,11 +1583,10 @@ EX namespace product {
       }
     };
 
-  EX bool current_spin_invalid;
-
-  EX int csteps, cspin;
-  EX bool cmirror;
-  
+  EX bool current_spin_invalid, cmirror;
+  EX int cspin;
+    
+  /* todo might need a shiftpoint version */
   EX hyperpoint inverse_exp(hyperpoint h) {
     hyperpoint res;
     res[2] = zlevel(h);
@@ -1534,7 +1612,7 @@ EX namespace product {
   EX hyperpoint direct_exp(hyperpoint h) {
     hyperpoint res;
     ld d = hypot_d(2, h);
-    ld cd = d == 0 ? 0 : sinh(d) / d;
+    ld cd = d == 0 ? 0 : sin_auto(d) / d;
     res[0] = h[0] * cd;
     res[1] = h[1] * cd;
     res[2] = cos_auto(d);
@@ -1562,43 +1640,30 @@ EX namespace product {
       }
     return true;
     }
-    
+
   EX void show_config() {
     cmode = sm::SIDE | sm::MAYDARK;
-    gamescreen(1);  
+    gamescreen(1);
     dialog::init(XLAT("quotient product spaces"));
-    dialog::addSelItem(XLAT("%1 period", "Z"), its(product::csteps), 'z');
-    dialog::add_action([] {
-      static int s;
-      s = product::csteps;
-      dialog::editNumber(s, 0, 16, 1, 0, XLAT("%1 period", "Z"),
-            XLAT("Set to 0 to make it non-periodic."));
-      dialog::bound_low(0);
-      dialog::reaction_final = [] {
-        product::csteps = s;
-        if(product::csteps == cgi.steps) return;
-        hybrid::reconfigure();
-        start_game();
-        println(hlog, "csteps = ", cgi.steps);
-        };
-      });
-    dialog::addSelItem(XLAT("rotation"), its(product::cspin), 'r');
+    dialog::addSelItem(XLAT("%1 period", "Z"), its(hybrid::csteps), 'z');
+    dialog::add_action(hybrid::configure_period);
+    dialog::addSelItem(XLAT("rotation"), its(cspin), 'r');
     dialog::add_action([] {
       static int s;
       dialog::editNumber(s, 0, 16, 1, 0, XLAT("rotation", "Z"), 
         XLAT("Works if the underlying space is symmetric.")
         );
       dialog::reaction_final = [] {
-        if(s == product::cspin) return;
+        if(s == cspin) return;
         stop_game();
-        product::cspin = s;
+        cspin = s;
         start_game();
         };
       });
-    dialog::addBoolItem(XLAT("reflect"), product::cmirror, 'f');
+    dialog::addBoolItem(XLAT("reflect"), cmirror, 'f');
     dialog::add_action([]{
       stop_game();
-      product::cmirror = !product::cmirror;
+      cmirror = !cmirror;
       start_game();
       });
     if(current_spin_invalid) 
@@ -1615,69 +1680,8 @@ EX }
 
 EX namespace slr {
 
-  /* This implementation is based on:
-  // https://pdfs.semanticscholar.org/bf46/824df892593a1b6d1c84a5f99e90eece7c54.pdf
-  // However, to make it consistent with the conventions in HyperRogue,
-  // coordinates 0<->2 and 1<->3 are swapped,
-  // then coordinates 2<->3 are swapped
-  */
-
   EX ld range_xy = 2;
   EX int steps = 15;
-
-  EX hyperpoint from_phigans(hyperpoint h) {
-    ld r = asinh(hypot_d(2, h));
-    ld x = h[0];
-    ld y = h[1];
-    ld z = h[2];
-    return hyperpoint(x * cos(z) + y * sin(z), y * cos(z) - x * sin(z), cosh(r) * sin(z), cosh(r) * cos(z));
-    }
-  
-  EX hyperpoint to_phigans(hyperpoint h) {
-    ld z = atan2(h[2], h[3]);
-    ld x = h[0];
-    ld y = h[1];
-    return point31(x * cos(z) - y * sin(z), y * cos(z) + x * sin(z), z);
-    }
-
-  /** in the 'phigans' model */
-  hyperpoint christoffel(const hyperpoint Position, const hyperpoint Velocity, const hyperpoint Transported) {
-    ld x = Position[0];
-    ld y = Position[1];
-    ld s = x*x + y*y + 1;
-    ld x2 = x * x;
-    ld y2 = y * y;
-    ld x4 = x2 * x2;
-    ld y4 = y2 * y2;
-    return point3(
-     + Velocity[ 0 ] * Transported[ 0 ] * (x*(4*x2*y2 + 4*y4 + 9*y2 + 1))
-     + Velocity[ 0 ] * Transported[ 1 ] * (-y*(4*x4 + 4*x2*y2 + 9*x2 + 2))
-     + Velocity[ 0 ] * Transported[ 2 ] * (-x*y*(x2 + y2 + 2))
-     + Velocity[ 1 ] * Transported[ 0 ] * (-y*(4*x4 + 4*x2*y2 + 9*x2 + 2))
-     + Velocity[ 1 ] * Transported[ 1 ] * (x*(4*x4 + 4*x2*y2 + 9*x2 + 5))
-     + Velocity[ 1 ] * Transported[ 2 ] * (x4 + x2*y2 + 2*x2 + 1)
-     + Velocity[ 2 ] * Transported[ 0 ] * (-x*y*(x2 + y2 + 2))
-     + Velocity[ 2 ] * Transported[ 1 ] * (x4 + x2*y2 + 2*x2 + 1),
-  
-     + Velocity[ 0 ] * Transported[ 0 ] *  (y*(4*x2*y2 + 4*y4 + 9*y2 + 5))
-     + Velocity[ 0 ] * Transported[ 1 ] *  (-x*(4*x2*y2 + 4*y4 + 9*y2 + 2))
-     + Velocity[ 0 ] * Transported[ 2 ] *  (-x2*y2 - y4 - 2*y2 - 1)
-     + Velocity[ 1 ] * Transported[ 0 ] *  (-x*(4*x2*y2 + 4*y4 + 9*y2 + 2))
-     + Velocity[ 1 ] * Transported[ 1 ] *  (y*(4*x4 + 4*x2*y2 + 9*x2 + 1))
-     + Velocity[ 1 ] * Transported[ 2 ] *  (x*y*(x2 + y2 + 2))
-     + Velocity[ 2 ] * Transported[ 0 ] *  (-x2*y2 - y4 - 2*y2 - 1)
-     + Velocity[ 2 ] * Transported[ 1 ] *  (x*y*(x2 + y2 + 2)),
-  
-     + Velocity[ 0 ] * Transported[ 0 ] *  (-4*x*y)
-     + Velocity[ 0 ] * Transported[ 1 ] *  (2*x2 - 2*y2)
-     + Velocity[ 0 ] * Transported[ 2 ] *  x
-     + Velocity[ 1 ] * Transported[ 0 ] *  (2*x2 - 2*y2)
-     + Velocity[ 1 ] * Transported[ 1 ] *  4*x*y
-     + Velocity[ 1 ] * Transported[ 2 ] *  y
-     + Velocity[ 2 ] * Transported[ 0 ] *  x
-     + Velocity[ 2 ] * Transported[ 1 ] *  y
-       ) / s;
-    }
 
   EX transmatrix translate(hyperpoint h) {
     return matrix4(
@@ -1691,204 +1695,329 @@ EX namespace slr {
   EX hyperpoint polar(ld r, ld theta, ld phi) {
     return hyperpoint(sinh(r) * cos(theta-phi), sinh(r) * sin(theta-phi), cosh(r) * sin(phi), cosh(r) * cos(phi));
     }
-  
+
   EX hyperpoint xyz_point(ld x, ld y, ld z) {
     ld r = hypot(x, y);
     ld f = r ? sinh(r) / r : 1;
     return hyperpoint(x * f * cos(z) + y * f * sin(z), y * f * cos(z) - x * f * sin(z), cosh(r) * sin(z), cosh(r) * cos(z));
     }
   
-  ld rootsin(ld square, ld s) {
-    if(square > 0) return sinh(sqrt(square) * s) / sqrt(square);
-    else if(square < 0) return sin(sqrt(-square) * s) / sqrt(-square);
-    else return s;
-    }
-  
-  /** it==0 is standard asin, it==1 is the next solution (PI-asin) */
-  ld asin_it(ld z, int it) {
-    auto ans = asin(z);
-    if(it & 1) ans = M_PI - ans;
-    return ans;
-    }
-  
-  ld arootsin(ld square, ld v, int it) {
-    if(square > 0) return asinh(v * sqrt(square)) / sqrt(square);
-    else if(square < 0) return asin_it(v * sqrt(-square), it) / sqrt(-square);
-    else return v;
-    }
-  
-  ld roottan(ld square, ld s) {
-    if(square > 0) return tanh(sqrt(square) * s) / sqrt(square);
-    else if(square < 0) return tan(sqrt(-square) * s) / sqrt(-square);
-    else return s;
-    }
+  EX hyperpoint get_inverse_exp(shiftpoint h) {
+    ld xy = hypot_d(2, h.h);
+    ld phi = atan2(h[2], h[3]) + h.shift;
 
-  hyperpoint geodesic_polar(ld alpha, ld beta, ld s) {
-    auto c = cos(2*alpha);
-    
-    ld t;
-    if(c > 0) 
-      t = atan(sin(alpha) * tanh(sqrt(c) * s) / sqrt(c));
-    else if(c < 0) {
-      /* the formula in the paper is roughly atan(k*tan(s))
-       * however, atan is not always to be taken in [-PI/2,PI/2]:
-       * if s is in [kPI-PI/2, kPI+PI/2], we should also increase the result by kPI
-       */
-      ld x = sqrt(-c) * s;
-      ld steps = floor(x/M_PI + 0.5);
-      t = atan(sin(alpha) * tan(sqrt(-c) * s) / sqrt(-c)) + M_PI * steps;
-      }
-    else t = atan(sin(alpha) * s);
-    
-    return polar(
-      asinh(cos(alpha) * rootsin(c, s)),
-      beta - t,
-      2*sin(alpha)*s - t
-      );
-    }
+    if(xy < 1e-6) return point31(0.,0.,phi);
 
-  EX hyperpoint formula_exp(hyperpoint h) {
-    ld s = hypot_d(3, h);
-    ld beta = atan2(h[1], h[0]);
-    ld alpha = asin(h[2] / s);
-    return geodesic_polar(alpha, beta, s);
-    }
-
-  void find_alpha(ld phi, ld r, ld theta, ld &alpha, ld &s, ld &beta) {
-    if(phi < 0) { find_alpha(-phi, r, -theta, alpha, s, beta); alpha = -alpha; beta = -beta; return; }
-    ld mina = 0, maxa = M_PI/2;
-  
-    bool next_nan = true;
-    ld c;
+    bool flipped = phi > 0;
+    if(flipped) phi = -phi;
     
-    for(int it=0; it<40; it++) {
-      alpha = (mina + maxa) / 2;
+    ld SV = stretch::not_squared();
+    ld K = -1;
+    
+    ld alpha = flipped ? atan2(h[1], h[0]) - h.shift : atan2(h[1], -h[0]) + h.shift;
+    
+    hyperpoint res;
+    
+    ld fiber_barrier = atan(1/SV);
+    
+    ld flip_barrier = atan( 1 / tanh(asinh(xy)) / SV);
+    
+    // test the side of the flip barrier
+    
+    int part = -1;
+    
+    if(1) {
+      ld kk = flip_barrier;
+      
+      ld x_part = cos(kk);
+      ld z_part = sin(kk);
   
-      c = cos(2 * alpha);    
-      s = arootsin(c, sinh(r) / cos(alpha), 0);
-      if(isnan(s)) { next_nan = true, maxa = alpha; continue; }
-      ld got_phi = 2*sin(alpha)*s - atan(sin(alpha) * roottan(c, s));
-      if(got_phi > phi) next_nan = false, maxa = alpha;
-      else mina = alpha;
+      ld rparam = x_part / z_part / SV;
+      
+      ld r = atanh(rparam);
+      
+      ld cr = cosh(r);
+      ld sr = sinh(r);
+      
+      // sinh(r) = xy
+      // r = tanh(sinh(xy))
+      
+  
+      ld z = cr * (K - 1/SV/SV);
+  
+      ld k = M_PI/2;
+      ld a = k / K;
+      ld zw = xy * cr / sr;
+      ld u = z * a;
+  
+      ld phi1 = atan2(zw, cos(k)) - u;
+      
+      if(phi < phi1) part = 2;
       }
     
-    if(next_nan) {
-      mina = M_PI/4;
+    if(part == -1) {
+      ld zw = xy;
   
-      for(int it=0; it<40; it++) {
-        alpha = (mina + maxa) / 2;
-        c = cos(2 * alpha);    
-        s = arootsin(c, sinh(r) / cos(alpha), 1);
-        ld got_phi = 2*sin(alpha)*s - atan(sin(alpha) * roottan(c, s)) - M_PI;
-        if(got_phi < phi) maxa = alpha;
-        else mina = alpha;
+      ld u = xy * (K - 1/SV/SV) / K;
+      ld phi1 = atan2(zw, 1) - u;
+      
+      if(phi > phi1) part = 0; else part = 1;
+      }
+    
+    if(part == 2) {
+      ld min_k = fiber_barrier;
+      ld max_k = flip_barrier;
+  
+      for(int it=0; it<30; it++) {
+        ld kk = (min_k + max_k) / 2;
+        
+        ld x_part = cos(kk);
+        ld z_part = sin(kk);
+        
+        ld rparam = x_part / z_part / SV;
+        
+        assert(rparam <= 1);
+  
+        ld r = atanh(rparam);      
+        ld cr = cosh(r);
+        ld sr = sinh(r);
+  
+        ld z = cr * (K - 1/SV/SV);
+  
+        ld k = M_PI - asin(xy / sr);
+        ld a = k / K;
+        ld len = a * hypot(sr, cr/SV);
+        ld zw = xy * cr / sr;
+        ld u = z * a;
+  
+        ld phi1 = atan2(zw, cos(k)) - u;
+  
+        if(phi < phi1) max_k = kk;
+        else min_k = kk;
+  
+        ld r_angle = alpha + u;
+        res = point3(cos(r_angle) * x_part * len, -sin(r_angle) * x_part * len, z_part * len);
         }
-      beta = theta + atan(sin(alpha) * roottan(c, s)) + M_PI;
       }
-    else beta = theta + atan(sin(alpha) * roottan(c, s));
+    
+    if(part == 0) {
+      ld min_k = 0;
+      ld max_k = fiber_barrier;
+  
+      for(int it=0; it<30; it++) {
+        ld kk = (min_k + max_k) / 2;
+        
+        ld x_part = cos(kk);
+        ld z_part = sin(kk);
+    
+        ld rparam = x_part / z_part / SV;
+        
+        ld cr = 1 / sqrt(rparam*rparam - 1);
+        ld sr = rparam * cr;
+  
+        ld z = cr * (K - 1/SV/SV);
+        
+        ld k = asinh(xy / sr);
+        ld a = k / K;
+        ld len = a * hypot(sr, cr/SV);
+  
+        ld zw = xy * cr / sr;
+  
+        ld u = z * a;
+        ld phi1 = atan2(zw, cosh(k)) - u;
+        
+        if(phi > phi1) max_k = kk; else min_k = kk;
+        
+        ld r_angle = alpha + u;
+        res = point3(cos(r_angle) * x_part * len, -sin(r_angle) * x_part * len, z_part * len);
+        }
+      }
+    
+    if(part == 1) {
+      ld min_k = fiber_barrier;
+      ld max_k = flip_barrier;
+  
+      for(int it=0; it<30; it++) {
+        ld kk = (min_k + max_k) / 2;
+        
+        ld x_part = cos(kk);
+        ld z_part = sin(kk);
+    
+        ld rparam = x_part / z_part / SV;
+        
+        ld r = atanh(rparam);      
+        ld cr = cosh(r);
+        ld sr = sinh(r);
+  
+        ld z = cr * (K - 1/SV/SV);
+  
+        ld k = asin(xy / sr);
+        ld a = k / K;
+        ld len = a * hypot(sr, cr/SV);
+        ld zw = xy * cr / sr;
+        ld u = z * a;
+  
+        ld phi1 = atan2(zw, cos(k)) - u;
+        
+        if(isnan(phi1)) max_k = kk;
+        else if(phi > phi1) max_k = kk;
+        else min_k = kk;
+  
+        ld r_angle = alpha + u;
+        res = point3(cos(r_angle) * x_part * len, -sin(r_angle) * x_part * len, z_part * len);
+        }      
+      }
+    
+    if(flipped) res[0] *= -1, res[2] *= -1;
+
+    return res;
     }
 
-  EX hyperpoint get_inverse_exp(hyperpoint h, ld index IS(0)) {
-    if(sqhypot_d(2, h) < 1e-12) return point3(0, 0, atan2(h[2], h[3]) + index);
-    ld r = asinh(hypot_d(2, h));
-    ld phi = atan2(h[2], h[3]) + index;
-    ld theta = atan2(h[1], h[0]) + phi + index;
-    
-    ld alpha, s, beta;
-    find_alpha(phi, r, theta, alpha, s, beta);
-    
-    return point3(s * cos(beta) * cos(alpha), s * sin(beta) * cos(alpha), s * sin(alpha));
-    }
+#if ISWEB
+#define ITERATE "  for(int it=0; it<50; it++) { if(it >= uIterations) break; "
+#else
+#define ITERATE "  for(int it=0; it<uIterations; it++) {"
+#endif
 
   EX string slshader = 
 
     "uniform mediump float uIndexSL;"
     "uniform mediump int uIterations;"
+    "uniform mediump float uSV;"
     
     "vec4 inverse_exp(vec4 h) {"
-      "if(h[0]*h[0] + h[1] * h[1] < 1e-6) return vec4(0, 0, atan2(h[2], h[3]) + uIndexSL, 1);"
-      "float r = asinh(sqrt(h[0] * h[0] + h[1] * h[1]));"
+
+      "float xy = length(h.xy);"
       "float phi = atan2(h[2], h[3]) + uIndexSL;"
-      "float theta = atan2(h[1], h[0]) + phi + uIndexSL;"
-      "float alpha;"
-      "float s;"
-      "float beta;"
-      "float sgn = 1.;"
-      "float bound = .999;"
-      "if(phi < 0.) { phi = -phi; theta = -theta; sgn = -1.; }"
-      "float c;"
-      "s = sinh(r) / cos(PI/4.);"
-      "float gphi = 2.*sin(PI/4.)*s - atan(sin(PI/4.) * s);"
-      "float lo_gphi = gphi;"
-      "float lo_s = s;"
-      "float lo_alpha = PI/4.;"
-      "float lx_gphi = gphi;"
-      "float lx_s = s;"
-      "float lx_alpha = PI/4.;"
-      "float hi_gphi = gphi;"
-      "float hi_s = s;"
-      "float hi_alpha = PI/4.;"
-      "if(gphi > phi) {"
-      "  float mina = 0.;"
-      "  float maxa = PI/4.;"
-      "  lo_gphi = 0.; lo_s = r; lo_alpha = 0.;"
-#if ISWEB
-      "  for(int it=0; it<50; it++) { if(it >= uIterations) break; "
-#else
-      "  for(int it=0; it<uIterations; it++) {"
-#endif
-      "    alpha = (mina + maxa) / 2.;"
-      "    c = sqrt(cos(2. * alpha));"
-      "    s = asinh(sinh(r) / cos(alpha) * c) / c;"
-      "    gphi = 2.*sin(alpha)*s - atan(sin(alpha) * tanh(c * s) / c);"
-      "    if(gphi > phi) { maxa = alpha; hi_alpha = alpha; hi_s = s; hi_gphi = gphi; }"
-      "    else { mina = alpha; lo_alpha = alpha; lo_s = s; lo_gphi = gphi; }"
-      "    }"
-      "  }"
-      "else {"
-      "  hi_gphi = phi; hi_s = phi; hi_alpha = 9.;"
-      "  int next_nan = 1;"
-      "  float mina = PI/4.;"
-      "  float maxa = PI/2.;"
-#if ISWEB
-      "  for(int it=0; it<50; it++) { if(it >= uIterations) break; "
-#else
-      "  for(int it=0; it<uIterations; it++) {"
-#endif
-      "    alpha = (mina + maxa) / 2.;"
-      "    c = sqrt(-cos(2. * alpha));"
-      "    if(sinh(r) * c > bound * cos(alpha)) { next_nan = 1; maxa = alpha; continue; }"
-      "    s = asin(sinh(r) * c / cos(alpha)) / c;"
-      "    gphi = 2.*sin(alpha)*s - atan(sin(alpha) * tan(c*s) / c);"
-      "    if(gphi > phi) { next_nan = 0; maxa = alpha; hi_gphi = gphi; hi_s = s; hi_alpha = alpha; }"
-      "    else { mina = alpha; lx_gphi = lo_gphi; lx_s = lo_s; lx_alpha = lo_alpha; lo_gphi = gphi; lo_s = s; lo_alpha = alpha; }"
-      "    }"
-      "  if(next_nan != 0) {"
-      "    mina = PI/4.; "
-#if ISWEB
-      "    for(int it=0; it<50; it++) { if(it >= uIterations) break; "
-#else
-      "    for(int it=0; it<uIterations; it++) {"
-#endif
-      "      alpha = (mina + maxa) / 2.;"
-      "      c = sqrt(-cos(2. * alpha));"
-      "      float z = sinh(r) * c / cos(alpha);"
-      "      if(z>bound) { maxa = alpha; next_nan = 1; continue; }"
-      "      float s1 = PI - asin(z);"
-      "      s = s1 / c;"
-      "      gphi = 2.*sin(alpha)*s - atan(sin(alpha) * tan(s1) / c) - PI;"
-      "      if(gphi < phi) { next_nan = 0; maxa = alpha; hi_gphi = gphi; hi_s = s; hi_alpha = alpha; }"
-      "      else { mina = alpha; lo_gphi = gphi; lo_s = s; lo_alpha = alpha; }"
-      "      }"
-      "    }"
-      "  }"
-      "if(hi_alpha <= 9.) { hi_gphi = lx_gphi; hi_s = lx_s; hi_alpha = lx_alpha; } "
-        "float fr = (phi-lo_gphi) / (hi_gphi-lo_gphi);"
-        "alpha = lo_alpha + (hi_alpha-lo_alpha) * fr;"
-        "s = lo_s + (hi_s-lo_s) * fr;"
-      "beta = theta - phi + 2.*sin(alpha)*s;"
-      "alpha = alpha * sgn; beta = beta * sgn;"
-      "return vec4(s * cos(beta) * cos(alpha), s * sin(beta) * cos(alpha), s * sin(alpha), 1.);"
+
+      "if(xy < 1e-6) return vec4(0.,0.,phi,1.);"
+
+      "vec4 res = vec4(sqrt(-1.),sqrt(-1.),sqrt(-1.),sqrt(-1.));"
+      
+      "bool flipped = phi > 0.;"
+      
+      "if(flipped) phi = -phi;"
+      
+      "float alpha = flipped ? atan2(h[1], h[0]) - uIndexSL : atan2(h[1], -h[0]) + uIndexSL;"
+      
+      "float fiber_barrier = atan(1./uSV);"
+    
+      "float flip_barrier = atan(1. / tanh(asinh(xy)) / uSV);"      
+      
+      "int part = 0;"
+      
+      "if(true) {"
+        "float x_part = cos(flip_barrier);"
+        "float z_part = sin(flip_barrier);"
+        "float rparam = x_part / z_part / uSV;"
+        "float r = atanh(rparam);"
+        "float cr = cosh(r);"
+        "float sr = sinh(r);"
+        "float z = cr * (-1.-1./uSV/uSV);"
+        "float k = PI/2.;"
+        "float a = -k;"
+        "float zw = xy * cr / sr;"
+        "float u = z * a;"
+        "float phi1 = atan2(zw, cos(k)) - u;"
+        "if(phi < phi1) part = 2;"
+        "}\n"
+      
+      "if(part == 0) {"
+        "float zw = xy;"
+        "float u = xy * (1. + 1./uSV/uSV);"
+        "float phi1 = atan2(zw, 1.) - u;"
+        "if(phi > phi1) part = 0; else part = 1;"
+        "}\n"
+      
+      "if(part == 2) {"
+        "float min_k = fiber_barrier;"
+        "float max_k = flip_barrier;"
+  
+        ITERATE
+          "float kk = (min_k + max_k) / 2.;"
+          "float x_part = cos(kk);"
+          "float z_part = sin(kk);"        
+          "float rparam = x_part / z_part / uSV;"
+          "float r = atanh(rparam);"
+          "float cr = cosh(r);"
+          "float sr = sinh(r);"
+          
+          "float z = cr * (-1. - 1./uSV/uSV);"
+          "float k = PI - asin(xy / sr);"
+          "float a = -k;"
+          "float len = a * length(vec2(sr, cr/uSV));"
+          "float zw = xy * cr / sr;"
+          "float u = z * a;"
+          "float phi1 = atan2(zw, cos(k)) - u;"
+          "if(phi < phi1) max_k = kk; else min_k = kk;"
+          "float r_angle = alpha + u;"
+          "res = vec4(cos(r_angle) * x_part * len, -sin(r_angle) * x_part * len, z_part * len, 1);"
+          "}"
+        "}\n"
+      
+      "if(part == 0) {"
+        "float min_k = 0.;"
+        "float max_k = fiber_barrier;"
+  
+        ITERATE
+          "float kk = (min_k + max_k) / 2.;"
+          "float x_part = cos(kk);"
+          "float z_part = sin(kk);"    
+          "float rparam = x_part / z_part / uSV;"        
+          "float cr = 1. / sqrt(rparam*rparam - 1.);"
+          "float sr = rparam * cr;"  
+          "float z = cr * (-1. - 1./uSV/uSV);"
+          "float k = asinh(xy / sr);"
+          "float a = -k;"
+          "float len = a * length(vec2(sr, cr/uSV));"  
+          "float zw = xy * cr / sr;"  
+          "float u = z * a;"
+          "float phi1 = atan2(zw, cosh(k)) - u;"
+        
+          "if(phi > phi1) max_k = kk; else min_k = kk;"
+        
+          "float r_angle = alpha + u;"
+          "res = vec4(cos(r_angle) * x_part * len, -sin(r_angle) * x_part * len, z_part * len, 1);"
+          "}"
+        "}\n"
+    
+      "if(part == 1) {"
+        "float min_k = fiber_barrier;"
+        "float max_k = flip_barrier;"
+  
+        ITERATE
+          "float kk = (min_k + max_k) / 2.;"
+        
+          "float x_part = cos(kk);"
+          "float z_part = sin(kk);"
+    
+          "float rparam = x_part / z_part / uSV;"
+        
+          "float r = atanh(rparam);"
+          "float cr = cosh(r);"
+          "float sr = sinh(r);"
+  
+          "float z = cr * (-1. - 1./uSV/uSV);"
+  
+          "float k = asin(xy / sr);"
+          "float a = -k;"
+          "float len = a * length(vec2(sr, cr/uSV));"
+          "float zw = xy * cr / sr;"
+          "float u = z * a;"
+  
+          "float phi1 = atan2(zw, cos(k)) - u;"
+        
+          "if(phi > phi1) max_k = kk;"
+          "else min_k = kk;"
+  
+          "float r_angle = alpha + u;"
+          "res = vec4(cos(r_angle) * x_part * len, -sin(r_angle) * x_part * len, z_part * len, 1);"
+          "}"
+        "}\n"
+    
+      "if(flipped) res[0] *= -1., res[2] *= -1.;"
+
+      "return res;"
       "}";
 
 EX }
@@ -1918,8 +2047,8 @@ EX namespace rots {
     transmatrix Spin;
     hybrid::in_underlying_geometry([&] {
       hyperpoint h = tC0(T);
-      Spin = inverse(gpushxto0(h) * T);
-      d = hr::inverse_exp(h);
+      Spin = iso_inverse(gpushxto0(h) * T);
+      d = hr::inverse_exp(shiftless(h));
       alpha = atan2(Spin[0][1], Spin[0][0]);
       distance = hdist0(h);
       beta = atan2(h[1], h[0]);
@@ -1932,14 +2061,19 @@ EX namespace rots {
 
   struct hrmap_rotation_space : hybrid::hrmap_hybrid {
 
-    std::unordered_map<int, transmatrix> saved_matrices;
+    std::map<int, transmatrix> saved_matrices;
 
-    transmatrix adj(cell *c1, int i) override {
+    transmatrix adj(cell *c1, int i) override {    
       if(i == c1->type-2) return uzpush(-cgi.plevel) * spin(-2*cgi.plevel);
       if(i == c1->type-1) return uzpush(+cgi.plevel) * spin(+2*cgi.plevel);
       cell *c2 = c1->cmove(i);
+      #if CAP_ARCM
       int id1 = hybrid::underlying == gArchimedean ? arcm::id_of(c1->master) + 20 * arcm::parent_index_of(c1->master) : shvid(c1);
       int id2 = hybrid::underlying == gArchimedean ? arcm::id_of(c2->master) + 20 * arcm::parent_index_of(c2->master) : shvid(c2);
+      #else
+      int id1 = shvid(c1);
+      int id2 = shvid(c2);
+      #endif
       int j = c1->c.spin(i);
       int id = id1 + (id2 << 10) + (i << 20) + (j << 26);
       auto &M = saved_matrices[id];
@@ -1952,7 +2086,7 @@ EX namespace rots {
     transmatrix relative_matrixc(cell *c2, cell *c1, const hyperpoint& hint) override { 
       if(c1 == c2) return Id;
       if(gmatrix0.count(c2) && gmatrix0.count(c1))
-        return inverse(gmatrix0[c1]) * gmatrix0[c2];
+        return inverse_shift(gmatrix0[c1], gmatrix0[c2]);
       for(int i=0; i<c1->type; i++) if(c1->move(i) == c2) return adj(c1, i);
       return Id; // not implemented yet
       }
@@ -1986,7 +2120,7 @@ EX namespace rots {
       }
     };
 
-  /** reinterpret the given point of rotspace as a rotation matrix in the underlying geometry */
+  /** reinterpret the given point of rotspace as a rotation matrix in the underlying geometry (note: this is the inverse) */
   EX transmatrix qtm(hyperpoint h) {
 
     ld& x = h[0];
@@ -2051,7 +2185,7 @@ EX namespace rots {
     auto g = std::move(gmatrix);
     auto g0 = std::move(gmatrix0);
     
-    ld alpha = atan2(inverse(NLP) * point3(1, 0, 0));
+    ld alpha = atan2(ortho_inverse(NLP) * point3(1, 0, 0));
     
     bool inprod = prod;
     transmatrix pView = View;
@@ -2073,6 +2207,7 @@ EX namespace rots {
       View = inverse(stretch::mstretch_matrix) * spin(2*d) * View;
       dynamicval<shiftmatrix> m3(playerV, shiftless(Id));
       dynamicval<transmatrix> m4(actual_view_transform, Id);
+      dynamicval<shiftmatrix> m6(cwtV, shiftless(Id));
       dynamicval<eModel> pm(pmodel, mdDisk);
       dynamicval<ld> pss(pconf.scale, (sphere ? 10 : euclid ? .4 : 1) * underlying_scale);
       dynamicval<ld> psa(pconf.alpha, sphere ? 10 : 1);
@@ -2084,7 +2219,7 @@ EX namespace rots {
       dynamicval<bool> pdu(drawing_underlying, true);
 
       calcparam();
-      reset_projection(); current_display->set_all(0);
+      reset_projection(); current_display->set_all(0, 0);
       ptds.clear();
       drawthemap();
       drawqueue();
@@ -2094,7 +2229,7 @@ EX namespace rots {
     gmatrix = std::move(g);
     gmatrix0 = std::move(g0);
     calcparam();
-    reset_projection(); current_display->set_all(0);
+    reset_projection(); current_display->set_all(0, 0);
     }
 
   /** @brief exponential function for both slr and Berger sphere */
@@ -2161,14 +2296,132 @@ EX }
 /** stretched rotation space (S3 or SLR) */
 EX namespace stretch {
 
-  EX ld factor;  
+  EX ld factor;
+  
+  EX bool mstretch;
+  
+  EX transmatrix m_itoa, m_atoi, m_pd;
+  EX ld ms_christoffel[3][3][3];
+  
+  EX transmatrix mstretch_matrix;
+  
+  EX void enable_mstretch() {
+    mstretch = true;
+
+    for(int a=0; a<4; a++)
+    for(int b=0; b<4; b++)
+      if(a==3 || b==3) m_atoi[a][b] = (a==b);
+
+    m_itoa = inverse3(m_atoi);
+    
+    for(int a=0; a<4; a++)
+    for(int b=0; b<4; b++)
+      if(a==3 || b==3)
+        m_itoa[a][b] = m_atoi[a][b] = 0;
+
+    for(int j=0; j<3; j++)
+    for(int k=0; k<3; k++) {
+      m_pd[j][k] = 0;
+      for(int i=0; i<3; i++)
+        m_pd[j][k] += m_atoi[i][j] * m_atoi[i][k];
+      }
+
+    auto& c = ms_christoffel;
+
+    ld A00 = m_pd[0][0];
+    ld A11 = m_pd[1][1];
+    ld A22 = m_pd[2][2];
+    ld A01 = m_pd[0][1] + m_pd[1][0];
+    ld A02 = m_pd[0][2] + m_pd[2][0];
+    ld A12 = m_pd[2][1] + m_pd[1][2];
+    ld B01 = A01 * A01;
+    ld B02 = A02 * A02;
+    ld B12 = A12 * A12;
+    ld B00 = A00 * A00;
+    ld B11 = A11 * A11;
+    ld B22 = A22 * A22;
+    
+    ld den = (-4*A00*A11*A22 + A00*B12 + B01*A22 - A01*A02*A12 + B02*A11);
+    
+    if(sl2) {
+      c[ 0 ][ 0 ][ 0 ] =  (A01*(A01*A12 - 2*A02*A11) - A02*(2*A01*A22 - A02*A12))/den;
+      c[ 0 ][ 0 ][ 1 ] =  (A00*A01*A12 - 2*A00*A02*A11 - A01*A11*A12 + A01*A12*A22 + 2*A02*B11 + 2*A02*A11*A22 - A02*B12)/-den ;
+      c[ 0 ][ 0 ][ 2 ] =  (-A01*(4*A11*A22 - B12)/2 + A12*(A01*A12 - 2*A02*A11)/2 - (A00 + A22)*(2*A01*A22 - A02*A12))/den;
+      c[ 0 ][ 1 ][ 0 ] =  (A00*A01*A12 - 2*A00*A02*A11 - A01*A11*A12 + A01*A12*A22 + 2*A02*B11 + 2*A02*A11*A22 - A02*B12)/-den ;
+      c[ 0 ][ 1 ][ 1 ] =  -(A01*(A01*A12 - 2*A02*A11) + A12*(4*A11*A22 - B12))/den;
+      c[ 0 ][ 1 ][ 2 ] =  (B01*A22 - B02*A11 + 4*B11*A22 - A11*B12 + 4*A11*B22 - B12*A22)/-den ;
+      c[ 0 ][ 2 ][ 0 ] =  (-A01*(4*A11*A22 - B12)/2 + A12*(A01*A12 - 2*A02*A11)/2 - (A00 + A22)*(2*A01*A22 - A02*A12))/den;
+      c[ 0 ][ 2 ][ 1 ] =  (B01*A22 - B02*A11 + 4*B11*A22 - A11*B12 + 4*A11*B22 - B12*A22)/-den ;
+      c[ 0 ][ 2 ][ 2 ] =  -(A02*(2*A01*A22 - A02*A12) + A12*(4*A11*A22 - B12))/den;
+      c[ 1 ][ 0 ][ 0 ] =  (-A01*(2*A00*A12 - A01*A02) + A02*(4*A00*A22 - B02))/den;
+      c[ 1 ][ 0 ][ 1 ] =  (A02*(2*A01*A22 - A02*A12)/2 + A12*(4*A00*A22 - B02)/2 + (A00 - A11)*(2*A00*A12 - A01*A02))/den;
+      c[ 1 ][ 0 ][ 2 ] =  (-4*B00*A22 + A00*B02 + A00*B12 - 4*A00*B22 - B01*A22 + B02*A22)/-den ;
+      c[ 1 ][ 1 ][ 0 ] =  (A02*(2*A01*A22 - A02*A12)/2 + A12*(4*A00*A22 - B02)/2 + (A00 - A11)*(2*A00*A12 - A01*A02))/den;
+      c[ 1 ][ 1 ][ 1 ] =  (A01*(2*A00*A12 - A01*A02) + A12*(2*A01*A22 - A02*A12))/den;
+      c[ 1 ][ 1 ][ 2 ] =  (A01*(4*A00*A22 - B02)/2 + A02*(2*A00*A12 - A01*A02)/2 + (A11 + A22)*(2*A01*A22 - A02*A12))/den;
+      c[ 1 ][ 2 ][ 0 ] =  (-4*B00*A22 + A00*B02 + A00*B12 - 4*A00*B22 - B01*A22 + B02*A22)/-den ;
+      c[ 1 ][ 2 ][ 1 ] =  (A01*(4*A00*A22 - B02)/2 + A02*(2*A00*A12 - A01*A02)/2 + (A11 + A22)*(2*A01*A22 - A02*A12))/den;
+      c[ 1 ][ 2 ][ 2 ] =  (A02*(4*A00*A22 - B02) + A12*(2*A01*A22 - A02*A12))/den;
+      c[ 2 ][ 0 ][ 0 ] =  (A01*(4*A00*A11 - B01) - A02*(2*A00*A12 - A01*A02))/den;
+      c[ 2 ][ 0 ][ 1 ] =  (4*B00*A11 - A00*B01 - 4*A00*B11 + A00*B12 + B01*A11 - B02*A11)/-den ;
+      c[ 2 ][ 0 ][ 2 ] =  (-A01*(A01*A12 - 2*A02*A11)/2 + A12*(4*A00*A11 - B01)/2 - (A00 + A22)*(2*A00*A12 - A01*A02))/den;
+      c[ 2 ][ 1 ][ 0 ] =  (4*B00*A11 - A00*B01 - 4*A00*B11 + A00*B12 + B01*A11 - B02*A11)/-den ;
+      c[ 2 ][ 1 ][ 1 ] =  -(A01*(4*A00*A11 - B01) + A12*(A01*A12 - 2*A02*A11))/den;
+      c[ 2 ][ 1 ][ 2 ] =  (A00*A01*A12 + 2*A00*A02*A11 - B01*A02 + A01*A11*A12 + A01*A12*A22 - 2*A02*B11 - 2*A02*A11*A22)/-den ;
+      c[ 2 ][ 2 ][ 0 ] =  (-A01*(A01*A12 - 2*A02*A11)/2 + A12*(4*A00*A11 - B01)/2 - (A00 + A22)*(2*A00*A12 - A01*A02))/den;
+      c[ 2 ][ 2 ][ 1 ] =  (A00*A01*A12 + 2*A00*A02*A11 - B01*A02 + A01*A11*A12 + A01*A12*A22 - 2*A02*B11 - 2*A02*A11*A22)/-den ;
+      c[ 2 ][ 2 ][ 2 ] =  -(A02*(2*A00*A12 - A01*A02) + A12*(A01*A12 - 2*A02*A11))/den;
+      }
+    else {
+      c[ 0 ][ 0 ][ 0 ] =  (A01*(A01*A12 - 2*A02*A11) + A02*(2*A01*A22 - A02*A12))/den ;
+      c[ 0 ][ 0 ][ 1 ] =  (A02*(4*A11*A22 - B12)/2 + A12*(2*A01*A22 - A02*A12)/2 - (A00 - A11)*(A01*A12 - 2*A02*A11))/den ;
+      c[ 0 ][ 0 ][ 2 ] =  (-A01*(4*A11*A22 - B12)/2 + A12*(A01*A12 - 2*A02*A11)/2 - (A00 - A22)*(2*A01*A22 - A02*A12))/den ;
+      c[ 0 ][ 1 ][ 0 ] =  (A02*(4*A11*A22 - B12)/2 + A12*(2*A01*A22 - A02*A12)/2 - (A00 - A11)*(A01*A12 - 2*A02*A11))/den ;
+      c[ 0 ][ 1 ][ 1 ] =  (-A01*(A01*A12 - 2*A02*A11) + A12*(4*A11*A22 - B12))/den ;
+      c[ 0 ][ 1 ][ 2 ] =  (B01*A22 - B02*A11 + 4*B11*A22 - A11*B12 - 4*A11*B22 + B12*A22)/(4*A00*A11*A22 - A00*B12 - B01*A22 + A01*A02*A12 - B02*A11) ;
+      c[ 0 ][ 2 ][ 0 ] =  (-A01*(4*A11*A22 - B12)/2 + A12*(A01*A12 - 2*A02*A11)/2 - (A00 - A22)*(2*A01*A22 - A02*A12))/den ;
+      c[ 0 ][ 2 ][ 1 ] =  (B01*A22 - B02*A11 + 4*B11*A22 - A11*B12 - 4*A11*B22 + B12*A22)/(4*A00*A11*A22 - A00*B12 - B01*A22 + A01*A02*A12 - B02*A11) ;
+      c[ 0 ][ 2 ][ 2 ] =  -(A02*(2*A01*A22 - A02*A12) + A12*(4*A11*A22 - B12))/den ;
+      c[ 1 ][ 0 ][ 0 ] =  -(A01*(2*A00*A12 - A01*A02) + A02*(4*A00*A22 - B02))/den ;
+      c[ 1 ][ 0 ][ 1 ] =  (-A02*(2*A01*A22 - A02*A12)/2 - A12*(4*A00*A22 - B02)/2 + (A00 - A11)*(2*A00*A12 - A01*A02))/den ;
+      c[ 1 ][ 0 ][ 2 ] =  (-4*B00*A22 + A00*B02 + A00*B12 + 4*A00*B22 - B01*A22 - B02*A22)/(4*A00*A11*A22 - A00*B12 - B01*A22 + A01*A02*A12 - B02*A11) ;
+      c[ 1 ][ 1 ][ 0 ] =  (-A02*(2*A01*A22 - A02*A12)/2 - A12*(4*A00*A22 - B02)/2 + (A00 - A11)*(2*A00*A12 - A01*A02))/den ;
+      c[ 1 ][ 1 ][ 1 ] =  (A01*(2*A00*A12 - A01*A02) - A12*(2*A01*A22 - A02*A12))/den ;
+      c[ 1 ][ 1 ][ 2 ] =  (A01*(4*A00*A22 - B02)/2 + A02*(2*A00*A12 - A01*A02)/2 + (A11 - A22)*(2*A01*A22 - A02*A12))/den ;
+      c[ 1 ][ 2 ][ 0 ] =  (-4*B00*A22 + A00*B02 + A00*B12 + 4*A00*B22 - B01*A22 - B02*A22)/(4*A00*A11*A22 - A00*B12 - B01*A22 + A01*A02*A12 - B02*A11) ;
+      c[ 1 ][ 2 ][ 1 ] =  (A01*(4*A00*A22 - B02)/2 + A02*(2*A00*A12 - A01*A02)/2 + (A11 - A22)*(2*A01*A22 - A02*A12))/den ;
+      c[ 1 ][ 2 ][ 2 ] =  (A02*(4*A00*A22 - B02) + A12*(2*A01*A22 - A02*A12))/den ;
+      c[ 2 ][ 0 ][ 0 ] =  (A01*(4*A00*A11 - B01) + A02*(2*A00*A12 - A01*A02))/den ;
+      c[ 2 ][ 0 ][ 1 ] =  (4*B00*A11 - A00*B01 - 4*A00*B11 - A00*B12 + B01*A11 + B02*A11)/(4*A00*A11*A22 - A00*B12 - B01*A22 + A01*A02*A12 - B02*A11) ;
+      c[ 2 ][ 0 ][ 2 ] =  (-A01*(A01*A12 - 2*A02*A11)/2 + A12*(4*A00*A11 - B01)/2 - (A00 - A22)*(2*A00*A12 - A01*A02))/den ;
+      c[ 2 ][ 1 ][ 0 ] =  (4*B00*A11 - A00*B01 - 4*A00*B11 - A00*B12 + B01*A11 + B02*A11)/(4*A00*A11*A22 - A00*B12 - B01*A22 + A01*A02*A12 - B02*A11) ;
+      c[ 2 ][ 1 ][ 1 ] =  (-A01*(4*A00*A11 - B01) + A12*(A01*A12 - 2*A02*A11))/den ;
+      c[ 2 ][ 1 ][ 2 ] =  (A00*A01*A12 + 2*A00*A02*A11 - B01*A02 + A01*A11*A12 - A01*A12*A22 - 2*A02*B11 + 2*A02*A11*A22)/(4*A00*A11*A22 - A00*B12 - B01*A22 + A01*A02*A12 - B02*A11) ;
+      c[ 2 ][ 2 ][ 0 ] =  (-A01*(A01*A12 - 2*A02*A11)/2 + A12*(4*A00*A11 - B01)/2 - (A00 - A22)*(2*A00*A12 - A01*A02))/den ;
+      c[ 2 ][ 2 ][ 1 ] =  (A00*A01*A12 + 2*A00*A02*A11 - B01*A02 + A01*A11*A12 - A01*A12*A22 - 2*A02*B11 + 2*A02*A11*A22)/(4*A00*A11*A22 - A00*B12 - B01*A22 + A01*A02*A12 - B02*A11) ;
+      c[ 2 ][ 2 ][ 2 ] =  -(A02*(2*A00*A12 - A01*A02) + A12*(A01*A12 - 2*A02*A11))/den ;
+      }
+    
+    for(int i=0; i<3; i++)
+    for(int j=0; j<3; j++)
+    for(int k=0; k<3; k++)
+      if(c[i][j][k])
+        println(hlog, tie(i,j,k), " : ", c[i][j][k]);
+      
+    
+    println(hlog, "ATOI = ", m_atoi);
+    println(hlog, "ITOA = ", m_itoa, " vs ", 1/not_squared());
+    println(hlog, "PD   = ", m_pd, " vs ", factor);
+
+    ray::reset_raycaster();
+    }
 
   EX bool applicable() {
     return rotspace || (cgflags & qSTRETCHABLE);
     }
 
   EX bool in() {
-    return factor && applicable();
+    return (factor || mstretch) && applicable();
     }
 
   EX transmatrix translate(hyperpoint h) {
@@ -2189,44 +2442,57 @@ EX namespace stretch {
     return translate(h);
     }
 
-  hyperpoint mulz(const hyperpoint at, const hyperpoint velocity, ld factor) {
+  hyperpoint mulz(const hyperpoint at, const hyperpoint velocity, ld zf) {
     auto vel = itranslate(at) * velocity;
-    vel[2] *= factor;
+    vel[2] *= zf;
     return translate(at) * vel;
     }
   
   EX ld squared() {
     return abs(1 + factor);
     }
-
+  
   EX ld not_squared() {
     return sqrt(squared());
     }
   
-  hyperpoint isometric_to_actual(const hyperpoint at, const hyperpoint velocity) {
-    return mulz(at, velocity, 1/not_squared());
+  EX hyperpoint isometric_to_actual(const hyperpoint at, const hyperpoint velocity) {
+    if(mstretch)
+      return translate(at) * m_itoa * itranslate(at) * velocity;
+    else
+      return mulz(at, velocity, 1/not_squared());
+    }
+ 
+  EX hyperpoint actual_to_isometric(const hyperpoint at, const hyperpoint velocity) {
+    if(mstretch)
+      return translate(at) * m_atoi * itranslate(at) * velocity;
+    else
+      return mulz(at, velocity, not_squared());
     }
   
-  hyperpoint actual_to_isometric(const hyperpoint at, const hyperpoint velocity) {
-    return mulz(at, velocity, not_squared());
-    }
-  
-  hyperpoint christoffel(const hyperpoint at, const hyperpoint velocity, const hyperpoint transported) {
+  EX hyperpoint christoffel(const hyperpoint at, const hyperpoint velocity, const hyperpoint transported) {
   
     auto vel = itranslate(at) * velocity;
     auto tra = itranslate(at) * transported;  
     
     hyperpoint c;
     
-    auto K = factor;
+    if(mstretch) {    
+      c = Hypc;
+      for(int i=0; i<3; i++)
+      for(int j=0; j<3; j++)
+      for(int k=0; k<3; k++)
+        c[i] += vel[j] * tra[k] * ms_christoffel[i][j][k];
+      }
     
-    if(!sphere) K = -2 - K;
-    
-    c[0] = -K * (vel[1] * tra[2] + vel[2] * tra[1]);
-    c[1] =  K * (vel[0] * tra[2] + vel[2] * tra[0]);
-    c[2] = 0;
-    c[3] = 0;
-    
+    else {    
+      auto K = factor;    
+      c[0] = (sphere ? -K : K+2) * (vel[1] * tra[2] + vel[2] * tra[1]);
+      c[1] = (sphere ? K : -(K+2)) * (vel[0] * tra[2] + vel[2] * tra[0]);
+      c[2] = 0;
+      c[3] = 0;
+      }
+
     return translate(at) * c;
     }  
 
@@ -2236,6 +2502,140 @@ EX namespace stretch {
     h = itranslate(at) * h;    
     return h[0] * h[0] + h[1] * h[1] + h[2] * h[2];
     }
+
+  EX vector<hyperpoint> inverse_exp_all(hyperpoint h, int generations) {
+  
+    vector<hyperpoint> res;
+    
+    ld SV = stretch::not_squared();
+
+    if(stretch::factor == 0) {
+      ld d = hypot_d(3, h);
+      if(h[3] >= 1 || h[3] <= -1|| d == 0) return res;
+      ld a = acos(h[3]);
+      
+      res.push_back(point31(h[0] * a / d, h[1] * a / d, h[2] * a / d));
+      
+      a = a - 2 * M_PI;
+
+      res.push_back(point31(h[0] * a / d, h[1] * a / d, h[2] * a / d));
+      
+      return res;
+      }
+    
+    if(h[0] == 0 && h[1] == 0) {
+      ld a = atan2(h[2], h[3]);
+      
+      for(int it=-generations; it<generations; it++) {
+        res.push_back(point31(0, 0, (a + 2 * M_PI * it) * SV));
+        }
+      
+      return res;
+      }
+
+    ld xy = hypot_d(2, h);
+  
+    ld base_min_a = asin(xy);
+    ld base_max_a = M_PI - base_min_a;
+  
+    ld seek = M_PI/2-atan2(h[3], h[2]);
+  
+    auto ang = [&] (ld a) {
+      ld rp = xy / sin(a);
+      ld co = abs(rp) >= 1 ? 0 : sqrt(1-rp*rp);
+      
+      return atan2(co * sin(a), cos(a)) - co * (1 - 1/SV/SV) * a;
+      
+      // while(a0 > M_PI) a0 -= 2 * M_PI;
+      // while(a0 < -M_PI) a0 += 2 * M_PI;
+      };
+    
+    for(int shift=-generations; shift<generations; shift++) {
+      ld min_a = base_min_a + M_PI * shift;
+      ld max_a = base_max_a + M_PI * shift;
+  
+      ld ang_min = ang(min_a);
+      ld ang_max = ang(max_a);
+      
+      for(int mi=0; mi<2; mi++) {
+        // 0 : minimum, 1 : maximum
+        ld tl = min_a, tr = max_a;
+        for(int it=0; it<20; it++) {
+          ld t1 = tl * .51 + tr * .49;
+          ld t2 = tl * .49 + tr * .51;
+          if((ang(t1) < ang(t2)) == mi) 
+            tr = t1;
+          else
+            tl = t2;
+          }
+        ld extreme = (tl + tr) / 2;
+        ld ang_extreme = ang(extreme);
+        for(int t=0; t<2; t++) {
+          ld mmin = t == 0 ? min_a : extreme;
+          ld mmax = t == 0 ? extreme : max_a;
+          ld vmin = t == 0 ? ang_min : ang_extreme;
+          ld vmax = t == 0 ? ang_extreme : ang_max;
+          
+          // make it increasing
+          if(t != mi) swap(mmin, mmax), swap(vmin, vmax);
+          
+          // println(hlog, "*** ", mi, t, " ** ", tie(min_a, ang_min), tie(extreme, ang_extreme), tie(max_a, ang_max), " -> ", vmin, " to ", vmax);
+          
+          int cmin = ceil((vmin - seek) / 2 / M_PI);
+          int cmax = floor((vmax - seek) / 2 / M_PI);
+          for(int c = cmin; c <= cmax; c++) {
+            ld cseek = seek + c * 2 * M_PI;
+  
+            for(int it=0; it<40; it++) {
+            
+              ld a = (mmin + mmax) / 2;
+              
+              ld cros = ang(a);
+              if(cros > cseek) mmax = a; else mmin = a;
+              }
+            
+            ld a = (mmin + mmax) / 2;
+            
+            ld r = asin_clamp( xy / sin(a) );
+          
+            ld z_part = 1;
+            ld x_part = SV * tan(r);
+            
+            ld db = hypot(x_part, z_part);
+            x_part /= db;
+            z_part /= db;
+            
+            ld alpha = atan2(-h[1], h[0]);
+          
+            ld z = cos(r) * (1 - 1/SV/SV);
+            ld u = z * a;
+          
+            ld r_angle = alpha + u;
+             
+            ld len = a * hypot(sin_auto(r), cos_auto(r)/SV);
+      
+            auto answer = point3(cos(r_angle) * x_part * len, -sin(r_angle) * x_part * len, z_part * len);
+            
+            // int id = (shift << 10) + (mi << 9) + (t << 8) + c;
+            
+            /*
+            auto f = formula_exp(answer);
+            
+            ld err = sqhypot_d(4, f - h);
+            
+            println(hlog, "************************* ", answer, ": error = ", err, " id = ", id, " params = ", tie(shift, mi, t, c));
+            */
+  
+            res.emplace_back(answer);
+            }
+          }
+        }    
+      }
+    
+    return res;
+    }
+
+
 EX }
 
 EX namespace nisot {
@@ -2245,8 +2645,7 @@ EX namespace nisot {
     #if CAP_SOLV
     else if(sn::in()) return sn::christoffel(at, velocity, transported);
     #endif
-    else if(stretch::in()) return stretch::christoffel(at, velocity, transported);
-    else if(sl2) return slr::christoffel(at, velocity, transported);
+    else if(stretch::in() || sl2) return stretch::christoffel(at, velocity, transported);
     else return point3(0, 0, 0);
     }
 
@@ -2284,26 +2683,20 @@ EX namespace nisot {
 
   EX transmatrix parallel_transport_bare(transmatrix Pos, hyperpoint h) {
   
-    bool stretch = stretch::in();
+    bool stretch = stretch::in() || sl2;
 
     h[3] = 0;
   
+    if(stretch::in() && stretch::mstretch)
+      Pos = stretch::mstretch_matrix * Pos;
+    
     auto tPos = transpose(Pos);
     
-    const ld eps = 1e-4;
-    
-    if(sl2 && !stretch) {
-      hyperpoint p = slr::to_phigans(tPos[3]);
-      for(int i=0; i<3; i++)
-        tPos[i] = (slr::to_phigans(tPos[3] + tPos[i] * eps) - p) / eps;
-      tPos[3] = p; 
-      h = transpose(tPos) * h;
-      }
-    else h = Pos * h;
+    h = Pos * h;
 
     int steps = rk_steps;
     h /= steps;
-    
+
     auto& at = tPos[3];
     auto& vel = h;
     
@@ -2348,7 +2741,14 @@ EX namespace nisot {
         auto fix = [&] (hyperpoint& h, ld& m) {
           h = stretch::itranslate(at) * h;
           h[3] = 0;
-          ld m1 = h[0] * h[0] + h[1] * h[1] + h[2] * h[2] * stretch::squared();
+          ld m1;
+          if(stretch::mstretch) {
+            m1 = 0;
+            for(int i=0; i<3; i++) for(int j=0; j<3; j++)
+              m1 += h[i] * stretch::m_pd[i][j] * h[j];
+            }
+          else
+            m1 = h[0] * h[0] + h[1] * h[1] + h[2] * h[2] * stretch::squared();
           h /= sqrt(m1/m);
           h = stretch::translate(at) * h;
           };
@@ -2363,39 +2763,37 @@ EX namespace nisot {
       vel = stretch::actual_to_isometric(at, vel);
       for(int i=0; i<3; i++) tPos[i] = stretch::actual_to_isometric(at, tPos[i]);
       }
-    
-    else if(sl2) {
-      hyperpoint p = slr::from_phigans(tPos[3]);
-      for(int i=0; i<3; i++)
-        tPos[i] = (slr::from_phigans(tPos[3] + tPos[i] * eps) - p) / eps;
-      tPos[3] = p;
-      }
 
-    return transpose(tPos);
+    Pos = transpose(tPos);
+    
+    if(stretch::in() && stretch::mstretch)
+      Pos = inverse(stretch::mstretch_matrix) * Pos;
+    
+    return Pos;
     }
 
   EX void fixmatrix(transmatrix& T) {
     if(sphere) return hr::fixmatrix(T);
     transmatrix push = eupush( tC0(T) );
-    transmatrix push_back = inverse(push);
+    transmatrix push_back = eupush(tC0(T), -1);
     transmatrix gtl = push_back * T;
-    { dynamicval<eGeometry> g(geometry, gSphere); hr::fixmatrix(gtl); }
+    fix_rotation(gtl);
     T = push * gtl;
     }
 
   EX transmatrix parallel_transport(const transmatrix Position, const hyperpoint direction) {
     auto P = Position;
     nisot::fixmatrix(P);  
-    if(!geodesic_movement) return inverse(eupush(Position * translate(-direction) * inverse(Position) * C0)) * Position;
+    if(!geodesic_movement) return eupush(Position * translate(-direction) * inverse(Position) * C0, -1) * Position;
     return parallel_transport_bare(P, direction);
     }
   
   EX transmatrix spin_towards(const transmatrix Position, const hyperpoint goal, flagtype prec IS(pNORMAL)) {
 
     hyperpoint at = tC0(Position);
-    transmatrix push_back = inverse(translate(at));
+    transmatrix push_back = translate(at, -1);
     hyperpoint back_goal = push_back * goal;
-    back_goal = inverse_exp(back_goal, prec);
+    back_goal = inverse_exp(shiftless(back_goal), prec);
     
     transmatrix back_Position = push_back * Position;
 
@@ -2512,13 +2910,37 @@ EX namespace nisot {
     else if(argis("-prodperiod")) {
       PHASEFROM(2);
       if(prod) stop_game();
-      shift(); product::csteps = argi();
+      shift(); hybrid::csteps = argi();
       hybrid::reconfigure();
       return 0;
       }
     else if(argis("-rot-stretch")) {
       PHASEFROM(2);
       shift_arg_formula(stretch::factor, ray::reset_raycaster);
+      return 0;
+      }
+    else if(argis("-mstretch")) {
+      PHASEFROM(2);
+      auto& M = stretch::m_atoi;
+      M = Id;
+      stretch::enable_mstretch();
+      while(true) {
+        shift();
+        string s = args();
+        if(isize(s) == 2 && among(s[0], 'a', 'b','c') && among(s[1], 'a', 'b', 'c'))
+          shift_arg_formula(M[s[0]-'a'][s[1]-'a'], stretch::enable_mstretch);
+        else break;
+        }
+      // shift_arg_formula(stretch::yfactor, ray::reset_raycaster);
+      return 0;
+      }
+    else if(argis("-mstretch1")) {
+      PHASEFROM(2);
+      auto& M = stretch::m_atoi;
+      M = Id;
+      M[2][2] = stretch::not_squared();
+      stretch::enable_mstretch();
+      // shift_arg_formula(stretch::yfactor, ray::reset_raycaster);
       return 0;
       }
     else if(argis("-prodturn")) {

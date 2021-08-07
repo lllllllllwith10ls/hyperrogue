@@ -11,6 +11,8 @@
 #include "hyper.h"
 namespace hr {
 
+EX bool detailed_shader = false;
+
 EX namespace glhr {
 EX glvertex pointtogl(const hyperpoint& t) {
   glvertex h;
@@ -55,7 +57,25 @@ EX }
 EX void glError(const char* GLcall, const char* file, const int line) {
   GLenum errCode = glGetError();
   if(errCode!=GL_NO_ERROR) {
-    println(hlog, format("OPENGL ERROR #%i: in file %s on line %i :: %s\n",errCode,file, line, GLcall));
+    println(hlog, format("OPENGL ERROR #%i: in file %s on line %i :: %s",errCode,file, line, GLcall));
+    }
+  }
+
+#if HDR
+struct glwrap {
+  const char* msg;
+  int line;
+  void act(const char *when);
+  glwrap(const char *m, int l) : msg(m), line(l) { act("before"); }
+  ~glwrap() { act("after"); }
+  };
+#define GLWRAP glwrap w##__line(__FILE__, __LINE__)
+#endif
+
+void glwrap::act(const char *when) {
+  GLenum errCode = glGetError();
+  if(errCode!=GL_NO_ERROR) {
+    println(hlog, format("GL error %i %s: %s:%i", errCode, when, msg, line));
     }
   }
 
@@ -113,13 +133,15 @@ struct glmatrix {
   
   struct textured_vertex {
     glvertex coords;
-    glvec2 texture;
+    /* texture uses the 'z' for shading with POLY_SHADE_TEXTURE */
+    glvec3 texture;
     };
   
   struct ct_vertex {
     glvertex coords;
     glvec4 color;
     glvec2 texture;
+    ct_vertex() {}
     ct_vertex(const hyperpoint& h, ld x1, ld y1, ld col) {
       coords = pointtogl(h);
       texture[0] = x1;
@@ -154,7 +176,7 @@ void display(const glmatrix& m) {
   printf("\n");
   }
 
-glmatrix operator * (glmatrix m1, glmatrix m2) {
+EX glmatrix operator * (glmatrix m1, glmatrix m2) {
   glmatrix res;
   for(int i=0; i<4; i++)
   for(int j=0; j<4; j++) {
@@ -274,8 +296,10 @@ struct GLprogram {
   GLuint _program;
   GLuint vertShader, fragShader;
 
-  GLint uFog, uFogColor, uColor, tTexture, tInvExpTable, uMV, uProjection, uAlpha, uFogBase, uPP;
-  GLint uPRECX, uPRECY, uPRECZ, uIndexSL, uIterations, uLevelLines;
+  GLint uFog, uFogColor, uColor, tTexture, tInvExpTable, tAirMap, uMV, uProjection, uAlpha, uFogBase, uPP;
+  GLint uPRECX, uPRECY, uPRECZ, uIndexSL, uIterations, uLevelLines, uSV, uRadarTransform;
+  GLint uRotSin, uRotCos, uRotNil;
+  GLint uDepthScaling, uCamera, uDepth;
   
   flagtype shader_flags;
   
@@ -346,6 +370,16 @@ GLprogram::GLprogram(string vsh, string fsh) {
     uAlpha = -1;
     uLevelLines = -1;
     uFogColor = -1;
+    uDepthScaling = uCamera = uDepth = -1;
+    
+    uColor = tTexture = tInvExpTable = tAirMap = -1;
+    uFogBase = -1;
+    uPRECX = uPRECY = uPRECZ = uIndexSL = -1;
+    uSV = uRadarTransform = -1;
+
+    uRotCos = -1;
+    uRotSin = -1;
+    uRotNil = -1;
     return;    
     }
   
@@ -397,13 +431,24 @@ GLprogram::GLprogram(string vsh, string fsh) {
   uColor = glGetUniformLocation(_program, "uColor");
   tTexture = glGetUniformLocation(_program, "tTexture");
   tInvExpTable = glGetUniformLocation(_program, "tInvExpTable");
+  tAirMap = glGetUniformLocation(_program, "tAirMap");
+
+  uDepth = glGetUniformLocation(_program, "uDepth");
+  uDepthScaling = glGetUniformLocation(_program, "uDepthScaling");
+  uCamera = glGetUniformLocation(_program, "uCamera");
 
   uPRECX = glGetUniformLocation(_program, "PRECX");
   uPRECY = glGetUniformLocation(_program, "PRECY");
   uPRECZ = glGetUniformLocation(_program, "PRECZ");
   uIndexSL = glGetUniformLocation(_program, "uIndexSL");
+  uSV = glGetUniformLocation(_program, "uSV");
   uIterations = glGetUniformLocation(_program, "uIterations");  
   uLevelLines = glGetUniformLocation(_program, "uLevelLines");
+  uRadarTransform = glGetUniformLocation(_program, "uRadarTransform");
+
+  uRotCos = glGetUniformLocation(_program, "uRotCos");
+  uRotSin = glGetUniformLocation(_program, "uRotSin");
+  uRotNil = glGetUniformLocation(_program, "uRotNil");
   }
 
 GLprogram::~GLprogram() {
@@ -414,6 +459,10 @@ GLprogram::~GLprogram() {
 
 EX void set_index_sl(ld x) {
   glUniform1f(glhr::current_glprogram->uIndexSL, x);
+  }
+
+EX void set_sv(ld x) {
+  glUniform1f(glhr::current_glprogram->uSV, x);
   }
 
 EX void set_sl_iterations(int steps) {
@@ -453,6 +502,9 @@ EX void set_modelview(const glmatrix& modelview) {
   #endif
   auto& cur = current_glprogram;
   if(!cur) return;
+
+  if(detailed_shader) println(hlog, "\n*** ENABLING MODELVIEW:\n", modelview.as_stdarray());
+  if(detailed_shader) println(hlog, "\n*** ENABLING PROJECTION:\n", projection.as_stdarray());
 
   if(using_eyeshift) {
     glmatrix mvp = modelview * eyeshift;
@@ -515,6 +567,7 @@ EX void full_enable(shared_ptr<GLprogram> p) {
   cur = p;
   GLERR("pre_switch_mode");
   WITHSHADER({
+    if(detailed_shader) println(hlog, "\n*** ENABLING VERTEX SHADER:\n", cur->_vsh, "\n\nENABLING FRAGMENT SHADER:\n", cur->_fsh, "\n");
     glUseProgram(cur->_program);
     GLERR("after_enable");
     }, {
@@ -661,6 +714,9 @@ void init() {
   WITHSHADER(glEnableVertexAttribArray(aPosition);, glEnableClientState(GL_VERTEX_ARRAY);)
   GLERR("aPosition");
   // #endif
+  
+  glDisableVertexAttribArray(aTexture);
+  glDisableVertexAttribArray(aColor);
 
   #if CAP_VERTEXBUFFER
   glGenBuffers(1, &buf_current);
@@ -682,6 +738,10 @@ template<class T> void bindbuffer(T& v) {
 
 #define PTR(attrib, q, field) \
   glVertexAttribPointer(attrib, q, GL_FLOAT, GL_FALSE, sizeof(v[0]), (void*) ((char*) &v[0].field - (char*) &v[0]));
+
+EX void bindbuffer_vertex(vector<glvertex>& v) {
+  bindbuffer(v);
+  }
 
 #endif
 
@@ -713,13 +773,40 @@ EX void vertices_texture(const vector<glvertex>& v, const vector<glvertex>& t, i
   for(int i=0; i<q; i++)
     tv[i].coords = v[vshift+i],
     tv[i].texture[0] = t[tshift+i][0],
-    tv[i].texture[1] = t[tshift+i][1];
+    tv[i].texture[1] = t[tshift+i][1],
+    tv[i].texture[2] = t[tshift+i][2];
   prepare(tv);
   #else
   vertices(v, vshift);
   WITHSHADER(
     glVertexAttribPointer(aTexture, SHDIM, GL_FLOAT, GL_FALSE, sizeof(glvertex), &t[tshift]);,
     glTexCoordPointer(SHDIM, GL_FLOAT, 0, &t[tshift]);
+    )
+  #endif
+  }
+
+EX void vertices_texture_color(const vector<glvertex>& v, const vector<glvertex>& t, const vector<glvertex>& c, int vshift IS(0), int tshift IS(0)) {
+  #if CAP_VERTEXBUFFER
+  int q = min(isize(v)-vshift, isize(t)-tshift);
+  vector<ct_vertex> tv(q);
+  for(int i=0; i<q; i++) {
+    tv[i].coords = v[vshift+i],
+    tv[i].texture[0] = t[tshift+i][0],
+    tv[i].texture[1] = t[tshift+i][1];
+    for(int i=0; i<SHDIM; i++)
+      tv[i].color[i] = c[tshift+i][i];
+    if(SHDIM == 3) tv[i].color[3] = 1;
+    }
+  prepare(tv);
+  #else
+  vertices(v, vshift);
+  WITHSHADER({
+    glVertexAttribPointer(aTexture, SHDIM, GL_FLOAT, GL_FALSE, sizeof(glvertex), &t[tshift]);
+    glVertexAttribPointer(aColor, 4, GL_FLOAT, GL_FALSE, sizeof(glvertex), &c[tshift]);
+    }, {
+    glTexCoordPointer(SHDIM, GL_FLOAT, 0, &t[tshift]);
+    glColorPointer(4, GL_FLOAT, sizeof(colored_vertex), &c[0]);
+    }
     )
   #endif
   }
@@ -746,7 +833,7 @@ EX void prepare(vector<textured_vertex>& v) {
   #if CAP_VERTEXBUFFER
   bindbuffer(v);
   PTR(aPosition, SHDIM, coords);
-  PTR(aTexture, 2, texture);
+  PTR(aTexture, 3, texture);
   #else
   if(current_vertices == &v[0]) return;
   current_vertices = &v[0];
@@ -755,7 +842,7 @@ EX void prepare(vector<textured_vertex>& v) {
     glVertexAttribPointer(aTexture, SHDIM, GL_FLOAT, GL_FALSE, sizeof(textured_vertex), &v[0].texture);
     }, {    
     glVertexPointer(SHDIM, GL_FLOAT, sizeof(textured_vertex), &v[0].coords);
-    glTexCoordPointer(2, GL_FLOAT, sizeof(textured_vertex), &v[0].texture);
+    glTexCoordPointer(3, GL_FLOAT, sizeof(textured_vertex), &v[0].texture);
     })
   #endif
   // color2(col);
@@ -824,12 +911,13 @@ EX void set_linewidth(ld lw) {
 EX void switch_to_text(const vector<glvertex>& v, const vector<glvertex>& t) {
   current_display->next_shader_flags = GF_TEXTURE;
   dynamicval<eModel> pm(pmodel, mdPixel);
-  if(!svg::in) current_display->set_all(0);
+  if(!svg::in) current_display->set_all(0, 0);
   vertices_texture(v, t, 0, 0);
   }
 
 EX void be_nontextured() { current_display->next_shader_flags = 0; }
 EX void be_textured() { current_display->next_shader_flags = GF_TEXTURE; }
+EX void be_color_textured() { current_display->next_shader_flags = GF_TEXTURE | GF_VARCOLOR; }
 
 EX }
 
@@ -859,4 +947,3 @@ EX void oldvertices(GLfloat *f, int qty) {
 #define glTranslatef DISABLED
 #define glPushMatrix DISABLED
 #define glPopMatrix DISABLED
-

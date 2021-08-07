@@ -18,9 +18,9 @@ struct display_data {
   /** Camera rotation, used in nonisotropic geometries. */
   transmatrix local_perspective;
   /** The view relative to the player character. */
-  transmatrix player_matrix;
+  shiftmatrix player_matrix;
   /** On-screen coordinates for all the visible cells. */
-  unordered_map<cell*, transmatrix> cellmatrices, old_cellmatrices;
+  map<cell*, shiftmatrix> cellmatrices, old_cellmatrices;
   /** Position of the current map view, relative to the screen (0 to 1). */
   ld xmin, ymin, xmax, ymax;
   /** Position of the current map view, in pixels. */
@@ -41,14 +41,14 @@ struct display_data {
   bool in_anaglyph();
 
   void set_viewport(int ed);
-  void set_projection(int ed);
+  void set_projection(int ed, ld shift);
   void set_mask(int ed);
 
-  void set_all(int ed);
+  void set_all(int ed, ld shift);
   /** Which copy of the player cell? */
   transmatrix which_copy;
   /** On-screen coordinates for all the visible cells. */
-  unordered_map<cell*, vector<transmatrix>> all_drawn_copies;
+  map<cell*, vector<shiftmatrix>> all_drawn_copies;
   };
 
 #define View (::hr::current_display->view_matrix)
@@ -77,7 +77,14 @@ int utfsize(char c) {
   }
 
 EX int get_sightrange() { return getDistLimit() + sightrange_bonus; }
-EX int get_sightrange_ambush() { return max(get_sightrange(), ambush::distance); }
+
+EX int get_sightrange_ambush() { 
+  #if CAP_COMPLEX2
+  return max(get_sightrange(), ambush::distance); 
+  #else
+  return get_sightrange();
+  #endif
+  }
 
 bool display_data::in_anaglyph() { return vid.stereo_mode == sAnaglyph; }
 bool display_data::stereo_active() { return vid.stereo_mode != sOFF; }
@@ -238,7 +245,7 @@ int textwidth(int siz, const string &str) {
 #endif
 
 #if !CAP_GL
-void setcameraangle(bool b) { }
+EX void setcameraangle(bool b) { }
 #endif
 
 #if !CAP_GL
@@ -250,15 +257,8 @@ void display_data::set_all(int ed, ld lshift) {}
 
 #if CAP_GL
 
-#if CAP_VR
-EX hookset<bool()> hooks_vr_eye_view, hooks_vr_eye_projection;
-#endif
-
 EX void eyewidth_translate(int ed) {
   glhr::using_eyeshift = false;
-#if CAP_VR
-  if(callhandlers(false, hooks_vr_eye_view)) ; else
-#endif
   if(ed) glhr::projection_multiply(glhr::translate(-ed * current_display->eyewidth(), 0, 0));
   }
 
@@ -270,13 +270,13 @@ inline void reset_projection() { new_projection_needed = true; }
 
 EX ld lband_shift;
 
-void display_data::set_all(int ed) {
+void display_data::set_all(int ed, ld shift) {
   auto t = this;
   auto current_projection = tie(ed, pmodel, t, current_rbuffer);
-  if(new_projection_needed || !glhr::current_glprogram || (next_shader_flags & GF_which) != (glhr::current_glprogram->shader_flags & GF_which) || current_projection != last_projection || band_shift != lband_shift) {
+  if(new_projection_needed || !glhr::current_glprogram || (next_shader_flags & GF_which) != (glhr::current_glprogram->shader_flags & GF_which) || current_projection != last_projection || shift != lband_shift) {
     last_projection = current_projection;
-    lband_shift = band_shift;
-    set_projection(ed);
+    lband_shift = shift;
+    set_projection(ed, shift);
     set_mask(ed);
     set_viewport(ed);
     new_projection_needed = false;
@@ -652,7 +652,9 @@ EX void resetGL() {
   matched_programs.clear();
   glhr::current_glprogram = nullptr;
   ray::reset_raycaster();
+  #if CAP_RUG
   if(rug::glbuf) rug::close_glbuf();
+  #endif
   }
 
 #endif
@@ -726,7 +728,7 @@ EX bool displaystr(int x, int y, int shift, int size, const char *str, color_t c
 
   if(strlen(str) == 0) return false;
 
-  if(size < 4 || size > 255) {
+  if(size < 4 || size > 2000) {
     return false;
     }
   
@@ -1000,7 +1002,7 @@ EX void drawCircle(int x, int y, int size, color_t color, color_t fillcolor IS(0
       float rr = (M_PI * 2 * r) / pts;
       glcoords.push_back(glhr::makevertex(x + size * sin(rr), y + size * pconf.stretch * cos(rr), 0));
       }
-    current_display->set_all(0);
+    current_display->set_all(0, lband_shift);
     glhr::vertices(glcoords);
     glhr::set_depthtest(false);
     if(fillcolor) {
@@ -1373,8 +1375,7 @@ EX void init_graph() {
   }
 
 #if ISWEB
-  vid.xscr = vid.xres = 1200;
-  vid.yscr = vid.yres = 900;
+  get_canvas_size();
 #else
   if(!vid.xscr) {
     #if CAP_SDL2
@@ -1394,6 +1395,7 @@ EX void init_graph() {
   SDL_WM_SetCaption(CUSTOM_CAPTION, CUSTOM_CAPTION);
 #endif
 #endif
+
   graphics_on = true;
 
 #if ISIOS

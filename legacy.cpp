@@ -2,9 +2,9 @@
 // Copyright (C) 2011-2019 Zeno Rogue, see 'hyper.cpp' for details
 
 #include "hyper.h"
-#if CAP_LEGACY
 namespace hr {
 
+#if CAP_LEGACY
 namespace shmup {
 
 void scanchar(FILE *f, char& c) {
@@ -277,4 +277,3 @@ auto ah_legacy = addHook(hooks_args, 0, read_legacy_args);
 
 
 }
-#endif

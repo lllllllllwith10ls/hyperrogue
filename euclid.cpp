@@ -105,7 +105,7 @@ EX namespace euc {
     /** ? */  
     intmatrix inverse_axes;
     /** for canonicalization on tori */
-    unordered_map<coord, int> hash;
+    map<coord, int> hash;
     vector<coord> seq;
     int index;
 
@@ -163,11 +163,13 @@ EX namespace euc {
       compute_tmatrix();
       camelot_center = NULL;
       build_torus3(geometry);    
+      #if CAP_IRR
       if(!valid_irr_torus()) { 
         addMessage(XLAT("Error: period mismatch"));
         eu_input = irr::base_config; 
         build_torus3(geometry); 
         }
+      #endif
       }
 
     heptagon *getOrigin() override {
@@ -181,6 +183,7 @@ EX namespace euc {
         auto h = init_heptagon(S7);
         if(!IRREGULAR) 
           h->c7 = newCell(S7, h);
+        #if CAP_IRR
         else {
           coord m0 = shifttable[0];
           transmatrix dummy;
@@ -237,16 +240,14 @@ EX namespace euc {
       else return hrmap_standard::adj(c, i);
       }
 
-    void draw() override {
-      dq::visited_by_matrix.clear();
-      dq::enqueue_by_matrix(centerover->master, cview() * master_relative(centerover, true));
+    void draw_at(cell *at, const shiftmatrix& where) override {
+      dq::clear_all();
+      dq::enqueue_by_matrix(at->master, where * master_relative(centerover, true));
       
       while(!dq::drawqueue.empty()) {
         auto& p = dq::drawqueue.front();
-        heptagon *h = get<0>(p);
-        transmatrix V = get<1>(p);      
-        dynamicval<ld> b(band_shift, get<2>(p));
-        bandfixer bf(V);
+        heptagon *h = p.first;
+        shiftmatrix V = p.second;      
         dq::drawqueue.pop();
         
         cell *c = h->c7;
@@ -255,7 +256,7 @@ EX namespace euc {
         if(in_wallopt() && isWall3(c) && isize(dq::drawqueue) > 1000 && !hybrid::pmap) continue;
   
         if(draw) for(int i=0; i<S7; i++)
-          dq::enqueue_by_matrix(h->move(i), V * adj(h, i));
+          dq::enqueue_by_matrix(h->move(i), optimized_shift(V * adj(h, i)));
         }
       }
     
@@ -309,6 +310,8 @@ EX namespace euc {
   EX map<coord, heptagon*>& get_spacemap() { return cubemap()->spacemap; }
   EX map<heptagon*, coord>& get_ispacemap() { return cubemap()->ispacemap; }
   EX cell *& get_camelot_center() { return cubemap()->camelot_center; }
+
+  EX heptagon* get_at(coord co) { return cubemap()->get_at(co); }
 
   EX hrmap* new_map() {
     return new hrmap_euclidean;
@@ -527,6 +530,7 @@ EX namespace euc {
     }
   
   EX bool valid_irr_torus() {
+    #if CAP_IRR
     if(!IRREGULAR) return true;
     if(eu.twisted) return false;
     for(int i=0; i<2; i++) {
@@ -540,6 +544,7 @@ EX namespace euc {
       eu.canonicalize(x0, dm0, dummy, mirr);
       if(x0 != euzero || dm0 != eutester) return false;
       }
+    #endif
     return true;
     }
   
@@ -813,13 +818,13 @@ EX namespace euc {
   
   EX void show_fundamental() {
     initquickqueue();
-    transmatrix M = ggmatrix(cwt.at);
-    hyperpoint h0 = M*C0;
+    shiftmatrix M = ggmatrix(cwt.at);
+    shiftpoint h0 = M*C0;
     auto& T_edit = eu_edit.user_axes;
-    hyperpoint ha = M*(eumove(T_edit[0]) * C0 - C0) / 2;
-    hyperpoint hb = M*(eumove(T_edit[1]) * C0 - C0) / 2;
+    hyperpoint ha = M.T*(eumove(T_edit[0]) * C0 - C0) / 2;
+    hyperpoint hb = M.T*(eumove(T_edit[1]) * C0 - C0) / 2;
     if(WDIM == 3) {
-      hyperpoint hc = M*(eumove(T_edit[2]) * C0 - C0) / 2;
+      hyperpoint hc = M.T*(eumove(T_edit[2]) * C0 - C0) / 2;
       for(int d:{-1,1}) for(int e:{-1,1}) {
         queueline(h0+d*ha+e*hb-hc, h0+d*ha+e*hb+hc, 0xFFFFFFFF);
         queueline(h0+d*hb+e*hc-ha, h0+d*hb+e*hc+ha, 0xFFFFFFFF);
@@ -1133,6 +1138,10 @@ EX int dcross(gp::loc e1, gp::loc e2) {
   }
 
 EX gp::loc full_coords2(cell *c) { 
+  if(INVERSE) {
+    cell *c1 = gp::get_mapped(c);
+    return UIU(full_coords2(c1));
+    }
   auto ans = eucmap()->ispacemap[c->master];
   if(S7 == 4 && BITRUNCATED) {
     if(c == c->master->c7) return to_loc(ans) * gp::loc(1,1);
@@ -1167,12 +1176,12 @@ EX coord to_coord(gp::loc p) { return coord(p.first, p.second, 0); }
 
 EX gp::loc sdxy() { return to_loc(eu.user_axes[1]) * gp::univ_param(); }
 
-EX pair<bool, string> coord_display(const transmatrix& V, cell *c) {
+EX pair<bool, string> coord_display(const shiftmatrix& V, cell *c) {
   if(c != c->master->c7) return {false, ""};
   hyperpoint hx = eumove(main_axes[0]) * C0;
   hyperpoint hy = eumove(main_axes[1]) * C0;
   hyperpoint hz = WDIM == 2 ? C0 : eumove(main_axes[2]) * C0;
-  hyperpoint h = kz(inverse(build_matrix(hx, hy, hz, C03)) * inverse(ggmatrix(cwt.at->master->c7)) * V * C0);
+  hyperpoint h = kz(inverse(build_matrix(hx, hy, hz, C03)) * inverse_shift(ggmatrix(cwt.at->master->c7), V) * C0);
 
   if(WDIM == 3)  
     return {true, fts(h[0]) + "," + fts(h[1]) + "," + fts(h[2]) };

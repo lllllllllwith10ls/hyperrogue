@@ -421,7 +421,7 @@ const char *rock_description =
   "Shoot the Space Rocks for score. Large Rocks will split into two smaller rocks.";
 
 #if HDR
-enum eSlimegroup { sgNone, sgCave, sgWater, sgFloorA, sgFloorB, sgVine, sgTree,  sgSlime1, sgSlime2,  sgSlime3, sgSlime4};
+enum eSlimegroup { sgNone, sgCave, sgWater, sgFloorA, sgFloorB, sgVine, sgTree , sgSlime1, sgSlime2, sgSlime3, sgSlime4};
 #endif
 
 #if HDR
@@ -744,7 +744,7 @@ enum eGeometryClass { gcHyperbolic, gcEuclid, gcSphere, gcSolNIH, gcNil, gcProdu
 
 enum class eVariation { bitruncated, pure, goldberg, irregular, dual, untruncated, warped, unrectified, subcubes, coxeter, dual_subcubes, bch, bch_oct };
 
-typedef flagtype modecode_t;
+typedef int modecode_t;
 
 /** only the actual geometry */
 struct geometryinfo1 {
@@ -769,7 +769,6 @@ struct geometryinfo {
   int vertex;
   flagtype flags;
   geometryinfo1 g;
-  modecode_t xcode;
   std::array<int,2> distlimit; // bitrunc, non-bitrunc
   eVariation default_variation;
   };
@@ -952,6 +951,7 @@ namespace mf {
   static const flagtype equivolume = 1024;
   static const flagtype twopoint = 2048;
   static const flagtype uses_bandshift = 4096;
+  static const flagtype broken = 8192; /* in spherical case, these are broken along the meridian 180 deg */
   
   static const flagtype band = (cylindrical | pseudocylindrical | uses_bandshift);
   static const flagtype pseudoband = (pseudocylindrical | uses_bandshift);
@@ -1006,7 +1006,7 @@ enum eModel : int {
 /** list of available models (i.e., projections) */
 EX vector<modelinfo> mdinf = {
   {"disk/Gans", "general perspective", "general perspective", mf::azimuthal | mf::conformal, DEFAULTS},
-  {"half-plane", "inversion", "half-plane", mf::conformal, DEFAULTS},
+  {"half-plane", "inversion", "stereographic projection [VR]", mf::conformal, DEFAULTS},
   {"band", "band", "Mercator", mf::band | mf::conformal, DEFAULTS},
   {X3("polygonal"), mf::conformal, DEFAULTS},
   {X3("formula"), 0, DEFAULTS},
@@ -1033,7 +1033,7 @@ EX vector<modelinfo> mdinf = {
   {X3("Mollweide"), mf::euc_boring | mf::pseudoband | mf::equiarea, DEFAULTS},
   {X3("central cylindrical"), mf::euc_boring | mf::band, DEFAULTS},
   {X3("Collignon"), mf::pseudoband | mf::equiarea, DEFAULTS},
-  {X3("horocyclic coordinates"), mf::euc_boring, DEFAULTS
+  {X3("horocyclic coordinates"), mf::euc_boring, DEFAULTS},
   {X3("quadrant coordinates"), mf::euc_boring, DEFAULTS},
   {X3("axial coordinates"), mf::euc_boring, DEFAULTS},
   {X3("anti-axial coordinates"), mf::euc_boring, DEFAULTS},
