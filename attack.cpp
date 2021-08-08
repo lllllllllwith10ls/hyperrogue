@@ -57,6 +57,8 @@ int* killtable[] = {
     &kills[moBrownBug], &kills[moAcidBird],
     &kills[moFallingDog], &kills[moVariantWarrior], &kills[moWestHawk],
     &kills[moPike], &kills[moRusalka], &kills[moFrog], &kills[moPhaser], &kills[moVaulter],
+    &kills[moPaint], &kills[moArt], &kills[moDeathElemental], &kills[moStormElemental],
+    &kills[moParant], &kills[moMetant], &kills[moOrthant],
     &kills[moHexer], &kills[moAnimatedDie], &kills[moAngryDie],
     NULL
     };
@@ -590,7 +592,7 @@ EX void killMonster(cell *c, eMonster who, flagtype deathflags IS(0)) {
       #if CAP_COMPLEX2
       brownian::dissolve_brownian(c1, 1);
       #endif
-      if(c1->monst == moSlime || c1->monst == moSlimeNextTurn)
+      if(c1->monst == moSlime || c1->monst == moPaint || c1->monst == moArt || c1->monst == moSlimeNextTurn)
         killMonster(c1, who);
       }
     forCellEx(c2, c) {
@@ -732,7 +734,7 @@ EX void killMonster(cell *c, eMonster who, flagtype deathflags IS(0)) {
       }
     if(!toomany) c->item = itCompass;
     }
-  if(m == moSlime) { 
+  if(m == moSlime || m == moPaint) { 
     pcount = 0;
     drawParticles(c, winf[c->wall].color, 80, 200);
     playSound(c, "splash" + pick12());

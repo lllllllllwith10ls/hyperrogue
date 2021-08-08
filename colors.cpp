@@ -270,4 +270,36 @@ EX int weakfirecolor(int phase) {
   }
 
 
+   
+EX int sealcolor(int phase IS(0)) {
+  return gradient(0xFFFFFF, 0x000000, -1, sintick(1000, phase/200./M_PI), 1);
+  }
+    
+EX int barriercolor(int phase IS(0)) {
+  return gradient(0x0000FF, 0x000000, -1, sintick(1000, phase/200./M_PI), 1);
+  }
+ 
+EX int hurricanecolor(int phase IS(0), int type IS(0)) {
+  if(type == 0) {
+    return gradient(0x4010a0, 0x8010a0, 0, sintick(1000, phase/200./M_PI)+2, 2);
+    }
+  if(type == 1) {
+    return gradient(0x1010a0, 0x1010b0, 0, sintick(1000, phase/200./M_PI)+2, 2);
+    }
+  if(type == 2) {
+    return gradient(0x1040a0, 0x1080a0, 0, sintick(1000, phase/200./M_PI)+2, 2);
+    }
+  return 0x000000;
+  }
+EX int colorfulcolor(int phase) {
+  phase = int(fractick(650, phase) * 600);
+  if(phase < 100)      return gradient(0xFF0000, 0xFFFF00,    0, phase, 100);
+  else if(phase < 200) return gradient(0xFFFF00, 0x00FF00, 100, phase, 200);
+  else if(phase < 300) return gradient(0x00FF00, 0x00FFFF, 200, phase, 300);
+  else if(phase < 400) return gradient(0x00FFFF, 0x0000FF, 300, phase, 400);
+  else if(phase < 500) return gradient(0x0000FF, 0xFF00FF, 400, phase, 500);
+  else if(phase < 600) return gradient(0xFF00FF, 0xFF0000, 500, phase, 600);
+  return 0xFFFFFF;
+  }
+
 }

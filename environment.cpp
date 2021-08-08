@@ -44,12 +44,13 @@ namespace hr {
 #define HF_WESTWALL   Flag(31)
 #define HF_JUMP       Flag(32)
 #define HF_DICE       Flag(33)
+#define HF_ANT        Flag(34)
 #endif
 
 EX flagtype havewhat, hadwhat;
 
 /** monsters of specific types to move */
-EX vector<cell*> worms, ivies, ghosts, golems, hexsnakes;
+EX vector<cell*> worms, ivies, ghosts, golems, hexsnakes, ants;
 
 /** temporary changes during bfs */
 vector<pair<cell*, eMonster>> tempmonsters;
@@ -270,6 +271,7 @@ EX void bfs() {
   statuecount = 0;
   wetslime = 0;
   hexsnakes.clear(); 
+  ants.clear(); 
 
   hadwhat = havewhat;
   havewhat = 0; jiangshi_on_screen = 0;
@@ -444,6 +446,10 @@ EX void bfs() {
             havewhat |= HF_OUTLAW;
           else if(isGhostMover(c2->monst))
             ghosts.push_back(c2);
+          else if(isAnt(c2)) {
+            havewhat |= HF_ANT;
+            ants.push_back(c2);
+            }
           else if(isWorm(c2) || isIvy(c2)) findWormIvy(c2);
           else if(isBug(c2)) {
             havewhat |= HF_BUG;
@@ -794,6 +800,7 @@ EX void monstersTurn() {
   bfs();
   DEBB(DF_TURN, ("charge"));
   if(elec::havecharge) elec::act();
+  doLightningNextTurn();
   DEBB(DF_TURN, ("mmo"));
   int phase2 = (1 & items[itOrbSpeed]);
   if(!phase2) movemonsters();
@@ -821,6 +828,7 @@ EX void monstersTurn() {
   if(dual::state && items[itOrbSpeed]) phase1 = !phase1;
   DEBB(DF_TURN, ("lc"));
   if(!phase1) livecaves();
+  if(!phase1) hurricaneWind();
   if(!phase1) ca::simulate();
   if(!phase1) heat::processfires();
   

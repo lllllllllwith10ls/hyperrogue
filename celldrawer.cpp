@@ -107,6 +107,8 @@ void celldrawer::setcolors() {
         0x1010C0 + int(32 * sintick(500, (ls::any_chaos() ? c->CHAOSPARAM : c->landparam)*.75/M_PI));
     else if(c->land == laOceanWall)
       fcol = 0x2020FF;
+    else if(c->land == laHurricane)
+      fcol = hurricanecolor(0,c->landparam);
     else if(c->land == laVariant)
       fcol = 0x002090 + 15 * sintick(300, 0);
     else if(c->land == laKraken) {
@@ -146,7 +148,7 @@ void celldrawer::setcolors() {
     case laDesert: case laKraken: case laDocks: 
     case laMotion: case laGraveyard: case laWineyard: case laLivefjord: 
     case laRlyeh: case laHell: case laCrossroads: case laJungle:
-    case laAlchemist: case laFrog: case laCursed: case laDice:
+    case laAlchemist: case laFrog: case laNecro: case laAnt: case laCursed: case laDice:
       fcol = floorcolors[c->land]; break;
     
     case laCA:
@@ -500,11 +502,18 @@ void celldrawer::setcolors() {
       break;
       }
     
-    case waFloorA: case waFloorB: // isAlch
+    case waFloorA: case waFloorB: case waSlime1: case waSlime2: case waSlime3: case waSlime4: // isAlch
       if(c->item && !(history::includeHistory && history::infindhistory.count(c)))
         fcol = wcol = iinf[c->item].color;
-      else
+      else {
         fcol = wcol;
+        if(c->land == laPaint) {
+          if(c->wall == waFloorA)
+            fcol = wcol = 0xA00000;
+          else if(c->wall == waFloorB)
+            fcol = wcol = 0x0000F0;
+          }
+        }
       break;
     
     case waBoat:
@@ -519,6 +528,14 @@ void celldrawer::setcolors() {
       fcol = wcol = firecolor(100);
       break;
     
+    case waSeal: case waSealWall:
+      fcol = wcol = sealcolor(100);
+      break;
+    
+    case waPlayerBarrier: 
+      fcol = wcol = barriercolor(100);
+      break;
+      
     case waDeadfloor: case waCavefloor:
       fcol = wcol;
       break;
@@ -1048,6 +1065,7 @@ void celldrawer::set_land_floor(const shiftmatrix& Vf) {
   switch(c->land) {
     case laPrairie:
     case laAlchemist:
+    case laPaint:
       set_floor(cgi.shCloudFloor);
       break;
     
@@ -1097,7 +1115,7 @@ void celldrawer::set_land_floor(const shiftmatrix& Vf) {
       set_floor(cgi.shTurtleFloor);
       break;
     
-    case laBurial: case laRuins:
+    case laBurial: case laRuins: case laNecro:
       set_floor(cgi.shBarrowFloor);
       break;
 
@@ -1169,7 +1187,7 @@ void celldrawer::set_land_floor(const shiftmatrix& Vf) {
       set_floor(cgi.shButterflyFloor);
       break;
     
-    case laCaribbean: case laOcean: case laOceanWall: case laWhirlpool:
+    case laCaribbean: case laOcean: case laHurricane: case laOceanWall: case laWhirlpool:
       set_floor(cgi.shCloudFloor);
       break;
     
@@ -2360,7 +2378,7 @@ void celldrawer::draw_monster_full() {
     if(isMetalBeast(c->monst) && c->stuntime) 
       moncol >>= 1;
 
-    if(c->monst == moSlime) {
+    if(c->monst == moSlime || c->monst == moPaint || c->monst == moArt) {
       moncol = winf[c->wall].color;
       moncol |= (moncol>>1);
       }
@@ -2470,6 +2488,25 @@ void celldrawer::add_map_effects() {
       }
     }
 
+  if(c->weakligon) {
+    int tim = sin(ticks/25/M_PI)*500+500;
+    for(int t=0; t<c->type; t++) if(c->move(t)) {
+      if(c->move(t)->weakligon) {
+        int lcol = darkena(gradient(iinf[itOrbLightning].color, 0, 0, tim, 1100), 0, 0xFF);
+        queueline(V*chei(xspinpush(ticks * M_PI / cgi.S42, cgi.hexf/2), rand() % 1000, 1000) * C0, V*chei(currentmap->adj(c, t), rand() % 1000, 1000) * C0, lcol, 2 + vid.linequality);
+        }
+      for(int u: {-1, 1}) {
+        cellwalker cw = cellwalker(c, t) + wstep + u;
+        if(u == -1 && valence() == 4) continue;
+        cell *c2 = cw.peek();
+        if(c2 && c2->weakligon) {
+          int lcol = darkena(gradient(iinf[itOrbLightning].color, 0, 0, tim, 1100), 0, 0xFF);
+          queueline(V*chei(xspinpush(ticks * M_PI / cgi.S42, cgi.hexf/2), rand() % 1000, 1000) * C0, V*chei(currentmap->adj(c, t)*currentmap->adj(cw.at, cw.spin), rand() % 1000, 1000) * C0, lcol, 2 + vid.linequality);
+          }
+        }
+      }
+    }
+
   if(c->land == laWhirlwind) {
     whirlwind::calcdirs(c);
     
@@ -2499,7 +2536,32 @@ void celldrawer::add_map_effects() {
       poly_outline = OUTLINE_DEFAULT;
       }
     }
-
+  if(c->land == laHurricane) {
+    
+    for(int i=0; i<c->type; i++) {
+      if(c->landparam == (c->move(i)->landparam+1)%3) {
+        ld hdir0 = currentmap->spin_angle(c, i) + M_PI;
+        /* todo what if no spin_angle */
+    
+        double ph1 = fractick(PURE ? 250 : 125);
+        
+        int aircol = 0xC0C0FF20;
+        
+        
+        ld hdir = hdir0;
+    
+        transmatrix V0 = spin(hdir);
+        
+        double ldist =  
+          cellgfxdist(c, hdir0)/2; 
+        // PURE ? cgi.crossf : c->type == 6 ? .2840 : 0.3399;
+    
+        poly_outline = OUTLINE_TRANS;
+        queuepoly(Vd*V0*xpush(ldist*(2*ph1-1)), cgi.shDisk, aircol);
+        poly_outline = OUTLINE_DEFAULT;
+        }
+      }
+    }
   if(items[itOrbGravity] && c->cpdist <= 5) 
     draw_gravity_particles();
   }

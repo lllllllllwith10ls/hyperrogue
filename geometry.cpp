@@ -276,6 +276,8 @@ hpcshape
   shHumanFoot, shHumanLeg, shHumanGroin, shHumanNeck, shSkeletalFoot, shYetiFoot,
   shMagicSword, shMagicShovel, shSeaTentacle, shKrakenHead, shKrakenEye, shKrakenEye2,
   shArrow,
+  shBrushHandle, shBrushBrush,
+  shPalette, shPaletteCol1, shPaletteCol2, shPaletteCol3, shPaletteCol4,
   shPHead, shPFace, shGolemhead, shHood, shArmor, 
   shAztecHead, shAztecCap,
   shSabre, shTurban1, shTurban2, shVikingHelmet, shRaiderHelmet, shRaiderArmor, shRaiderBody, shRaiderShirt,

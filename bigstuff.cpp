@@ -503,7 +503,7 @@ EX int coastval(cell *c, eLand base) {
     }
   else {
     if(c->land == laOceanWall || c->land == laCaribbean || c->land == laWhirlpool ||
-      c->land == laLivefjord || c->land == laWarpSea || c->land == laKraken || c->land == laDocks || c->land == laBrownian)
+      c->land == laLivefjord || c->land == laWarpSea || c->land == laKraken || c->land == laDocks || c->land == laBrownian || c->land == laHurricane)
       return 30;
     if(c->land  != laOcean && !isGravityLand(c->land) && c->land != laHaunted) {
       return 0;

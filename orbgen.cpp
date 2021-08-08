@@ -166,6 +166,11 @@ EX vector<orbinfo> orbinfos = {
   {orbgenflags::S_GUEST, laWet, 1200, 0, itOrbFish},
   {orbgenflags::S_GUEST, laWet, 1200, 0, itOrbAether},
   {orbgenflags::S_GUEST, laWet, 1200, 0, itOrbFrog},
+  {orbgenflags::S_NATIVE, laPaint, 1000, 1500, itOrbColor},
+  {orbgenflags::S_NATIVE, laNecro, 900, 2000, itOrbBarr},
+  {orbgenflags::S_NATIVE, laHurricane, 200, 4000, itOrbCharge},
+  {orbgenflags::S_GUEST, laHurricane, 500, 0, itOrbWater},
+  {orbgenflags::S_GUEST, laHurricane, 500, 0, itOrbLightning},
   {orbgenflags::S_NATIVE, laCursed, 400, 1500, itOrbPurity},
   {orbgenflags::S_NAT_NT, laDice, 500, 800, itOrbLuck},
   {orbgenflags::S_GUEST, laDice, 750, 0, itOrbAir},
@@ -492,7 +497,7 @@ EX void placePrizeOrb(cell *c) {
     if(!gch) continue;
     gch = int(gch / orbprizefun(treas));
     if(hrand(gch) >= 60) continue;
-    if(oi.orb == itOrbWater && c->land != laOcean && c->land != laKraken) {
+    if(oi.orb == itOrbWater && c->land != laOcean && c->land != laKraken && c->land != laHurricane) {
       if(cellHalfvine(c)) continue;
       c->item = oi.orb;
       c->wall = waStrandedBoat;
@@ -550,7 +555,7 @@ EX void placeLocalOrbs(cell *c) {
     if(ch == 0 && tc >= tcmin) {
       // printf("local orb\n");
       c->item = oi.orb;
-      if(oi.orb == itOrbWater && c->land != laOcean) c->wall = waStrandedBoat;
+      if(oi.orb == itOrbWater && c->land != laOcean && c->land != laHurricane) c->wall = waStrandedBoat;
       return;
       }
     else if(oi.gchance && (ch >= 1 && ch < 11) && getOLR(itShard, l) == olrPrize25 && l != laRedRock && l != laWhirlwind)

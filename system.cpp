@@ -422,7 +422,7 @@ EX namespace scores {
 /** \brief the amount of boxes reserved for each hr::score item */
 #define MAXBOX 500
 /** \brief currently used boxes in hr::score */
-#define POSSCORE 406
+#define POSSCORE 425
 /** \brief a struct to keep local score from an earlier game */
 struct score {
   /** \brief version used */
@@ -899,6 +899,26 @@ EX void applyBoxes() {
   
   applyBoxNum(yasc_code, "YASC code");
   applyBoxBool(casual, "casual mode");
+  
+  
+  applyBoxOrb(itOrbColor);
+  applyBoxI(itPaint);
+  applyBoxM(moPaint);
+  applyBoxM(moArt);
+
+  applyBoxOrb(itOrbBarr);
+  applyBoxI(itStygian);
+  applyBoxM(moDeathElemental);
+  
+  applyBoxI(itThunderStone);
+  applyBoxM(moStormElemental);
+  applyBoxOrb(itOrbCharge);
+  
+  applyBoxOrb(itOrbReplicate);
+  applyBoxI(itLangton);
+  applyBoxM(moParant);
+  applyBoxM(moMetant);
+  applyBoxM(moOrthant);
   
   applyBoxI(itCursed);
   applyBoxI(itDice);

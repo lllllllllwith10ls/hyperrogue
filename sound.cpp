@@ -48,6 +48,10 @@ EX void playSeenSound(cell *c) {
     playSound(c, "seen-frog3");
   else if(c->monst == moWaterElemental)
     playSound(c, "seen-water");
+  else if(c->monst == moDeathElemental)
+    playSound(c, "seen-death");
+  else if(c->monst == moStormElemental)
+    playSound(c, "seen-storm");
   else if(c->monst == moFireElemental)
     playSound(c, "fire");
   else if(c->monst == moDragonHead)

@@ -39,6 +39,8 @@ struct gcell {
 
   /** \brief is it currently sparkling with lightning? */
   unsigned ligon : 1;
+  /** \brief is it about to be? */
+  unsigned weakligon : 1;
 
   signed 
     mpdist : 7,         ///< minimum player distance, the smaller value, the more generated it is */

@@ -22,6 +22,7 @@ EX void initcell(cell *c) {
   c->barleft = c->barright = laNone;
   c->land = laNone;
   c->ligon = 0;
+  c->weakligon = 0;
   c->stuntime = 0;
   c->monmirror = 0;
   }
@@ -276,6 +277,40 @@ EX bool earthWall(cell *c) {
     c->item = itNone;
     c->wall = waSea;
     if(c->land == laOcean) c->landparam = 40;
+    return true;
+    }
+  return false;
+  }
+
+
+EX bool applyColor(cell *c) {
+  changes.ccell(c);
+  if(c->item) {
+    c->wall = waFloorA;
+    return true;
+    }
+  else if(c->wall == waFloorA) {
+    spill(c,waSlime4,0);
+    return true;
+    }
+  else if(c->wall == waSlime4) {
+    spill(c,waFloorB,0);
+    return true;
+    }
+  else if(c->wall == waFloorB) {
+    spill(c,waSlime1,0);
+    return true;
+    }
+  else if(c->wall == waSlime1) {
+    spill(c,waSlime2,0);
+    return true;
+    }
+  else if(c->wall == waSlime2) {
+    spill(c,waSlime3,0);
+    return true;
+    }
+  else {
+    spill(c,waFloorA,0);
     return true;
     }
   return false;
@@ -754,7 +789,7 @@ EX bool makeEmpty(cell *c) {
   if(c->land == laCanvas) ;
   else if(c->land == laCocytus)
     c->wall = waFrozenLake;
-  else if(c->land == laAlchemist || c->land == laCanvas)
+  else if(c->land == laAlchemist || c->land == laPaint || c->land == laCanvas)
     ;
   else if(c->land == laDual)
     ;
@@ -762,7 +797,7 @@ EX bool makeEmpty(cell *c) {
     c->wall = waCavefloor;
   else if(c->land == laDeadCaves)
     c->wall = waDeadfloor2;
-  else if(c->land == laCaribbean || c->land == laOcean || c->land == laWhirlpool || c->land == laLivefjord || c->land == laWarpSea || c->land == laKraken || c->wall == waBoat)
+  else if(c->land == laCaribbean || c->land == laOcean || c->land == laWhirlpool || c->land == laLivefjord || c->land == laWarpSea || c->land == laKraken || c->land == laHurricane || c->wall == waBoat)
     c->wall = waBoat; // , c->item = itOrbYendor;
   else if(c->land == laMinefield)
     c->wall = waMineOpen;
@@ -1026,6 +1061,19 @@ EX bool earthMove(const movei& mi) {
   if(c2) for(int u=2; u<=c2->type-2; u++) {
     cell *c3 = c2->modmove(d + u);
     if(c3) b |= earthFloor(c3);
+    }
+  return b;
+  }
+
+
+EX bool colorMove(const movei& mi) {
+  bool b = false;
+  cell *c2 = mi.t;
+  b |= applyColor(c2);
+  if(!mi.proper()) return b;
+  if(c2) for(int u=0; u<c2->type; u++) {
+    cell *c3 = c2->move(u);
+    b |= applyColor(c3);
     }
   return b;
   }

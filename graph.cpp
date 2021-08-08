@@ -150,6 +150,7 @@ EX int flip_dark(int f, int a0, int a1) {
   }
 
 color_t fc(int ph, color_t col, int z) {
+  if(items[itOrbColor]) col = darkena(colorfulcolor(ph), 0, 0xFF);
   if(items[itOrbFire]) col = darkena(firecolor(ph), 0, 0xFF);
   if(items[itOrbAether]) col = (col &~0XFF) | (col&0xFF) / 2;
   for(cell *pc: player_positions()) 
@@ -773,6 +774,7 @@ void queue_ring(const shiftmatrix& V, hpcshape& sh, color_t col, PPR p) {
 
 EX color_t orb_auxiliary_color(eItem it) {
   if(it == itOrbFire) return firecolor(200);
+  if(it == itOrbColor) return colorfulcolor(100);
   if(it == itOrbFriend || it == itOrbDiscord) return 0xC0C0C0;
   if(it == itOrbFrog) return 0xFF0000;
   if(it == itOrbImpact) return 0xFF0000;
@@ -986,6 +988,7 @@ EX bool drawItemType(eItem it, cell *c, const shiftmatrix& V, color_t icol, int 
     
     if(it == itZebra) icol = 0xFFFFFF;
     if(it == itLotus) icol = 0x101010;
+    if(it == itStygian) icol = 0x000000;
     if(it == itSwitch) icol = minf[active_switch()].color;
     
     shiftmatrix V2 = Vit * spinptick(1500, 0);
@@ -1013,6 +1016,7 @@ EX bool drawItemType(eItem it, cell *c, const shiftmatrix& V, color_t icol, int 
   
   else if(xch == 'o' || xch == 'c' || it == itInventory) {
     if(it == itOrbFire) icol = firecolor(100);
+    if(it == itOrbColor) icol = colorfulcolor(100);
     PPR prio = PPR::ITEM;
     bool inice = c && c->wall == waIcewall;
     if(inice) prio = PPR::HIDDEN;
@@ -1991,6 +1995,25 @@ EX bool drawMonsterType(eMonster m, cell *where, const shiftmatrix& V1, color_t 
       return true;
       }
 
+    case moPaint: case moArt: {
+      ShadowV(V, cgi.shPBody);
+      const shiftmatrix VBS = VBODY * otherbodyparts(V, col, m, footphase);
+      queuepoly(VBS, cgi.shPBody, darkena(col, 0, 0xFF));
+      queuepoly(VBS, cgi.shBrushBrush, darkena(col, 0, 0xFF));
+      queuepoly(VBS, cgi.shBrushHandle, darkena(0x6B6B4D, 0, 0xFF));
+      if(m == moArt) {
+        queuepoly(VBS, cgi.shPaletteCol1, darkena(0xF00000, 0, 0xFF));
+        queuepoly(VBS, cgi.shPaletteCol2, darkena(0xF0F000, 0, 0xFF));
+        queuepoly(VBS, cgi.shPaletteCol3, darkena(0x007000, 0, 0xFF));
+        queuepoly(VBS, cgi.shPaletteCol4, darkena(0x0000F0, 0, 0xFF));
+        queuepoly(VBS, cgi.shPalette, darkena(0x6B6B4D, 0, 0xFF));
+      }
+      queuepoly(VHEAD, cgi.shPFace, 0xFFE080FF);
+      queuepoly(VHEAD1, cgi.shPHead, darkena(col, 0, 0xFF));
+      humanoid_eyes(V, 0x000000FF);
+      return false;
+      }
+      
     case moKrakenH: {
       queuepoly(VFISH, cgi.shKrakenHead, darkena(col, 0, 0xD0));
       queuepoly(VFISH, cgi.shKrakenEye, 0xFFFFFFC0 | UNTRANS);
@@ -2207,6 +2230,26 @@ EX bool drawMonsterType(eMonster m, cell *where, const shiftmatrix& V1, color_t 
       return true;
       }        
 
+    case moDeathElemental: {
+      const shiftmatrix VBS = VBODY * otherbodyparts(V, darkena(col, 1, 0xFF), m, footphase);
+      ShadowV(V, cgi.shWaterElemental);
+      queuepoly(VBS, cgi.shWaterElemental, darkena(col, 0, 0xC0));
+      queuepoly(VHEAD1, cgi.shFemaleHair, darkena(col, 0, 0XFF));
+      queuepoly(VHEAD, cgi.shPFace, 0x30303080 | UNTRANS);
+      humanoid_eyes(V, 0x101010FF, darkena(col, 1, 0xFF));
+      return true;
+      }        
+
+    case moStormElemental: {
+      const shiftmatrix VBS = VBODY * otherbodyparts(V, darkena(col, 1, 0xFF), m, footphase);
+      ShadowV(V, cgi.shWaterElemental);
+      queuepoly(VBS, cgi.shWaterElemental, darkena(col, 0, 0xC0));
+      queuepoly(VHEAD1, cgi.shFemaleHair, darkena(col, 0, 0XFF));
+      queuepoly(VHEAD, cgi.shPFace, 0xDFDF0080 | UNTRANS);
+      humanoid_eyes(V, 0xA0A000FF, darkena(col, 1, 0xFF));
+      return true;
+      }     
+      
     case moWaterElemental: {
       const shiftmatrix VBS = VBODY * otherbodyparts(V, watercolor(50), m, footphase);
       ShadowV(V, cgi.shWaterElemental);
@@ -2294,7 +2337,7 @@ EX bool drawMonsterType(eMonster m, cell *where, const shiftmatrix& V1, color_t 
     queuepoly(VAHEAD * Mirror, cgi.shBullHorn, darkena(0xFFFFFF, 0, 0xFF));
     }
 
-  else if(isBug(m)) {
+  else if(isBug(m) || isAnt(m)) {
     ShadowV(V, cgi.shBugBody);
     if(!mmspatial && !footphase)
       queuepoly(VABODY, cgi.shBugBody, darkena(col, 0, 0xFF));
@@ -3721,6 +3764,9 @@ EX int getfd(cell *c) {
     case laCA:
     case laDual:
     case laBrownian:
+    case laPaint:
+    case laHurricane:
+    case laAnt:
       return 1;
     
     case laVariant:

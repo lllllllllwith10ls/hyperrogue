@@ -122,8 +122,21 @@ EX void reverse_curse(eItem curse, eItem orb, bool cancel) {
     }
   }
 
-EX void reduceOrbPowers() {
 
+EX void chargeOrbs() {
+  if(haveNonChargingOrbPower()) {
+    int totalOrbs = 0;
+    for(int i=0; i<ittypes; i++) if(itemclass(eItem(i)) == IC_ORB && items[i] && i != itOrbCharge) totalOrbs++;
+    for(int i=0; i<ittypes; i++) if(itemclass(eItem(i)) == IC_ORB && items[i] && i != itOrbCharge) items[i] += floor(items[itOrbCharge]/totalOrbs);
+    items[itOrbCharge] = 0;
+    }
+}
+
+EX void reduceOrbPowers() {
+  if(items[itOrbCharge]) {
+    chargeOrbs();
+  }
+  
   reverse_curse(itCurseWeakness, itOrbSlaying, true);
   reverse_curse(itCurseFatigue, itOrbSpeed, false); // OK
   reverse_curse(itCurseRepulsion, itOrbMagnetism, true); // OK
@@ -192,6 +205,10 @@ EX void reduceOrbPowers() {
   reduceOrbPower(itOrbImpact, 120);
   reduceOrbPower(itOrbChaos, 120);
   reduceOrbPower(itOrbPlague, 120);
+  reduceOrbPower(itOrbColor, 120);
+  reduceOrbPower(itOrbBarr, 333);
+  reduceOrbPower(itOrbCharge, 777);
+  reduceOrbPower(itOrbReplicate, 150);
 
   reduceOrbPower(itOrbSide1, 120);
   reduceOrbPower(itOrbSide2, 120);
@@ -968,6 +985,21 @@ void tempWallAt(cell *dest) {
   bfs();
   checkmoveO();
   }
+bool barrPossibleAt(cell *dest) {
+  if(dest->land == laWestWall) return false;
+  if(dest->monst) return false;
+  return dest->wall == waNone;
+  }
+void tempBarrAt(cell *dest) {
+  if(dest->wall == waNone) {
+    dest->wall = waPlayerBarrier;
+    dest->wparam = 10;
+    }
+  useupOrb(itOrbBarr, 10);
+  createNoise(2);
+  bfs();
+  checkmoveO();
+  }
 
 void psi_attack(cell *dest) {
   playSound(dest, "other-mind");
@@ -1476,6 +1508,12 @@ EX eItem targetRangedOrb(cell *c, orbAction a) {
     if(!isCheck(a)) poly_attack(c), apply_impact(c);
     return itOrbMorph;
     }
+    
+  // (5e) barriers
+  if(items[itOrbBarr] && barrPossibleAt(c)) {
+    if(!isCheck(a)) tempBarrAt(c), apply_impact(c);
+    return itOrbBarr;
+    }
   
   // (6) place fire (non-shmup variant)
   if(!shmup::on && items[itOrbDragon] && makeflame(c, 20, true)) {
@@ -1617,6 +1655,7 @@ EX int orbcharges(eItem it) {
     case itOrbDigging:
     case itOrbTeleport:
     case itOrbMagnetism:
+    case itOrbReplicate:
       return 77;
     case itOrbDomination:
       return 90;
@@ -1653,6 +1692,15 @@ EX int orbcharges(eItem it) {
        
     case itOrbPlague:
       return 30;
+      
+    case itOrbColor:
+      return 60;
+      
+    case itOrbBarr:
+      return 66; 
+      
+    case itOrbCharge:
+      return 66; 
     
     case itOrbPurity:
       return 15;

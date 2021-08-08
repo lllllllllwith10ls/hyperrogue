@@ -160,10 +160,18 @@
 [89] */music/hr3-laboratory.ogg
 # Eclectic City
 [90] */music/hr-domina-mountain.ogg
+# Paintscape
+[91] */music/hr3-laboratory.ogg
+# Necropolis
+[92] */music/hr3-graveyard.ogg
+# Hurricane
+[93] */music/hr3-rlyeh.ogg
+# Ant Nest
+[94] */music/hr3-laboratory.ogg
 # Cursed Canyon
-[91] */music/hr3-graveyard.ogg
+[95] */music/hr3-graveyard.ogg
 # Dice Reserve
-[92] */music/hr3-laboratory.ogg
+[96] */music/hr3-laboratory.ogg
 
 # None [00] (used when the window is out of focus)
 

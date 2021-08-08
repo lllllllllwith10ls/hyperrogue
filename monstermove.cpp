@@ -128,6 +128,10 @@ EX void moveMonster(const movei& mi) {
     cf->wall = waChasm;
     }
   moveEffect(mi, m);
+  if(isAnt(cf)) {
+    if(cf->wall == waNone) cf->wall = waFloorA;
+    else if(cf->wall == waFloorA) cf->wall = waNone;
+    }
   if(ct->wall == waCamelotMoat && 
     (m == moShark || m == moCShark || m == moGreaterShark))
       achievement_gain_once("MOATSHARK");
@@ -306,6 +310,8 @@ EX void moveMonster(const movei& mi) {
       }
     }
 
+  if(m == moArt) spill(ct, cf->wall, 0);
+  
   if(m == moAirElemental) airmap.push_back(make_pair(ct, 0));
   if(m == moWolf && ct->land == laVolcano) ct->monst = moLavaWolf;
   if(m == moLavaWolf && isIcyLand(ct)) ct->monst = moWolfMoved;
@@ -458,6 +464,10 @@ EX int moveval(cell *c1, cell *c2, int d, flagtype mf) {
   
   // Rose Beauties keep to the Rose Garden
   if(m == moRoseBeauty && c2->land != laRose) return -600;
+  
+  // Ants move with their rules
+  if(isAnt(c1) && c1->mondir != NODIR && d != getAntMove(c1)) return -1700;
+  if(isAnt(c1) && c1->mondir != NODIR && d == getAntMove(c1)) return 1500;
   
   if(wantsToStay(m)) return 750;
   
@@ -703,6 +713,12 @@ EX cell *moveNormal(cell *c, flagtype mf) {
     }
   if(d == -1) {
     stayEffect(c);
+    if(isAnt(c)) {
+      if(c->wall == waFloorA)
+        c->mondir--;
+      else
+        c->mondir++;
+      }
     return c;
     }
   
@@ -1784,6 +1800,110 @@ EX void moveButterflies() {
   butterflies.resize(j);
   }
 
+
+EX void stormNextTurn(cell *c) {
+
+
+  castWeakLightningBoltFrom(c);
+  }
+EX void castWeakLightningBoltFrom(cell *c) {
+  for(int i=0; i<c->type; i++) castWeakLightningBolt(cellwalker(c, i));
+  }
+  
+  
+EX void castWeakLightningBolt(cellwalker lig) {
+  int bnc = 0;
+  int counter = 1000;
+  while(true) {
+    counter--; if(counter < 0) break;
+    // printf("at: %p i=%d d=%d\n", lig.c, i, lig.spin);
+    
+    if(lig.peek() == NULL) break;
+
+    lig += wstep;
+    if(inmirror(lig)) lig = mirror::reflect(lig);
+    
+    cell *c = lig.at;
+    bool first = !c->weakligon;
+    c->weakligon = 1;
+    
+    bool brk = false, spin = false;
+    
+    if(celldistance(cwt.at,c) >= 7)  brk = true, c->weakligon = 0;
+    if(c->monst == moStormElemental)brk = true, c->weakligon = 0;
+    if(c->wall == waGargoyle)  brk = true;
+    if(c->wall == waExplosiveBarrel) brk = true;
+    if(c->wall == waCavewall)  brk = true;
+    if(c->wall == waDeadTroll) brk = true;
+    if(c->wall == waDeadTroll2)brk = true;
+    if(c->wall == waPetrified) brk = true;
+    if(c->wall == waDeadwall)  brk = true;
+    if(c->wall == waGlass)     spin = true;
+    if(c->wall == waDune)      brk = true;
+    if(c->wall == waIcewall)   brk = true;
+    if(c->wall == waAncientGrave) spin = true;
+    if(c->wall == waFreshGrave) spin = true;
+
+    if(c->wall == waFreshGrave) spin = true;
+
+    if(c->wall == waBigStatue) spin = true;
+    if(c->wall == waColumn)    spin = true;
+    if(c->wall == waStone)     brk = true;
+    
+    if(c->wall == waCanopy || c->wall == waTrunk || c->wall == waBigBush || c->wall == waSmallBush) {
+      brk = true;
+      }
+
+    if(c->wall == waGrounded)  brk = true;
+    if(c->wall == waFan)       spin = true;
+    if(c->wall == waMetal)     brk = true;
+    if(c->wall == waSandstone) {
+      brk = true;
+      }
+
+    if(c->wall == waCharged && first) {
+      for(int i=0; i<c->type; i++) 
+        // do not do strange things in horocyclic spires
+        if(c->move(i) && c->move(i)->wall != waCharged) {
+          cellwalker lig2(c, i);
+          castWeakLightningBolt(lig2);
+          }
+      brk = true;
+      }
+                             
+    if(c->wall == waBoat && c != cwt.at)           spin = true;
+    if(c->wall == waStrandedBoat && c !=cwt.at)    spin = true;
+
+    
+    if(c->wall == waRed3)      brk = true;
+    
+    if(c->wall == waBigTree || c->wall == waSmallTree || c->wall == waVinePlant ||
+      c->wall == waSaloon)    {
+      brk = true;
+      }
+    if(cellHalfvine(c) && c->wall == lig.peek()->wall) {
+      brk = true;
+      }
+
+    if(spin) lig += hrand(lig.at->type);
+    
+    if(brk) break;
+    
+    if(reflectingBarrierAt(c)) {
+      int left = -1;
+      int right = 1;
+      while(!reflectingBarrierAt(lig, left)) left--;
+      while(!reflectingBarrierAt(lig, right)) right++;
+      lig += right + left;
+      if(c->wall == waBarrowWall) c->wall = waBarrowDig;
+      else if(c->wall == waBarrowDig) c->wall = waNone;
+      bnc++; if(bnc > 10) break;
+      }
+    else 
+      lig += rev;
+    }
+  }
+
 // assume pathdist
 EX void specialMoves() {
   for(int i=0; i<isize(dcal); i++) {
@@ -1907,6 +2027,42 @@ EX void specialMoves() {
         }
       if(shot || dont_approach) c->stuntime = 1;
       }
+    else if(m == moStormElemental) {
+      bool storm = false;
+      for(int i=0; i<isize(targets); i++) {
+        cell *t = targets[i];
+        if(celldistance(c, t) <= 2) storm = true;
+        }
+      if(storm) {
+        stormNextTurn(c);
+        c->stuntime = 6;
+        }
+      }
+    else if(m == moDeathElemental && !peace::on) {
+      bool summon = false;
+      
+      for(int i=0; i<isize(targets); i++) {
+        cell *t = targets[i];
+        if(celldistance(c, t) <= 3) summon = true;
+        }
+      if(summon) {
+        pathdata pd(moDeathElemental);
+        int ghostnum = 0;
+        cell *gtab[8];
+        for(int j=0; j<c->type; j++) if(c->move(j)) {
+          if(c->move(j)->pathdist < c->pathdist && c->move(j)->monst == moNone)
+            gtab[ghostnum++] = c->move(j);
+          }
+        if(ghostnum) {
+          cell *gr = gtab[hrand(ghostnum)];
+          gr->monst = moGhost;
+          gr->stuntime = 1;
+          c->stuntime = 8;
+          addMessage(XLAT("%The1 summons a ghost!", m));
+          playSound(c, "necromancy");
+          }
+        }
+      }
 
     else if(m == moHexer && c->item && (classflag(c->item) & IF_CURSE) && !peace::on) {
       // bool dont_approach = false;
@@ -1960,6 +2116,49 @@ EX void moveworms() {
     moveWorm(worms[i]);
     }
   }
+
+
+EX void moveants() {
+  if(!isize(ants)) return;
+  int ant = isize(ants);
+  for(int i=0; i<ant; i++) {
+    moveNormal(ants[i],0);
+    }
+  }
+
+EX int getAntMove(cell *c) {
+  int monDir = c->mondir;
+  if(c->monst == moParant) {
+    if(c->wall == waFloorA) {
+      monDir += floor(c->type/2);
+      }
+    else {
+      monDir -= floor(c->type/2);
+      }
+    }
+  else if(c->monst == moMetant) {
+    if(c->wall == waFloorA) {
+      monDir += floor(c->type/3);
+      }
+    else {
+      monDir -= floor(c->type/3);
+      }
+    }
+  else if(c->monst == moOrthant) {
+    if(c->wall == waFloorA) {
+      monDir += floor(c->type/6);
+      }
+    else {
+      monDir -= floor(c->type/6);
+      }
+    }
+  while(monDir < 0)
+    monDir += c->type;
+  while(monDir >= c->type)
+    monDir -= c->type;
+  return monDir;
+  }
+
 
 EX void refreshFriend(cell *c) {
   if(c->monst == moGolemMoved) c->monst = moGolem;
@@ -2109,6 +2308,8 @@ EX void movemonsters() {
   if(havewhat & HF_MAGNET) 
     groupmove(moSouthPole, 0),
     groupmove(moNorthPole, 0); */
+  DEBB(DF_TURN, ("ants"));
+  if(havewhat & HF_ANT) moveants();
   DEBB(DF_TURN, ("bugs"));
   if(havewhat & HF_HEXD) groupmove(moHexDemon, 0);
   if(havewhat & HF_DICE) groupmove(moAnimatedDie, 0);    

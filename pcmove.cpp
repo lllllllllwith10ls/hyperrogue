@@ -724,7 +724,7 @@ bool pcmove::boat_move() {
 
   cell *& c2 = mi.t;
 
-  if(againstWind(c2, cwt.at)) {
+  if(againstWind(c2, cwt.at) && !markOrb(itOrbWater)) {
     if(vmsg(miRESTRICTED)) blowaway_message(c2);
     return false;
     }
@@ -1158,6 +1158,10 @@ bool pcmove::perform_actual_move() {
      }
   if(doPickupItemsWithMagnetism(c2)) return true;
 
+  if(items[itOrbColor]) {
+    invismove = false;
+    if(colorMove(mi)) markOrb(itOrbColor);
+    }
   if(isIcyLand(cwt.at) && cwt.at->wall == waNone && markOrb(itOrbWinter)) {
     invismove = false;
     cwt.at->wall = waIcewall;

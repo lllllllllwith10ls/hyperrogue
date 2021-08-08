@@ -342,8 +342,8 @@ EX eLand pickluck(eLand l1, eLand l2) {
 
 EX eLand getNewSealand(eLand old) {
   while(true) {
-    eLand p = pick(laOcean, pick(laCaribbean, laLivefjord, laWarpSea, laKraken, laDocks));
-    if(p == laKraken && !landUnlocked(p)) continue;
+    eLand p = pick(laOcean, pick(laCaribbean, laLivefjord, laWarpSea, laKraken, laDocks, laHurricane));
+    if((p == laKraken || p == laHurricane) && !landUnlocked(p)) continue;
     if(p == laKraken && peace::on) continue;
     if(incompatible(old, p)) continue;
     if(p == old) continue;
@@ -354,7 +354,7 @@ EX eLand getNewSealand(eLand old) {
 
 EX bool createOnSea(eLand old) {
   return
-    old == laWarpSea || old == laCaribbean || old == laKraken ||
+    old == laWarpSea || old == laCaribbean || old == laKraken || old == laHurricane ||
     (old == laLivefjord && hrand(2)) || 
     (old == laDocks && hrand(2)) ||
     (old == laOcean && (ls::any_chaos() ? hrand(2) : !generatingEquidistant));
@@ -457,7 +457,7 @@ EX eLand getNewLand(eLand old) {
     laStorms, laWhirlwind, laOvergrown, laBlizzard, laDryForest, laWineyard, laVolcano,
     laDeadCaves, laRedRock, laVariant, laHell, laCocytus, laPower,
     laBull, laTerracotta, laRose, laGraveyard, laHive, laDragon, laTrollheim,
-    laWet, laFrog, laEclectic, laCursed, laDice,
+    laWet, laFrog, laEclectic, laCursed, laDice, laPaint,
     laCrossroads5,
     })
     if(landUnlocked(l)) tab[cnt++] = l;    
@@ -473,12 +473,14 @@ EX eLand getNewLand(eLand old) {
     clos{laZebra, laMotion, 2, 2}, {laZebra, laHunting, 2, 2},
     {laDragon, laReptile, 5, 5},
     {laVariant, laRuins, 5, 5}, {laVariant, laEmerald, 5, 5}, {laVariant, laGraveyard, 5, 5},
+    {laNecro, laGraveyard, 5, 5},
     {laPalace, laDungeon, 5, 0},
     {laJungle, laOvergrown, 5, 5},
     {laIce, laBlizzard, 5, 5}, {laCocytus, laBlizzard, 5, 5}, {laHell, laCocytus, 5, 5}, {laIce, laCocytus, 5, 5},
     {laWhirlwind, laBlizzard, 5, 5},
     {laAlchemist, laVolcano, 5, 5},
     {laDesert, laRedRock, 5, 5},
+    {laAlchemist, laPaint, 5, 5},
     {laFrog, laReptile, 2, 2}, {laFrog, laSwitch, 2, 2}, {laFrog, laZebra, 2, 2},
     {laEclectic, laStorms, 3, 3}, {laEclectic, laIce, 3, 3}, {laEclectic, laPalace, 3, 3}, {laEclectic, laDeadCaves, 3, 3},
     
@@ -567,10 +569,11 @@ EX vector<eLand> land_over = {
   laIvoryTower, laEndorian, laWestWall, laDungeon, laMountain, 
   laCrossroads2, 
   laDryForest, laWineyard, laDeadCaves, laGraveyard, laHaunted, laHive, 
-  laRedRock, laVolcano,
+  laRedRock, laPaint, laVolcano,
   laDragon, laTortoise, laDice,
-  laOvergrown, laClearing, laStorms, laBurial, laWhirlwind, 
+  laOvergrown, laClearing, laStorms, laBurial, laNecro, laWhirlwind, 
   laBlizzard,
+  laHurricane, laAnt,
   laFrog, laEclectic, laCursed,
   laRuins, laEmerald, laVariant, laCamelot, 
   laPrairie, laBull, laTerracotta, laRose,

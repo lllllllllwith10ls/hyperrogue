@@ -117,6 +117,9 @@ EX bool monstersnear(cell *c, eMonster who) {
   for(auto c1: crush_now) if(c == c1) {
     who_kills_me = moCrusher; res++;
     }
+  if(c->weakligon) {
+    who_kills_me = moLightning; res++;
+    }
 
   if(who == moPlayer || items[itOrbEmpathy]) {
     fast = (items[itOrbSpeed] && (items[itOrbSpeed] & 1));
