@@ -17,7 +17,7 @@ EX string rsrcdir = "";
 #endif
 
 #if CAP_COMMANDLINE
-EX const char *scorefile = "hyperrogue.log";
+EX string scorefile = "hyperrogue.log";
 
 EX namespace arg {
 EX eLand readland(const string& ss) {
@@ -63,7 +63,7 @@ EX void initializeCLI() {
   if(getenv("HOME")) {
     sbuf = getenv("HOME"); sbuf += "/."; sbuf += scorefile;
     cbuf = getenv("HOME"); cbuf += "/."; cbuf += conffile;
-    scorefile = sbuf.c_str();
+    scorefile = sbuf;
     conffile = cbuf.c_str();
     }
   #endif
@@ -87,6 +87,7 @@ EX namespace arg {
   EX const string& args() { return argument[pos]; }
   EX const char* argcs() { return args().c_str(); }
   EX int argi() { return atoi(argcs()); }
+  EX long long argll() { return atoll(argcs()); }
 
   EX int shift_argi() { shift(); return argi(); }
   EX const string& shift_args() { shift(); return args(); }
@@ -102,6 +103,14 @@ EX namespace arg {
       }
     }
   EX bool argis(const string& s) { if(args()[0] == '-' && args()[1] == '-') return args().substr(1) == s; return args() == s; }
+
+  EX color_t argcolor(int bits) {
+    string s = args();
+    auto p = find_color_by_name(s);
+    if(p && bits == 24) return p->second;
+    if(p && bits == 32) return (p->second << 8) | 0xFF;
+    return strtoll(argcs(), NULL, 16);
+    }
   
   EX void shift_arg_formula(ld& x, const reaction_t& r IS(reaction_t())) {
     shift(); ld old = x; x = argf(); 
@@ -126,6 +135,12 @@ EX namespace arg {
 
   EX void cheat() { autocheat = true; cheater++; timerghost = false; }
   
+  EX void run_arguments(const vector<string> vec) {
+    dynamicval<int> p(pos, 0);
+    dynamicval<vector<string>> orig(argument, vec);
+    read(3);
+    }
+
   EX void init(int argc, char **argv) { for(int i=0; i<argc; i++) argument.push_back(argv[i]); lshift(); }
  
   EX void phaseerror(int x) {
@@ -154,7 +169,8 @@ int arg::readCommon() {
 
 // first phase options
 
-  if(argis("-s")) { PHASE(1); shift(); scorefile = argcs(); }
+  if(argis("-s")) { PHASE(2); shift(); scorefile = args(); savefile_selection = false; }
+  else if(argis("-no-s")) { PHASE(2); scorefile = ""; savefile_selection = false; }
   else if(argis("-rsrc")) { PHASE(1); shift(); rsrcdir = args(); }
   else if(argis("-nogui")) { PHASE(1); noGUI = true; }
 #ifndef EMSCRIPTEN
@@ -240,31 +256,51 @@ int arg::readCommon() {
     PHASE(3);  start_game();
     shift(); ld a = argf();
     shift(); ld b = argf();
-    View = View * spin(M_PI * 2 * a / b);
+    View = View * spin(TAU * a / b);
+    playermoved = false;
+    }
+  else if(argis("-rotate-up")) {
+    start_game();
+    shiftmatrix S = ggmatrix(cwt.at->master->move(0)->c7);
+    View = spin90() * spintox(S.T*C0) * View;
+    playermoved = false;
     }
   else if(argis("-rotate3")) {
     PHASE(3);  start_game();
     shift(); ld a = argf();
     shift(); ld b = argf();
-    View = View * cspin(1, 2, M_PI * 2 * a / b);
+    View = View * cspin(1, 2, TAU * a / b);
+    playermoved = false;
     }
   else if(argis("-face-vertex")) {
     PHASE(3);  start_game();
     auto &ss = currentmap->get_cellshape(cwt.at);
-    View = cspin(0, 2, M_PI/2) * spintox(ss.vertices_only_local[0]);
+    View = cspin90(0, 2) * spintox(ss.vertices_only_local[0]);
+    playermoved = false;
     }
   else if(argis("-face-face")) {
     PHASE(3);  start_game();
-    View = cspin(0, 2, M_PI/2);
+    View = cspin90(0, 2);
     }
   else if(argis("-grotate")) {
     PHASE(3);  start_game();
     shift(); int i = argi();
     shift(); int j = argi();
     shift(); View = View * cspin(i, j, argf());
+    playermoved = false;
+    }
+  else if(argis("-cview")) {
+    PHASE(3);  start_game();
+    View = Id;
     }
   else if(argis("-exit")) {
-    PHASE(3); printf("Success.\n");
+    PHASE(3);
+    int t = SDL_GetTicks();
+    if(t > 1800 * 1000)
+      println(hlog, "Great Success!\n");
+    else
+      println(hlog, "Success.\n");
+    fflush(stdout);
     exit(0);
     }
 

@@ -328,7 +328,7 @@ EX eOrbLandRelation getOLR(eItem it, eLand l) {
   
   if(it == itOrbDigging) {
     if(among(l, laCaves, laOcean, laLivefjord, laEmerald, laDesert, laDeadCaves, laRedRock, laCaribbean, laGraveyard,
-      laMountain, laHunting, laWarpSea, laWarpCoast, laCursed))
+      laMountain, laHunting, laWarpSea, laWarpCoast, laCursed, laWet))
         return olrPrize25;
     return olrUseless;
     }
@@ -406,7 +406,7 @@ EX eOrbLandRelation getOLR(eItem it, eLand l) {
   if(l == laDungeon) {
     if(it == itOrbSafety || it == itOrbFrog || 
       it == itOrbTeleport || it == itOrbMatter || it == itOrbNature ||
-      it == itOrbAether || it == itOrbSummon || it == itOrbStone) 
+      it == itOrbAether || it == itOrbSummon || it == itOrbStone || it == itOrbChaos)
       return olrForbidden;
     }
 
@@ -575,6 +575,7 @@ EX void placeLocalSpecial(cell *c, int outof, int loc IS(1), int priz IS(1)) {
   }
 
 EX void placeCrossroadOrbs(cell *c) {
+  if(racing::on) return;
   if(peace::on) return;
   if(daily::on) return;
   for(auto& oi: orbinfos) {

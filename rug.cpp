@@ -183,7 +183,7 @@ EX rugpoint *addRugpoint(shiftpoint h, double dist) {
   m->y1 = (1 - onscreen[1] * pconf.scale) / 2;
   m->valid = false;
 
-  if(euclid && quotient && !bounded) {
+  if(euclid && quotient && !closed_manifold) {
     hyperpoint h1 = iso_inverse(models::euclidean_spin) * eumove(euc::eu.user_axes[1]) * C0;
     h1 /= sqhypot_d(2, h1);
     if(nonorientable) h1 /= 2;
@@ -191,16 +191,14 @@ EX rugpoint *addRugpoint(shiftpoint h, double dist) {
     ld d = h1[0] * h[1] - h1[1] * h[0]; 
     ld a = h[0] * h1[0] + h[1] * h1[1];
 
-    // m->flat = modelscale * hpxyz(d * 2 * M_PI, sin(a * 2 * M_PI), cos(a * 2 * M_PI));
-
     USING_NATIVE_GEOMETRY;
-    hyperpoint hpoint = ypush(modelscale) * xpush0(modelscale * d * 2 * M_PI);
+    hyperpoint hpoint = ypush(modelscale) * xpush0(modelscale * d * TAU);
     ld hpdist = hdist0(hpoint);
     ld z = hypot_d(2, hpoint);
     if(z==0) z = 1;
     hpoint = hpoint * hpdist / z;
     
-    m->native = point31(hpoint[0], hpoint[1] * sin(a*2*M_PI), hpoint[1]*cos(a*2*M_PI));
+    m->native = point31(hpoint[0], hpoint[1] * sin(a*TAU), hpoint[1]*cos(a*TAU));
     }
   else if(sphere) {
     m->valid = good_shape = true;
@@ -216,7 +214,7 @@ EX rugpoint *addRugpoint(shiftpoint h, double dist) {
     else if(sphere) {
       if(modelscale >= 1) 
         // do as good as we can...
-        scale = M_PI / 2 - 1e-3, good_shape = false, m->valid = false;
+        scale = 90._deg - 1e-3, good_shape = false, m->valid = false;
       else scale = asin(modelscale);
       }
     else
@@ -374,15 +372,15 @@ struct clifford_torus {
     }
   clifford_torus();
   ld get_modelscale() {
-    return hypot_d(2, xh) * xfactor * 2 * M_PI;
+    return hypot_d(2, xh) * xfactor * TAU;
     }
   ld compute_mx();  
   };
 #endif
 
 struct hyperpoint clifford_torus::torus_to_s4(hyperpoint t) {
-  double alpha = -t[0] * 2 * M_PI;
-  double beta = t[1] * 2 * M_PI;
+  double alpha = -t[0] * TAU;
+  double beta = t[1] * TAU;
   
   ld ax = alpha + 1.124651, bx = beta + 1.214893;
   return hyperpoint(
@@ -397,8 +395,14 @@ clifford_torus::clifford_torus() {
   auto p1 = to_loc(euc::eu.user_axes[0]);
   auto p2 = to_loc(euc::eu.user_axes[1]);
 
+  bool f = embedded_plane;
+  if(f) geom3::light_flip(true);
   xh = euc::eumove(p1)*C0-C0;
   yh = euc::eumove(p2)*C0-C0;
+  if(f) geom3::light_flip(false);
+  xh[2] = xh[3] = yh[2] = yh[3] = 0;
+  dynamicval<eGeometry> g(geometry, gCubeTiling);
+
   if(nonorientable) yh *= 2;
   
   flipped = false; // sqhypot_d(2, xh) < sqhypot_d(2, yh);
@@ -411,7 +415,7 @@ clifford_torus::clifford_torus() {
   yfactor = sqrt(1/(1+factor2));
   xfactor = factor * yfactor;
                                     
-  T = build_matrix(xh, yh, C0, C03);  
+  T = build_matrix(xh, yh, C02, C03);
   iT = inverse(T);
   }
 
@@ -557,7 +561,7 @@ EX void buildRug() {
   need_mouseh = true;
   good_shape = false;
   #if MAXMDIM >= 4
-  if(euclid && bounded) {
+  if(euclid && closed_manifold) {
     good_shape = true;
     buildTorusRug();
     return;
@@ -785,7 +789,7 @@ EX int precision_increases;
 bool stop = false;
 
 EX bool subdivide_further() {
-  if(euclid && bounded) return false;
+  if(euclid && closed_manifold) return false;
   if(GDIM == 3) return false;
   return isize(points) * 4 < vertex_limit;
   }
@@ -794,7 +798,7 @@ EX void subdivide() {
   int N = isize(points);
   // if(euclid && gwhere == gEuclid) return;
   if(!subdivide_further()) {
-    if(euclid && !bounded && gwhere == gEuclid) {
+    if(euclid && !closed_manifold && gwhere == gEuclid) {
       println(hlog, "Euclidean -- full precision");
       stop = true; 
       }
@@ -861,7 +865,7 @@ bincode acd_bin(ld x) {
 
 bincode get_bincode(hyperpoint h) {
   switch(ginf[gwhere].cclass) {
-    case gcEuclid: case gcSolNIH: case gcNil: case gcProduct: case gcSL2:
+    case gcEuclid: case gcSol: case gcNIH: case gcSolN: case gcNil: case gcProduct: case gcSL2:
       return acd_bin(h[0]) + acd_bin(h[1]) * sY + acd_bin(h[2]) * sZ;
     case gcHyperbolic:
       return acd_bin(hypot_d(3, h));
@@ -1085,7 +1089,7 @@ EX void prepareTexture() {
     shiftmatrix V = rgpushxto0(finger_center->h);
     queuestr(V, 0.5, "X", 0xFFFFFFFF, 2);
     for(int i=0; i<72; i++)
-      queueline(V * xspinpush0(i*M_PI/32, finger_range), V * xspinpush0((i+1)*M_PI/32, finger_range), 0xFFFFFFFF, vid.linequality);
+      queueline(V * xspinpush0(i*A_PI/32, finger_range), V * xspinpush0((i+1)*A_PI/32, finger_range), 0xFFFFFFFF, vid.linequality);
     }
   drawqueue();
   calcparam();
@@ -1286,7 +1290,7 @@ EX bool handlekeys(int sym, int uni) {
       crystal::switch_z_coordinate();
     else
     #endif
-      rotate_view(cspin(0, 2, M_PI));
+      rotate_view(cspin180(0, 2));
     return true;
     }
   else if(NUMBERKEY == '4') {
@@ -1295,7 +1299,7 @@ EX bool handlekeys(int sym, int uni) {
       crystal::flip_z();
     else
     #endif
-      rotate_view(cspin(0, 2, M_PI/2));
+      rotate_view(cspin90(0, 2));
     return true;
     }
   #if CAP_CRYSTAL
@@ -1511,7 +1515,7 @@ ld old_distance;
 
 EX void rug_geometry_choice() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("hypersian rug mode"), iinf[itPalace].color, 150, 100);
   
   USING_NATIVE_GEOMETRY; 
@@ -1539,8 +1543,8 @@ EX void rug_geometry_choice() {
   }
 
 EX void show() {
-  cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
+  cmode = sm::SIDE | sm::MAYDARK | sm::PANNING;
+  gamescreen();
   dialog::init(XLAT("hypersian rug mode"), iinf[itPalace].color, 150, 100);
   
   dialog::addBoolItem(XLAT("enable the Hypersian Rug mode"), rug::rugged, 'u');
@@ -1573,7 +1577,7 @@ EX void show() {
   if(rug::rugged)
     dialog::addSelItem(XLAT("model iterations"), its(queueiter), 0);
   dialog::addItem(XLAT("stereo vision config"), 'f');
-  // dialog::addSelItem(XLAT("protractor"), fts(protractor * 180 / M_PI) + "°", 'f');
+  // dialog::addSelItem(XLAT("protractor"), fts(protractor / degree) + "°", 'f');
   if(!good_shape) {
     dialog::addSelItem(XLAT("maximum error"), fts(err_zero), 'e');
     if(rug::rugged)

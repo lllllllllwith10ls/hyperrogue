@@ -386,7 +386,7 @@ int down_dir() { return nil ? 4 : sol ? 0 : cwt.at->type-1; }
 int up_dir() { return nil ? 1 : sol ? 6 : cwt.at->type-2; }
 
 cell *get_at(cell *lev, int z) {
-  if(prod)
+  if(mproduct)
     return hybrid::get_at(lev, z);
   else {
     // auto co = nilv::get_coord(lev->master);
@@ -400,7 +400,7 @@ cell *get_at(cell *lev, int z) {
   }
 
 int get_z(cell* c) {
-  if(prod) 
+  if(mproduct)
     return hybrid::get_where(c).second;
   else if(nil)
     return nilv::get_coord(c->master)[1];
@@ -411,7 +411,7 @@ int get_z(cell* c) {
   }
 
 pair<cell*, int> get_where(cell *what) {
-  if(prod)
+  if(mproduct)
     return hybrid::get_where(what);
   else {
     int z = get_z(what);
@@ -444,12 +444,12 @@ cellwalker flatspin(cellwalker cw, int i) {
   if(solnil)
     cw.spin = i;
   else
-    cw.spin = gmod(cw.spin + (cw.mirrored ? -i : i), cw.at->type - (hybri ? 2 : 0));
+    cw.spin = gmod(cw.spin + (cw.mirrored ? -i : i), cw.at->type - (mhybrid ? 2 : 0));
   return cw;
   }
 
 int add_dir(cellwalker orig, int i, int sym = 0) {
-  if(prod) {
+  if(mproduct) {
     if(i >= orig.at->type-2) {
       if(sym&2) i ^= (orig.at->type-1) ^ (orig.at->type-2);
       return i;
@@ -463,7 +463,7 @@ int add_dir(cellwalker orig, int i, int sym = 0) {
   }
 
 cellwalker add(cellwalker orig, int i, int sym = 0) {
-  if(prod) {
+  if(mproduct) {
     if(i >= orig.at->type-2) {
       if(sym&2) i ^= (orig.at->type-1) ^ (orig.at->type-2);
       orig.at = orig.at->cmove(i);
@@ -496,7 +496,7 @@ vector<transmatrix> build_shape_matrices(const code_t& code, cellwalker start, i
 
 int penalty(const vector<cellwalker>& shape, const code_t& code) {
   int p = 0;
-  if(prod) {
+  if(mproduct) {
     int bad = shape[0].at->type-1;
     for(auto co: code) if(co.second == bad)
       p += 1000;
@@ -530,7 +530,7 @@ int penalty(const vector<cellwalker>& shape, const code_t& code) {
 
 bool builds(const vector<cellwalker>& shape, const code_t& code, int sym = 0, int eliminate = -1) {
   if(isize(shape) != isize(code)+1) return false;
-  int ori = (solnil) ? 1 : prod ? shape[0].at->type-2 : shape[0].at->type;
+  int ori = (solnil) ? 1 : mproduct ? shape[0].at->type-2 : shape[0].at->type;
   for(auto sh: shape) for(int i=0; i<ori; i++) {
     vector<cellwalker> shape2 = build_from(code, cellwalker(sh.at, i), sym);
     if(eliminate != -1) seen_blocks.emplace(as_set(shape2), eliminate);
@@ -889,16 +889,16 @@ void set_view() {
     dist -= 1e-4;
     move_dist = PIU(hdist(get_corner_position(currentmap->gamestart(), 0), get_corner_position(currentmap->gamestart(), 1)));
     tView = xpush(-dist) * tView;
-    tView = spin(135*degree) * tView;
+    tView = spin(135._deg) * tView;
     }  
   if(in_h2xe() && UNRECTIFIED)
-    tView = spin(135*degree) * tView;
+    tView = spin(135._deg) * tView;
   if(in_h2xe() && S7 == 4)
-    tView = spin(90*degree) * tView;
+    tView = spin90() * tView;
   if(in_s2xe())
-    tView = spin(90*degree) * tView;
+    tView = spin90() * tView;
   if(in_e2xe())
-    tView = spin(90*degree) * tView;
+    tView = spin90() * tView;
   }
 
 void set_tview(transmatrix T) {
@@ -913,12 +913,12 @@ void set_tview(transmatrix T) {
   ncenter = centerover;
   // tView = View;
   if(bgeom == 4)
-    tView = spin(72*degree*at.spin);
+    tView = spin(72._deg*at.spin);
   else
-    tView = spin(90*degree*at.spin);
+    tView = spin(90._deg*at.spin);
   if(at.mirrored)
     tView = MirrorY * tView;
-  // tView = spin(90*degree*at.spin);
+  // tView = spin(90._deg*at.spin);
   set_view();  
 
   pView = rel * tView;
@@ -934,7 +934,7 @@ void rotate_block(int d, bool camera_only) {
   cellwalker at1 = flatspin(at, d);
   if(camera_only || !shape_conflict(at1)) {
     at = at1;
-    set_tview(spin(d*90*degree));
+    set_tview(spin(d*90._deg));
     }
   else playSound(cwt.at, "hit-crush3");
   if(!camera_only) draw_shape();
@@ -958,7 +958,7 @@ cell *shift_block_target(int dir) {
 
 void shift_block(int dir, bool camera_only) {
   int t = currentmap->gamestart()->type;
-  if(prod) t -= 2;
+  if(mproduct) t -= 2;
 
   if(!camera_only) remove_shape();
   
@@ -1025,7 +1025,7 @@ void create_matrices() {
         cell *c1 = c->cmove(i);
         dq::enqueue_by_matrix_c(c1, optimized_shift(V * currentmap->adj(c, i)));       
         };
-      if(prod) {
+      if(mproduct) {
         for(int i=0; i<c->type-2; i++) go(i);
         }
       else if(sol) {
@@ -1169,7 +1169,7 @@ void draw_screen(int xstart, bool show_next) {
   #if CAP_VR
   if(!explore) {
     E4;
-    vrhr::hmd_at_ui = vrhr::hmd_ref_at * cspin(0, 2, 30*degree);
+    vrhr::hmd_at_ui = vrhr::hmd_ref_at * cspin(0, 2, 30._deg);
     }
   #endif
     
@@ -1179,7 +1179,7 @@ void draw_screen(int xstart, bool show_next) {
   ray::max_cells = (isize(level) + isize(out_level)) * (camera_level+2);
   
   if(explore) {
-    gamescreen(0);
+    gamescreen();
     mouseaim_sensitivity = 0.01;
     camera_speed = 2;
     smooth_scrolling = true;
@@ -1190,16 +1190,16 @@ void draw_screen(int xstart, bool show_next) {
     View = pView;
     if(nil) {
       centerover = at.at;
-      rotate_view(cspin(1, 2, -90*degree));
+      rotate_view(cspin90(2, 1));
       shift_view(ztangent(3 * nilv::nilwidth));
-      rotate_view(cspin(0, 1, -90*degree));
+      rotate_view(cspin90(1, 0));
       anims::moved();
       }
     else if(sol) {
       centerover = at.at;
-      rotate_view(cspin(1, 2, 180*degree));
+      rotate_view(cspin180(1, 2));
       shift_view(ztangent(1));
-      rotate_view(cspin(0, 1, -90*degree));
+      rotate_view(cspin90(1, 0));
       anims::moved();
       }
     else {
@@ -1216,7 +1216,7 @@ void draw_screen(int xstart, bool show_next) {
     
     sightranges[geometry] *= 100;
     if(state == tsFalling && !explore && !cur_ang && !lctrlclick) remove_shape();    
-    gamescreen(0);
+    gamescreen();
     if(state == tsFalling && !explore && !cur_ang) draw_shape();
 
     extern void render_next(int xstart);
@@ -1282,7 +1282,8 @@ void geometry_menu() {
   }
 
 void visual_menu() {
-  gamescreen(2);
+  cmode = sm::MAYDARK;
+  gamescreen();
   dialog::init("Bringris visuals");
 
   dialog::addBoolItem_action("flashes on level completed", flashes, 'f');
@@ -1291,7 +1292,6 @@ void visual_menu() {
 
   dialog::addSelItem(XLAT("iterations in raycasting"), its(ray::max_iter_current()), 's');
   dialog::add_action([&] {
-    dialog::numberdark = dialog::DONT_SHOW;
     dialog::editNumber(ray::max_iter_current(), 0, 600, 1, 60, XLAT("iterations in raycasting"), "");
     dialog::reaction = ray::reset_raycaster;
     });
@@ -1304,7 +1304,6 @@ void visual_menu() {
 
   dialog::addSelItem(XLAT("cells to draw per level"), its(draw_per_level), 'R');
   dialog::add_action([&] {
-    dialog::numberdark = dialog::DONT_SHOW;
     dialog::editNumber(draw_per_level, 0, 1000, 500, 50, XLAT("cells to draw"), 
       "If the level size is 30, 600 cells to draw means that every cell is drawn 20 times on average. "
       "Used when raycasting is off, and to draw the wireframes");
@@ -1351,7 +1350,7 @@ void settings_menu() {
 
   #if CAP_AUDIO
   add_edit(effvolume);
-  add_edit(musicvolume);
+  if(music_available) add_edit(musicvolume);
   #endif
 
   dialog::addBreak(100);
@@ -1938,7 +1937,7 @@ void create_game() {
   out_level.clear();
   well_center = nullptr;
 
-  if(!prod && !solnil) {
+  if(!mproduct && !solnil) {
     println(hlog, "need product or Solnil geometry");
     exit(1);
     }

@@ -628,6 +628,11 @@ EX walltype winf[walltypes] = {
 // -- land types ---
 
 #if HDR
+enum eCanvasFloor { caflNone, caflM, caflFull, caflWarp, caflStar, caflCloud, caflCross, caflCharged,
+  caflSStar, caflOver, caflTri, caflFeather, caflBarrow, caflNew, caflTroll, caflButterfly, caflLava,
+  caflPalace, caflDemon, caflCave, caflDesert, caflPower, caflRose, caflTurtle, caflDragon, caflReptile,
+  caflHive, caflSwitch, caflTower, caflEND };
+
 static const flagtype LF_GENERATE_ALL = Flag(0);
 static const flagtype LF_ICY = Flag(1);
 static const flagtype LF_GRAVITY = Flag(2);
@@ -662,6 +667,13 @@ enum eLand {
 
 extern color_t floorcolors[landtypes];
 #endif
+
+EX const char *canvasFloorNames[caflEND] = {
+  "default", "smaller", "full", "warped", "star", "cloud", "cross", "charged",
+  "saloon", "overgrown", "triangle", "feather", "barrow", "elemental", "troll", "butterfly", "lava",
+  "palace", "demon", "cave", "desert", "power", "rose", "turtle", "dragon", "reptile",
+  "hive", "jelly", "tower"
+  };
 
 EX const landtype linf[landtypes] = {
   #define LAND(a,b,c,d,e,f,g) {a,b,d,e,g},
@@ -739,9 +751,10 @@ enum eGeometry {
   gSpace535, gSpace536, gSeifertCover, gSeifertWeber, gHomologySphere,
   gInfOrderMixed, gSpace436, gFake,
   gSpace345, gSpace353, gSpace354, gSpace355,
+  gHalfBring,
   gGUARD};
 
-enum eGeometryClass { gcHyperbolic, gcEuclid, gcSphere, gcSolNIH, gcNil, gcProduct, gcSL2 };
+enum eGeometryClass { gcHyperbolic, gcEuclid, gcSphere, gcSol, gcNIH, gcSolN, gcNil, gcProduct, gcSL2 };
 
 enum class eVariation { bitruncated, pure, goldberg, irregular, dual, untruncated, warped, unrectified, subcubes, coxeter, dual_subcubes, bch, bch_oct };
 
@@ -774,7 +787,7 @@ struct geometryinfo {
   eVariation default_variation;
   };
 
-static const flagtype qBOUNDED         = 1;
+static const flagtype qCLOSED         = 1;
 static const flagtype qANYQ            = 2;
 static const flagtype qNONORIENTABLE   = 4;
 static const flagtype qSMALL           = 8;
@@ -817,26 +830,29 @@ static const flagtype qCAT             = Flag(28);
 
 // note: dnext assumes that x&7 equals 7
 static const int SEE_ALL = 50;
-static const int OINF = 100;
+// note: check_football_colorability in arbitrile.cpp assumes OINF is divisible by 3
+static const int OINF = 123;
 
 extern eGeometry geometry;
 extern eVariation variation;
 #endif
 
-static const flagtype qsNONOR           = qANYQ | qSMALL | qBOUNDED | qNONORIENTABLE;
+#if HDR
+static const flagtype qsNONOR           = qANYQ | qSMALL | qCLOSED | qNONORIENTABLE;
 static const flagtype qsNONORE          = qsNONOR | qELLIPTIC;
-static const flagtype qsBQ              = qANYQ | qSMALL | qBOUNDED;
-static const flagtype qsSMALL           = qANYQ | qSMALL | qBOUNDED;
-static const flagtype qsSMALLN          = qANYQ | qSMALL | qBOUNDED | qNONORIENTABLE;
-static const flagtype qsZEBRA           = qANYQ | qSMALL | qBOUNDED | qZEBRA;
-static const flagtype qsFIELD           = qANYQ | qFIELD | qBOUNDED;
-static const flagtype qsDOCKS           = qANYQ | qSMALL | qBOUNDED | qDOCKS;
-static const flagtype qsSMALLB          = qSMALL | qBOUNDED;
+static const flagtype qsBQ              = qANYQ | qSMALL | qCLOSED;
+static const flagtype qsSMALL           = qANYQ | qSMALL | qCLOSED;
+static const flagtype qsSMALLN          = qANYQ | qSMALL | qCLOSED | qNONORIENTABLE;
+static const flagtype qsZEBRA           = qANYQ | qSMALL | qCLOSED | qZEBRA;
+static const flagtype qsFIELD           = qANYQ | qFIELD | qCLOSED;
+static const flagtype qsDOCKS           = qANYQ | qSMALL | qCLOSED | qDOCKS;
+static const flagtype qsSMALLB          = qSMALL | qCLOSED;
 static const flagtype qsSMALLBF         = qsSMALLB | qsFIELD | qANYQ;
 static const flagtype qsSMALLBE         = qsSMALLB | qELLIPTIC | qANYQ;
 static const flagtype qsBP              = qBINARY | qKITE;
 
-static const flagtype qsSINGLE          = qANYQ | qSMALL | qBOUNDED | qSINGLE;
+static const flagtype qsSINGLE          = qANYQ | qSMALL | qCLOSED | qSINGLE;
+#endif
 
 EX geometryinfo1 giEuclid2 = { gcEuclid,     2, 2, 3, {1,1, 0,0 } };
 EX geometryinfo1 giHyperb2 = { gcHyperbolic, 2, 2, 3, {1,1,-1,0 } };
@@ -846,9 +862,14 @@ EX geometryinfo1 giEuclid3 = { gcEuclid,     3, 3, 4, {1,1, 1,0 } };
 EX geometryinfo1 giHyperb3 = { gcHyperbolic, 3, 3, 4, {1,1, 1,-1} };
 EX geometryinfo1 giSphere3 = { gcSphere,     3, 3, 4, {1,1, 1,+1} };
 
-EX geometryinfo1 giSolNIH  = { gcSolNIH,     3, 3, 4, {1,1, 1,0 } };
+EX geometryinfo1 giSol     = { gcSol,        3, 3, 4, {1,1, 1,0 } };
+EX geometryinfo1 giNIH     = { gcNIH,        3, 3, 4, {1,1, 1,0 } };
+EX geometryinfo1 giSolN    = { gcSolN,       3, 3, 4, {1,1, 1,0 } };
+
 EX geometryinfo1 giNil     = { gcNil,        3, 3, 4, {1,1, 1,0 } };
-EX geometryinfo1 giProduct = { gcSL2,        3, 3, 4, {1,1, 1,0 } /* will be filled in product::configure() */ };
+EX geometryinfo1 giProductH= { gcProduct,    3, 3, 3, {1,1,-1,0 } };
+EX geometryinfo1 giProductS= { gcProduct,    3, 3, 3, {1,1, 1,0 } };
+EX geometryinfo1 giProduct = { gcProduct,    3, 3, 3, {1,1, 1,0 } /* will be filled in product::configure() */ };
 EX geometryinfo1 giSL2     = { gcSL2,        3, 3, 4, {1,1,-1,-1} };
 
 EX modecode_t no_code = 0x1;
@@ -905,20 +926,20 @@ EX vector<geometryinfo> ginf = {
   {"{4,3,5}","field",   "{4,3,5} field quotient space",               "f435",     6, 5, qsSMALLBF | qDEPRECATED, giHyperb3, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
   {"{5,3,4}","field",   "{5,3,4} field quotient space",               "f435",    12, 4, qsSMALLBF | qDEPRECATED, giHyperb3, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
   {"binary4","none",    "standard binary tiling",                     "binary4",  5, 3, qBINARY,   giHyperb2, {{7, 5}}, eVariation::pure},
-  {"sol",    "none",    "Solv geometry",                              "sol",      8, 3, qBINARY|qSOL,   giSolNIH, {{7, 5}}, eVariation::pure},
+  {"sol",    "none",    "Solv geometry",                              "sol",      8, 3, qBINARY|qSOL,   giSol, {{7, 5}}, eVariation::pure},
   {"kd2",    "none",    "kite-and-dart",                              "kd2",      4, 3, qKITE,     giEuclid2, {{7, 7}}, eVariation::pure},
   {"kd3",    "none",    "kite-and-dart on horospheres",               "kd3",     12, 3, qsBP,      giHyperb3, {{7, 3}}, eVariation::pure},
   {"nil",    "none",    "Nil geometry",                               "nil",      6, 3, qOPTQ,     giNil,     {{7, 5}}, eVariation::pure},
   {"product","none",    "product space",                              "product",  7, 3, qHYBRID,   giProduct, {{7, 3}}, eVariation::pure},
   {"twisted","none",    "rotation space",                             "twisted",  7, 3, qHYBRID,   giSL2,     {{6, 4}}, eVariation::pure},
   {"ternary","none",    "standard ternary tiling",                    "ternary",  6, 3, qBINARY,   giHyperb2, {{6, 4}}, eVariation::pure},
-  {"3x2",    "none",    "stretched hyperbolic",                       "3:2",     11, 3, qBINARY|qNIH,   giSolNIH,  {{6, 3}}, eVariation::pure},
-  {"3x1/2",  "none",    "stretched Solv",                             "3:1/2",    9, 3, (qBINARY|qSOL|qNIH),   giSolNIH,  {{7, 3}}, eVariation::pure},
+  {"3x2",    "none",    "stretched hyperbolic",                       "3:2",     11, 3, qBINARY|qNIH,   giNIH,  {{6, 3}}, eVariation::pure},
+  {"3x1/2",  "none",    "stretched Solv",                             "3:1/2",    9, 3, (qBINARY|qSOL|qNIH),   giSolN,  {{7, 3}}, eVariation::pure},
   {"{3,oo}", "none",    "{3,∞} (infinite triangles)",                 "oox3",     3, OINF, qIDEAL,  giHyperb2, {{7, 7}}, eVariation::pure},
   {"{3,3,6}","none",    "{3,3,6} hyperbolic honeycomb",               "336",      4, 6, qIDEAL,    giHyperb3, {{7, 2}}, eVariation::pure},
   {"{3,4,4}","none",    "{3,4,4} hyperbolic honeycomb",               "344",      8, 4, qIDEAL,    giHyperb3, {{7, 2}}, eVariation::pure},
   {"{3,4,4}","Crystal", "4D crystal in H3",                           "Cryst3" ,  8, 4, qIDEAL | qANYQ | qCRYSTAL, giHyperb3, {{7, 3}}, eVariation::pure},
-  {"cat",    "cat",     "Arnold's cat mapping torus",                 "cat",     12, 3, qBINARY | qSOL | qsBQ | qOPTQ | qCAT, giSolNIH, {{6, 4}}, eVariation::pure},
+  {"cat",    "cat",     "Arnold's cat mapping torus",                 "cat",     12, 3, qBINARY | qSOL | qsBQ | qOPTQ | qCAT, giSol, {{6, 4}}, eVariation::pure},
   {"file",   "none",    "load from file",                             "file",     7, 3, 0,  giEuclid2, {{7, 5}}, eVariation::pure},
   {"{4,oo}", "none",    "{4,∞} (infinite squares)",                   "oox4",     4, OINF, qIDEAL,  giHyperb2, {{5, 5}}, eVariation::pure},
   {"{5,3,4}","Crystal", "6D crystal in H3",                           "Cryst6" , 12, 4, qANYQ | qCRYSTAL, giHyperb3, {{7, 3}}, eVariation::pure},
@@ -934,6 +955,7 @@ EX vector<geometryinfo> ginf = {
   {"{3,5,3}","none",    "{3,5,3} hyperbolic honeycomb",               "353",     20, 5, 0,         giHyperb3, {{7, 2}}, eVariation::pure},
   {"{3,5,4}","none",    "{3,5,4} hyperbolic honeycomb",               "354",     20, 5, qIDEAL | qULTRA,    giHyperb3, {{7, 2}}, eVariation::pure},
   {"{3,5,5}","none",    "{3,5,5} hyperbolic honeycomb",               "355",     20, 5, qIDEAL | qULTRA,    giHyperb3, {{7, 2}}, eVariation::pure},
+  {"{5,4}", "pBring",   "projective Bring's Surface",                 "pBring",   5, 4, qsSMALLN,   giHyperb2, {{6, 4}}, eVariation::bitruncated},
   };
   // bits: 9, 10, 15, 16, (reserved for later) 17, 18
 
@@ -953,6 +975,7 @@ namespace mf {
   static const flagtype twopoint = 2048;
   static const flagtype uses_bandshift = 4096;
   static const flagtype broken = 8192; /* in spherical case, these are broken along the meridian 180 deg */
+  static const flagtype technical = 16384; /* don't display in the list */
   
   static const flagtype band = (cylindrical | pseudocylindrical | uses_bandshift);
   static const flagtype pseudoband = (pseudocylindrical | uses_bandshift);
@@ -991,9 +1014,9 @@ enum eModel : int {
   mdHorocyclic, mdQuadrant, mdAxial, mdAntiAxial,
   // 32..38
   mdWerner, mdAitoff, mdHammer, mdLoximuthal, mdMiller, mdGallStereographic, mdWinkelTripel,
-  // 39..
-  mdPoorMan, mdPanini, mdRetroCraig, mdRetroLittrow, mdRetroHammer, mdThreePoint,
-  // 45..
+  // 39..48
+  mdPoorMan, mdPanini, mdRetroCraig, mdRetroLittrow, mdRetroHammer, mdThreePoint, mdLiePerspective, mdLieOrthogonal, mdRelPerspective, mdRelOrthogonal,
+  // 49..
   mdGUARD, mdPixel, mdHyperboloidFlat, mdPolynomial, mdManual
   };
 #endif
@@ -1015,7 +1038,7 @@ EX vector<modelinfo> mdinf = {
   {X3("azimuthal equi-area"), mf::azimuthal | mf::equiarea | mf::euc_boring, DEFAULTS},
   {X3("ball model"), mf::conformal | mf::azimuthal | mf::space, DEFAULTS},
   {"Minkowski hyperboloid", "plane", "sphere", mf::conformal | mf::space | mf::euc_boring, DEFAULTS},
-  {"hemisphere", "sphere", "sphere", mf::conformal | mf::space, DEFAULTS},
+  {"hemisphere", "sphere", "Minkowski hyperboloid", mf::conformal | mf::space, DEFAULTS},
   {X3("band equidistant"), mf::band | mf::equidistant | mf::euc_boring, DEFAULTS},
   {X3("band equi-area"), mf::band | mf::equiarea | mf::euc_boring, DEFAULTS},
   {X3("sinusoidal"), mf::pseudoband | mf::equiarea | mf::euc_boring, DEFAULTS},
@@ -1051,8 +1074,15 @@ EX vector<modelinfo> mdinf = {
   {X3("Littrow retroazimuthal"), mf::euc_boring | mf::broken, DEFAULTS}, // retroazimuthal conformal
   {X3("Hammer retroazimuthal"), mf::euc_boring, DEFAULTS}, // retroazimuthal equidistant
   {X3("three-point equidistant"), mf::euc_boring, DEFAULTS},
-  {X3("guard"), 0, DEFAULTS},
-  {X3("polynomial"), mf::conformal, DEFAULTS},
+  {X3("Lie perspective"), mf::euc_boring, DEFAULTS},
+  {X3("Lie orthogonal"), mf::euc_boring, DEFAULTS},
+  {X3("relativistic perspective"), mf::euc_boring, DEFAULTS},
+  {X3("relativistic orthogonal"), mf::euc_boring, DEFAULTS},
+  {X3("guard"), mf::technical, DEFAULTS},
+  {X3("pixel"), mf::technical, DEFAULTS},
+  {X3("hypflat"), mf::technical, DEFAULTS},
+  {X3("polynomial"), mf::technical | mf::conformal, DEFAULTS},
+  {X3("manual"), mf::technical, DEFAULTS},
   };
 
 #undef X3

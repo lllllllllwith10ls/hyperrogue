@@ -14,8 +14,6 @@ EX namespace arb {
 
 EX int affine_limit = 200;
 
-EX bool legacy; /* angleofs command */
-
 #if HDR
 
 /** a type used to specify the connections between shapes */
@@ -26,6 +24,8 @@ struct connection_t {
   int eid;
   /** 1 if this connection mirrored, 0 otherwise. do_unmirror() removes all mirrors by doubling shapes */
   int mirror;
+  bool operator == (const arb::connection_t& b) const { return tie(sid, eid, mirror) == tie(b.sid, b.eid, b.mirror); }
+  bool operator < (const arb::connection_t& b) const { return tie(sid, eid, mirror) < tie(b.sid, b.eid, b.mirror); }
   };
 
 inline void print(hstream& hs, const connection_t& conn) { print(hs, tie(conn.sid, conn.eid, conn.mirror)); }
@@ -35,28 +35,66 @@ inline void print(hstream& hs, const connection_t& conn) { print(hs, tie(conn.si
  *  note: the tesfile convention is: edge 0, vertex 0, edge 1, vertex 1, ...
  */
 
+/** edge with infinite end on the left */
+constexpr ld INFINITE_LEFT = -1;
+/** edge with infinite end on the right */
+constexpr ld INFINITE_RIGHT = -2;
+/** edge with two infinite ends */
+constexpr ld INFINITE_BOTH = -3;
+
 struct shape {
   /** index in the arbi_tiling::shapes */
   int id;
+  /** index in the original file */
+  int orig_id;
   /** flags such as sfLINE and sfPH */
   int flags;
   /** list of vertices in the usual convention */
   vector<hyperpoint> vertices;
-  /** list of vertices in the tesfile convention */
+  /** list of angles in the tesfile convention */
   vector<ld> angles;
   /** list of edge lengths */
   vector<ld> edges;
+  /** list of input edges */
+  vector<ld> in_edges;
+  /** list of input angles */
+  vector<ld> in_angles;
+  /** (ultra)ideal markers */
+  vector<bool> ideal_markers;
   /** list of edge connections */
   vector<connection_t> connections;
   int size() const { return isize(vertices); }
-  void build_from_angles_edges();
+  void build_from_angles_edges(bool is_comb);
   vector<pair<int, int> > sublines;
   vector<pair<ld, ld>> stretch_shear;
+  /** '*inf' was applied to represent an apeirogon/pseudogon */
+  bool apeirogonal;
+  /** connections repeat `repeat_value` times */
   int repeat_value;
+  /** 0 if the no mirror symmetries are declared; otherwise, edge i is the mirror of edge gmod(symmetric_value-i, size()). Make sure symmetric_value != 0, e.g., by adding size() */
+  int symmetric_value;
   /** if a tile/edge combination may be connected to edges j1 and j2 of this, j1-j2 must be divisible by cycle_length */
   int cycle_length;
   /** list of valences of vertices in the tesfile convention */
   vector<int> vertex_valence;
+  /** list of periods of vertices in the tesfile convention */
+  vector<int> vertex_period;
+  /** list of angles at vertices in the tesfile convention */
+  vector<vector<ld>> vertex_angles;
+  /** football types */
+  int football_type;
+  /** is it a mirrored version of an original tile */
+  bool is_mirrored;
+  /** auxiliary function for symmetric_value: is the edge index reflectable? */
+  bool reflectable(int id) {
+    if(!symmetric_value) return false;
+    if(apeirogonal && gmod(id, size()) >= size() - 2) return false;
+    return true;
+    }
+  /** reflect a reflectable reflect index */
+  int reflect(int id) {
+    return gmod(symmetric_value - id, size() - (apeirogonal ? 2 : 0));
+    }
   };
 
 struct slider {
@@ -67,10 +105,32 @@ struct slider {
   ld max;
   };
 
+struct intslider {
+  string name;
+  int zero;
+  int current;
+  int min;
+  int max;
+  };
+
 struct arbi_tiling {
 
   int order;
-  bool have_line, have_ph, have_tree;
+  /* line flags have been marked for tiles */
+  bool have_line;
+  /* pseudohept flags have been marked for tiles (1), or the tiling is football-colorable (2), or neither (0) */
+  int have_ph;
+  /* is the tree structure given in the tes file */
+  bool have_tree;
+  /* is the valence data reliable */
+  bool have_valence;
+  /* use "star." if the tessellation includs star polygons */
+  bool is_star;
+  /* use "combinatorial." for combinatorial tessellations; vertex valences computed based on their angles. Currently only rulegen works for combinatorial tessellations */
+  bool is_combinatorial;
+  /* reserved for future flags */
+  bool res0, res1, res2, res3;
+
   int yendor_backsteps;
 
   vector<shape> shapes;
@@ -78,14 +138,21 @@ struct arbi_tiling {
   string comment;
   
   vector<slider> sliders;
+  vector<intslider> intsliders;
   
   ld cscale;
   int range;
   ld floor_scale;
   ld boundary_ratio;
   string filename;
+  int mirror_rules;
   
+  vector<string> options;
+
   int min_valence, max_valence;
+  bool is_football_colorable;
+  bool was_unmirrored;
+  bool was_split_for_football;
 
   geometryinfo1& get_geometry();
   eGeometryClass get_class() { return get_geometry().kind; }
@@ -94,10 +161,13 @@ struct arbi_tiling {
   };
 #endif
 
+/** currently loaded tiling */
 EX arbi_tiling current;
 
+/** is the currently displayed map current or slided */
 EX bool using_slided;
 
+/** for real-valued sliders, current is the tiling used by the map, while slided is the tiling used for the display */
 EX arbi_tiling slided;
 
 EX bool in_slided() { return in() && using_slided; }
@@ -126,7 +196,7 @@ struct hr_polygon_error : hr_exception {
 string hr_polygon_error::generate_error() {
   cld dist = (hdist0(tC0(end)) / params["distunit"]);
   bool angle = abs(dist) < 1e-9;
-  if(angle) dist = (atan2(end * xpush0(1)) / params["angleunit"]);     
+  if(angle) dist = (atan2(end * lxpush0(1)) / params["angleunit"]);
   return
     XLAT("Polygon number %1 did not close correctly (%2 %3). Here is the picture to help you understand the issue.\n\n", its(id), 
       angle ? "angle" : "distance",
@@ -180,22 +250,20 @@ void start_poly_debugger(hr_polygon_error& err) {
   #endif
   }
 
-void shape::build_from_angles_edges() {
+void shape::build_from_angles_edges(bool is_comb) {
   transmatrix at = Id;
-  vertices.clear();
-  int n = isize(angles);
+  int n = isize(in_angles);
   hyperpoint ctr = Hypc;
   vector<transmatrix> matrices;
-  if(!legacy) for(auto& a: angles) a += M_PI;
   for(int i=0; i<n; i++) {
     matrices.push_back(at);
     if(debugflags & DF_GEOM) println(hlog, "at = ", at);
-    vertices.push_back(tC0(at));
     ctr += tC0(at);
-    at = at * xpush(edges[i]) * spin(angles[i]);
+    at = at * lxpush(in_edges[i]) * spin(in_angles[i]+M_PI);
     }
   matrices.push_back(at);
-  if(!eqmatrix(at, Id)) {
+  if(is_comb) return;
+  if(!eqmatrix(at, Id) && !apeirogonal) {
     throw hr_polygon_error(matrices, id, at);
     }
   if(sqhypot_d(3, ctr) < 1e-2) {
@@ -203,14 +271,82 @@ void shape::build_from_angles_edges() {
     // try to move towards the center
     if(debugflags & DF_GEOM) println(hlog, "special case encountered");
     for(int i=0; i<n; i++) {
-      ctr += at * xpush(edges[i]) * spin((angles[i]+M_PI)/2) * xpush0(.01);
-      at = at * xpush(edges[i]) * spin(angles[i]);
+      ctr += at * lxpush(in_edges[i]) * spin((in_angles[i]+M_PI)/2) * lxpush0(.01);
+      at = at * lxpush(in_edges[i]) * spin(in_angles[i]);
       }
     if(debugflags & DF_GEOM) println(hlog, "ctr = ", ctr);
     }
-  if(!legacy) for(auto& a: angles) a -= M_PI;
+  hyperpoint inf_point;
+  if(apeirogonal) {
+    transmatrix U = at;
+    for(int i=0; i<3; i++) for(int j=0; j<3; j++) U[i][j] -= Id[i][j];
+    hyperpoint v;
+    ld det = U[0][1] * U[1][0] - U[1][1] * U[0][0];
+    v[1] = (U[1][2] * U[0][0] - U[0][2] * U[1][0]) / det;
+    v[0] = (U[0][2] * U[1][1] - U[1][2] * U[0][1]) / det;
+    v[2] = 1;
+    inf_point = v;
+    ctr = mid(C0, tC0(at));
+    ctr = towards_inf(ctr, inf_point);
+    }
   ctr = normalize(ctr);
-  for(auto& v: vertices) v = gpushxto0(ctr) * v;
+  vertices.clear();
+  angles.clear();
+  for(int i=0; i<n; i++) {
+    edges.push_back(in_edges[i]);
+    if(!ideal_markers[i]) {
+      vertices.push_back(tC0(gpushxto0(ctr) * matrices[i]));
+      angles.push_back(in_angles[i]);
+      }
+    else {
+      angles.push_back(0);
+      hyperpoint a1 = tC0(matrices[i]);
+      hyperpoint t1 = get_column(matrices[i], 0);
+      hyperpoint a2 = tC0(matrices[i+2]);
+      hyperpoint t2 = get_column(matrices[i+2], 0);
+
+      a1 /= a1[2];
+      a2 /= a2[2];
+
+      t1 -= a1 * t1[2];
+      t2 -= a2 * t2[2];
+
+      ld c1 = a2[0] - a1[0], c2 = a2[1] - a1[1];
+      ld v1 = t1[0], v2 = t1[1];
+      ld u1 = t2[0], u2 = t2[1];
+
+      ld r = (u2 * c1 - c2 * u1) / (v1 * u2 - v2 * u1);
+      // ld s = (v2 * c1 - c2 * v1) / (v1 * u2 - v2 * u1);
+
+      hyperpoint v = a1 + r * t1;
+      // also v == a2 + s * t2;
+      v[2] = 1;
+      v = gpushxto0(ctr) * v;
+      v /= v[2];
+      vertices.push_back(v);
+      i++;
+      }
+    }
+  if(apeirogonal) {
+    vertices.push_back(gpushxto0(ctr) * tC0(at));
+    hyperpoint v = gpushxto0(ctr) * inf_point;
+    v /= v[2];
+    vertices.push_back(v);
+    auto b = angles.back() / 2;
+    angles.back() = b;
+    angles.push_back(0);
+    angles.push_back(b);
+    edges.push_back(0);
+    edges.push_back(0);
+    }
+  n = isize(angles);
+  for(int i=0; i<n; i++) {
+    bool left = angles[i] == 0;
+    bool right = angles[gmod(i-1, isize(vertices))] == 0;
+    if(left && right) edges[i] = INFINITE_BOTH;
+    else if(left) edges[i] = INFINITE_LEFT;
+    else if(right) edges[i] = INFINITE_RIGHT;
+    }
   }
 
 EX bool correct_index(int index, int size) { return index >= 0 && index < size; }
@@ -224,23 +360,89 @@ EX void load_tile(exp_parser& ep, arbi_tiling& c, bool unit) {
   c.shapes.emplace_back();
   auto& cc = c.shapes.back();
   cc.id = isize(c.shapes) - 1;
+  cc.orig_id = cc.id;
+  cc.is_mirrored = false;
+  cc.symmetric_value = 0;
   cc.flags = 0;
   cc.repeat_value = 1;
+  bool is_symmetric = false;
   while(ep.next() != ')') {
     cld dist = 1;
+    ep.skip_white();
+    if(ep.eat("|")) {
+      cc.symmetric_value = ep.iparse();
+      is_symmetric = true;
+      ep.force_eat(")");
+      break;
+      }
+    if(ep.eat("*")) {
+      ld frep = ep.rparse(0);
+      if(isinf(frep)) {
+        cc.apeirogonal = true;
+        set_flag(ginf[gArbitrary].flags, qIDEAL, true);
+        if(ep.eat(",") && ep.eat("|")) {
+          is_symmetric = true;
+          if(isize(cc.in_edges) == 1 && ep.eat(")")) break;
+          cc.symmetric_value = ep.iparse();
+          }
+        ep.force_eat(")");
+        break;
+        }
+      int rep = int(frep+.5);
+      int repeat_from = 0;
+      int repeat_to = cc.in_edges.size();
+      if(rep == 0) {
+        cc.in_edges.resize(repeat_from);
+        cc.in_angles.resize(repeat_from);
+        cc.ideal_markers.resize(repeat_from);
+        }
+      else if(rep < 0) throw hr_parse_exception("don't know how to use a negative repeat in tile definition");
+      for(int i=1; i<rep; i++)
+      for(int j=repeat_from; j<repeat_to; j++) {
+        cc.in_edges.push_back(cc.in_edges[j]);
+        cc.in_angles.push_back(cc.in_angles[j]);
+        cc.ideal_markers.push_back(cc.ideal_markers[j]);
+        }
+      ep.skip_white();
+      if(ep.eat(",")) {
+        ep.force_eat("|");
+        is_symmetric = true;
+        if(repeat_to == 1 && ep.eat(")")) goto skip;
+        cc.symmetric_value = ep.iparse();
+        }
+      if(ep.eat(")")) {
+        skip:
+        if(repeat_from == 0) cc.repeat_value = rep;
+        break;
+        }
+      else throw hr_parse_exception("expecting ) after repeat");
+      }
     if(!unit) {
       dist = ep.parse(0);
       ep.force_eat(",");
       }
-    cld angle = ep.parse(0);
-    cc.edges.push_back(ep.validate_real(dist * ep.extra_params["distunit"]));
-    cc.angles.push_back(ep.validate_real(angle * ep.extra_params["angleunit"] + ep.extra_params["angleofs"]));
+    cld angle;
+    ep.skip_white();
+    if(ep.eat("[")) {
+      cc.in_edges.push_back(ep.validate_real(dist * ep.extra_params["distunit"]));
+      angle = ep.parse(0); ep.force_eat(",");
+      cc.in_angles.push_back(ep.validate_real(angle * ep.extra_params["angleunit"]));
+      cc.ideal_markers.push_back(true);
+      dist = ep.parse(0); ep.force_eat(",");
+      angle = ep.parse(0); ep.force_eat("]");
+      set_flag(ginf[gArbitrary].flags, qIDEAL, true);
+      }
+    else
+      angle = ep.parse(0);
+    cc.in_edges.push_back(ep.validate_real(dist * ep.extra_params["distunit"]));
+    cc.in_angles.push_back(ep.validate_real(angle * ep.extra_params["angleunit"]));
+    cc.ideal_markers.push_back(false);
     if(ep.eat(",")) continue;
     else if(ep.eat(")")) break;
     else throw hr_parse_exception("expecting , or )");
     }
   try {
-    cc.build_from_angles_edges();
+    cc.build_from_angles_edges(c.is_combinatorial);
     }
   catch(hr_parse_exception& ex) {
     throw hr_parse_exception(ex.s + ep.where());
@@ -249,58 +451,104 @@ EX void load_tile(exp_parser& ep, arbi_tiling& c, bool unit) {
     poly.params = ep.extra_params;
     throw;
     }
-  cc.connections.resize(cc.size());
+  int n = cc.size();
+  if(is_symmetric && !cc.symmetric_value) cc.symmetric_value += n - (cc.apeirogonal ? 2 : 0);
+  cc.connections.resize(n);
   for(int i=0; i<isize(cc.connections); i++)
     cc.connections[i] = connection_t{cc.id, i, false};
-  cc.stretch_shear.resize(cc.size(), make_pair(1, 0));
+  if(cc.apeirogonal) {
+    cc.connections[n-2].eid = n-1;
+    cc.connections[n-1].eid = n-2;
+    }
+  cc.stretch_shear.resize(n, make_pair(1, 0));
   }
 
 EX bool do_unmirror = true;
 
+template<class T> void cycle(vector<T>& t) {
+  std::rotate(t.begin(), t.begin() + 2, t.end());
+  }
+
 /** \brief for tessellations which contain mirror rules, remove them by taking the orientable double cover */
-EX void unmirror() {
-  int mirror_rules = 0;
-  for(auto& s: arb::current.shapes)
+EX void unmirror(arbi_tiling& c) {
+  if(cgflags & qAFFINE) return;
+  auto& mirror_rules = c.mirror_rules;
+  mirror_rules = 0;
+  for(auto& s: c.shapes)
     for(auto& t: s.connections)
       if(t.mirror)
         mirror_rules++;
   if(!mirror_rules) return;
-  auto& sh = current.shapes;
+  auto& sh = c.shapes;
   int s = isize(sh);
+  vector<int> mirrored_id(s, -1);
   for(int i=0; i<s; i++)
-    sh.push_back(sh[i]);
-  for(int i=0; i<2*s; i++)
+    if(!sh[i].symmetric_value) {
+      mirrored_id[i] = isize(sh);
+      sh.push_back(sh[i]);
+      }
+  int ss = isize(sh);
+  for(int i=0; i<ss; i++) {
     sh[i].id = i;
-  for(int i=s; i<s+s; i++) {
+    if(i >= s) sh[i].is_mirrored = true;
+    }
+  for(int i=s; i<ss; i++) {
     for(auto& v: sh[i].vertices) 
       v[1] = -v[1];
     reverse(sh[i].edges.begin(), sh[i].edges.end());
+    for(auto& e: sh[i].edges) {
+      if(e == INFINITE_LEFT) e = INFINITE_RIGHT;
+      else if(e == INFINITE_RIGHT) e = INFINITE_LEFT;
+      }
     reverse(sh[i].vertices.begin()+1, sh[i].vertices.end());
     reverse(sh[i].angles.begin(), sh[i].angles.end()-1);
     reverse(sh[i].connections.begin(), sh[i].connections.end());
+    if(sh[i].apeirogonal) {
+      cycle(sh[i].edges);
+      cycle(sh[i].vertices);
+      if(debugflags & DF_GEOM) println(hlog, "angles before = ", sh[i].angles);
+      cycle(sh[i].angles);
+      if(debugflags & DF_GEOM) println(hlog, "angles now = ", sh[i].angles);
+      cycle(sh[i].connections);
+      }
     }
 
-  if(true) for(int i=0; i<s+s; i++) {
+  if(true) for(int i=0; i<ss; i++) {
     for(auto& co: sh[i].connections) {
       bool mirr = co.mirror ^ (i >= s);
       co.mirror = false;
-      if(mirr) {
-        co.sid += s;
+      if(mirr && mirrored_id[co.sid] == -1) {
+        if(sh[co.sid].reflectable(co.eid)) {
+          co.eid = sh[co.sid].reflect(co.eid);
+          }
+        }
+      else if(mirr) {
+        co.sid = mirrored_id[co.sid];
         co.eid = isize(sh[co.sid].angles) - 1 - co.eid;
+        if(sh[co.sid].apeirogonal)
+          co.eid = gmod(co.eid - 2, isize(sh[co.sid].angles));
         }
       }
     }
+
+  c.was_unmirrored = true;
   }
 
-EX void compute_vertex_valence() {
-  auto& ac = arb::current;
+static void reduce_gcd(int& a, int b) {
+  a = abs(gcd(a, b));
+  }
+
+EX void mirror_connection(arb::arbi_tiling& ac, connection_t& co) {
+  if(co.mirror && ac.shapes[co.sid].reflectable(co.eid)) {
+    co.eid = ac.shapes[co.sid].reflect(co.eid);
+    co.mirror = !co.mirror;
+    }
+  }
+
+EX void compute_vertex_valence_prepare(arb::arbi_tiling& ac) {
 
   int tcl = -1;
 
-  for(auto& sh: ac.shapes)
-    sh.cycle_length = isize(sh.vertices);
-  
-  recompute:
   while(true) {
 
     for(auto& sh: ac.shapes) {
@@ -311,17 +559,22 @@ EX void compute_vertex_valence() {
         auto co = sh.connections[k];
         auto co1 = sh.connections[k-sh.cycle_length];
         if(co.sid != co1.sid) {
-          println(hlog, "ik = ", tie(i,k), " co=", co, "co1=", co1, " cl=", sh.cycle_length);
+          println(hlog, "ik = ", tie(i,k), " co=", co, " co1=", co1, " cl=", sh.cycle_length);
           throw hr_parse_exception("connection error #2 in compute_vertex_valence");
           }
-        ac.shapes[co.sid].cycle_length = abs(gcd(ac.shapes[co.sid].cycle_length, co.eid - co1.eid));
+        mirror_connection(ac, co);
+        mirror_connection(ac, co1);
+        reduce_gcd(ac.shapes[co.sid].cycle_length, co.eid - co1.eid);
         }
 
       for(int k=0; k<n; k++) {
         auto co = sh.connections[k];
+        auto co0 = co;
         co = ac.shapes[co.sid].connections[co.eid];
         if(co.sid != i) throw hr_parse_exception("connection error in compute_vertex_valence");
-        sh.cycle_length = abs(gcd(sh.cycle_length, k-co.eid));
+        co.mirror ^= co0.mirror;
+        mirror_connection(ac, co);
+        reduce_gcd(sh.cycle_length, k-co.eid);
         }
       if(debugflags & DF_GEOM) 
         println(hlog, "tile ", i, " cycle_length = ", sh.cycle_length, " / ", n);
@@ -337,41 +590,123 @@ EX void compute_vertex_valence() {
     if(new_tcl == tcl) break;
     tcl = new_tcl;
     }
-  
-  if(cgflags & qAFFINE) return;
+  }
+
+/** returns true if we need to recompute */
+EX bool compute_vertex_valence_flat(arb::arbi_tiling& ac) {
   for(auto& sh: ac.shapes) {
     int n = sh.size();
     int i = sh.id;
     sh.vertex_valence.resize(n);
+    sh.vertex_period.resize(n);
+    sh.vertex_angles.resize(n);
     for(int k=0; k<n; k++) {
       ld total = 0;
-      int qty = 0;
+      int qty = 0, pqty = 0;
       connection_t at = {i, k, false};
+      connection_t at1 = at;
+      vector<ld> anglelist;
       do {
+        if(at.sid == at1.sid && (at.eid-at1.eid) % ac.shapes[at.sid].cycle_length == 0) pqty = 0;
+        if(qty && pqty == 0 && !total) break;
         ld a = ac.shapes[at.sid].angles[at.eid];
-        while(a < 0) a += 360 * degree;
-        while(a > 360 * degree) a -= 360 * degree;
+        while(a < 0) a += TAU;
+        while(a > TAU) a -= TAU;
         total += a;
+        anglelist.push_back(a);
         qty++;
+        pqty++;
 
         at.eid++;
         if(at.eid == isize(ac.shapes[at.sid].angles)) at.eid = 0;
 
         at = ac.shapes[at.sid].connections[at.eid];
         }
-      while(total < 360*degree - 1e-6);
-      if(total > 360*degree + 1e-6) throw hr_parse_exception("improper total in compute_stats");
+      while(total < TAU - 1e-6);
+      if(total == 0) qty = OINF;
+      if(total > TAU + 1e-6) throw hr_parse_exception("improper total in compute_stats");
       if(at.sid != i) throw hr_parse_exception("ended at wrong type determining vertex_valence");
       if((at.eid - k) % ac.shapes[i].cycle_length) {
-        ac.shapes[i].cycle_length = abs(gcd(ac.shapes[i].cycle_length, at.eid - k));
-        goto recompute;
+        reduce_gcd(ac.shapes[i].cycle_length, at.eid - k);
+        return true;
         }
       sh.vertex_valence[k] = qty;
+      sh.vertex_period[k] = pqty;
+      sh.vertex_angles[k] = std::move(anglelist);
       }
     if(debugflags & DF_GEOM) 
       println(hlog, "computed vertex_valence of ", i, " as ", ac.shapes[i].vertex_valence);
     }
+  return false;
+  }
+
+/** returns true if we need to recompute */
+EX bool compute_vertex_valence_generic(arb::arbi_tiling& ac) {
+  for(auto& sh: ac.shapes) {
+    int n = sh.size();
+    int i = sh.id;
+    sh.vertex_valence.resize(n);
+    for(int k=0; k<n; k++) {
+      connection_t at = {i, k, false};
+      transmatrix T = Id;
+      int qty = 0;
+      do {
+        if(qty && at.sid == i) {
+          auto co1 = at;
+          bool found = find_connection(T, Id, co1);
+          if(found) {
+            mirror_connection(ac, co1);
+            if((co1.eid - k) % ac.shapes[i].cycle_length) {
+              reduce_gcd(ac.shapes[i].cycle_length, co1.eid - k);
+              return true;
+              }
+            break;
+            }
+          }
+
+        if(at.mirror) {
+          if(at.eid == 0) at.eid = isize(ac.shapes[at.sid].angles);
+          at.eid--;
+          }
+        else {
+          at.eid++;
+          if(at.eid == isize(ac.shapes[at.sid].angles)) at.eid = 0;
+          }
+
+        auto at0 = at;
+        at = ac.shapes[at.sid].connections[at.eid];
+        T = T * get_adj(ac, at0.sid, at0.eid, at.sid, at.eid, at.mirror);
+        at.mirror ^= at0.mirror;
+        qty++;
+        }
+      while(qty < OINF);
+      sh.vertex_valence[k] = qty;
+      }
+    if(debugflags & DF_GEOM)
+      println(hlog, "computed vertex_valence of ", i, " as ", ac.shapes[i].vertex_valence);
+    }
+  return false;
+  }
+
+EX void compute_vertex_valence(arb::arbi_tiling& ac) {
+
+  for(auto& sh: ac.shapes)
+    sh.cycle_length = isize(sh.vertices) / sh.repeat_value;
+
+  bool generic = false;
   
+  if(!ac.was_unmirrored) for(auto& sh: ac.shapes) if(sh.symmetric_value) generic = true;
+  for(auto& sh: ac.shapes) for(auto& co: sh.connections) if(co.mirror) generic = true;
+
+  if(cgflags & qAFFINE) generic = true;
+  if(ac.is_star) generic = true;
+
+  recompute:
+  compute_vertex_valence_prepare(ac);
+
+  if(generic ? compute_vertex_valence_generic(ac) : compute_vertex_valence_flat(ac)) goto recompute;
+  ac.have_valence = true;
+
   ac.min_valence = UNKNOWN; ac.max_valence = 0;
   for(auto& sh: ac.shapes) 
     for(auto& val: sh.vertex_valence) {
@@ -380,7 +715,234 @@ EX void compute_vertex_valence() {
       }      
   }
 
-EX void load(const string& fname, bool after_sliding IS(false)) {
+EX bool extended_football = true;
+
+EX void check_football_colorability(arbi_tiling& c) {
+  if(!c.have_valence) return;
+  for(auto&sh: c.shapes) for(auto v: sh.vertex_valence)
+    if(v % 3) return;
+
+  for(int i=0; i<3; i++) {
+    for(auto&sh: c.shapes) sh.football_type = 3;
+
+    vector<int> aqueue;
+
+    c.shapes[0].football_type = i;
+    aqueue = {0};
+    bool bad = false;
+    for(int qi=0; qi<isize(aqueue); qi++) {
+      int sid = aqueue[qi];
+
+      auto& sh = c.shapes[sid];
+
+      for(int j=0; j<sh.size(); j++) {
+        auto &co = sh.connections[j];
+        auto t = sh.football_type;
+        if(c.have_ph && ((sh.flags & arcm::sfPH) != (t==2))) bad = true;
+        if(sh.apeirogonal && t < 2 && (isize(sh) & 1)) bad = true;
+
+        auto assign = [&] (int tt) {
+          auto& t1 = c.shapes[co.sid].football_type;
+          if(t1 == 3) {
+            t1 = tt;
+            aqueue.push_back(co.sid);
+            }
+          else {
+            if(t1 != tt) bad = true;
+            }
+          };
+
+        if(t < 2) {
+          if((j & 1) == t) assign(2); else assign((co.eid & 1) ? 0 : 1);
+          }
+        else {
+          assign((co.eid & 1) ? 1 : 0);
+          }
+        }
+      }
+    if(!bad) {
+      c.have_ph = 2;
+      for(auto& sh: c.shapes) if(sh.football_type == 2) sh.flags |= arcm::sfPH;
+      return;
+      }
+    }
+
+  if(extended_football && !c.have_tree) {
+    for(auto&sh: c.shapes)
+      sh.football_type = 0;
+
+    for(int i=0; i<3*isize(c.shapes); i++) {
+      for(auto&sh: c.shapes) {
+        int &res = sh.football_type;
+        int siz = sh.size();
+        if(sh.apeirogonal) siz -= 2;
+        else if(siz & 1) res |= 3;
+        if((sh.cycle_length & 1) && !sh.apeirogonal) {
+          if(res & 3) res |= 3;
+          }
+        if(sh.apeirogonal && (siz & 1)) {
+          if(res & 3) res |= 3;
+          }
+        if(sh.flags & arcm::sfPH) res |= 3;
+        for(int i=0; i<sh.size(); i++) {
+          auto co = sh.connections[i];
+          co.eid %= c.shapes[co.sid].cycle_length;
+          if(res & 1) {
+            if(i&1) {
+              if(co.eid & 1)
+                c.shapes[co.sid].football_type |= 1;
+              else
+                c.shapes[co.sid].football_type |= 2;
+              }
+            else
+              c.shapes[co.sid].football_type |= 4;
+            }
+          if(res & 2) {
+            if(!(i&1)) {
+              if(co.eid & 1)
+                c.shapes[co.sid].football_type |= 1;
+              else
+                c.shapes[co.sid].football_type |= 2;
+              }
+            else
+              c.shapes[co.sid].football_type |= 4;
+            }
+          if(res & 4) {
+            if(co.eid & 1)
+              c.shapes[co.sid].football_type |= 2;
+            else
+              c.shapes[co.sid].football_type |= 1;
+            }
+          }
+        }
+      }
+
+    c.is_football_colorable = true;
+    c.was_split_for_football = true;
+    for(auto&sh: c.shapes)
+     if(sh.football_type == 7)
+       c.is_football_colorable = false;
+
+    if(c.is_football_colorable) {
+      vector<array<int, 3> > new_indices(isize(c.shapes), make_array(-1, -1, -1));
+      auto oldshapes = c.shapes;
+      c.shapes.clear();
+      for(int i=0; i<isize(oldshapes); i++)
+        for(int t=0; t<3; t++)
+          if(!(oldshapes[i].football_type & (1<<t))) {
+            if(t == 1 && (oldshapes[i].cycle_length & 1) && !oldshapes[i].apeirogonal) continue;
+            new_indices[i][t] = isize(c.shapes);
+            c.shapes.push_back(oldshapes[i]);
+            c.shapes.back().football_type = t;
+            if(t == 2) c.shapes.back().flags |= arcm::sfPH;
+            }
+
+      for(int i=0; i<isize(oldshapes); i++)
+        for(int t=0; t<3; t++) {
+          int ni = new_indices[i][t];
+          if(ni == -1) continue;
+          auto& sh = c.shapes[ni];
+          sh.id = ni;
+          for(int j=0; j<isize(sh); j++) {
+            auto &co = sh.connections[j];
+            auto assign = [&] (int tt) {
+              auto ni1 = new_indices[co.sid][tt];
+              if(ni1 == -1 && tt == 1) {
+                ni1 = new_indices[co.sid][0];
+                co.eid += oldshapes[co.sid].cycle_length;
+                co.eid %= isize(oldshapes[co.sid]);
+                }
+              co.sid = ni1;
+              };
+
+            if(sh.apeirogonal && j >= isize(sh)-2) {
+              co.sid = ni;
+              if(t < 2 && (isize(sh) & 1)) co.sid = new_indices[i][t^1];
+              continue;
+              }
+
+            co.eid %= oldshapes[co.sid].cycle_length;
+            if(t < 2) {
+              if((j & 1) == t) assign(2); else assign((co.eid & 1) ? 0 : 1);
+              }
+            else {
+              assign((co.eid & 1) ? 1 : 0);
+              }
+            }
+
+          if((sh.cycle_length&1) && (t < 2) && !sh.apeirogonal) sh.cycle_length *= 2;
+          if(debugflags & DF_GEOM)
+            println(hlog, tie(i,t), " becomes ", ni, " with connections ", sh.connections, " and cycle length = ", sh.cycle_length);
+          }
+
+      c.have_ph = 2;
+      return;
+      }
+    }
+
+  for(auto&sh: c.shapes) sh.football_type = 3;
+  }
+
+EX void add_connection_sub(arbi_tiling& c, int ai, int as, int bi, int bs, int m) {
+  int as0 = as, bs0 = bs;
+  auto& ash = c.shapes[ai];
+  auto& bsh = c.shapes[bi];
+  do {
+    ash.connections[as] = connection_t{bi, bs, m};
+    as = gmod(as + ash.size() / ash.repeat_value, ash.size());
+    }
+  while(as != as0);
+  do {
+    c.shapes[bi].connections[bs] = connection_t{ai, as, m};
+    bs = gmod(bs + bsh.size() / bsh.repeat_value, bsh.size());
+    }
+  while(bs != bs0);
+  }
+
+EX void add_connection(arbi_tiling& c, int ai, int as, int bi, int bs, int m) {
+  auto& ash = c.shapes[ai];
+  auto& bsh = c.shapes[bi];
+  add_connection_sub(c, ai, as, bi, bs, m);
+  int as1, bs1;
+  if(ash.symmetric_value) {
+    as1 = ash.reflect(as);
+    add_connection_sub(c, ai, as1, bi, bs, !m);
+    }
+  if(bsh.symmetric_value) {
+    bs1 = bsh.reflect(bs);
+    add_connection_sub(c, ai, as, bi, bs1, !m);
+    }
+  if(ash.symmetric_value && bsh.symmetric_value)
+    add_connection_sub(c, ai, as1, bi, bs1, m);
+  }
+
+EX void set_defaults(arb::arbi_tiling& c, bool keep_sliders, string fname) {
+  c.order++;
+  c.name = unnamed;
+  c.comment = "";
+  c.filename = fname;
+  c.cscale = 1;
+  c.range = 0;
+  c.boundary_ratio = 1;
+  c.floor_scale = .5;
+  c.have_ph = 0;
+  c.have_line = false;
+  c.is_football_colorable = false;
+  c.have_tree = false;
+  c.have_valence = false;
+  c.yendor_backsteps = 0;
+  c.is_star = false;
+  c.is_combinatorial = false;
+  c.was_unmirrored = false;
+  c.was_split_for_football = false;
+  c.shapes.clear();
+  if(!keep_sliders) {
+    c.sliders.clear();
+    c.intsliders.clear();
+    }
+  }
+
+EX void load(const string& fname, bool load_as_slided IS(false), bool keep_sliders IS(false)) {
   fhstream f(fname, "rt");
   if(!f.f) throw hr_parse_exception("file " + fname + " does not exist");
   string s;
@@ -389,23 +951,12 @@ EX void load(const string& fname, bool after_sliding IS(false)) {
     if(c < 0) break;
     s += c;
     }
-  auto& c = after_sliding ? slided : current;
-  c.order++;
-  c.shapes.clear();
-  c.sliders.clear();
-  c.name = unnamed;
-  c.comment = "";
-  c.filename = fname;
-  c.cscale = 1;
-  c.range = 0;
-  c.boundary_ratio = 1;
-  c.floor_scale = .5;
-  c.have_ph = c.have_line = false;
-  c.have_tree = false;
-  c.yendor_backsteps = 0;
+  auto& c = load_as_slided ? slided : current;
+  set_defaults(c, keep_sliders, fname);
+  int qsliders = 0, qintsliders = 0;
   exp_parser ep;
   ep.s = s;
-  ld angleunit = 1, distunit = 1, angleofs = 0;
+  ld angleunit = 1, distunit = 1;
   auto addflag = [&] (int f) {
     int ai;
     if(ep.next() == ')') ai = isize(c.shapes)-1;
@@ -418,7 +969,6 @@ EX void load(const string& fname, bool after_sliding IS(false)) {
 
     ep.extra_params["distunit"] = distunit;
     ep.extra_params["angleunit"] = angleunit;
-    ep.extra_params["angleofs"] = angleofs;
 
     ep.skip_white();
     if(ep.next() == 0) break;
@@ -435,17 +985,26 @@ EX void load(const string& fname, bool after_sliding IS(false)) {
           }
         }
       }
+    else if(ep.eat("c2(")) {
+      ld curv = ep.rparse(0);
+      ep.force_eat(")");
+      ginf[gArbitrary].g = curv > 0 ? giSphere2 : curv < 0 ? giHyperb2 : giEuclid2;
+      ginf[gArbitrary].sides = 7;
+      set_flag(ginf[gArbitrary].flags, qCLOSED, curv > 0);
+      set_flag(ginf[gArbitrary].flags, qAFFINE, false);
+      geom3::apply_always3();
+      }
     else if(ep.eat("e2.")) {
       ginf[gArbitrary].g = giEuclid2;
       ginf[gArbitrary].sides = 7;
-      set_flag(ginf[gArbitrary].flags, qBOUNDED, false);
+      set_flag(ginf[gArbitrary].flags, qCLOSED, false);
       set_flag(ginf[gArbitrary].flags, qAFFINE, false);
       geom3::apply_always3();
       }
     else if(ep.eat("a2.")) {
       ginf[gArbitrary].g = giEuclid2;
       ginf[gArbitrary].sides = 7;
-      set_flag(ginf[gArbitrary].flags, qBOUNDED, false);
+      set_flag(ginf[gArbitrary].flags, qCLOSED, false);
       set_flag(ginf[gArbitrary].flags, qAFFINE, true);
       affine_limit = 200;
       geom3::apply_always3();
@@ -453,25 +1012,34 @@ EX void load(const string& fname, bool after_sliding IS(false)) {
     else if(ep.eat("h2.")) {
       ginf[gArbitrary].g = giHyperb2;
       ginf[gArbitrary].sides = 7;
-      set_flag(ginf[gArbitrary].flags, qBOUNDED, false);
+      set_flag(ginf[gArbitrary].flags, qCLOSED, false);
       set_flag(ginf[gArbitrary].flags, qAFFINE, false);
       geom3::apply_always3();
       }
     else if(ep.eat("s2.")) {
       ginf[gArbitrary].g = giSphere2;
       ginf[gArbitrary].sides = 5;
-      set_flag(ginf[gArbitrary].flags, qBOUNDED, true);
+      set_flag(ginf[gArbitrary].flags, qCLOSED, true);
       set_flag(ginf[gArbitrary].flags, qAFFINE, false);
       geom3::apply_always3();
       }
-    else if(ep.eat("legacysign.")) {
-      if(legacy) angleunit *= -1;
+    else if(ep.eat("star.")) {
+      c.is_star = true;
+      }
+    else if(ep.eat("combinatorial.")) {
+      c.is_combinatorial = true;
+      }
+    else if(ep.eat("option(\"")) {
+      next:
+      string s = "";
+      while(ep.next() != '"') s += ep.eatchar();
+      ep.force_eat("\"");
+      c.options.push_back(s);
+      ep.skip_white();
+      if(ep.eat(",")) { ep.skip_white(); ep.force_eat("\""); goto next; }
+      ep.force_eat(")");
       }
     else if(ep.eat("angleunit(")) angleunit = real(ep.parsepar());
-    else if(ep.eat("angleofs(")) {
-      angleofs = real(ep.parsepar());
-      if(!legacy) angleofs = 0;
-      }
     else if(ep.eat("distunit(")) distunit = real(ep.parsepar());
     else if(ep.eat("line(")) {
       addflag(arcm::sfLINE);
@@ -491,9 +1059,27 @@ EX void load(const string& fname, bool after_sliding IS(false)) {
       ep.force_eat(",");
       sl.max = ep.rparse();
       ep.force_eat(")");
-      c.sliders.push_back(sl);
-      if(after_sliding)
-        ep.extra_params[sl.name] = current.sliders[isize(c.sliders)-1].current;
+      if(load_as_slided || !keep_sliders)
+        c.sliders.push_back(sl);
+      if(load_as_slided || keep_sliders)
+        ep.extra_params[sl.name] = current.sliders[qsliders++].current;
+      else
+        ep.extra_params[sl.name] = sl.zero;
+      }
+    else if(ep.eat("intslider(")) {
+      intslider sl;
+      sl.name = ep.next_token();
+      ep.force_eat(",");
+      sl.current = sl.zero = ep.iparse();
+      ep.force_eat(",");
+      sl.min = ep.iparse();
+      ep.force_eat(",");
+      sl.max = ep.iparse();
+      ep.force_eat(")");
+      if(load_as_slided || !keep_sliders)
+        c.intsliders.push_back(sl);
+      if(load_as_slided || keep_sliders)
+        ep.extra_params[sl.name] = current.intsliders[qintsliders++].current;
       else
         ep.extra_params[sl.name] = sl.zero;
       }
@@ -562,8 +1148,7 @@ EX void load(const string& fname, bool after_sliding IS(false)) {
         verify_index(as, c.shapes[ai], ep);
         verify_index(bi, c.shapes, ep);
         verify_index(bs, c.shapes[bi], ep);
-        c.shapes[ai].connections[as] = connection_t{bi, bs, m};
-        c.shapes[bi].connections[bs] = connection_t{ai, as, m};
+        add_connection(c, ai, as, bi, bs, m);
         }
       ep.force_eat(")");
       }
@@ -573,8 +1158,7 @@ EX void load(const string& fname, bool after_sliding IS(false)) {
       int bi = ep.iparse(); verify_index(bi, c.shapes, ep); ep.force_eat(",");
       int bs = ep.iparse(); verify_index(bs, c.shapes[bi], ep); ep.force_eat(",");
       int m = ep.iparse(); ep.force_eat(")");
-      c.shapes[ai].connections[as] = connection_t{bi, bs, m};
-      c.shapes[bi].connections[bs] = connection_t{ai, as, m};
+      add_connection(c, ai, as, bi, bs, m);
       }
     else if(ep.eat("subline(")) {
       int ai = ep.iparse(); verify_index(ai, c.shapes, ep); ep.force_eat(",");
@@ -650,6 +1234,8 @@ EX void load(const string& fname, bool after_sliding IS(false)) {
         auto con = sh.connections[j];
         auto& xsh = c.shapes[con.sid];
         ld d2 = xsh.edges[con.eid];
+        if(d1 == INFINITE_LEFT) d1 = INFINITE_RIGHT;
+        else if(d1 == INFINITE_RIGHT) d1 = INFINITE_LEFT;
         if(abs(d1 - d2) > 1e-6)
           throw hr_parse_exception(lalign(0, "connecting ", make_pair(i,j), " to ", con, " of different lengths only possible in a2"));
         }
@@ -657,13 +1243,15 @@ EX void load(const string& fname, bool after_sliding IS(false)) {
     }
 
   if(do_unmirror) {
-    unmirror();
+    unmirror(c);
     }
-  if(!c.have_tree) compute_vertex_valence();
+  if(!c.have_tree) compute_vertex_valence(c);
 
-  if(c.have_tree) rulegen::verify_parsed_treestates();
+  check_football_colorability(c);
+
+  if(c.have_tree) rulegen::verify_parsed_treestates(c);
   
-  if(!after_sliding) slided = current;
+  if(!load_as_slided) slided = current;
   }
 
 arbi_tiling debugged;
@@ -677,7 +1265,7 @@ string primes(int i) {
 
 void connection_debugger() {
   cmode = sm::SIDE | sm::DIALOG_STRICT_X;
-  gamescreen(0);
+  gamescreen();
   
   auto& last = debug_polys.back();
   
@@ -729,7 +1317,7 @@ void connection_debugger() {
     
     dialog::add_action([k, last, con] {
       if(euclid) cgflags |= qAFFINE;
-      debug_polys.emplace_back(last.first * get_adj(debugged, last.second, k, -1, -1), con.sid);
+      debug_polys.emplace_back(last.first * get_adj(debugged, last.second, k), con.sid);
       if(euclid) cgflags &= ~qAFFINE;
       });
     
@@ -763,29 +1351,55 @@ EX hrmap *current_altmap;
 
 heptagon *build_child(heptspin p, pair<int, int> adj);
 
-EX transmatrix get_adj(arbi_tiling& c, int t, int dl, int t1, int xdl) {
-  
+/** get the midedge of lr; it takes infinite vertices into account */
+EX hyperpoint get_midedge(ld len, const hyperpoint &l, const hyperpoint &r) {
+  if(len == INFINITE_BOTH) {
+    return normalize(closest_to_zero(l, r));
+    }
+  else if(len == INFINITE_RIGHT) {
+    return towards_inf(r, l);
+    }
+  else if(len == INFINITE_LEFT) {
+    return towards_inf(l, r);
+    }
+  else return mid(l, r);
+  }
+
+EX bool is_apeirogonal(cell *c) {
+  if(!in()) return false;
+  return current_or_slided().shapes[id_of(c->master)].apeirogonal;
+  }
+
+EX bool is_apeirogonal() {
+  if(!in()) return false;
+  for(auto& sh: current_or_slided().shapes)
+    if(sh.apeirogonal) return true;
+  return false;
+  }
+
+EX bool apeirogon_consistent_coloring = true;
+EX bool apeirogon_hide_grid_edges = true;
+EX bool apeirogon_simplified_display = false;
+
+/** get the adj matrix corresponding to the connection of (t,dl) to connection_t{t1, xdl, xmirror} */
+EX transmatrix get_adj(arbi_tiling& c, int t, int dl, int t1, int xdl, bool xmirror) {
+
   auto& sh = c.shapes[t];
   
   int dr = gmod(dl+1, sh.size());
-
-  auto& co = sh.connections[dl];
-  if(xdl == -1) xdl = co.eid;
-
-  if(t1 == -1) t1 = co.sid;
 
   auto& xsh = c.shapes[t1];
   int xdr = gmod(xdl+1, xsh.size());
 
   hyperpoint vl = sh.vertices[dl];
   hyperpoint vr = sh.vertices[dr];
-  hyperpoint vm = mid(vl, vr);
+  hyperpoint vm = get_midedge(sh.edges[dl], vl, vr);
       
   transmatrix rm = gpushxto0(vm);
   
   hyperpoint xvl = xsh.vertices[xdl];
   hyperpoint xvr = xsh.vertices[xdr];
-  hyperpoint xvm = mid(xvl, xvr);
+  hyperpoint xvm = get_midedge(xsh.edges[xdl], xvl, xvr);
   
   transmatrix xrm = gpushxto0(xvm);
   
@@ -803,19 +1417,48 @@ EX transmatrix get_adj(arbi_tiling& c, int t, int dl, int t1, int xdl) {
     Res = Res * Tsca;
     }
 
-  if(co.mirror) Res = Res * MirrorX;
+  if(xmirror) Res = Res * MirrorX;
   Res = Res * spintox(xrm*xvl) * xrm;
   
-  if(co.mirror) swap(vl, vr);
+  if(xmirror) swap(vl, vr);
   
-  if(hdist(vl, Res*xvr) + hdist(vr, Res*xvl) > .1) {
+  if(hdist(vl, Res*xvr) + hdist(vr, Res*xvl) > .1 && !c.is_combinatorial) {
     println(hlog, "s1 = ", kz(spintox(rm*vr)), " s2 = ", kz(rspintox(xrm*xvr)));    
     println(hlog, tie(t, dl), " = ", kz(Res));    
     println(hlog, hdist(vl, Res * xvr), " # ", hdist(vr, Res * xvl));
-    exit(3);
+    throw hr_exception("error in arb::get_adj");
     }
         
   return Res;
+  }
+
+/** get the adj matrix corresponding to the connection of (t,dl) -- note: it may be incorrect for rotated/symmetric connections */
+EX transmatrix get_adj(arbi_tiling& c, int t, int dl) {
+  auto& sh = c.shapes[t];
+  auto& co = sh.connections[dl];
+  return get_adj(c, t, dl, co.sid, co.eid, co.mirror);
+  }
+
+/** Returns if F describes the same tile as T, taking possible symmetries into account. Paramater co is the expected edge (co.sid tells us the tile type); if yes, co may be adjusted */
+EX bool find_connection(const transmatrix& T, const transmatrix& F, connection_t& co) {
+
+  if(!same_point_may_warn(tC0(F), tC0(T))) return false;
+
+  auto& xsh = current.shapes[co.sid];
+  int n = isize(xsh.connections);
+  for(int oth = 0; oth < n; oth++) {
+    int oth1 = gmod(oth+1, n);
+    int eid1 = gmod(co.eid+1, n);
+    if(same_point_may_warn(F * xsh.vertices[oth], T * xsh.vertices[co.eid]) && same_point_may_warn(F * xsh.vertices[oth1], T * xsh.vertices[eid1])) {
+      co.eid = oth;
+      return true;
+      }
+    if(same_point_may_warn(F * xsh.vertices[oth], T * xsh.vertices[eid1]) && same_point_may_warn(F * xsh.vertices[oth1], T * xsh.vertices[co.eid])) {
+      co.eid = oth; co.mirror = !co.mirror;
+      return true;
+      }
+    }
+  return false;
   }
 
 struct hrmap_arbi : hrmap {
@@ -830,7 +1473,7 @@ struct hrmap_arbi : hrmap {
 
     heptagon *alt = NULL;
     
-    if(hyperbolic) {
+    if(mhyperbolic) {
       dynamicval<eGeometry> g(geometry, gNormal); 
       alt = init_heptagon(S7);
       alt->s = hsOrigin;
@@ -838,7 +1481,7 @@ struct hrmap_arbi : hrmap {
       current_altmap = newAltMap(alt); 
       }
     
-    transmatrix T = xpush(.01241) * spin(1.4117) * xpush(0.1241) * Id;
+    transmatrix T = lxpush(.01241) * spin(1.4117) * lxpush(0.1241) * Id;
     arbi_matrix[origin] = make_pair(alt, T);
     altmap[alt].emplace_back(origin, T);
     
@@ -859,19 +1502,21 @@ struct hrmap_arbi : hrmap {
   void verify() override { }
 
   transmatrix adj(heptagon *h, int dl) override { 
-    return get_adj(current_or_slided(), id_of(h), dl, -1, h->c.move(dl) ? h->c.spin(dl) : -1);
+    if(h->c.move(dl))
+      return get_adj(current_or_slided(), id_of(h), dl, id_of(h->c.move(dl)), h->c.spin(dl), h->c.mirror(dl));
+    else
+      return get_adj(current_or_slided(), id_of(h), dl);
     }
 
   heptagon *create_step(heptagon *h, int d) override {
   
+    if(geom3::flipped) return geom3::in_not_flipped([&] { return create_step(h, d); });
     dynamicval<bool> sl(using_slided, false);
     int t = id_of(h);
   
     auto& sh = current.shapes[t];
     
     auto& co = sh.connections[d];
-    
-    auto& xsh = current.shapes[co.sid];
     
     if(cgflags & qAFFINE) {
       set<heptagon*> visited;
@@ -915,7 +1560,7 @@ struct hrmap_arbi : hrmap {
     
     transmatrix T = p.second * adj(h, d);
     
-    if(hyperbolic) {
+    if(mhyperbolic) {
       dynamicval<eGeometry> g(geometry, gNormal); 
       dynamicval<hrmap*> cm(currentmap, current_altmap);
       // transmatrix U = T;
@@ -923,25 +1568,21 @@ struct hrmap_arbi : hrmap {
       // U = U * inverse(T);
       }
     fixmatrix(T);
-    
-    if(euclid) {
+
+    if(meuclid) {
       /* hash the rough coordinates as heptagon* alt */
       size_t s = size_t(T[0][LDIM]+.261) * 124101 + size_t(T[1][LDIM]+.261) * 82143;
       alt = (heptagon*) s;
       }
 
-    for(auto& p2: altmap[alt]) if(id_of(p2.first) == co.sid && hdist(tC0(p2.second), tC0(T)) < 1e-2) {
-      for(int oth=0; oth < p2.first->type; oth++) {
-        ld err = hdist(p2.second * xsh.vertices[oth], T * xsh.vertices[co.eid]);
-        if(err < 1e-2) {
-          static ld max_err = 0;
-          if(err > max_err) {
-            println(hlog, "err = ", err);
-            max_err = err;
-            }
-          h->c.connect(d, p2.first, oth%p2.first->type, co.mirror);
-          return p2.first;
+    for(auto& p2: altmap[alt]) if(id_of(p2.first) == co.sid) {
+      connection_t co1 = co;
+      if(find_connection(T, p2.second, co1)) {
+        if(p2.first->move(co1.eid)) {
+          throw hr_exception("already connected!");
           }
+        h->c.connect(d, p2.first, co1.eid, co1.mirror);
+        return p2.first;
         }
       }
 
@@ -971,7 +1612,10 @@ struct hrmap_arbi : hrmap {
 
   hyperpoint get_corner(cell *c, int cid, ld cf) override {
     auto& sh = arb::current_or_slided().shapes[arb::id_of(c->master)];
-    return normalize(C0 + (sh.vertices[gmod(cid, c->type)] - C0) * 3 / cf);
+    int id = gmod(cid, c->type);
+    if(sh.angles[gmod(id-1, c->type)] <= 0)
+      return sh.vertices[id];
+    return normalize(C0 + (sh.vertices[id] - C0) * 3 / cf);
     }
 
   };
@@ -987,6 +1631,7 @@ EX void run(string fname) {
   try {
      load(fname);
      ginf[gArbitrary].tiling_name = current.name;
+     tes = fname;
      }
    catch(hr_polygon_error& poly) {
      set_geometry(g);
@@ -1020,35 +1665,49 @@ EX void run(string fname) {
 
 string slider_error;
 
-EX void sliders_changed() {
+EX void sliders_changed(bool need_restart, bool need_start) {
+  if(need_restart) stop_game();
+  auto& c = current_or_slided();
+  arbi_tiling backup = c;
   try {
-    load(current.filename, true);
-    using_slided = true;
+    load(current.filename, !need_restart, need_restart);
+    using_slided = !need_restart;
     slider_error = "OK";
     #if CAP_TEXTURE
     texture::config.remap();
     #endif
     }
   catch(hr_parse_exception& ex) {
-    using_slided = false;
+    c = backup;
     slider_error = ex.s;
     }
   catch(hr_polygon_error& poly) {
-    using_slided = false;
+    c = backup;
     slider_error = poly.generate_error();
     }
+  if(need_restart && need_start) start_game();
   }
 
 EX void set_sliders() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(1);
+  gamescreen();
   dialog::init(XLAT("tessellation sliders"));
+  dialog::addHelp(current.comment);
   char ch = 'A';
   for(auto& sl: current.sliders) {
     dialog::addSelItem(sl.name, fts(sl.current), ch++);
     dialog::add_action([&] {
       dialog::editNumber(sl.current, sl.min, sl.max, 1, sl.zero, sl.name, sl.name);
-      dialog::reaction = sliders_changed;
+      dialog::reaction = [] { sliders_changed(false, false); };
+      });
+    }
+  if(isize(current.intsliders))
+    dialog::addInfo(XLAT("the following sliders will restart the game"));
+  for(auto& sl: current.intsliders) {
+    dialog::addSelItem(sl.name, its(sl.current), ch++);
+    dialog::add_action([&] {
+      dialog::editNumber(sl.current, sl.min, sl.max, 1, sl.zero, sl.name, sl.name);
+      dialog::reaction = [] { sliders_changed(true, true); };
       });
     }
   dialog::addInfo(slider_error);
@@ -1112,7 +1771,6 @@ void be_identified(cellwalker cw1, cellwalker cw2) {
   if(id2.target != id1.target) {
     auto oid2 = id2;
     id1.modval = gcd(id1.modval, id2.modval);
-    if(id1.modval < 6 && t == 6) throw hr_exception("reducing hex");
     for(auto& p: identification) {
       auto& idr = p.second;
       if(idr.target == oid2.target) {
@@ -1129,7 +1787,6 @@ void be_identified(cellwalker cw1, cellwalker cw2) {
   if(d2 != d1) {
     auto oid2 = id2;
     id2.modval = gcd(id2.modval, abs(d2-d1));
-    if(id1.modval == 1 && t == 6) throw hr_exception("reducing hex");
     for(auto& p: identification) 
       if(p.second.target == oid2.target) p.second.modval = id2.modval;
     changes++;
@@ -1138,13 +1795,18 @@ void be_identified(cellwalker cw1, cellwalker cw2) {
     }
   }
 
-EX void convert() {
-  start_game();
+EX bool reverse_order;
+EX bool minimize_on_convert;
+
+EX void convert_max() {
   identification.clear(); changes = 0;
 
   manual_celllister cl;
   cl.add(currentmap->gamestart());
   
+  int more_tests = 1000;
+  pointer_indices.clear();
+
   int chg = -1;
   while(changes > chg) {
     changes = chg;
@@ -1155,7 +1817,10 @@ EX void convert() {
       auto c = cl.lst[i];
       auto& id = get_identification(c);
       
-      if(masters_analyzed.count(id.target)) continue;
+      if(masters_analyzed.count(id.target)) {
+        more_tests--;
+        if(more_tests < 0) continue;
+        }
       masters_analyzed.insert(id.target);
       
       cellwalker cw0(c, id.shift);
@@ -1183,7 +1848,82 @@ EX void convert() {
         }
       }
     }
+  }
+
+EX void convert_minimize(int N, vector<int>& old_shvids, map<int, int>& old_to_new) {
+  vector<pair<int, int>> address;
+  vector<int> next;
+  for(int i=0; i<N; i++) {
+    int q = identification[old_shvids[i]].modval;
+    int c = isize(address);
+    for(int j=0; j<q; j++) {
+      address.emplace_back(i, j);
+      next.emplace_back(j == q-1 ? c : c+j+1);
+      }
+    }
+
+  int K = isize(address);  
+  vector<array<ld, 3> > dists(K);
+  for(int i=0; i<K; i++) {
+    auto pi = address[i];
+    auto si = identification[old_shvids[pi.first]];
+    pi.second += si.shift;
+    array<hyperpoint, 3> pcorner;
+    array<ld, 3> pdists;
+
+    for(int j=0; j<3; j++)
+      pcorner[j] = currentmap->get_corner(si.sample, gmod(pi.second+j, si.sample->type));
+
+    for(int j=0; j<3; j++)
+      pdists[j] = hdist(pcorner[j], pcorner[(j+1)%3]);
+
+    dists[i] = pdists;
+    }
+
+  // this is O(K^3) and also possibly could get confused on convex/concave,
+  // but should be good enough, hopefully
   
+  vector<vector<int>> equal(K);
+  for(int i=0; i<K; i++) equal[i].resize(K, 0);
+  for(int i=0; i<K; i++)
+  for(int j=0; j<K; j++) {
+
+    equal[i][j] = true;
+    for(int s=0; s<3; s++)
+      equal[i][j] = equal[i][j] && abs(dists[i][s] - dists[j][s]) < 1e-6;
+    }
+  
+  int chg = 1;
+  while(chg) {
+    for(auto& eq: equal) println(hlog, eq);
+    chg = 0;
+    for(int i=0; i<K; i++)
+    for(int j=0; j<K; j++)
+      if(equal[i][j] && !equal[next[i]][next[j]]) {
+        equal[i][j] = false;
+        chg++;
+        }
+    }
+
+  for(int i=0; i<K; i++)
+  for(int j=0; j<K; j++) if(i!=j && equal[i][j]) {
+    auto pi = address[i];
+    auto si = identification[old_shvids[pi.first]];
+    cellwalker cwi(si.sample, si.shift + pi.second);
+
+    auto pj = address[j];
+    auto sj = identification[old_shvids[pj.first]];
+    cellwalker cwj(sj.sample, sj.shift + pj.second);
+
+    be_identified(cwi, cwj);
+    }
+  }
+
+EX void convert() {
+  start_game();
+  convert_max();
+  bool minimize = minimize_on_convert;
+  reidentify:
   vector<int> old_shvids;
   map<int, int> old_to_new;
   for(auto id: identification)
@@ -1192,6 +1932,20 @@ EX void convert() {
       old_shvids.push_back(id.first);
       }
   
+  int N = isize(old_shvids);
+  println(hlog, "N = ", N);
+  if(minimize) {
+    convert_minimize(N, old_shvids, old_to_new);
+    minimize = false;
+    goto reidentify;
+    }
+
+  if(reverse_order) {
+    reverse(old_shvids.begin(), old_shvids.end());
+    for(int i=0; i<isize(old_shvids); i++)
+      old_to_new[old_shvids[i]] = i;
+    }
+
   auto& ac = arb::current;
   ac.order++; 
   ac.comment = ac.filename = "converted from: " + full_geometry_name();
@@ -1199,12 +1953,11 @@ EX void convert() {
   ac.boundary_ratio = 1;
   ac.floor_scale = cgi.hexvdist / cgi.scalefactor;
   ac.range = cgi.base_distlimit;
-  int N = isize(old_shvids);
   ac.shapes.clear();
   ac.shapes.resize(N);
 
   ginf[gArbitrary].g = cginf.g;
-  ginf[gArbitrary].flags = cgflags & qBOUNDED;
+  ginf[gArbitrary].flags = cgflags & qCLOSED;
   
   for(int i=0; i<N; i++) {
     auto id = identification[old_shvids[i]];
@@ -1214,7 +1967,12 @@ EX void convert() {
     int t = s->type;
     sh.vertices.clear();
     sh.connections.clear();
-    sh.repeat_value = id.modval;
+    sh.cycle_length = id.modval;
+    sh.repeat_value = t / id.modval;
+    sh.flags = hr::pseudohept(s) ? arcm::sfPH : 0;
+    #if CAP_ARCM
+    if(arcm::in() && arcm::linespattern(s)) { sh.flags |= arcm::sfLINE; ac.have_line = true; }
+    #endif
     for(int j=0; j<t; j++) {
       auto co = currentmap->get_corner(s, j);
       sh.vertices.push_back(co);
@@ -1240,8 +1998,7 @@ EX void convert() {
       v0 = T * v0;
       v2 = T * v2;
       ld alpha = atan2(v0) - atan2(v2);
-      while(alpha > M_PI) alpha -= 360*degree;
-      while(alpha < -M_PI) alpha += 360*degree;
+      cyclefix(alpha, 0);
       sh.angles.push_back(alpha);
       }
     if(debugflags & DF_GEOM) {
@@ -1254,7 +2011,10 @@ EX void convert() {
       }
     }
   
-  arb::compute_vertex_valence();
+  arb::compute_vertex_valence(ac);
+
+  ac.have_ph = geosupport_football() ? 1 : 0;
+  arb::check_football_colorability(ac);
   }
 
 EX bool in() {
@@ -1284,8 +2044,8 @@ int readArgs() {
     shift(); 
     run(args());
     }
-  else if(argis("-arb-legacy")) {
-    legacy = true;
+  else if(argis("-tes-opt")) {
+     arg::run_arguments(current.options);
     }
   else if(argis("-arb-convert")) {
     try {
@@ -1296,6 +2056,12 @@ int readArgs() {
       println(hlog, "failed to convert: ", e.what());
       }
     }
+  else if(argis("-arb-unmirror")) {
+    shift(); do_unmirror = argi();
+    }
+  else if(argis("-arb-football")) {
+    shift(); extended_football = argi();
+    }
   else if(argis("-arb-slider")) {
     PHASEFROM(2);
     shift();
@@ -1303,7 +2069,14 @@ int readArgs() {
     bool found = true;
     for(auto& sl: current.sliders)
       if(sl.name == slider) {
-        shift_arg_formula(sl.current, sliders_changed);
+        shift_arg_formula(sl.current, [] { sliders_changed(false, false); });
+        found = true;
+        }
+    for(auto& sl: current.intsliders)
+      if(sl.name == slider) {
+        shift(); sl.current = argi();
+        stop_game();
+        sliders_changed(true, false);
         found = true;
         }
     if(!found) {
@@ -1320,7 +2093,7 @@ auto hook = addHook(hooks_args, 100, readArgs);
 
 EX bool in() { return geometry == gArbitrary; }
 
-EX string tes = "tessellations/sample/marjorie-rice.tes";
+EX string tes = find_file("tessellations/sample/marjorie-rice.tes");
 
 EX bool linespattern(cell *c) {
   return current.shapes[id_of(c->master)].flags & arcm::sfLINE;
@@ -1335,16 +2108,40 @@ EX void choose() {
   dialog::openFileDialog(tes, XLAT("open a tiling"), ".tes", 
   [] () {
     run(tes);
+    #if CAP_COMMANDLINE
+    if(!current.options.empty())
+      dialog::push_confirm_dialog([] { arg::run_arguments(current.options); start_game(); }, "load the settings defined in this file?");
+    #endif
     return true;
     });
   }
 
-#if MAXMDIM >= 4
-auto hooksw = addHook(hooks_swapdim, 100, [] {
+EX pair<ld, ld> rep_ideal(ld e, ld u IS(1)) {
+  ld alpha = TAU / e;
+  hyperpoint h1 = point3(cos(alpha)*u, -sin(alpha)*u, 1);
+  hyperpoint h2 = point3(u, 0, 1);
+  hyperpoint h3 = point3(cos(alpha)*u, sin(alpha)*u, 1);
+  hyperpoint h12 = mid(h1, h2);
+  hyperpoint h23 = mid(h2, h3);
+  ld len = hdist(h12, h23);
+  transmatrix T = gpushxto0(h12);
+  auto T0 = T * C0;
+  auto Th23 = T * h23;
+  ld beta = atan2(T0);
+  ld gamma = atan2(Th23);
+  return {len, 90._deg - (gamma - beta)};
+  }
+
+EX void swap_vertices() {
   for(auto& p: {&current, &slided}) 
     for(auto& s: p->shapes)
       for(auto& v: s.vertices)
-        swapmatrix(v);
+        swappoint(v);
+  }
+
+#if MAXMDIM >= 4
+auto hooksw = addHook(hooks_swapdim, 100, [] {
+  swap_vertices();
   for(auto& p: altmap) for(auto& pp: p.second) swapmatrix(pp.second);
   for(auto& p: arbi_matrix) swapmatrix(p.second.second);
   });

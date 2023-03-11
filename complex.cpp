@@ -15,7 +15,7 @@ EX namespace whirlwind {
   EX int fzebra3(cell *c) {
     if(arcm::in()) return 0;
     if(euclid) {
-      if(bounded) return 0;
+      if(closed_manifold) return 0;
       auto co = euc2_coordinates(c);
       int y = co.second;
       return 1+((((signed short)(y)+int(50000))/3)%3);
@@ -102,6 +102,7 @@ EX namespace whirlwind {
     again: 
     cell *at = whirlline[isize(whirlline)-1];
     cell *prev = whirlline[isize(whirlline)-2];
+    if(looped(whirlline)) return;
     for(int i=0; i<at->type; i++) 
       if(at->move(i) && (euclid || at->move(i)->master->alt) && celldistAlt(at->move(i)) == d && at->move(i) != prev) {
         whirlline.push_back(at->move(i));
@@ -144,7 +145,7 @@ EX namespace whirlwind {
         animateMovement(match(whirlline[i+1], whirlline[i]), LAYER_BOAT);
       }
     for(int i=0; i<z; i++) 
-      pickupMovedItems(whirlline[i]);
+      pickupMovedItems(whirlline[i], i==z-1 ? whirlline[0] : whirlline[i+1]);
     }
   
   EX void move() {
@@ -642,7 +643,7 @@ struct info {
         }
       if(newdist == OUT_OF_PRISON && princess::challenge) {
         addMessage(XLAT("Congratulations! Your score is %1.", its(i->value)));
-        achievement_gain_once("PRINCESS2");
+        achievement_gain_once("PRINCESS2", rg::princess);
         if(!cheater) achievement_score(36, i->value);
         LATE( showMissionScreen(); )
         }
@@ -1002,6 +1003,7 @@ EX namespace clearing {
     cell *c1 = c;
     if(c->mondir < c->type)
       c1 = c->move(c->mondir);
+    auto& expansion = get_expansion();
     return make_tuple(
       celldistAlt(c), type_in(expansion, c, celldistAlt), 
       celldistAlt(c1), type_in(expansion, c1, celldistAlt)
@@ -1009,7 +1011,7 @@ EX namespace clearing {
     }
   
   EX void imput(cell *c) {
-    if(bounded) return;
+    if(closed_manifold) return;
     if(score.count(c)) return;
     changes.map_value(score, c);
     auto& is = score[c];
@@ -1062,10 +1064,9 @@ EX namespace whirlpool {
     again: 
     cell *at = whirlline[isize(whirlline)-1];
     cell *prev = whirlline[isize(whirlline)-2];
+    if(looped(whirlline)) return;
     for(int i=0; i<at->type; i++) 
       if(at->move(i) && (eubinary || at->move(i)->master->alt) && celldistAlt(at->move(i)) == d && at->move(i) != prev) {
-        if(at->move(i) == whirlline[0]) return; // loops in weird geometries?
-        if(at->move(i) == whirlline[isize(whirlline)/2]) return; // even weirder geometry?
         whirlline.push_back(at->move(i));
         goto again;
         }
@@ -1119,8 +1120,8 @@ EX namespace whirlpool {
       if(wfrom->item == itKey || wfrom->item == itOrbYendor)
         for(int i=0; i<wto->type; i++) createMov(wto, i);
       moveItem(wfrom, wto, false);
-      pickupMovedItems(wfrom);
-      pickupMovedItems(wto);
+      pickupMovedItems(wfrom, wto);
+      pickupMovedItems(wto, wfrom);
       }
     
     if(wto && !wfrom) 
@@ -1215,7 +1216,7 @@ EX namespace mirror {
   #endif
   
   bool noMirrorOn(cell *c) {
-    return c->monst || (!shmup::on && isPlayerOn(c)) || (!bounded && c->cpdist > gamerange());
+    return c->monst || (!shmup::on && isPlayerOn(c)) || (!closed_or_bounded && c->cpdist > gamerange());
     }
 
   bool cellMirrorable(cell *c) {
@@ -1229,7 +1230,7 @@ EX namespace mirror {
       c->wall == waMirrorWall || c->wall == waPetrifiedBridge;
     }
 
-  void destroyKilled() {
+  EX void destroyKilled() {
     int j = 0;
     for(int i=0; i<isize(mirrors); i++)
       if(mirrors[i].second.at->monst == moMimic)
@@ -1445,7 +1446,8 @@ EX namespace mirror {
         changes.ccell(c);
         if(!m.second.mirrored) nummirage++;
         auto cw2 = m.second + wstep;
-        if(inmirror(cw2)) cw2 = reflect(cw2);
+        bool thru = inmirror(cw2);
+        if(thru) cw2 = reflect(cw2);
         cell *c2 = cw2.at;
         changes.ccell(c2);
         if(c2->monst) {
@@ -1463,7 +1465,11 @@ EX namespace mirror {
         else if(c2->wall == waSmallTree)
           c2->wall = waNone;
         if(fwd) {
-          if(noMirrorOn(c2) || !passable_for(moMimic, c2, c, P_MONSTER | P_MIRROR | P_MIRRORWALL)) {
+          if(thru && c == c2 && isAlchAny(c) && !checkflags(P_ISFRIEND | P_MONSTER | P_MIRROR | P_MIRRORWALL, P_AETHER)) {
+            survive = false;
+            continue;
+            }
+          if(noMirrorOn(c2) || !passable_for(moMimic, c2, c, P_ISFRIEND | P_MONSTER | P_MIRROR | P_MIRRORWALL)) {
             survive = false;
             continue;
             }
@@ -1709,7 +1715,7 @@ EX namespace hive {
   EX int bugcount[BUGCOLORS];
   
   bool isBugEnemy(cell *c, int k) {
-    if(isPlayerOn(c) && !invismove) return true;
+    if(isPlayerOn(c) && !invismove && !peace::on) return true;
     if(!c->monst) return false;
     if(c->monst == moBug0+k) return false;
     if(isIvy(c)) return false;
@@ -1864,13 +1870,16 @@ EX namespace hive {
       int gmoves[8], q=0, bqual = -1;
       
       if(againstRose(c, NULL)) bqual = -40;
+
+      auto getplayer = peace::on ? AF_GETPLAYER : 0;
   
       for(int dir=0; dir<c->type; dir++) {
         cell *c2 = c->move(dir);
         int qual = -10;
         if(!c2) continue;
         else if(againstRose(c, c2)) qual = -50;
-        else if(canAttack(c, m, c2, c2->monst, AF_GETPLAYER))
+        else if(isPlayerOn(c2) && peace::on) qual = -45;
+        else if(canAttack(c, m, c2, c2->monst, getplayer))
           qual = c2->monst == moDeadBug ? -60: isBugEnemy(c2,k) ? 2 : -20;
         else if(!passable(c2, c, 0)) 
           qual = passable(c2, c, P_DEADLY) ? -30 : -60;
@@ -1889,13 +1898,13 @@ EX namespace hive {
       int d = gmoves[hrand(q)];
       movei mi(c, d);
       auto& c2 = mi.t;
-      if(c2->monst || isPlayerOn(c2)) {
+      if(c2->monst || (isPlayerOn(c2) && !peace::on)) {
         eMonster killed = c2->monst;
-        if(isPlayerOn(c2)) killed = moPlayer;
+        if(isPlayerOn(c2) && !peace::on) killed = moPlayer;
         if(isBug(killed)) battlecount++;
         else if(killed != moPlayer && !fightspam(c2))
           addMessage(XLAT("%The1 fights with %the2!", c->monst, killed));
-        attackMonster(c2, AF_NORMAL | AF_GETPLAYER, c->monst);
+        attackMonster(c2, AF_NORMAL | getplayer, c->monst);
         // killMonster(c);
         if(isBug(killed)) {
           c2->monst = moDeadBug, deadbug.push_back(c2);
@@ -2073,7 +2082,7 @@ EX namespace heat {
         }
       }
     
-    offscreen_heat = move(offscreen2);
+    offscreen_heat = std::move(offscreen2);
   
     for(int i=0; i<numplayers(); i++) {
       cell *c = playerpos(i);
@@ -2320,7 +2329,7 @@ EX namespace heat {
         }
       }
    
-    offscreen_fire = move(offscreen2);
+    offscreen_fire = std::move(offscreen2);
     }  
 
 EX }
@@ -2547,10 +2556,8 @@ EX void livecaves() {
       if(hv > 0) c->wall = waCavefloor;
       if(hv < 0) {
         c->wall = waCavewall;
-        if(c->land != laCaves && c->land != laDeadCaves && c->land != laEmerald && !gardener) {
-          gardener = true;
+        if(c->land != laCaves && c->land != laDeadCaves && c->land != laEmerald)
           achievement_gain_once("GARDENER");
-          }
         }
       }
     else if(c->land == laLivefjord) {
@@ -2558,7 +2565,7 @@ EX void livecaves() {
       if(hv > 0 && c->wall == waNone) {
         if(c->item && c->cpdist == 1 && markOrb(itOrbWater)) {
           bool saf = c->item == itOrbSafety;
-          collectItem(c);
+          collectItem(c, c);
           if(saf) return;
           }
         c->wall = waSea;
@@ -2880,6 +2887,7 @@ EX namespace dragon {
       total += c->hitpoints;
       if(c->mondir == NODIR) return total;
       c = c->move(c->mondir);
+      if(!c) return total;
       }
     return total;
     }
@@ -2908,6 +2916,7 @@ EX namespace dragon {
           }
         while(c->mondir != NODIR) {
           c = c->move(c->mondir);
+          if(!c) return;
           c->stuntime = 2;
           }
         break;
@@ -2965,7 +2974,7 @@ EX namespace sword {
     };
   
   /** dimensions available to the Sword */
-  #define SWORDDIM (hybri ? 2 : WDIM)
+  #define SWORDDIM (mhybrid ? 2 : WDIM)
     
   #endif
 
@@ -2998,14 +3007,16 @@ EX namespace sword {
   
   EX cell *pos2(cell *c, int s) {
     int t = c->type;
-    if(hybri) t -= 2;
+    if(mhybrid) t -= 2;
     s *= 2;
     s += sword_angles/t;
     s %= (2 * sword_angles);
     if(s<0) s += sword_angles * 2;
     s *= t;
     s /= (sword_angles * 2);
-    return c->move(s);
+    auto c1 = c->move(s);
+    if(inmirror(c1)) c1 = mirror::reflect(c1).at;
+    return c1;
     }
   
   EX cell *pos(cell *c, const sworddir& sd, bool rev) {
@@ -3054,7 +3065,7 @@ EX namespace sword {
     neighborId(c2, c1);
     if(s1 < 0 || s2 < 0) return d;
     if(SWORDDIM == 2) {
-      int sub = (hybri) ? 2 : 0;
+      int sub = (mhybrid) ? 2 : 0;
       int t2 = c2->type - sub;
       int t1 = c1->type - sub;
       if(t1 == 0 || t2 == 0) return d;
@@ -3148,7 +3159,6 @@ EX namespace kraken {
     }
   
   EX void attacks() {
-    pathdata pd(2);
     bool offboat[MAXPLAYER];
     for(int i=0; i<MAXPLAYER; i++) offboat[i] = false;
     for(int i=0; i<isize(dcal); i++) {
@@ -3160,7 +3170,7 @@ EX namespace kraken {
           attackMonster(c2, AF_NORMAL | AF_MSG, c->monst);
           sleep(c);
           }
-        else for(int i=0; i<numplayers(); i++) if(playerpos(i) == c2) {
+        else for(int i=0; i<numplayers(); i++) if(playerpos(i) == c2 && !peace::on) {
           if(isPlayerInBoatOn(c2, i)) {
             addMessage(XLAT("%The1 destroys your boat!", moKrakenH));
             dboat = true;
@@ -3208,7 +3218,9 @@ EX namespace kraken {
     vector<pair<cell*, cell*> > acells;
     acells.push_back(make_pair(c2, c));
     forCellIdEx(c3, i, c) {
-      c3->monst = moKrakenT, c3->mondir = c->c.spin(i), c3->monmirror = c->monmirror ^ c->c.mirror(i), onpath(c3, 0);
+      c3->monst = moKrakenT;
+      c3->mondir = c->c.spin(i);
+      c3->monmirror = c->monmirror ^ c->c.mirror(i);
       int i0 = (i+c->c.spin(c->mondir)-c->mondir+96+c->type/2) % c2->type;
       c3->hitpoints = hpcount[i0];
       acells.push_back(make_pair(c2->move(i0), c3));
@@ -3240,7 +3252,6 @@ EX namespace kraken {
       }
     commitAnimations(LAYER_BIG);
     sleep(c);
-    onpath(c, 0);
     return;
     }
   
@@ -3270,7 +3281,7 @@ EX namespace prairie {
     if(ls::any_chaos()) {
       c->LHU.fi.rval = 0;
       }    
-    else if(quotient) { // fix cylinder
+    else if(quotient && geometry != gFieldQuotient) { // fix cylinder
       c->LHU.fi.rval = 0;
       }
     else if(euclid) {
@@ -3675,6 +3686,7 @@ auto ccm = addHook(hooks_clearmemory, 0, [] () {
     }) +
   addHook(hooks_removecells, 0, [] () {
     for(cell *c: removed_cells) clearing::score.erase(c);
+    for(auto& am: adj_memo) am.clear();
     eliminate_if(heat::offscreen_heat, is_cell_removed);
     eliminate_if(heat::offscreen_fire, is_cell_removed);
     eliminate_if(princess::infos, [] (princess::info*& i) { 
@@ -3745,6 +3757,7 @@ EX namespace windmap {
     }
 
   EX void create() {
+    if(disable_bigstuff) return;
     if(cgflags & qPORTALSPACE) return;
     samples.clear();
     neighbors.clear();
@@ -3755,7 +3768,7 @@ EX namespace windmap {
       // cw.spin = 0;
       neighbors.emplace_back();
       auto &v = neighbors.back();
-      if(NONSTDVAR && !sphere && !arcm::in() && !hybri && !INVERSE)
+      if(NONSTDVAR && !sphere && !arcm::in() && !mhybrid && !INVERSE)
         for(int l=0; l<S7; l++) {
           v.push_back(getId(cw + cth + l + wstep + cth));
           }
@@ -3772,7 +3785,7 @@ EX namespace windmap {
     if(N == 18920) precomp = windcodes18920;
     if(N == 5676) precomp = windcodes5676;
     
-    if(precomp && (hyperbolic || hybri) && isize(currfp.matrices)) {
+    if(precomp && (hyperbolic || mhybrid) && isize(currfp.matrices)) {
       int randval = hrand(isize(currfp.matrices));
       for(int i=0; i<N; i++)
         windcodes[i] = precomp[getid[fieldpattern::fieldval_uniq_rand(samples[i].at, randval)]-1];
@@ -3845,6 +3858,53 @@ EX }
 EX namespace halloween {
   EX cell *dragoncells[4];
   vector<cell*> srch;
+
+  EX void generate() {
+    auto lst = currentmap->allcells();
+    for(cell *c: lst)
+      setdist(c, 7, nullptr);
+
+    halloween::dragoncells[0] = NULL;
+
+    if(sphere && geometry == gSphere) {
+      for(cell *c: lst) {
+        if(GOLDBERG) {
+          int fv = c->master->fiftyval;
+          if(fv == 1 || fv == 4 || fv == 10)
+            c->wall = waChasm;
+          if(c == c->master->c7 && fv == 3)
+            c->item = itTreat;
+          }
+        else if(!BITRUNCATED) {
+          int fv = c->master->fiftyval;
+          if(fv == 1 || fv == 4 || fv == 2)
+            c->wall = waChasm;
+          if(fv == 3) c->item = itTreat;
+          }
+        else {
+          if(c->type == 5) {
+            int fv = c->master->fiftyval;
+            if(fv == 3 || fv == 4 || fv == 2 || fv == 5)
+              c->wall = waChasm;
+            if(fv == 2) halloween::dragoncells[0] = c;
+            if(fv == 5) halloween::dragoncells[3] = c;
+            if(fv == 1) c->item = itTreat;
+            }
+          if(c->type == 6) {
+            int fvset = 0;
+            for(int i=0; i<6; i+=2) fvset |= 1 << createMov(c, i)->master->fiftyval;
+            if(fvset == 35 || fvset == 7) c->wall = waChasm;
+            if(fvset == 7) halloween::dragoncells[1] = c;
+            if(fvset == 35) halloween::dragoncells[2] = c;
+            }
+          }
+        }
+      }
+    else {
+      for(int i=1; i<isize(lst); i+=60) lst[i]->item = itTreat;
+      for(int i=2; i<isize(lst); i+=6) lst[i]->wall = waChasm;
+      }
+    }
 
   cell *farempty(bool lastresort = false) {
     int maxdist = 0;

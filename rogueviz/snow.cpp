@@ -20,6 +20,18 @@ namespace rogueviz {
 
 namespace snow {
 
+using rogueviz::objmodels::model;
+using rogueviz::objmodels::tf_result;
+
+struct snowmodel : model {
+  ld scale;
+  transmatrix T;
+  snowmodel(string s, ld scale, transmatrix T) : model("rogueviz/models", s), scale(scale), T(T) {}
+  hyperpoint transform(hyperpoint h) override { return direct_exp(T*h*scale); }
+  };
+
+vector<snowmodel> models;
+
 ld snow_lambda = 0;
 
 color_t snow_color = 0xFFFFFFFF;
@@ -35,9 +47,25 @@ bool snow_glitch = false;
 /* disable textures */
 bool snow_texture = true;
 
+/* draw single objects? */
+bool single_objects = true;
+
+/* use random colors? */
+bool random_colors = false;
+
+/* just one snowball per cell, in the center */
+bool just_centered = false;
+
 int snow_shape = 0;
 
-map<cell*, vector<transmatrix> > matrices_at;
+struct snowball {
+  transmatrix T;
+  int model_id;
+  int object_id;
+  color_t color;
+  };
+
+map<cell*, vector<snowball>> snowballs_at;
 
 hpcshape& shapeid(int i) {
   switch(i) {
@@ -62,11 +90,11 @@ transmatrix random_snow_matrix(cell *c) {
     h[2] = -h[2];
     return rgpushxto0(h);
     }
-  else if(prod) {
+  else if(mproduct) {
     transmatrix T = PIU(random_snow_matrix(c));
-    return mscale(T, (randd() - .5) * cgi.plevel);
+    return orthogonal_move(T, (randd() - .5) * cgi.plevel);
     }
-  else if(hybri && !prod) {
+  else if(mhybrid && !mproduct) {
     return rots::lift_matrix(PIU(random_snow_matrix(c))); // * zpush((randd() - .5) * cgi.plevel);
     }
   else if(nonisotropic || bt::in()) {
@@ -104,8 +132,8 @@ transmatrix random_snow_matrix(cell *c) {
 
 bool draw_snow(cell *c, const shiftmatrix& V) {
   
-  if(!matrices_at.count(c)) {
-    auto& v = matrices_at[c];
+  if(!snowballs_at.count(c)) {
+    auto& v = snowballs_at[c];
     int cnt = 0;
     ld prob = randd();
     ld poisson = exp(-snow_lambda);
@@ -123,16 +151,39 @@ bool draw_snow(cell *c, const shiftmatrix& V) {
         cnt = snow_lambda;
         }
       }      
+    if(just_centered) cnt = 1;
 
-    for(int t=0; t<cnt; t++) 
-      v.push_back(random_snow_matrix(c));
+    for(int t=0; t<cnt; t++) {
+      snowball b{just_centered ? Id : random_snow_matrix(c), 0, -1, snow_color};
+      if(random_colors)
+        b.color = (hrand(0x1000000) << 8) | 0x808080FF;
+      if(isize(models)) {
+        b.model_id = hrand(isize(models));
+        if(single_objects)
+          b.object_id = hrand(isize(models[b.model_id].get().objindex)-1);
+        }
+      v.emplace_back(b);
+      }
     }
   
   poly_outline = 0xFF;
-  for(auto& T: matrices_at[c]) {
-    auto& p = queuepoly(V * T, shapeid(snow_shape), snow_color);
-    if(!snow_texture) p.tinf = nullptr;
-    if(snow_intense) p.flags |= POLY_INTENSE;
+  for(auto& T: snowballs_at[c]) {
+    if(models.size()) {
+     if(T.object_id == -1)
+        models[T.model_id].render(V*T.T);
+      else {
+        auto& m = models[T.model_id].get();
+        for(int i=m.objindex[T.object_id]; i<m.objindex[T.object_id+1]; i++) {
+          auto& obj = m.objs[i];
+          if(obj->color) queuepoly(V*T.T, obj->sh, obj->color);
+          }
+        }
+      }
+    else {
+      auto& p = queuepoly(V * T.T, shapeid(snow_shape), T.color);
+      if(!snow_texture) p.tinf = nullptr;
+      if(snow_intense) p.flags |= POLY_INTENSE;
+      }
     }
 
   return false;
@@ -158,28 +209,26 @@ void snow_slide(vector<tour::slide>& v, string title, string desc, reaction_t t)
     
     if(mode == pmStart) {
       stop_game();
-      tour::slide_backup(mapeditor::drawplayer, false);
       tour::slide_backup<ld>(snow_lambda, 1);
       tour::slide_backup(snow_color, 0xC0C0C0FF);
       tour::slide_backup(snow_intense, true);
-      tour::slide_backup(smooth_scrolling, true);
       t();
       start_game();
-      playermoved = false;
       }
+    rogueviz::pres::non_game_slide_scroll(mode);
     }}
     );
   }
 
 void show() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("snowballs"), 0xFFFFFFFF, 150, 0);
 
   dialog::addSelItem("lambda", fts(snow_lambda), 'l');
   dialog::add_action([]() {
     dialog::editNumber(snow_lambda, 0, 100, 1, 10, "lambda", "snowball density");
-    dialog::reaction = [] { matrices_at.clear(); };
+    dialog::reaction = [] { snowballs_at.clear(); };
     });
 
   dialog::addSelItem("size", fts(snow_shape), 's');
@@ -198,7 +247,7 @@ void o_key(o_funcs& v) {
 auto hchook = addHook(hooks_drawcell, 100, draw_snow)
 
 + addHook(hooks_clearmemory, 40, [] () {
-    matrices_at.clear();
+    snowballs_at.clear();
     })
 
 + addHook(hooks_o_key, 80, o_key)
@@ -229,10 +278,26 @@ auto hchook = addHook(hooks_drawcell, 100, draw_snow)
   else if(argis("-snow-glitch")) {
     snow_test = true;
     }
+  else if(argis("-use-model")) {
+    shift(); string s = args();
+    shift(); ld scale = argf();
+    shift(); int qty = argf();
+    for(int i=0; i<qty; i++) {
+      transmatrix T = random_spin();
+      println(hlog, "T = ", T);
+      models.emplace_back(s, scale, T);
+      s = "/" + s;
+      }
+    }
   else return 1;
   return 0;
   })
 #endif
+
++ addHook(hooks_configfile, 100, [] {
+    param_b(random_colors, "snow_random_colors");
+    param_b(just_centered, "snow_just_centered");
+    })
 
 + addHook_rvslides(161, [] (string s, vector<tour::slide>& v) {
   if(s != "noniso") return;
@@ -261,7 +326,8 @@ auto hchook = addHook(hooks_drawcell, 100, draw_snow)
     euc::build_torus3();
     set_geometry(gCubeTiling);
     snow_lambda = 20;
-    tour::on_restore([bak] { auto& T0 = euc::eu_input.user_axes; stop_game(); T0 = bak; euc::build_torus3(); start_game(); });
+    static bool once; once = false;
+    tour::on_restore([bak] { if(once) return; once = true; auto& T0 = euc::eu_input.user_axes; stop_game(); T0 = bak; euc::build_torus3(); start_game(); });
     });
   snow_slide(v, "Hyperbolic geometry", "To the contrary, in hyperbolic geometry, parallax works in a completely different way. Everything moves. This space is expanding everywhere. Exponentially. In every geometry, snowballs close to us behave in a similar way as in the Euclidean space.", [] {
     set_geometry(gSpace534);

@@ -22,7 +22,7 @@ hyperpoint find_point(ld t) {
   exp_parser ep;
   auto &dict = ep.extra_params;
   dict["t"] = t;
-  dict["phi"] = t * 2 * M_PI;
+  dict["phi"] = t * TAU;
   dict["x"] = tan(t * M_PI - M_PI/2);
   for(auto& ff: formula) {
     ep.s = ff;
@@ -87,7 +87,7 @@ int editwhich = -1;
 
 void show_graph() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);  
+  gamescreen();
   dialog::init(XLAT("graph"));
   for(int i=0; i<isize(formula); i++) {
     if(editwhich == i) {

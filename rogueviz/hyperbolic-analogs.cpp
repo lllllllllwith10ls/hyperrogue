@@ -29,7 +29,7 @@ vector<reaction_t> models_to_use = {
       pmodel = mdDisk;
       pconf.alpha = 1000;
       pconf.scale *= pconf.alpha;
-      View = cspin(1, 2, 20 * degree) * View;
+      View = cspin(1, 2, 20._deg) * View;
       }
     else {
       pmodel = mdHyperboloid;
@@ -112,7 +112,7 @@ vector<reaction_t> models_to_use = {
     pconf.scale = .5;
     if(sphere) pconf.scale *= 2;
     spherename = "loximuthal projection";
-    pconf.loximuthal_parameter = 15 * degree;
+    pconf.loximuthal_parameter = 15._deg;
     },
   [] {
     pmodel = mdSinusoidal;
@@ -276,13 +276,13 @@ EX void compare() {
   if(at4 == 0)
     earthpart = lerp(255, earthpart, t4);
   else if(at4 == 1)
-    View = spin(t4 * 180 * degree) * View;
+    View = spin(t4 * M_PI) * View;
   else if(at4 == 2)
-    View = xpush(t4 * M_PI) * spin(M_PI) * View;
+    View = xpush(t4 * M_PI) * spin180() * View;
   else if(at4 == 3)
-    View = ypush(t4 * M_PI) * xpush(M_PI) * spin(M_PI) * View;
+    View = ypush(t4 * M_PI) * xpush(M_PI) * spin180() * View;
   else if(at4 == 4) {
-    View = ypush(M_PI) * xpush(M_PI) * spin(M_PI) * View;
+    View = ypush(M_PI) * xpush(M_PI) * spin180() * View;
     earthpart = lerp(255, earthpart, 1-t4);
     }
   anims::moved();
@@ -331,7 +331,7 @@ int current_index = -1;
 
 void choose_projection() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("choose projection"), 0xFFFFFFFF, 150, 0);
   for(int i=0; i<isize(models_to_use); i++) {
     hypername = "";
@@ -355,7 +355,7 @@ void choose_projection() {
 
 void show() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("hyperbolic analogs"), 0xFFFFFFFF, 150, 0);
   add_edit(prec);
   dialog::addItem("choose a projection", 'p');
@@ -373,7 +373,7 @@ void enable() {
   using rogueviz::rv_hook;
   
   vid.linequality = 4;
-  firstland = specialland = laCanvas;
+  enable_canvas();
   patterns::whichCanvas = 'F';
 
   colortables['F'][0] = 0x80C080;
@@ -391,12 +391,12 @@ void enable() {
   dual::switch_to(0);
   set_geometry(gSphere);
   set_variation(eVariation::pure);
-  firstland = specialland = laCanvas;
+  enable_canvas();
 
   dual::switch_to(1);
   set_geometry(gNormal);
   set_variation(eVariation::pure);
-  firstland = specialland = laCanvas;
+  enable_canvas();
 
   rv_hook(hooks_frame, 100, draw_earth);
   rv_hook(hooks_drawcell, 100, restrict_cell);
@@ -440,6 +440,10 @@ auto msc = arg::add3("-analogs", enable)
           slide_url(mode, 'm', "HyperRogue page about projections", "http://www.roguetemple.com/z/hyper/models.php");
           setCanvas(mode, '0');
           if(mode == pmStart) {
+            slide_backup(mapeditor::drawplayer);
+            slide_backup(vid.use_smart_range);
+            slide_backup(vid.smart_range_detail);
+            slide_backup(vid.linequality);
             enable();
             start_game();
             slide_backup(cycle_models);

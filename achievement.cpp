@@ -109,10 +109,12 @@ EX bool wrongMode(char flags) {
   if(casual) return true;
   if(flags == rg::global) return false;
 
-  if(flags != rg::special_geometry) {
+  if(flags != rg::special_geometry && flags != rg::special_geometry_nicewalls) {
     if(!BITRUNCATED) return true;
     if(geometry != gNormal) return true;
+    if(disksize) return true;
     }
+  if(ineligible_starting_land && !flags) return true;
 
   if(shmup::on != (flags == rg::shmup || flags == rg::racing)) return true;
   if(racing::on != (flags == rg::racing)) return true;
@@ -124,16 +126,22 @@ EX bool wrongMode(char flags) {
   if(yendor::on) return true;
   if(peace::on) return true;
   if(tactic::on) return true;
-  if(dpgen::in) return true;
 #if CAP_TOUR
   if(tour::on) return true;
 #endif
-  if(flags == rg::special_geometry && !ls::single())
-    return true;
-  if(flags != rg::special_geometry && ineligible_starting_land)
-    return true;
-  if(flags == rg::chaos && !ls::std_chaos()) return true;
-  if(flags != rg::chaos && flags != rg::special_geometry && !ls::nice_walls()) return true;
+  eLandStructure dls = lsNiceWalls;
+  if(flags == rg::special_geometry || flags == rg::princess)
+    dls = lsSingle;
+  if(flags == rg::chaos)
+    dls = lsChaos;
+  /* in the official racing achievements, the tracks are saved maps anyway */
+  if(flags == rg::racing)
+    dls = land_structure;
+
+  if(land_structure != dls) return true;
+  if(numplayers() > 1 && !multi::friendly_fire) return true;
+  if(numplayers() > 1 && multi::pvp_mode) return true;
+  if(numplayers() > 1 && multi::split_screen) return true;
   if((numplayers() > 1) != (flags == rg::multi)) return true;
   return false;
   }
@@ -170,7 +178,7 @@ EX void achievement_log(const char* s, char flags) {
 #if CAP_SAVE
   remove_emergency_save();
 
-  FILE *f = fopen(scorefile, "at");
+  FILE *f = fopen(scorefile.c_str(), "at");
   if(!f) return;
   
   int t = (int) (time(NULL) - timerstart);
@@ -221,10 +229,10 @@ EX void achievement_collection2(eItem it, int q) {
   if(randomPatternsMode) return;
   LATE( achievement_collection2(it, q); )
 
-  if(it == itTreat && q == 50 && (geometry == gSphere || geometry == gElliptic) && BITRUNCATED) 
+  if(it == itTreat && q == 50 && (geometry == gSphere || geometry == gElliptic) && BITRUNCATED && !disksize)
     achievement_gain("HALLOWEEN1", rg::special_geometry);
 
-  if(it == itTreat && q == 100 && (geometry == gSphere || geometry == gElliptic) && BITRUNCATED) 
+  if(it == itTreat && q == 100 && (geometry == gSphere || geometry == gElliptic) && BITRUNCATED && !disksize)
     achievement_gain("HALLOWEEN2", rg::special_geometry);
 
   if(q == 1) {
@@ -305,12 +313,12 @@ EX void achievement_collection2(eItem it, int q) {
   // 32
   if(it == itHolyGrail) {
     if(q == 1) achievement_gain("GRAIL2");
-    if(PURE && geometry == gNormal)
-      achievement_gain("GRAILH", rg::special_geometry);
+    if(PURE && geometry == gNormal && !disksize)
+      achievement_gain("GRAILH", rg::special_geometry_nicewalls);
     #if CAP_CRYSTAL
-    if(PURE && cryst && ginf[gCrystal].sides == 8 && ginf[gCrystal].vertex == 4 && !crystal::used_compass_inside)
+    if(PURE && cryst && ginf[gCrystal].sides == 8 && ginf[gCrystal].vertex == 4 && !crystal::used_compass_inside && !disksize)
       achievement_gain("GRAIL4D", rg::special_geometry);
-    if(BITRUNCATED && cryst && ginf[gCrystal].sides == 8 && ginf[gCrystal].vertex == 3 && !crystal::used_compass_inside)
+    if(BITRUNCATED && cryst && ginf[gCrystal].sides == 8 && ginf[gCrystal].vertex == 3 && !crystal::used_compass_inside && !disksize)
       achievement_gain("GRAIL4D2", rg::special_geometry);
     #endif
     if(q == 3) achievement_gain("GRAIL3");
@@ -595,7 +603,7 @@ EX void achievement_count(const string& s, int current, int prev) {
     achievement_gain("LIGHTNING2");
   if(s == "LIGHTNING" && current-prev >= 10)
     achievement_gain("LIGHTNING3");
-  if(s == "MIRAGE" && current >= 35 && geometry == gEuclid)
+  if(s == "MIRAGE" && current >= 35 && geometry == gEuclid && !disksize)
     achievement_gain("MIRAGE", rg::special_geometry);
   if(s == "ORB" && current >= 10)
     achievement_gain("ORB3");
@@ -629,6 +637,7 @@ EX void achievement_score(int cat, int number) {
   if(cheater) return;
   if(casual) return;
   LATE( achievement_score(cat, number); )
+  if(disksize) return;
   if(cat == LB_HALLOWEEN) {
     if(geometry != gSphere && geometry != gElliptic)
       return;
@@ -776,6 +785,10 @@ EX void achievement_final(bool really_final) {
   if(ineligible_starting_land) return;
   if(geometry) return;
   if(NONSTDVAR) return;
+
+  if(numplayers() > 1 && !multi::friendly_fire) return;
+  if(numplayers() > 1 && multi::pvp_mode) return;
+  if(numplayers() > 1 && multi::split_screen) return;
   
   // determine the correct leaderboard ID for 'total score'
   // or return if no leaderboard for the current mode
@@ -862,7 +875,7 @@ EX void achievement_victory(bool hyper) {
   if(peace::on) return;
   if(tactic::on) return;
   if(!ls::nice_walls()) return;
-  if(!ineligible_starting_land) return;
+  if(ineligible_starting_land) return;
   LATE( achievement_victory(hyper); )
   DEBB(DF_STEAM, ("after checks"))
 
@@ -935,7 +948,7 @@ EX string get_rich_presence_text() {
     return "Guided Tour";
 
   string res;
-  if(geometry != gNormal || !BITRUNCATED) 
+  if(geometry != gNormal || !BITRUNCATED || disksize)
     res = res + full_geometry_name() + " ";
   
   if(land_structure != default_land_structure()) res += land_structure_name(false) + " ";

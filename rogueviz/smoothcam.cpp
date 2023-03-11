@@ -13,7 +13,7 @@ namespace hr {
 using pcell = cell*;
 
 inline void hread(hstream& hs, transmatrix& h) { for(int i=0; i<MDIM; i++) hread(hs, h[i]); }
-inline void hwrite(hstream& hs, transmatrix h) { for(int i=0; i<MDIM; i++) hwrite(hs, h[i]); }
+inline void hwrite(hstream& hs, const transmatrix& h) { for(int i=0; i<MDIM; i++) hwrite(hs, h[i]); }
 
 inline void hwrite(hstream& hs, const pcell& c) {
   hs.write<int>(mapstream::cellids[c]);
@@ -140,8 +140,8 @@ transmatrix try_harder_relative_matrix(cell *at, cell *from) {
   }
 
 void edit_segment(int aid) {
-  cmode = sm::SIDE;
-  gamescreen(0);
+  cmode = sm::PANNING;
+  gamescreen();
   dialog::init(XLAT("animation segment"), 0xFFFFFFFF, 150, 0);
   dialog::addSelItem("interval", fts(anims[aid].start_interval), 'i');
   edit_interval(anims[aid].start_interval);
@@ -180,8 +180,8 @@ void edit_segment(int aid) {
 void generate_trace();
 
 void edit_step(animation& anim, int id) {
-  cmode = sm::SIDE;
-  gamescreen(0);
+  cmode = 0;
+  gamescreen();
   dialog::init(XLAT("animation step"), 0xFFFFFFFF, 150, 0);
   auto& f = anim.frames[id];
   dialog::addSelItem("title", f.title, 't');
@@ -266,19 +266,62 @@ ld test_t = 0;
 ld c_front_dist = 0, c_up_dist = 0;
 void handle_animation(ld t);
 
+bool side = true;
+
+void snap_to_center() {
+  cmode = side ? sm::SIDE : 0;
+  gamescreen();
+  draw_crosshair();
+  dialog::init(XLAT("snap to center"), 0xFFFFFFFF, 150, 0);
+  
+  dialog::addItem("center on mouse", ' ');
+  dialog::add_action([] {
+    View = gpushxto0(unshift(mapeditor::mouse_snap())) * View;
+    });
+
+  dialog::addItem("mouse up", 'w');
+  dialog::add_action([] {
+    View = spin90() * spintox(unshift(mapeditor::mouse_snap())) * View;
+    });
+
+  dialog::addItem("mouse down", 's');
+  dialog::add_action([] {
+    View = spin270() * spintox(unshift(mapeditor::mouse_snap())) * View;
+    });
+
+  dialog::addItem("mouse left", 'a');
+  dialog::add_action([] {
+    View = spin180() * spintox(unshift(mapeditor::mouse_snap())) * View;
+    });
+
+  dialog::addItem("mouse left", 'd');
+  dialog::add_action([] {
+    View = Id * spintox(unshift(mapeditor::mouse_snap())) * View;
+    });
+
+  dialog::addBack();
+  dialog::display();
+  
+  keyhandler = [] (int sym, int uni) {
+    handlePanning(sym, uni);
+    dialog::handleNavigation(sym, uni);
+    if(doexiton(sym, uni)) popScreen();
+    };
+  }
+
 void show() {
-  cmode = sm::SIDE;
-  gamescreen(0);
+  cmode = side ? sm::SIDE : 0;
+  gamescreen();
   draw_crosshair();
   dialog::init(XLAT("smooth camera"), 0xFFFFFFFF, 150, 0);
-  char key = 'A';
   int aid = 0;
   
   labels.clear();
   
+  dialog::start_list(2000, 2000, 'A');
+  
   for(auto& anim: anims) {
-    if(key == 'Z'+1) key = 1;
-    dialog::addSelItem("segment #" + its(aid) + (&anim == current_segment ? "*" : ""), fts(anim.start_interval), key++);
+    dialog::addSelItem("segment #" + its(aid) + (&anim == current_segment ? "*" : ""), fts(anim.start_interval), dialog::list_fake_key++);
     dialog::add_action_push([aid] { edit_segment(aid); });
     int id = 0;
     for(auto& f: anim.frames) {
@@ -299,13 +342,13 @@ void show() {
           }
         }
         
-      if(key == 'Z'+1) key = 1;
-      dialog::addSelItem(f.title + " [" + dist + "]", fts(f.interval), key++);
+      dialog::addSelItem(f.title + " [" + dist + "]", fts(f.interval), dialog::list_fake_key++);
       dialog::add_action_push([&anim, id] { edit_step(anim, id); });
       id++;
       }
     aid++;
     }
+  dialog::end_list();
 
   if(current_segment) {
     dialog::addItem("create a new position", 'a');
@@ -336,6 +379,7 @@ void show() {
     view_trace = !view_trace;
     if(view_trace) generate_trace();
     });
+  dialog::addBoolItem_action("side display", side, 'm');
 
   dialog::addItem("test the animation", 't');
   dialog::add_action([] {
@@ -362,6 +406,11 @@ void show() {
     animate_on = !animate_on;
     last_time = HUGE_VAL;
     });
+  
+  if(GDIM == 2) {
+    dialog::addItem("centering", 'z');
+    dialog::add_action_push(snap_to_center);
+    }
     
   dialog::addHelp();
   dialog::add_action([] { gotoHelp(smooth_camera_help); });
@@ -376,7 +425,7 @@ void show() {
   }
 
 void prepare_for_interpolation(hyperpoint& h) {
-  if(prod) {
+  if(gproduct) {
     h[3] = zlevel(h);
     ld t = exp(h[3]);
     h[0] /= t;
@@ -386,7 +435,7 @@ void prepare_for_interpolation(hyperpoint& h) {
   }
 
 void after_interpolation(hyperpoint& h) {
-  if(prod) {
+  if(gproduct) {
     ld v = exp(h[3]) / sqrt(abs(intval(h, Hypc)));
     h[0] *= v;
     h[1] *= v;
@@ -395,6 +444,26 @@ void after_interpolation(hyperpoint& h) {
   else
     h = normalize(h);
   }
+
+ld interpolate(vector<ld> values, const vector<ld>& times, ld t) {
+  int n = isize(values);
+  // print(hlog, "interpolate: ", kz(values));
+
+  for(int ss=1; ss<=n-1; ss++) {
+    for(int a=0; a<n-ss; a++) {
+      // combining [a..a+(ss-1)] and [a+1..a+ss]
+      if(times[a+ss] == times[a])
+        values[a] = values[a] + (values[a+ss] - values[a]) * (t-times[a]);
+      else
+        values[a] = (values[a] * (times[a+ss] - t) + values[a+1] * (t - times[a])) / (times[a+ss] - times[a]);
+      }
+    values.pop_back();
+    }
+
+  // println(hlog, " -> ", values[0], " based on ", times, " -> ", t);
+  return values[0];
+  }
+
 
 void handle_animation(ld t) {
   ld total_total = 0;
@@ -436,47 +505,62 @@ void handle_animation(ld t) {
     total += f.interval;
     }
 
-  hyperpoint pts[3];
-  
-  for(int j=0; j<3; j++) {
-    for(int i=0; i<4; i++) {
+  transmatrix V = View;
+
+  if(embedded_plane) {
+    hyperpoint interm = C03;
+    for(int j=0; j<3; j++) {
+      vector<ld> values;
+      for(auto& f: anim.frames)
+        values.push_back(cgi.emb->actual_to_intermediate(f.V*tile_center())[j]);
+      interm[j] = interpolate(values, times, t);
+      }
+    transmatrix Rot = Id;
+    for(int j=0; j<3; j++) for(int k=0; k<3; k++) {
       vector<ld> values;
       for(auto& f: anim.frames) {
-        hyperpoint h;
-        if(j == 0)
-          h = tC0(f.V);
-        if(j == 1) {
-          h = tC0(parallel_transport(f.V, f.ori, ztangent(f.front_distance)));
-          }
-        if(j == 2) {
-          h = tC0(parallel_transport(f.V, f.ori, ctangent(1, -f.up_distance)));
-          }
-        prepare_for_interpolation(h);
-        values.push_back(h[i]);
+        transmatrix Rot = inverse(cgi.emb->map_relative_push(f.V*tile_center())) * f.V;
+        // if(j == 0 && k == 0) println(hlog, "Rot = ", kz(Rot));
+        if(nisot::local_perspective_used) Rot = Rot * f.ori;
+        values.push_back(Rot[j][k]);
         }
-      
-      int n = isize(values);
-      
-      for(int ss=1; ss<=n-1; ss++) {
-        for(int a=0; a<n-ss; a++) {
-          // combining [a..a+(ss-1)] and [a+1..a+ss]
-          if(times[a+ss] == times[a])
-            values[a] = values[a] + (values[a+ss] - values[a]) * (t-times[a]);
-          else
-            values[a] = (values[a] * (times[a+ss] - t) + values[a+1] * (t - times[a])) / (times[a+ss] - times[a]);
-          }
-        values.pop_back();
-        }
-      
-      pts[j][i] = values[0];
+      Rot[j][k] = interpolate(values, times, t);
       }
-    after_interpolation(pts[j]);
+    View = inverse(cgi.emb->intermediate_to_actual_translation(interm)); NLP = Id;
+    fix_rotation(Rot);
+    rotate_view(inverse(Rot));
     }
-  
-  transmatrix V = View;
-  set_view(pts[0], pts[1], pts[2]);
-  c_front_dist = geo_dist(pts[0], pts[1]);
-  c_up_dist = geo_dist(pts[0], pts[2]);
+
+  else {
+    hyperpoint pts[3];
+
+    for(int j=0; j<3; j++) {
+      for(int i=0; i<4; i++) {
+        vector<ld> values;
+        for(auto& f: anim.frames) {
+          hyperpoint h;
+          if(j == 0)
+            h = tC0(f.V);
+          if(j == 1) {
+            h = tC0(shift_object(f.V, f.ori, ztangent(f.front_distance), smGeodesic));
+            }
+          if(j == 2) {
+            h = tC0(shift_object(f.V, f.ori, ctangent(1, -f.up_distance), smGeodesic));
+            }
+          prepare_for_interpolation(h);
+          values.push_back(h[i]);
+          }
+
+        pts[j][i] = interpolate(values, times, t);
+        }
+      after_interpolation(pts[j]);
+      }
+
+    set_view(pts[0], pts[1], pts[2]);
+    println(hlog, "V = ", View);
+    c_front_dist = geo_dist(pts[0], pts[1]);
+    c_up_dist = geo_dist(pts[0], pts[2]);
+    }
 
   transmatrix T = View * inverse(last_view_comp);
   last_view_comp = View;
@@ -484,14 +568,7 @@ void handle_animation(ld t) {
   View = T * V;
   fixmatrix(View);
   
-  if(invalid_matrix(View)) {
-    println(hlog, "invalid_matrix ", View);
-    println(hlog, pts[0]);
-    println(hlog, pts[1]);
-    println(hlog, pts[2]);
-    println(hlog, "t = ", t);
-    exit(1);
-    }
+  if(invalid_matrix(View)) println(hlog, "invalid_matrix ", View, " at t = ", t);
   last_time = t;
   }
 
@@ -499,7 +576,7 @@ void handle_animation0() {
   if(!animate_on) return;
   handle_animation(ticks / anims::period);
   anims::moved();
-  println(hlog, "at ", cview());
+  // println(hlog, "at ", cview());
   }
 
 void generate_trace() {
@@ -571,7 +648,7 @@ void enable() {
   rogueviz::rv_hook(anims::hooks_anim, 100, handle_animation0);
   rogueviz::rv_hook(hooks_drawcell, 100, draw_labels);
   rogueviz::rv_hook(hooks_o_key, 190, [] (o_funcs& v) { v.push_back(named_dialog("smoothcam", show)); });
-  rogueviz::rv_hook(mapstream::hooks_savemap, 100, [] (fhstream& f) {
+  rogueviz::rv_hook(mapstream::hooks_savemap, 100, [] (hstream& f) {
     f.write<int>(17);
     hwrite(f, anims);
     });
@@ -592,18 +669,34 @@ auto hooks = arg::add3("-smoothcam", enable_and_show)
     animate_on = true;
     last_time = HUGE_VAL;
     })
+  + arg::add3("-smoothcam-anim-on", [] {
+    animate_on = true;
+    last_time = HUGE_VAL;
+    })
   + addHook(dialog::hooks_display_dialog, 100, [] () {
     if(current_screen_cfunction() == anims::show) {
       dialog::addItem(XLAT("smooth camera"), 'C'); 
       dialog::add_action(enable_and_show);
       }
     }) +
-  + addHook(mapstream::hooks_loadmap, 100, [] (fhstream& f, int id) {
+  + addHook(mapstream::hooks_loadmap, 100, [] (hstream& f, int id) {
     if(id == 17) {
       enable();
       hread(f, anims);
       current_segment = &anims.back();
       }
     });
+
+auto hooksw = addHook(hooks_swapdim, 100, [] {
+  last_segment = -1;
+  for(auto& anim: anims) {
+    anim.start = Id;
+    for(auto& f: anim.frames) {
+      transmatrix NLP = inverse(f.ori);
+      swapmatrix_iview(f.ori, f.V);
+      swapmatrix_view(NLP, f.sView);
+      }
+    }
+  });
 
 }}

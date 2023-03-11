@@ -19,7 +19,7 @@ enum pshape {pDart, pKite};
 #endif
 
 transmatrix meuscale(ld z) {
-  if(euclid) {
+  if(meuclid) {
     transmatrix T = Id;
     T[0][0] = z;
     T[1][1] = z;
@@ -30,7 +30,7 @@ transmatrix meuscale(ld z) {
   }
 
 transmatrix mspin(ld alpha) {
-  if(euclid)
+  if(meuclid)
     return spin(alpha);
   else
     return cspin(1, 2, alpha);
@@ -39,22 +39,22 @@ transmatrix mspin(ld alpha) {
 const ld euscale = 0.5;
 
 transmatrix meupush(ld x, ld y) {
-  if(euclid)
+  if(meuclid)
     return eupush(euscale * x, euscale * y);
   else
     return bt::parabolic3(x, y);
   }
 
 hyperpoint mhpxy(ld x, ld y) {
-  if(euclid) return hpxy(euscale * x, euscale * y);
+  if(meuclid) return hpxy(euscale * x, euscale * y);
   else return bt::parabolic3(x, y) * C0;
   }
 
 const ld phi = golden_phi;
 const ld rphi = 1 / phi;
 
-const ld down = 1 / tan(36 * degree);
-const ld up = 1 / tan(72 * degree);
+const ld down = 1 / tan(36._deg);
+const ld up = 1 / tan(72._deg);
 
 const ld dart_center = (down + 2 * up) / 3;
 const ld kite_center = up;
@@ -82,8 +82,8 @@ EX pair<vector<vector<hyperpoint>>, vector<vector<ld>>> make_walls() {
     hyperpoint dtop    = meupush( 0, shf+t*up) * meuscale(rphi) * C0;
     hyperpoint dbottom = meupush( 0, shf-down) * meuscale(rphi) * C0;
     
-    hyperpoint dleftmid = (!kite) ? meupush(0, shf-down) * meuscale(rphi) * meupush(-1, down) * C0 : meupush(0, shf-down) * meuscale(rphi) * mspin(-36 * degree) * meupush(0, down - up) * C0;
-    hyperpoint drightmid = (!kite) ? meupush(0, shf-down) * meuscale(rphi) * meupush(1, down) * C0 : meupush(0, shf-down) * meuscale(rphi) * mspin(36 * degree) * meupush(0, down - up) * C0;
+    hyperpoint dleftmid = (!kite) ? meupush(0, shf-down) * meuscale(rphi) * meupush(-1, down) * C0 : meupush(0, shf-down) * meuscale(rphi) * mspin(-36._deg) * meupush(0, down - up) * C0;
+    hyperpoint drightmid = (!kite) ? meupush(0, shf-down) * meuscale(rphi) * meupush(1, down) * C0 : meupush(0, shf-down) * meuscale(rphi) * mspin(36._deg) * meupush(0, down - up) * C0;
     
     hyperpoint dcenter = meupush( 0, shf-up) * meuscale(rphi) * C0;
     
@@ -161,7 +161,7 @@ struct hrmap_kite : hrmap {
     h->s = hstate(s);
     h->dm4 = h->distance = dist;
     if(bt::in() || dist == 0)
-      h->c7 = newCell(euclid ? 4 : s == pKite ? 12 : 10, h);
+      h->c7 = newCell(meuclid ? 4 : s == pKite ? 12 : 10, h);
     return h;
     }
   
@@ -247,12 +247,16 @@ struct hrmap_kite : hrmap {
     }
 
   void make_graphrules() {
-    pKite1 = meupush(-1, kite_center + 0) * mspin(108 * degree) * meuscale(rphi) * meupush(0, down - kite_center);
-    pKite2 = meupush(1, kite_center + 0) * mspin(-108 * degree) * meuscale(rphi) * meupush(0, down - kite_center);
-    pKite3 = meupush(0, kite_center - down) * mspin(36 * degree) * meuscale(rphi) * meupush(0, down - dart_center);
+    bool f = geom3::flipped;
+    bool emb = embedded_plane;
+    if(emb) geom3::light_flip(true);
+
+    pKite1 = meupush(-1, kite_center + 0) * mspin(108._deg) * meuscale(rphi) * meupush(0, down - kite_center);
+    pKite2 = meupush(1, kite_center + 0) * mspin(-108._deg) * meuscale(rphi) * meupush(0, down - kite_center);
+    pKite3 = meupush(0, kite_center - down) * mspin(36._deg) * meuscale(rphi) * meupush(0, down - dart_center);
     
     pDart1 = meupush(0, dart_center-down) * meuscale(rphi) * meupush(0, down - kite_center);
-    pDart2 = meupush(-1, dart_center+0) * mspin((54 + 90) * degree) * meuscale(rphi) * meupush(0, down - dart_center);
+    pDart2 = meupush(-1, dart_center+0) * mspin(144._deg) * meuscale(rphi) * meupush(0, down - dart_center);
     
     ipKite1 = inverse(pKite1);
     ipKite2 = inverse(pKite2);
@@ -298,6 +302,13 @@ struct hrmap_kite : hrmap {
     graphrule(pKite, 9, pKite, 4, pKite1);
     graphrule(pKite, 10, pDart, 4, pKite3);
     graphrule(pKite, 11, pDart, 5, ipKite1 * ipDart1 * pDart2 * pDart2 * pDart2);
+
+    if(emb) {
+      geom3::light_flip(false);
+      for(auto& g: graphrules) g.second = cgi.emb->base_to_actual(g.second);
+
+      geom3::light_flip(f);
+      }
     }
 
   transmatrix adj(cell *c, int dir) override {

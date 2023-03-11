@@ -266,6 +266,10 @@ EX void activateSafety(eLand l) {
     save_turns = turncount;
     }
   #endif
+  if(items[itOrbChoice]) {
+    items[itOrbChoice] = 0;
+    cwt.at->item = itOrbSafety;
+    }
   }
 
 EX void placeGolem(cell *on, cell *moveto, eMonster m) {
@@ -389,7 +393,11 @@ EX void pushThumper(const movei& mi) {
     if(w == waRichDie && dice::data[cto].happy() > 0) {
       cto->wall = waHappyDie;
       if(cto->land == laDice && th->land == laDice) {
+        int q = items[itDice];
         gainItem(itDice);
+        if(vid.bubbles_all || (threshold_met(items[itDice]) > threshold_met(q) && vid.bubbles_threshold)) {
+          drawBubble(cto, iinf[itDice].color, its(items[itDice]), 0.5);
+          }
         addMessage(XLAT("The die is now happy, and you are rewarded!"));
         }
       else {

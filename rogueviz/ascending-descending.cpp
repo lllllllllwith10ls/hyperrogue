@@ -85,7 +85,7 @@ pair<hyperpoint, hyperpoint> trace_path(ld v) {
   hyperpoint lctr = A;
   ld angle = 0;
   
-  ld arclen = radius * M_PI/2;
+  ld arclen = radius * 90._deg;
   
   auto change_angle = [&] (ld x) {
     if(v == 0) return;
@@ -109,7 +109,7 @@ pair<hyperpoint, hyperpoint> trace_path(ld v) {
   change_angle(4);
   shift_to(E, true);
   
-  angle *= M_PI/2;
+  angle *= 90._deg;
   
   if(v > 0) vperiod = vorig - v;
   
@@ -197,13 +197,26 @@ void prepare_nilform() {
   println(hlog, "scale = ", scale);
   println(hlog, nilize(E).second);  
   
-  vperiod = radius * 2 * M_PI + hypot_d(3, B-A) + hypot_d(3, C-B) + hypot_d(3, D-C) + hypot_d(3, E-D);
+  vperiod = radius * TAU + hypot_d(3, B-A) + hypot_d(3, C-B) + hypot_d(3, D-C) + hypot_d(3, E-D);
   println(hlog, "vperiod = ", vperiod);
   
   make_routes();
   }
 
-model staircase("rogueviz/nil/", "aco.obj", nilize);
+struct nilmodel : model {
+  hyperpoint transform(hyperpoint h) override { return nilize(h).second; }
+  void process_triangle(vector<hyperpoint>& hys, vector<hyperpoint>& tot, bool textured, object *co) {
+    auto n0 = nilize(hys[0]).first;
+    auto n1 = nilize(hys[1]).first;
+    auto n2 = nilize(hys[2]).first;
+    auto mi = min(n0, min(n1, n2));
+    auto ma = max(n0, max(n1, n2));
+    if(ma - mi > 1) return;
+    model::process_triangle(hys, tot, textured, co);
+    }
+  };
+
+nilmodel staircase;
 
 bool draw_ply() {
 
@@ -216,7 +229,7 @@ bool draw_ply() {
 
 void show() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("Ascending & Descending"), 0xFFFFFFFF, 150, 0);
 
   dialog::addSelItem("advance", fts(advance), 'a');
@@ -260,6 +273,12 @@ void enable() {
     t *= 1000;
     
     centerover = currentmap->gamestart();
+
+    #if CAP_VR
+    if(vrhr::active())
+      View = gpushxto0(interpolate_at(route, t));
+    else
+    #endif
     set_view(
       interpolate_at(route, t),
       interpolate_at(forwards, t),

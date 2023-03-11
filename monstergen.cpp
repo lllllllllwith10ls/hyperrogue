@@ -341,7 +341,6 @@ EX void wandering() {
   if(!canmove) return;
   if(!gen_wandering) return;
   if(racing::on) return;
-  if(dpgen::in) return;
   if(items[itOrbSafety]) return;
   pathdata pd(moYeti);
   int seepcount = getSeepcount();
@@ -349,18 +348,20 @@ EX void wandering() {
   if(cwt.at->land == laCA) ghostcount = 0;
   bool genturn = hrand(100) < 30;
   
-  if(bounded && specialland == laClearing)
+  if(closed_or_bounded && specialland == laClearing)
     clearing::new_root();
 
   if(cwt.at->land == laZebra && cwt.at->wall == waNone && wchance(items[itZebra], 20))
     wanderingZebra(cwt.at);
-  
-  bool smallbounded_generation = smallbounded || (bounded && specialland == laClearing);
-  
+
+  bool smallbounded_generation = smallbounded || (closed_manifold && specialland == laClearing);
+
+  auto valid = [] (cell *c) { if(disksize && !is_in_disk(c)) return false; if(inmirror(c)) return false; return true; };
+
   if(smallbounded_generation) {
     int maxdist = 0;
-    for(int i=0; i<isize(dcal); i++) if(dcal[i]->cpdist > maxdist) maxdist = dcal[i]->cpdist;
-    for(int i=0; i<isize(dcal); i++) if(dcal[i]->cpdist >= maxdist-1) { first7 = i; break; }
+    for(int i=0; i<isize(dcal); i++) if(valid(dcal[i])) if(dcal[i]->cpdist > maxdist) maxdist = dcal[i]->cpdist;
+    for(int i=0; i<isize(dcal); i++) if(valid(dcal[i])) if(dcal[i]->cpdist >= maxdist-1) { first7 = i; break; }
     
     if(hrand(5) == 0) {
       // spawn treasure
@@ -376,10 +377,12 @@ EX void wandering() {
       }
     }
   
+  int iter = 0;
   while(first7 < isize(dcal)) {
+    iter++; if(iter > 1000) break;
     int i = first7 + hrand(isize(dcal) - first7);
     cell *c = dcal[i];
-    if(inmirror(c)) continue;
+    if(!valid(c)) continue;
     if(isPlayerOn(c)) break;
     
     if(specialland == laStorms) {
@@ -807,7 +810,7 @@ EX void generateSnake(cell *c, int i, int snakecolor) {
     c2 = c3;
     c2->monst = moHexSnakeTail; c2->hitpoints = snakecolor;
     int t = c2->type;
-    if(hybri) t -= 2;
+    if(mhybrid) t -= 2;
     i = (j + (t%4 == 0 ? t/2 : (len%2 ? 2 : t - 2))) % t;
     createMov(c2, i);
     if(!inpair(c2->move(i), cpair)) {

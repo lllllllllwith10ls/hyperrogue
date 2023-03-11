@@ -139,7 +139,7 @@ EX string land_structure_name(bool which) {
   }
 
 EX void fix_land_structure_choice() {  
-  if(bounded) {
+  if(closed_or_bounded) {
     if(land_structure != lsTotalChaos && land_structure != lsChaosRW)
       land_structure = lsSingle;
     }
@@ -155,7 +155,7 @@ EX void fix_land_structure_choice() {
     land_structure = lsSingle;
   if(land_structure == lsPatchedChaos && !(stdeuc || nil || cryst || (euclid && WDIM == 3)))
     land_structure = lsSingle;
-  if(bounded && !among(land_structure, lsChaosRW, lsTotalChaos, lsSingle))
+  if(closed_or_bounded && !among(land_structure, lsChaosRW, lsTotalChaos, lsSingle))
     land_structure = lsSingle;
   }
 
@@ -271,6 +271,9 @@ EX bool incompatible1(eLand l1, eLand l2) {
   if(l1 == laPrairie && l2 == laCrossroads4) return true;
   if(l1 == laWet && l2 == laDesert) return true;
   if(l1 == laFrog && l2 == laMotion) return true;
+  if(l1 == laBull && l2 == laTerracotta) return true;
+  if(l1 == laReptile && l2 == laTerracotta) return true;
+  if(l1 == laBull && l2 == laDeadCaves) return true;
   if(isElemental(l1) && isElemental(l2)) return true;
   return false;
   }
@@ -364,13 +367,28 @@ EX hookset<eLand(eLand)> hooks_nextland;
 
 EX bool all_unlocked = false;
 
+EX vector<eLand> cheatdest_list;
+
 EX eLand getNewLand(eLand old) {
+
+  #if CAP_LEGACY
+  if(legacy_racing()) {
+    if(old == laMirror && hrand(10) >= ((tactic::on || racing::on) ? 0 : markOrb(itOrbLuck) ? 5 : 2)) return laMirrored;
+    if(old == laTerracotta && hrand(5) >= ((tactic::on || racing::on) ? 0 : markOrb(itOrbLuck) ? 2 : 1) && !weirdhyperbolic) return laTerracotta;
+    }
+  #endif
 
   eLand l = callhandlers(laNone, hooks_nextland, old);
   if(l) return l;
   
-  if(cheatdest != old) if(!isCyclic(cheatdest) && !isTechnicalLand(cheatdest)) return cheatdest;
+  if(cheatdest != old && cheatdest != laElementalWall) if(!isCyclic(cheatdest) && !isTechnicalLand(cheatdest)) return cheatdest;
   
+  if(cheatdest_list.size()) {
+    eLand l = cheatdest_list[0];
+    std::rotate(cheatdest_list.begin(), cheatdest_list.begin()+1, cheatdest_list.end());
+    return l;
+    }
+
   if(old == laTortoise) return laDragon;
 
   if(yendor::on && ls::any_chaos()) {
@@ -415,7 +433,12 @@ EX eLand getNewLand(eLand old) {
   #endif
 
   if(tactic::on) return specialland;
-  if(specialland != old && easy_to_find_specialland) return specialland;
+  if(specialland != old && easy_to_find_specialland && specialland != laElementalWall) return specialland;
+
+  if(specialland != old && easy_specialland && specialland != laElementalWall) {
+    easy_specialland--;
+    return specialland;
+    }
 
   if(yendor::on && (yendor::clev().flags & YF_WALLS)) {
     if(old != yendor::clev().l) return yendor::clev().l;
@@ -526,8 +549,8 @@ EX eLand getNewLand(eLand old) {
     if(!ls::std_chaos()) tab[cnt++] = laPrairie;
     if(old == laPrairie) LIKELY tab[cnt++] = laBull;
     if(old == laBull && !ls::any_chaos()) LIKELY tab[cnt++] = laPrairie;
-    if(ls::std_chaos() && geometry) tab[cnt++] = laDual;
-    if(ls::std_chaos() && geosupport_threecolor()) tab[cnt++] = laSnakeNest;
+    tab[cnt++] = laDual;
+    tab[cnt++] = laSnakeNest;
     }
   
   if(landUnlocked(laTrollheim)) {
@@ -601,6 +624,7 @@ namespace lv {
   static const flagtype appears_in_ptm = 8;
   static const flagtype display_in_help = 16;
   static const flagtype one_and_half = 32;
+  static const flagtype switch_to_single = 64;
   }
 
 struct land_validity_t {
@@ -696,6 +720,7 @@ namespace lv {
   land_validity_t shmup_only = {0, q0, "This land works only in the shmup mode."}; 
   land_validity_t not_in_shmup = {0, q0, "This land is not available in the shmup mode."}; 
   land_validity_t not_in_multi = {0, q0, "This land is not available in multiplayer."}; 
+  land_validity_t single_only = {2, q0 | switch_to_single, "Available in single land mode only." };
   }
 
 // old Daily Challenges should keep their validity forever
@@ -707,9 +732,9 @@ const int landscapes_when = 177;
 
 EX const int frog_when = 205;
 
-EX const int cursed_when = 9999; /* don't do Dice and Curse for now in daily */
+EX const int cursed_when = 386;
 
-EX const int walls_when = 9999; /* don't do walls for now in daily */
+EX const int walls_when = 388;
 
 // check if the given land should appear in lists
 EX land_validity_t& land_validity(eLand l) {
@@ -743,7 +768,7 @@ EX land_validity_t& land_validity(eLand l) {
   if(walls_not_implemented() && isCrossroads(l))
     return no_walls;
   
-  if(hybri || hybrid::pmap) {
+  if(mhybrid || hybrid::pmap) {
     if(among(l, laPrincessQuest, laPrairie, laMirrorOld, laMirror, laDual, laWarpCoast, laKraken, laBrownian, laWhirlpool, laWestWall, laHive, laClearing, laWhirlwind, laBlizzard, laBull, laTerracotta, laCrossroads5,
       laEndorian, laDungeon, laMountain))
       return lv::not_implemented;
@@ -751,7 +776,7 @@ EX land_validity_t& land_validity(eLand l) {
       return lv::bad_graphics;
     if((hybrid::actual_geometry == gRotSpace || geometry == gRotSpace) && l == laDryForest)
       return lv::hedgehogs;
-    if(hybri && hybrid::underlying && hybrid::underlying_cgip) {
+    if(mhybrid && hybrid::underlying && hybrid::underlying_cgip) {
       return *PIU(&land_validity(l));
       }
     }
@@ -766,12 +791,12 @@ EX land_validity_t& land_validity(eLand l) {
     return disabled;
   #endif
 
-  if(l == laMinefield && bounded)
+  if(l == laMinefield && closed_or_bounded)
     return special_geo3;
   
   if(l == laAsteroids) {
     if(!shmup::on) return shmup_only;
-    if(!bounded) return bounded_only;
+    if(!closed_manifold) return bounded_only;
     return specially_designed;
     }
   
@@ -890,7 +915,7 @@ EX land_validity_t& land_validity(eLand l) {
     return not_implemented; 
   
   // Halloween needs bounded world (can be big bounded)
-  if(l == laHalloween && !bounded)
+  if(l == laHalloween && !closed_or_bounded)
     return bounded_only;
   
   // Crystal World is designed for nice_dual geometries
@@ -949,18 +974,22 @@ EX land_validity_t& land_validity(eLand l) {
     if(geometry == gBinary4)
       return not_implemented;
     // no equidistants supported in these geometries (big sphere is OK though)
-    if(bounded && !bigsphere)
+    if(closed_or_bounded && !bigsphere)
       return unbounded_only_except_bigsphere;
     // Yendorian only implemented in standard
     if(l == laEndorian && geometry)
       return not_implemented;
     // special Euclidean implementations
-    if(euclid && (l == laIvoryTower || l == laMountain || l == laOcean || l == laMountain)) 
+    if(euclid && !ls::single() && old_daily_id > 9999) return single_only;
+    if(euclid && (l == laIvoryTower || l == laMountain || l == laOcean || l == laMountain)) {
       return special_geo;
+      }
     // in other geometries, it works
     if(geometry)
       return ok;
     }
+
+  if(euclid && l == laCaribbean && !ls::single() && old_daily_id > 9999) return single_only;
   
   if(l == laPrincessQuest && ls::any_chaos())
     return not_in_chaos;
@@ -989,7 +1018,7 @@ EX land_validity_t& land_validity(eLand l) {
   
   if(l == laClearing)
     if(!(stdeucx || geometry == gBinaryTiling || a38 || (a45 && BITRUNCATED) || (a47 && BITRUNCATED)) || NONSTDVAR)
-    if(!bounded)
+    if(!closed_or_bounded)
       return not_implemented;
 
   // does not work in non-bitrunc a4
@@ -997,7 +1026,7 @@ EX land_validity_t& land_validity(eLand l) {
     return some0;
 
   // does not work in bounded either
-  if(l == laOvergrown && bounded)
+  if(l == laOvergrown && closed_or_bounded)
     return some0;
   
   // horocycle-based lands, not available in bounded geometries nor in Chaos mode
@@ -1008,7 +1037,7 @@ EX land_validity_t& land_validity(eLand l) {
       return not_in_chaos;
       }
     if(arcm::in() || kite::in()) return not_implemented;
-    if(bounded) return unbounded_only;
+    if(closed_or_bounded) return unbounded_only;
     if(INVERSE) return not_implemented;
     }
   
@@ -1049,7 +1078,7 @@ EX land_validity_t& land_validity(eLand l) {
     return technical;
   
   // only in bounded geometry, and not in PTM
-  if(l == laCA && !bounded)
+  if(l == laCA && !closed_or_bounded)
     return bounded_only;
 
   if(l == laCA && tactic::on)
@@ -1106,7 +1135,7 @@ EX land_validity_t& land_validity(eLand l) {
   if(l == laStorms && hyperbolic_not37)
     return pattern_not_implemented_random;
   
-  if(l == laTrollheim && !stdeucx && !bounded)
+  if(l == laTrollheim && !stdeucx && !closed_or_bounded)
     return some1;
 
   if(l == laReptile && sol) return ugly_version_nofull;
@@ -1159,7 +1188,7 @@ EX land_validity_t& land_validity(eLand l) {
   if(l == laPrairie) {
     if(GOLDBERG) return not_implemented;
     else if(stdeucx || (bigsphere && BITRUNCATED && !elliptic) || (geometry == gFieldQuotient)) ;
-    else if(!bounded) return not_implemented;
+    else if(!closed_or_bounded) return not_implemented;
     else return unbounded_only;
     }
   
@@ -1176,10 +1205,10 @@ EX land_validity_t& land_validity(eLand l) {
   if(sol && l == laCamelot)
     return not_implemented;
 
-  if(euclid && quotient && !bounded && l == laCrossroads && euc::sdxy().second == -2 * euc::sdxy().first)
+  if(euclid && quotient && !closed_or_bounded && l == laCrossroads && euc::sdxy().second == -2 * euc::sdxy().first)
     return full_game;
   
-  if(euclid && quotient && !bounded && l == laCrossroads4 && euc::sdxy().second == 0)
+  if(euclid && quotient && !closed_or_bounded && l == laCrossroads4 && euc::sdxy().second == 0)
     return full_game;
   
   // highlight Zebra-based lands on Zebra Quotient!
@@ -1216,7 +1245,7 @@ EX land_validity_t& land_validity(eLand l) {
     return pattern_not_implemented_exclude;
     }
   
-  if(l == laStorms && euclid && bounded) 
+  if(l == laStorms && euclid && closed_manifold)
     return interesting;
   
   if(l == laMagnetic)

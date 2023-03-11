@@ -21,20 +21,22 @@ using namespace rogueviz::objmodels;
 
 void prepare_tf();
 
-model city("rogueviz/models/", "emilejohansson_p2.obj", default_transformer, prepare_tf);
+struct citymodel : model {
+  citymodel() : model("rogueviz/models/", "emilejohansson_p2.obj") {}
 
-hyperpoint low, high;
+  hyperpoint low, high;
+  ld t;
 
-void prepare_tf() {
-  
-  for(int i=0; i<4; i++) low[i] = 100, high[i] = -100;
+  void prepare() override {
+    for(int i=0; i<4; i++) low[i] = 100, high[i] = -100;
 
-  cgi.require_basics();
-  hyperpoint corner = get_corner_position(cwt.at, 0);
-  
-  ld t = abs(corner[0] / corner[3]);
+    cgi.require_basics();
+    hyperpoint corner = get_corner_position(cwt.at, 0);
+    
+    t = abs(corner[0] / corner[3]);
+    }
 
-  city.tf = [=] (hyperpoint h) -> pair<int, hyperpoint> {
+  hyperpoint transform(hyperpoint h) override {
     swap(h[1], h[2]);
     h[2] = -h[2];
     h[2] += 0.063;
@@ -55,11 +57,11 @@ void prepare_tf() {
       hx[1] = h[1] * t * 2;
       hx[2] = 0;
       hx[3] = 1;
-      if(hyperbolic) hx = spin(45 * degree) * hx;
+      if(hyperbolic) hx = spin(45._deg) * hx;
       hx = normalize(hx);
-      hx = zshift(hx, h[2]*(t*(sphere ? 3 : 7)));
+      hx = orthogonal_move(hx, h[2]*(t*(sphere ? 3 : 7)));
 
-      return {0, hx}; 
+      return hx;
       }
     
     if(nil || sol) {
@@ -68,14 +70,19 @@ void prepare_tf() {
       if(sol) h *= vid.binary_width;
       if(nil) h *= nilv::nilwidth;
       h[3] = 1;
-      return {0, h};
+      return h;
       }
     
-    return {0, h};
-    };
-  println(hlog, "low = ", low);
-  println(hlog, "high = ", high);
-  }
+    return h;
+    }
+
+  void postprocess() {
+    println(hlog, "low = ", low);
+    println(hlog, "high = ", high);
+    }
+  };
+
+citymodel city;
 
 bool draw_city_at(cell *c, const shiftmatrix& V) {
   if(nil) {
@@ -124,10 +131,8 @@ auto hypcity_ah = arg::add3("-hypcity", enable)
                 geom3::switch_fpp();
                 }
               setCanvas(mode, '0');
-              slide_backup(mapeditor::drawplayer, false);
               if(mode == pmStart) {
                 slide_backup(canvas_default_wall, waInvisibleFloor);
-                slide_backup(smooth_scrolling, 1);
                 if(dim == 2) slide_backup(vid.camera, 0);
                 if(dim == 2) slide_backup(vid.depth, 0);
                 slide_backup(context_fog, false);
@@ -135,6 +140,7 @@ auto hypcity_ah = arg::add3("-hypcity", enable)
                 start_game();
                 enable();
                 }
+              non_game_slide_scroll(mode);
               }});
         };
       

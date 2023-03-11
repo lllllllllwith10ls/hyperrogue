@@ -9,6 +9,18 @@
 namespace hr {
 
 #if HDR
+struct radarpoint {
+  hyperpoint h;
+  char glyph;
+  color_t color;
+  color_t line;
+  };
+
+struct radarline {
+  hyperpoint h1, h2;
+  color_t line;
+  };
+
 /** configuration of the current view */
 struct display_data {
   /** The cell which is currently in the center. */
@@ -35,6 +47,11 @@ struct display_data {
 
   ld tanfov;
   flagtype next_shader_flags;
+
+  vector<radarpoint> radarpoints;
+  vector<radarline> radarlines;
+  transmatrix radar_transform;
+  transmatrix radar_transform_post;
 
   ld eyewidth();
   bool stereo_active();
@@ -156,6 +173,8 @@ EX SDL_Renderer *s_renderer, *s_software_renderer;
 #endif
 EX SDL_Texture *s_texture;
 EX SDL_Window *s_window;
+EX SDL_GLContext s_context;
+EX bool s_have_context;
 #endif
 
 EX color_t qpixel_pixel_outside;
@@ -197,7 +216,7 @@ EX void present_screen() {
 
 #if CAP_SDLTTF
 
-EX string fontpath = ISWEB ? "sans-serif" : HYPERPATH "DejaVuSans-Bold.ttf";
+EX string fontpath = ISWEB ? "sans-serif" : HYPERFONTPATH "DejaVuSans-Bold.ttf";
 
 void loadfont(int siz) {
   fix_font_size(siz);
@@ -897,12 +916,19 @@ EX color_t colormix(color_t a, color_t b, color_t c) {
   return a;
   }
 
+/* color difference for 24-bit colors, from 0 to 255*3 */
+EX int color_diff(color_t a, color_t b) {
+  int res = 0;
+  for(int i=0; i<3; i++) res += abs(part(a, i) - part(b, i));
+  return res;
+  }
+
 EX int rhypot(int a, int b) { return (int) sqrt(a*a - b*b); }
 
 EX ld realradius() {
   ld vradius = current_display->radius;
   if(sphere) {
-    if(sphereflipped()) 
+    if(flip_sphere())
       vradius /= sqrt(pconf.alpha*pconf.alpha - 1);
     else
       vradius = 1e12; // use the following
@@ -999,7 +1025,7 @@ EX void drawCircle(int x, int y, int size, color_t color, color_t fillcolor IS(0
     if(pts > 1500) pts = 1500;
     if(ISMOBILE && pts > 72) pts = 72;
     for(int r=0; r<pts; r++) {
-      float rr = (M_PI * 2 * r) / pts;
+      float rr = (TAU * r) / pts;
       glcoords.push_back(glhr::makevertex(x + size * sin(rr), y + size * pconf.stretch * cos(rr), 0));
       }
     current_display->set_all(0, lband_shift);
@@ -1088,6 +1114,10 @@ EX void compute_fsize() {
 
 EX bool graphics_on;
 
+EX bool request_resolution_change;
+
+EX void do_request_resolution_change() { request_resolution_change = true; }
+
 EX bool want_vsync() {
   if(vrhr::active())
     return false;
@@ -1100,6 +1130,8 @@ EX bool need_to_reopen_window() {
   if(vid.wantGL != vid.usingGL)
     return true;
   if(want_vsync() != vid.current_vsync)
+    return true;
+  if(request_resolution_change)
     return true;
   return false;
   }
@@ -1126,6 +1158,9 @@ EX void close_renderer() {
 EX void close_window() {
   #if CAP_SDL2
   close_renderer();
+  if(s_have_context) {
+    SDL_GL_DeleteContext(s_context), s_have_context = false;
+    }
   if(s_window) SDL_DestroyWindow(s_window), s_window = nullptr;
   #endif
   }
@@ -1255,8 +1290,13 @@ EX void setvideomode() {
 
   auto create_win = [&] {
     #if CAP_SDL2
-    if(s_window && current_window_flags != (flags | sizeflag))
+    if(s_window && current_window_flags != (flags | sizeflag)) {
+      if(s_have_context) {
+        SDL_GL_DeleteContext(s_context), s_have_context = false;
+        glhr::glew = false;
+        }
       SDL_DestroyWindow(s_window), s_window = nullptr;
+      }
     if(s_window)
       SDL_SetWindowSize(s_window, vid.xres, vid.yres);
     else
@@ -1293,6 +1333,7 @@ EX void setvideomode() {
     }
   
   #if CAP_SDL2
+  if(s_renderer) SDL_DestroyRenderer(s_renderer), s_renderer = nullptr;
   s_renderer = SDL_CreateRenderer(s_window, -1, vid.current_vsync ? SDL_RENDERER_PRESENTVSYNC : 0);
   SDL_GetRendererOutputSize(s_renderer, &vid.xres, &vid.yres);
   
@@ -1319,6 +1360,12 @@ EX void setvideomode() {
       glDisable(GL_MULTISAMPLE_ARB);
       }
   
+    #if CAP_SDL2
+    if(s_have_context) SDL_GL_DeleteContext(s_context), s_have_context = false;
+    if(!s_have_context) s_context = SDL_GL_CreateContext(s_window);
+    s_have_context = true; glhr::glew = false;
+    #endif
+
     glViewport(0, 0, vid.xres, vid.yres);
     glhr::init();
     resetGL();
@@ -1450,7 +1497,7 @@ EX void initialize_all() {
 #if CAP_ARCM
   arcm::current.parse();
 #endif
-  if(hybri) geometry = hybrid::underlying;
+  if(mhybrid) geometry = hybrid::underlying;
 
 #if CAP_COMMANDLINE
   arg::read(2);
@@ -1497,6 +1544,7 @@ EX int calcfps() {
 EX namespace subscreens {
 
   EX vector<display_data> player_displays;
+  /** 'in' is on if we are currently working on a single display */
   EX bool in;
   EX int current_player;
   
@@ -1528,7 +1576,7 @@ EX namespace subscreens {
   EX bool split(reaction_t what) {
     using namespace racing;
     if(in) return false;
-    if(!racing::on && !(shmup::on && GDIM == 3)) return false;
+    if(!multi::split_screen) return false;
     if(!player_displays.empty()) {
       in = true;
       int& p = current_player;

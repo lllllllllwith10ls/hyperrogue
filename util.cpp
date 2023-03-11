@@ -107,6 +107,10 @@ struct exp_parser {
   bool ok() { return at == isize(s); }
   char next(int step=0) { if(at >= isize(s)-step) return 0; else return s[at+step]; }
   
+  char eatchar() {
+    return s[at++];
+    }
+
   bool eat(const char *c) {
     int orig_at = at;
     while(*c && *c == next()) at++, c++;
@@ -120,6 +124,8 @@ struct exp_parser {
   string next_token();
 
   char snext(int step=0) { skip_white(); return next(step); }
+
+  vector<pair<ld, ld>> parse_with_reps();
 
   cld parse(int prio = 0);
 
@@ -167,6 +173,21 @@ string exp_parser::next_token() {
   return token;
   }
 
+vector<pair<ld, ld>> exp_parser::parse_with_reps() {
+  vector<pair<ld, ld>> vals;
+  vals.emplace_back(rparse(0), 1);
+  while(true) {
+    skip_white();
+    if(eat(":^")) {
+      ld rep = rparse(0);
+      vals.back().second *= rep;
+      }
+    if(eat(",")) vals.emplace_back(rparse(0), 1);
+    else break;
+    }
+  return vals;
+  }
+
 cld exp_parser::parse(int prio) {
   cld res;
   skip_white();
@@ -192,12 +213,24 @@ cld exp_parser::parse(int prio) {
   else if(eat("floor(")) res = floor(validate_real(parsepar()));
   else if(eat("frac(")) { res = parsepar(); res = res - floor(validate_real(res)); }
   else if(eat("to01(")) { res = parsepar(); return atan(res) / ld(M_PI) + ld(0.5); }
+  else if(eat("min(")) {
+    ld a = rparse(0);
+    while(skip_white(), eat(",")) a = min(a, rparse(0));
+    force_eat(")");
+    res = a;
+    }
+  else if(eat("max(")) {
+    ld a = rparse(0);
+    while(skip_white(), eat(",")) a = max(a, rparse(0));
+    force_eat(")");
+    res = a;
+    }
   else if(eat("edge(")) {
     ld a = rparse(0);
     force_eat(",");
     ld b = rparse(0);
     force_eat(")");
-    res = edge_of_triangle_with_angles(2*M_PI/a, M_PI/b, M_PI/b);
+    res = edge_of_triangle_with_angles(TAU/a, M_PI/b, M_PI/b);
     }
   else if(eat("edge_angles(")) {
     cld a = rparse(0);
@@ -220,27 +253,40 @@ cld exp_parser::parse(int prio) {
     force_eat(",");
     ld b = rparse(0);
     force_eat(")");
-    res = edge_of_triangle_with_angles(M_PI/2, M_PI/a, M_PI/b);
+    res = edge_of_triangle_with_angles(90._deg, M_PI/a, M_PI/b);
     }
   #if CAP_ARCM
   else if(eat("arcmedge(")) {
-    vector<int> vals;
-    vals.push_back(iparse(0));
-    while(true) {
-      skip_white();
-      if(eat(",")) vals.push_back(iparse(0));
-      else break;
-      }
+    vector<pair<ld, ld>> vals = parse_with_reps();
     force_eat(")");
-    arcm::archimedean_tiling test;
-    test.faces = vals;
-    test.compute_sum();
-    test.compute_geometry();
-    res = test.edgelength;
+    res = euclid ? 1 : arcm::compute_edgelength(vals);
     if (auto *distunit = hr::at_or_null(extra_params, "distunit"))
       res /= *distunit;
     }
+  else if(eat("arcmcurv(")) {
+    vector<pair<ld, ld>> vals = parse_with_reps();
+    force_eat(")");
+    ld total = 0;
+    for(auto p: vals) total += p.second * (180 - 360 / p.first);
+    total = (360 - total) * degree;
+    if(abs(total) < 1e-10) total = 0;
+    res = total;
+    }
   #endif
+  else if(eat("ideal_angle(")) {
+    ld edges = rparse(0);
+    ld u = 1;
+    skip_white(); if(eat(",")) u = rparse(0);
+    force_eat(")");
+    return arb::rep_ideal(edges, u).second;
+    }
+  else if(eat("ideal_edge(")) {
+    ld edges = rparse(0);
+    ld u = 1;
+    skip_white(); if(eat(",")) u = rparse(0);
+    force_eat(")");
+    return arb::rep_ideal(edges, u).first;
+    }
   else if(eat("regangle(")) {
     cld edgelen = parse(0);
     if (auto *distunit = hr::at_or_null(extra_params, "distunit")) {
@@ -251,20 +297,19 @@ cld exp_parser::parse(int prio) {
     ld edges = rparse(0);
     force_eat(")");
     ld alpha = M_PI / edges;
-    ld c = asin_auto(sin_auto(validate_real(edgelen)/2) / sin(alpha));
-    hyperpoint h = xpush(c) * spin(M_PI - 2*alpha) * xpush0(c);
-    ld result = 2 * atan2(h);
-    if(result < 0) result = -result;
-    while(result > 2 * M_PI) result -= 2 * M_PI;
-    if(result > M_PI) result = 2 * M_PI - result;
-    
-    if(arb::legacy) {
-      res = M_PI - result;
-      if (auto *angleofs = hr::at_or_null(extra_params, "angleofs"))
-        res -= *angleofs;
+    if(isinf(edges)) {
+      ld u = sqrt(cosh(validate_real(edgelen)) * 2 - 2);
+      ld a = atan2(1, u/2);
+      res = 2 * a;
       }
-    else
+    else {
+      ld c = asin_auto(sin_auto(validate_real(edgelen)/2) / sin(alpha));
+      hyperpoint h = xpush(c) * spin(M_PI - 2*alpha) * xpush0(c);
+      ld result = 2 * atan2(h);
+      if(result < 0) result = -result;
+      cyclefix(result, 0);
       res = result;
+      }
 
     if (auto *angleunit = hr::at_or_null(extra_params, "angleunit"))
       res /= *angleunit;
@@ -281,6 +326,14 @@ cld exp_parser::parse(int prio) {
     cld no = parsepar();
     res = real(cond) > 0 ? yes : no;
     }  
+  else if(eat("ifz(")) {
+    cld cond = parse(0);
+    force_eat(",");
+    cld yes = parse(0);
+    force_eat(",");
+    cld no = parsepar();
+    res = abs(cond) < 1e-8 ? yes : no;
+    }
   else if(eat("wallif(")) {
     cld val0 = parse(0);
     force_eat(",");
@@ -322,8 +375,9 @@ cld exp_parser::parse(int prio) {
     else if (auto *p = hr::at_or_null(params, number)) res = (*p)->get_cld();
     else if(number == "e") res = exp(1);
     else if(number == "i") res = cld(0, 1);
+    else if(number == "inf") res = HUGE_VAL;
     else if(number == "p" || number == "pi") res = M_PI;
-    else if(number == "" && next() == '-') { at++; res = -parse(prio); }
+    else if(number == "" && next() == '-') { at++; res = -parse(20); }
     else if(number == "") throw hr_parse_exception("number missing, " + where());
     else if(number == "s") res = ticks / 1000.;
     else if(number == "ms") res = ticks;
@@ -339,6 +393,11 @@ cld exp_parser::parse(int prio) {
     else if(number == "random") res = randd();
     else if(number == "mousez") res = cld(mousex - current_display->xcenter, mousey - current_display->ycenter) / cld(current_display->radius, 0);
     else if(number == "shot") res = inHighQual ? 1 : 0;
+    #if CAP_ARCM
+    else if(number == "fake_edgelength") res = arcm::fake_current.edgelength;
+    #endif
+    else if(number == "MAX_EDGE") res = FULL_EDGE;
+    else if(number == "MAX_VALENCE") res = 120;
     else if(number[0] >= 'a' && number[0] <= 'z') throw hr_parse_exception("unknown value: " + number);
     else if(number[0] >= 'A' && number[0] <= 'Z') throw hr_parse_exception("unknown value: " + number);
     else if(number[0] == '_') throw hr_parse_exception("unknown value: " + number);
@@ -677,6 +736,7 @@ EX string compress_string(string s) {
   if(deflate(&strm, Z_FINISH) != Z_STREAM_END) throw hr_exception("z-error-2");
   println(hlog, "deflate ok");
   string out(&buf[0], (char*)(strm.next_out) - &buf[0]);
+  deflateEnd(&strm);
   println(hlog, isize(s), " -> ", isize(out));
   return out;
   }
@@ -693,8 +753,9 @@ EX string decompress_string(string s) {
   vector<char> buf(10000000, 0);
   strm.avail_out = 10000000;
   strm.next_out = (Bytef*) &buf[0];
-  if(inflate(&strm, Z_FINISH) != Z_STREAM_END) throw hr_exception("z-error-2");
+  if(inflate(&strm, Z_FINISH) != Z_STREAM_END) throw hr_exception("z-error-2");  
   string out(&buf[0], (char*)(strm.next_out) - &buf[0]);
+  inflateEnd(&strm);
   println(hlog, isize(s), " -> ", isize(out));
   return out;
   }
@@ -702,6 +763,19 @@ EX string decompress_string(string s) {
 
 EX bool file_exists(string fname) {
   return access(fname.c_str(), F_OK) != -1;
+  }
+
+/** find a file named s, possibly in HYPERPATH */
+EX string find_file(string s) {
+  string s1;
+  if(file_exists(s)) return s;
+  char *p = getenv("HYPERPATH");
+  if(p && file_exists(s1 = s0 + p + s)) return s1;
+  if(file_exists(s1 = HYPERPATH + s)) return s1;
+#ifdef FHS
+  if(file_exists(s1 = "/usr/share/hyperrogue/" + s)) return s1;
+#endif
+  return s;
   }
 
 EX void open_url(string s) {
@@ -727,6 +801,11 @@ EX void open_url(string s) {
   
 const char *urlhex = "0123456789ABCDEF";
 EX void open_wiki(const char *title) {
+  // Since "Crossroads" is ambiguous, we use the direct link to Crossroads I.
+  if (!strcmp(title, "Crossroads")) {
+    title = "Crossroads (Land)";
+  }
+
   string url = "https://hyperrogue.miraheze.org/wiki/";
   unsigned char c;
   for (size_t i = 0; (c = title[i]); ++i) {
@@ -739,6 +818,21 @@ EX void open_wiki(const char *title) {
     }
   open_url(url);
 }
+
+EX string read_file_as_string(string fname) {
+  string buf;
+  #if ISANDROID || ISIOS
+  buf = get_asset(fname);
+  #else
+  FILE *f = fopen(fname.c_str(), "rb");
+  if(!f) f = fopen((rsrcdir + fname).c_str(), "rb");
+  buf.resize(1000000);
+  int qty = fread(&buf[0], 1, 1000000, f);
+  buf.resize(qty);
+  fclose(f);
+  #endif
+  return buf;
+  }
 
 EX void floyd_warshall(vector<vector<char>>& v) {
   int N = isize(v);

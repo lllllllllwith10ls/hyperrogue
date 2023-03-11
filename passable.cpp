@@ -90,6 +90,7 @@ EX bool strictlyAgainstGravity(cell *w, cell *from, bool revdir, flagtype flags)
   }
 
 EX bool anti_alchemy(cell *w, cell *from) {
+//to fix
   
   bool alch1 = w->wall == waFloorA && from && from->wall == waFloorB && !w->item && !from->item;
   alch1 |= w->wall == waFloorB && from && from->wall == waFloorA && !w->item && !from->item;
@@ -118,13 +119,25 @@ EX bool anti_alchemy(cell *w, cell *from) {
   alch1 |= w->wall == waSlime3 && from && from->wall == waSlime4 && !w->item && !from->item;
   alch1 |= w->wall == waSlime4 && from && from->wall == waSlime3 && !w->item && !from->item;
   return alch1;
+/*
+  if(!from) return false;
+  if(!isAlchAny(w)) return false;
+  if(!isAlchAny(from)) return false;
+  if(w->item) return false;
+  if(from->item) return false;
+  if(!nonorientable) return w->wall != from->wall;
+  forCellIdEx(c1, i, w)
+    if(c1 == from && (w->c.mirror(i) ? w->wall != from->wall : w->wall == from->wall))
+      return false;
+  return true;
+*/
   }
 
 
 #if HDR
 #define P_MONSTER    Flag(0)  // can move through monsters
 #define P_MIRROR     Flag(1)  // can move through mirrors
-#define P_REVDIR     Flag(2)  // reverse direction movement
+// unused
 #define P_WIND       Flag(3)  // can move against the wind
 #define P_GRAVITY    Flag(4)  // can move against the gravity
 #define P_ISPLAYER   Flag(5)  // player-only moves (like the Round Table jump)
@@ -161,8 +174,7 @@ EX bool anti_alchemy(cell *w, cell *from) {
 #endif
 
 EX bool passable(cell *w, cell *from, flagtype flags) {
-  bool revdir = (flags&P_REVDIR);
-  bool vrevdir = revdir ^ bool(flags&P_VOID);
+  bool vrevdir = bool(flags&P_VOID);
 
   if(from && from != w && nonAdjacent(from, w) && !F(P_IGNORE37 | P_BULLET)) return false;
   
@@ -171,7 +183,6 @@ EX bool passable(cell *w, cell *from, flagtype flags) {
   
   for(cell *pp: player_positions()) {
     if(w == pp && F(P_ONPLAYER)) return true;
-    if(from == pp && F(P_ONPLAYER) && F(P_REVDIR)) return true;
 
     if(from && !((flags & P_ISPLAYER) && pp->monst)) {
       int i = vrevdir ? incline(w, from) : incline(from, w);
@@ -205,9 +216,6 @@ EX bool passable(cell *w, cell *from, flagtype flags) {
     ) return false;
   
   if(from && (vrevdir ? againstWind(from,w) : againstWind(w, from)) && !F(P_WIND | P_BLOW | P_JUMP1 | P_JUMP2 | P_BULLET | P_AETHER | P_MARKWATER)) return false;
-  
-  if(revdir && from && w->monst && passable(from, w, flags &~ (P_REVDIR|P_MONSTER)))
-    return true;
   
   if(!shmup::on && sword::at(w, flags & P_ISPLAYER) && !F(P_DEADLY | P_BULLET | P_ROSE))
     return false;
@@ -293,6 +301,8 @@ EX bool passable(cell *w, cell *from, flagtype flags) {
     if(in_gravity_zone(w)) ;
     else if(from && from->wall == waBoat && F(P_USEBOAT) && 
       (!againstCurrent(w, from) || F(P_MARKWATER)) && !(from->item == itOrbYendor)) ;
+    else if(from && isWatery(from) && F(P_CHAIN) && F(P_USEBOAT) && !againstCurrent(w, from)) ;
+    else if(!from && F(P_CHAIN) && F(P_USEBOAT)) ;
     else if(!F(P_AETHER | P_FISH | P_FLYING | P_BLOW | P_JUMP1 | P_BULLET | P_DEADLY | P_REPTILE)) return false;
     }
   if(isChasmy(w)) {
@@ -330,7 +340,7 @@ EX ld calcAirdir(cell *c) {
   for(int i=0; i<c->type; i++) {
     cell *c2 = c->move(i);
     if(c2 && c2->monst == moAirElemental) {
-      return c->c.spin(i) * 2 * M_PI / c2->type;
+      return c->c.spin(i) * TAU / c2->type;
       }
     }
   for(int i=0; i<c->type; i++) {
@@ -341,7 +351,7 @@ EX ld calcAirdir(cell *c) {
     for(int i=0; i<c2->type; i++) {
       cell *c3 = c2->move(i);
       if(c3 && c3->monst == moAirElemental) {
-        return c2->c.spin(i) * 2 * M_PI / c3->type;
+        return c2->c.spin(i) * TAU / c3->type;
         }
       }
     }
@@ -410,6 +420,7 @@ bool slimepassable(cell *w, cell *c) {
   int ogroup = slimegroup(w);
   if(!ogroup) return false;
   bool hv = (group == ogroup);
+//to fix
   if(group == sgFloorA)
     hv = hv || ogroup == sgSlime3 || ogroup == sgSlime4;
   if(group == sgFloorB)
@@ -422,6 +433,9 @@ bool slimepassable(cell *w, cell *c) {
     hv = hv || ogroup == sgFloorA || ogroup == sgSlime2;
   if(group == sgSlime4)
     hv = hv || ogroup == sgFloorA || ogroup == sgFloorB;
+/*  if(nonorientable && isAlchAny(c) && isAlchAny(w))
+    hv = !anti_alchemy(c, w);
+*/
   if(sword::at(w, 0)) return false;
   
   if(w->item) return false;

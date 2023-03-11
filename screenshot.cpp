@@ -377,7 +377,9 @@ EX always_false in;
     if(!p.tinf) return 0;
 #if CAP_PNG
     if(!textures) return 0;
+    #if CAP_RUG
     if(p.tinf == &rug::tinf) return 1;
+    #endif
     #if MAXMDIM >= 4
     if(p.tinf->texture_id == (int) floor_textures->renderedTexture)
       return (p.tinf->tvertices[0][0] == 0) ? 2 : 3;
@@ -574,6 +576,7 @@ EX always_false in;
       }
     
     #if CAP_PNG
+    #if CAP_RUG
     if(used_rug) {
       resetbuffer rb;
       rug::glbuf->enable();
@@ -582,6 +585,7 @@ EX always_false in;
       dynamicval<int> dy(shot::shoty, rug::texturesize);
       shot::postprocess(filename + "-rug.png", s, s);
       }
+    #endif
     
     #if MAXMDIM >= 4
     if(isize(texture_position) || isize(gradient_position)) {
@@ -627,7 +631,7 @@ EX }
 void IMAGESAVE(SDL_Surface *s, const char *fname) {
   SDL_Surface *s2 = SDL_PNGFormatAlpha(s);
   SDL_SavePNG(s2, fname);
-  SDL_FreeSurface(s2);
+  if(s != s2) SDL_FreeSurface(s2);
   }
 #endif
 
@@ -666,7 +670,7 @@ EX int shot_aa = 1;
 
 EX void default_screenshot_content() {
 
-  gamescreen(0);
+  gamescreen();
 
   if(caption != "")
     displayfr(vid.xres/2, vid.fsize+vid.fsize/4, 3, vid.fsize*2, caption, forecolor, 8);
@@ -682,7 +686,7 @@ EX SDL_Surface *empty_surface(int x, int y, bool alpha) {
 
 #if CAP_PNG
 
-void output(SDL_Surface* s, const string& fname) {
+EX void output(SDL_Surface* s, const string& fname) {
   if(format == screenshot_format::rawfile) {
     for(int y=0; y<shoty; y++)
       ignore(write(rawfile_handle, &qpixel(s, 0, y), 4 * shotx));
@@ -691,7 +695,10 @@ void output(SDL_Surface* s, const string& fname) {
     IMAGESAVE(s, fname.c_str());
   }
 
+EX hookset<bool(string, SDL_Surface*, SDL_Surface*)> hooks_postprocess;
+
 EX void postprocess(string fname, SDL_Surface *sdark, SDL_Surface *sbright) {
+  if(callhandlers(false, hooks_postprocess, fname, sdark, sbright)) return;
   if(gamma == 1 && shot_aa == 1 && sdark == sbright) {
     output(sdark, fname);
     return;
@@ -781,6 +788,8 @@ EX void take(string fname, const function<void()>& what IS(default_screenshot_co
       if(chg[i]) *anims::aps[i].value = anims::aps[i].last;
     });
   
+  if(intra::in) what();
+
   dynamicval<videopar> v(vid, vid);
   dynamicval<bool> v2(inHighQual, true);
   dynamicval<bool> v6(auraNOGL, true);
@@ -792,6 +801,7 @@ EX void take(string fname, const function<void()>& what IS(default_screenshot_co
   set_shotx();
   vid.xres = shotx * multiplier;
   vid.yres = shoty * multiplier;
+  vid.fsize *= multiplier;
   calcparam();
   models::configure();
   callhooks(hooks_take);
@@ -801,21 +811,23 @@ EX void take(string fname, const function<void()>& what IS(default_screenshot_co
       #if CAP_WRL
       wrl::take(fname);
       #endif
-      return;
+      break;
     
     case screenshot_format::svg:
       #if CAP_SVG
       svg::render(fname, what);
       #endif
-      return;
+      break;
     
     case screenshot_format::png:
     case screenshot_format::rawfile:
       #if CAP_PNG
       render_png(fname, what);
       #endif
-      return;
+      break;
     }
+
+  v.backup.plevel_factor = vid.plevel_factor;
   }
 
 #if CAP_COMMANDLINE
@@ -925,7 +937,7 @@ EX string format_extension() {
 
 EX void choose_screenshot_format() {
   cmode = sm::SIDE; 
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("screenshots"), iinf[itPalace].color, 150, 100);
   #if CAP_PNG
   dialog::addItem(XLAT("PNG"), 'p');
@@ -945,7 +957,7 @@ EX void choose_screenshot_format() {
 
 EX void menu() {
   cmode = sm::SIDE; 
-  gamescreen(0);
+  gamescreen();
   if(format == screenshot_format::svg && !CAP_SVG) 
     format = screenshot_format::png;
   if(format == screenshot_format::png && !CAP_PNG) 
@@ -1113,9 +1125,11 @@ EX ld shift_angle, movement_angle, movement_angle_2;
 EX ld normal_angle = 90;
 EX ld period = 10000;
 EX int noframes = 30;
-EX ld cycle_length = 2 * M_PI;
+EX ld cycle_length = TAU;
 EX ld parabolic_length = 1;
 EX ld skiprope_rotation;
+
+EX string time_formula = "-";
 
 int lastticks, bak_turncount;
 
@@ -1268,7 +1282,7 @@ EX void apply() {
         rotate_view(cspin(1, 2, normal_angle * degree));
         rotate_view(spin(-movement_angle_2 * degree));
         }
-      rotate_view(spin(2 * M_PI * t / period));
+      rotate_view(spin(TAU * t / period));
       if(GDIM == 3) {
         rotate_view(spin(movement_angle_2 * degree));
         rotate_view(cspin(2, 1, normal_angle * degree));
@@ -1283,7 +1297,7 @@ EX void apply() {
         cspin(0, GDIM-1, movement_angle * degree) * spin(shift_angle * degree) * xtangent(cycle_length * t / period)
         );
       moved();
-      rotate_view(cspin(0, GDIM-1, 2 * M_PI * t / period));
+      rotate_view(cspin(0, GDIM-1, TAU * t / period));
       if(clearup) {
         centerover->wall = waNone;
         }
@@ -1303,7 +1317,7 @@ EX void apply() {
     #endif
     case maCircle: {
       centerover = rotation_center;
-      ld alpha = circle_spins * 2 * M_PI * ticks / period;
+      ld alpha = circle_spins * TAU * ticks / period;
       View = spin(-cos_auto(circle_radius)*alpha) * xpush(circle_radius) * spin(alpha) * rotation_center_View;
       moved();
       break;
@@ -1327,17 +1341,17 @@ EX void apply() {
   if(rug::rugged) {
     if(rug_rotation1) {
       rug::using_rugview rv;
-      rotate_view(cspin(1, 2, -rug_angle * degree) * cspin(0, 2, rug_rotation1 * 2 * M_PI * t / period) * cspin(1, 2, rug_angle * degree));
+      rotate_view(cspin(1, 2, -rug_angle * degree) * cspin(0, 2, rug_rotation1 * TAU * t / period) * cspin(1, 2, rug_angle * degree));
       }
     if(rug_rotation2) {
       rug::using_rugview rv;
-      View = View * cspin(0, 1, rug_rotation2 * 2 * M_PI * t / period);
+      View = View * cspin(0, 1, rug_rotation2 * TAU * t / period);
       }
     if(rug_forward) 
       animate_rug_movement(rug_forward * t / period);
     }
   #endif
-  pconf.skiprope += skiprope_rotation * t * 2 * M_PI / period;
+  pconf.skiprope += skiprope_rotation * t * TAU / period;
 
   if(ballangle_rotation) {
     if(models::has_orientation(vpconf.model))
@@ -1387,6 +1401,17 @@ EX bool record_animation_of(reaction_t content) {
     printf("%d/%d\n", i, noframes);
     callhooks(hooks_record_anim, i, noframes);
     int newticks = i * period / noframes;
+    if(time_formula != "-") {
+      dynamicval<int> t(ticks, newticks);
+      exp_parser ep;
+      ep.s = time_formula;
+      try {
+        newticks = ep.iparse();
+        }
+      catch(hr_parse_exception& e) {
+        println(hlog, "warning: failed to parse time_formula, ", e.s);
+        }
+      }
     cmode = (env_shmup ? sm::NORMAL : 0);
     while(ticks < newticks) shmup::turn(1), ticks++;
     if(cheater && numturns) {
@@ -1460,12 +1485,12 @@ void display_animation() {
   if(ma == maCircle && (circle_display_color & 0xFF)) {
     for(int s=0; s<10; s++) {
       if(s == 0) curvepoint(xpush0(circle_radius - .1));
-      for(int z=0; z<100; z++) curvepoint(xspinpush0((z+s*100) * 2 * M_PI / 1000., circle_radius));
+      for(int z=0; z<100; z++) curvepoint(xspinpush0((z+s*100) * 2 * A_PI / 1000., circle_radius));
       queuecurve(ggmatrix(rotation_center), circle_display_color, 0, PPR::LINE);
       }
     if(sphere) for(int s=0; s<10; s++) {
       if(s == 0) curvepoint(xpush0(circle_radius - .1));
-      for(int z=0; z<100; z++) curvepoint(xspinpush0((z+s*100) * 2 * M_PI / 1000., circle_radius));
+      for(int z=0; z<100; z++) curvepoint(xspinpush0((z+s*100) * 2 * A_PI / 1000., circle_radius));
       queuecurve(ggmatrix(rotation_center) * centralsym, circle_display_color, 0, PPR::LINE);
       }
     }
@@ -1508,8 +1533,8 @@ EX void rug_angle_options() {
 EX void show() {
   cmode = sm::SIDE; needs_highqual = false;
   animation_lcm = 1;
-  gamescreen(0);
-  animation_period = 2 * M_PI * animation_lcm / animation_factor;
+  gamescreen();
+  animation_period = TAU * animation_lcm / animation_factor;
   dialog::init(XLAT("animations"), iinf[itPalace].color, 150, 100);
   dialog::addSelItem(XLAT("period"), fts(period)+ " ms", 'p');
   dialog::add_action([] () { dialog::editNumber(period, 0, 10000, 1000, 200, XLAT("period"), 
@@ -1522,7 +1547,7 @@ EX void show() {
       dialog::editNumber(animation_period, 0, 10000, 1000, 1000, XLAT("game animation period"), 
         XLAT("Least common multiple of the animation periods of all the game objects on screen, such as rotating items.")
         );
-      dialog::reaction = [] () { animation_factor = 2 * M_PI * animation_lcm / animation_period; };
+      dialog::reaction = [] () { animation_factor = TAU * animation_lcm / animation_period; };
       dialog::extra_options = [] () {
         dialog::addItem("default", 'D');
         dialog::add_action([] () {
@@ -1544,7 +1569,7 @@ EX void show() {
   if(among(pmodel, mdJoukowsky, mdJoukowskyInverted)) {
     animator(XLAT("Möbius transformations"), skiprope_rotation, 'S');
     }
-  if(!prod) {
+  if(!mproduct) {
     dialog::addBoolItem(XLAT("circle"), ma == maCircle, '4');
     dialog::add_action([] () { ma = maCircle; 
       rotation_center = centerover;
@@ -1589,10 +1614,10 @@ EX void show() {
       else if(ma == maTranslation) {
         dialog::addSelItem(XLAT("cycle length"), fts(cycle_length), 'c');
         dialog::add_action([] () { 
-          dialog::editNumber(cycle_length, 0, 10, 0.1, 2*M_PI, "shift", ""); 
+          dialog::editNumber(cycle_length, 0, 10, 0.1, TAU, "shift", ""); 
           dialog::extra_options = [] () {
-            dialog::addSelItem(XLAT("full circle"), fts(2 * M_PI), 'A');
-            dialog::add_action([] () { cycle_length = 2 * M_PI; });
+            dialog::addSelItem(XLAT("full circle"), fts(TAU), 'A');
+            dialog::add_action([] () { cycle_length = TAU; });
             dialog::addSelItem(XLAT("Zebra period"), fts(2.898149445355172), 'B');
             dialog::add_action([] () { cycle_length = 2.898149445355172; });
             dialog::addSelItem(XLAT("Bolza period"), fts(2 * 1.528571), 'C');
@@ -1665,7 +1690,7 @@ EX void show() {
       dialog::extra_options = [] () {
         if(among(rug::gwhere, gSphere, gElliptic))  {
           dialog::addItem(XLAT("synchronize"), 'S');
-          dialog::add_action([] () { rug_forward = 2 * M_PI; popScreen(); });
+          dialog::add_action([] () { rug_forward = TAU; popScreen(); });
           }
         rug_angle_options();
         };
@@ -1729,13 +1754,16 @@ int readArgs() {
   else if(argis("-animperiod")) {
     PHASEFROM(2); shift_arg_formula(period);
     }
+  else if(argis("-animformula")) {
+    PHASEFROM(2); shift(); time_formula = args();
+    }
 #if CAP_SHOT
   else if(argis("-animrecordf")) {
-    PHASEFROM(2); shift(); noframes = argi();
+    PHASEFROM(2); shift(); noframes = argi() ? argi() : noframes;
     shift(); animfile = args();
     }
   else if(argis("-animrecord") || argis("-animrec")) {
-    PHASE(3); shift(); noframes = argi();
+    PHASE(3); shift(); noframes = argi() ? argi() : noframes;
     shift(); animfile = args(); record_animation();
     }
   else if(argis("-record-only")) {
@@ -1747,7 +1775,7 @@ int readArgs() {
 #if CAP_VIDEO
   else if(argis("-animvideo")) {
     start_game();
-    PHASE(3); shift(); noframes = argi();
+    PHASE(3); shift(); noframes = argi() ? argi() : noframes;
     shift(); videofile = args(); record_video();
     }
 #endif
@@ -1758,7 +1786,7 @@ int readArgs() {
     rotation_center_View = View;
     shift_arg_formula(circle_spins);
     shift_arg_formula(circle_radius);
-    shift(); circle_display_color = arghex();
+    shift(); circle_display_color = argcolor(24);
     }
   else if(argis("-animmove")) {
     ma = maTranslation; 
@@ -1831,8 +1859,8 @@ auto animhook = addHook(hooks_frame, 100, display_animation)
     param_f(anims::circle_spins, "acspins", "animation circle spins");
     addsaver(anims::rug_movement_angle, "rug forward movement angle", 90);
     addsaver(anims::rug_shift_angle, "rug forward shift angle", 0);
-    addsaver(anims::a, "a", 0);
-    addsaver(anims::b, "b", 0);
+    param_f(anims::a, "a", 0);
+    param_f(anims::b, "b", 0);
     param_f(anims::movement_angle_2, "movement angle 2", 0);
     #endif
     });
@@ -1858,6 +1886,8 @@ EX }
 
 EX namespace startanims {
 
+EX bool enabled = true;
+
 int ticks_start = 0;
 
 #if HDR
@@ -1880,7 +1910,7 @@ void explorable(reaction_t ee) {
 
 void no_init() { }
 
-startanim null_animation { "", no_init, [] { gamescreen(2); }};
+startanim null_animation { "", no_init, [] { gamescreen(); }};
 
 #if CAP_STARTANIM
 startanim joukowsky { "Joukowsky transform", no_init, [] {
@@ -1890,7 +1920,7 @@ startanim joukowsky { "Joukowsky transform", no_init, [] {
   dynamicval<ld> ds(pconf.scale, 1/4.);
   models::configure();
   dynamicval<color_t> dc(ringcolor, 0);  
-  gamescreen(2);
+  gamescreen();
   explorable([] { pmodel = mdJoukowskyInverted; pushScreen(models::model_menu); });
   }};
 
@@ -1899,7 +1929,7 @@ startanim bandspin { "spinning in the band model", no_init, [] {
   dynamicval<ld> dt(pconf.model_orientation, ticks / 25.);
   dynamicval<int> dv(vid.use_smart_range, 2);
   models::configure();
-  gamescreen(2);
+  gamescreen();
   explorable([] { pmodel = mdJoukowskyInverted; pushScreen(models::model_menu); });
   }};
 
@@ -1912,7 +1942,7 @@ startanim perspective { "projection distance", no_init, [] {
   dynamicval<ld> da(pconf.alpha, x);
   dynamicval<ld> ds(pconf.scale, (1+x)/2);
   calcparam();
-  gamescreen(2);
+  gamescreen();
   explorable(projectionDialog);
   }};
 
@@ -1928,7 +1958,7 @@ startanim rug { "Hypersian Rug", [] {
   dynamicval<bool> b(rug::rugged, true);
   rug::physics();
   dynamicval<transmatrix> t(rug::rugView, cspin(1, 2, ticks / 3000.) * rug::rugView);
-  gamescreen(2);
+  gamescreen();
   if(!rug::rugged) current = &null_animation;
   explorable([] { rug::rugged = true; pushScreen(rug::show); });
   #endif
@@ -1937,10 +1967,10 @@ startanim rug { "Hypersian Rug", [] {
 startanim spin_around { "spinning around", no_init,  [] {
   dynamicval<ld> da(pconf.alpha, 999);
   dynamicval<ld> ds(pconf.scale, 500);
-  ld alpha = 2 * M_PI * ticks / 10000.;
+  ld alpha = TAU * ticks / 10000.;
   ld circle_radius = acosh(2.);
   dynamicval<transmatrix> dv(View, spin(-cos_auto(circle_radius)*alpha) * xpush(circle_radius) * spin(alpha) * View);
-  gamescreen(2);
+  gamescreen();
   }};
 #endif
 
@@ -1966,11 +1996,11 @@ startanim row_of_ghosts { "row of ghosts", no_init, [] {
     for(int x=-25; x<=25; x++)
       for(int y=-25; y<=25; y++) {
         ld ay = (y + mod)/5.;
-        draw_ghost(xpush(x/5.) * spin(M_PI/2) * xpush(ay), int(y-t));
+        draw_ghost(xpush(x/5.) * spin90() * xpush(ay), int(y-t));
         }
     });
   dynamicval<bool> rd(mapeditor::drawplayer, false);
-  gamescreen(2);
+  gamescreen();
   }};
 
 startanim army_of_ghosts { "army of ghosts", no_init, [] {
@@ -1981,31 +2011,31 @@ startanim army_of_ghosts { "army of ghosts", no_init, [] {
     ld mod = (tt-t*400)/400.;
     for(int x=-12; x<=12; x++) {
       ld ax = x/4.;
-      transmatrix T = spin(-M_PI/2) * xpush(ax) * spin(M_PI/2);
+      transmatrix T = spin270() * xpush(ax) * spin90();
       for(int y=0;; y++) {
         ld ay = (mod - y)/4.;
-        transmatrix U = spin(M_PI/2) * xpush(ay / cosh(ax)) * T;
+        transmatrix U = spin90() * xpush(ay / cosh(ax)) * T;
         if(!in_smart_range(shiftless(U))) break;
         draw_ghost(U, (-y - t));
         if(y) {
           ay = (mod + y)/4.;
-          transmatrix U = spin(M_PI/2) * xpush(ay / cosh(ax)) * T;
+          transmatrix U = spin90() * xpush(ay / cosh(ax)) * T;
           draw_ghost(U, (y - t));
           }
         }
       }
     });
-  gamescreen(2);
+  gamescreen();
   }};
 
 startanim ghost_spiral { "ghost spiral", no_init, [] {
   dynamicval<reaction_t> r(add_to_frame, [] {
     ld t = (ticks - ticks_start - 2000) / 150000.;
     for(ld i=3; i<=40; i++) {
-      draw_ghost(spin(t * i * 2 * M_PI) * xpush(asinh(15. / i)) * spin(M_PI/2), 1);
+      draw_ghost(spin(t * i * TAU) * xpush(asinh(15. / i)) * spin90(), 1);
       }
     });
-  gamescreen(2);
+  gamescreen();
   }};
 
 startanim fib_ghosts { "Fibonacci ghosts", no_init, [] {
@@ -2013,23 +2043,23 @@ startanim fib_ghosts { "Fibonacci ghosts", no_init, [] {
   dynamicval<reaction_t> r(add_to_frame, [] {
     ld phase = (ticks - ticks_start - 2000) / 1000.;
     for(int i=0; i<=500; i++) {
-      ld step = M_PI * (3 - sqrt(5));
+      ld step = A_PI * (3 - sqrt(5));
       ld density = 0.01;
       ld area = 1 + (i+.5) * density;
       ld r = acosh(area);
       ld length = sinh(r);
-      transmatrix T = spin(i * step + phase / length) * xpush(r) * spin(M_PI/2);
+      transmatrix T = spin(i * step + phase / length) * xpush(r) * spin90();
       draw_ghost(T, i);
       }
     });
-  gamescreen(2);
+  gamescreen();
   }};
 
 startanim fpp { "first-person perspective", no_init, [] {
   if(MAXMDIM == 3) { current = &null_animation; return; }
   geom3::switch_fpp();
   View = cspin(0, 2, ticks / 5000.) * View;
-  gamescreen(2);
+  gamescreen();
   View = cspin(0, 2, -ticks / 5000.) * View;
   geom3::switch_fpp();
   }};
@@ -2041,7 +2071,7 @@ startanim fpp { "first-person perspective", no_init, [] {
 EX startanim *current = &null_animation;
 
 EX void pick() {
-  if(((gold() > 0 || tkills() > 0) && canmove) || geometry != gNormal || ISWEB || ISMOBILE || vid.always3 || pmodel || rug::rugged || vid.wallmode < 2 || vid.monmode < 2 || glhr::noshaders || !vid.usingGL) {
+  if(((gold() > 0 || tkills() > 0) && canmove) || geometry != gNormal || ISWEB || ISMOBILE || vid.always3 || pmodel || rug::rugged || vid.wallmode < 2 || vid.monmode < 2 || glhr::noshaders || !vid.usingGL || !enabled) {
     current = &null_animation;
     return;
     }

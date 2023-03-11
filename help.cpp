@@ -14,7 +14,7 @@ EX function<void()> help_delegate;
 
 #if HDR
 struct help_extension {
-  char key;
+  int key;
   string text;
   string subtext;
   color_t color;
@@ -85,7 +85,7 @@ vector<string> extra_keys_3d = {
   "move mouse = rotate camera (in rug, only with lctrl)",
   };
 
-void buildHelpText() {
+EX void buildHelpText() {
   DEBBI(DF_GRAPH, ("buildHelpText"));
 
   help = XLAT("Welcome to HyperRogue");
@@ -97,23 +97,23 @@ void buildHelpText() {
 #endif
   help += XLAT("! (version %1)\n\n", VER);
   
-  help += XLAT(
+  if(!game_keys_scroll) help += XLAT(
     "You have been trapped in a strange, non-Euclidean world. Collect as much treasure as possible "
     "before being caught by monsters. The more treasure you collect, the more "
     "monsters come to hunt you, as long as you are in the same land type. The "
     "Orbs of Yendor are the ultimate treasure; get at least one of them to win the game!"
     );
-  help += XLAT(" (press ESC for some hints about it).");
-  help += "\n\n";
+  if(!game_keys_scroll) help += XLAT(" (press ESC for some hints about it).");
+  if(!game_keys_scroll) help += "\n\n";
   
-  if(!shmup::on && !hardcore)
+  if(!shmup::on && !hardcore && !game_keys_scroll)
     help += XLAT(
       "You can fight most monsters by moving into their location. "
       "The monster could also kill you by moving into your location, but the game "
       "automatically cancels all moves which result in that.\n\n"
       );
       
-  if(shmup::on) {
+  if(shmup::on && !game_keys_scroll) {
     help += XLAT(
       "Shmup (shoot'em up) mode: You can play a hyperbolic shoot'em up game. The game is based "
       "on the usual turn-based grid-based HyperRogue, but there are some changes. You fight by "
@@ -122,14 +122,14 @@ void buildHelpText() {
       "adapted too.\n\n");  
     }
   
-  if(shmup::on && multi::players > 1) {
+  if(shmup::on && multi::players > 1 && !game_keys_scroll) {
     help += XLAT(
       "Multiplayer: Play cooperatively (locally); treasures, kills, and deaths are calculated "
       "for each player too, for more competitive play. Orbs and treasures are shared, orbs drain "
       "faster, knives recharge slower, and player characters are not allowed to separate.\n\n");
     }
   
-  if(multi::players > 1 && !shmup::on) {
+  if(multi::players > 1 && !shmup::on && !game_keys_scroll) {
     help += XLAT(
       "Turn-based multiplayer: Turns are executed in parallel. A player can leave the game "
       "by pressing a designated key (useful when about to get killed or lost). The following "
@@ -143,11 +143,11 @@ void buildHelpText() {
     }
 
 #if CAP_INV    
-  if(inv::on)
+  if(inv::on && !game_keys_scroll)
   help += XLAT(
     inv::helptext
     );
-  else
+  else if(!game_keys_scroll)
 #endif
   help += XLAT(
     "There are many lands in HyperRogue. Collect 10 treasure "
@@ -156,7 +156,7 @@ void buildHelpText() {
     "get access to new lands. At 25 treasures "
     "this type of Orbs starts appearing in other lands as well. Press 'o' to "
     "get the details of all the Lands.\n\n");
-  help += "\n\n";
+  if(!game_keys_scroll) help += "\n\n";
     
 #if ISMOBILE
   help += XLAT(
@@ -166,11 +166,17 @@ void buildHelpText() {
     "numbers displayed to get their meanings.\n"
     );
 #else
-  if(DEFAULTCONTROL)
+  if(DEFAULTCONTROL && !game_keys_scroll)
     help += XLAT(
       "Move with mouse, num pad, qweadzxc, or hjklyubn. Wait by pressing 's' or '.'. Spin the world with arrows, PageUp/Down, and Space. "
       "To save the game you need an Orb of Safety. Press 'v' for the main menu (configuration, special modes, etc.), ESC for the quest status.\n\n"
       );
+  else if(DEFAULTCONTROL && WDIM == 2)
+    help += XLAT(
+      "You are currently in a visualization. Press wasd to scroll, qe to rotate. You can also use the arrow keys. ESC for menu.\n\n");
+  else if(DEFAULTCONTROL && WDIM == 3)
+    help += XLAT(
+      "You are currently in a visualization. Press wasdqe to rotate the camera, ijklyh to move. You can also use the arrow keys and Home/End and PgUp/PgDn. ESC for menu.\n\n");
   help += XLAT(
     "You can right click any element to get more information about it.\n\n"
     );
@@ -179,9 +185,10 @@ void buildHelpText() {
 #endif
 #endif
   help += XLAT("See more on the website: ") 
-    + "http//roguetemple.com/z/hyper/\n\n";
+    + "https://roguetemple.com/z/hyper/\n\n";
   
 #if CAP_TOUR
+  if(!tour::on)
   help += XLAT("Try the Guided Tour to help with understanding the "
     "geometry of HyperRogue (menu -> special modes).\n\n");
 #endif
@@ -232,7 +239,7 @@ EX void buildCredits() {
     "Kojiguchi Kazuki, baconcow, Alan, SurelyYouJest, hotdogPi, DivisionByZero, xXxWeedGokuxXx, jpystynen, Dmitry Marakasov, Alexandre Moine, Arthur O'Dwyer, "
     "Triple_Agent_AAA, bluetailedgnat, Allalinor, Shitford, KittyTac, Christopher King, KosGD, TravelDemon, Bubbles, rdococ, frozenlake, MagmaMcFry, "
     "Snakebird Priestess, roaringdragon2, Stopping Dog, bengineer8, Sir Light IJIJ, ShadeBlade, Saplou, shnourok, Ralith, madasa, 6% remaining, Chimera245, Remik Pi, alien foxcat thing, "
-    "Piotr Grochowski, Ann, still-flow, tyzone, Paradoxica, LottieRatWorld"
+    "Piotr Grochowski, Ann, still-flow, tyzone, Paradoxica, LottieRatWorld, aismallard, albatross, EncodedSpirit, Jacob Mandelson, CrashTuvai, cvoight"
     );
 #ifdef EXTRALICENSE
   help += EXTRALICENSE;
@@ -269,7 +276,7 @@ EX string helptitle(string s, color_t col) {
 string princessReviveHelp() {
   if(inv::on) return "";
   string h = "\n\n" +
-    XLAT("Killed %1 can be revived with Orb of the Love, after you collect 20 more $$$.", moPrincess);
+    XLAT("Killed %1 can be revived with an Orb of Love, after you collect 20 more $$$.", moPrincess);
   if(princess::reviveAt)
     h += "\n\n" +
     XLAT("%The1 will be revivable at %2 $$$", moPrincess, its(princess::reviveAt));
@@ -337,7 +344,18 @@ string power_help =
 EX string generateHelpForItem(eItem it) {
 
    string help = helptitle(XLATN(iinf[it].name), iinf[it].color);
+
+   if(shmup::on && isShmupLifeOrb(it)) {
+     int cnt = 0;
+     help += XLAT(
+       "The following Orbs act an extra lives in the shmup mode:");
+     for(int i=0; i<ittypes; i++) {
+       eItem it2 = eItem(i);
+       if(isShmupLifeOrb(it2)) help += cnt++ ? XLAT(", %1", it2) : XLAT(" %1", it2);
+       }
+     }
    
+   else
    #if CAP_CRYSTAL
    if(it == itCompass && cryst)
      help += crystal::compass_help();
@@ -547,6 +565,8 @@ void addMinefieldExplanation(string& s) {
 #else
   s += XLAT("Known mines may be marked by touching while in drag mode. Your allies won't step on marked mines.");
 #endif
+
+  help_extensions.push_back(help_extension{'n', XLAT("toggle numerical display"), [] () { numerical_minefield = !numerical_minefield; }});
   }
 
 EX string generateHelpForWall(eWall w) {
@@ -681,7 +701,7 @@ void add_reqs(eLand l, string& s) {
       { int now = 0; string t = "("; for(eItem i: list) { if(t!="(") t += " | "; t += XLATN(iinf[i].name); now += items[i]; } t += ")"; s += XLAT("Treasure required: %1 x %2.\n", its(z), t); buteol(s, now, z); }
     #define ACCONLY(z) s += XLAT("Accessible only from %the1.\n", z);
     #define ACCONLY2(z,x) s += XLAT("Accessible only from %the1 or %the2.\n", z, x);
-    #define ACCONLY3(z,y,x) s += XLAT("Accessible only from %the1 or %the2.\n", z, y, x);
+    #define ACCONLY3(z,y,x) s += XLAT("Accessible only from %the1, %2, or %3.\n", z, y, x);
     #define ACCONLYF(z) s += XLAT("Accessible only from %the1 (until finished).\n", z);
     #include "content.cpp"
 
@@ -825,7 +845,10 @@ int windtotal;
 EX hookset<void(cell*)> hooks_mouseover;
 
 template<class T> void set_help_to(T t) { 
-  help = bygen([t] { gotoHelpFor(t); });
+  help = bygen([t] {
+    gotoHelpFor(t);
+    help_extensions.push_back(help_extension{'h', XLAT("HyperRogue help"), [] () { buildHelpText(); }});
+    });
   }
 
 EX void describeMouseover() {
@@ -1059,14 +1082,14 @@ EX void describeMouseover() {
   }
 
 EX void showHelp() {
-  cmode = sm::HELP | sm::DOTOUR;
+  cmode = sm::HELP | sm::DOTOUR | sm::DARKEN;
   getcstat = SDLK_ESCAPE;
   if(help == "HELPFUN") {
     help_delegate();
     return;
     }
 
-  gamescreen(2);
+  gamescreen();
   string help2;
   if(help[0] == '@') {
     int iv = help.find("\t");
@@ -1079,28 +1102,32 @@ EX void showHelp() {
     dialog::addHelp(help);
     }
   
+  bool in_list = false;
+
   for(auto& he: help_extensions) {
+    if(!in_list && he.key == dialog::first_list_fake_key) {
+      dialog::start_list(1000, 1000, 'a');
+      in_list = true;
+      }
+    if(in_list && (he.key < dialog::first_list_fake_key || he.key > dialog::first_list_fake_key + 1000)) {
+      in_list = false;
+      dialog::end_list();
+      }
+
     if(he.subtext != "")
       dialog::addSelItem(he.text, he.subtext, he.key);
     else
       dialog::addItem(he.text, he.key);
+    dialog::add_action(he.action);
     dialog::lastItem().color = he.color;
     }
+  if(in_list) dialog::end_list();
   
   dialog::display();
   
   keyhandler = [] (int sym, int uni) {
     dialog::handleNavigation(sym, uni);
     
-    for(auto& he: help_extensions)
-      if(uni == he.key) {
-        // we need to copy he.action
-        // as otherwise it could clear the extensions,
-        // leading to errors
-        auto act = he.action;
-        act();
-        return;
-        }
     if(sym == SDLK_F1)  {
       auto i = help;
       buildHelpText();

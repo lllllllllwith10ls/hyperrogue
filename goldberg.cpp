@@ -235,11 +235,11 @@ EX namespace gp {
     auto wcw = get_localwalk(wc, dir);
     auto& wc1 = get_mapping(at + eudir(dir));
     DEBB0(DF_GP, (format("  md:%02d s:%d", wc.mindir, wc.cw.spin)); )
-    DEBB0(DF_GP, ("  connection ", at, "/", dir, " ", wc.cw+dir, "=", wcw, " ~ ", at+eudir(dir), "/", dir1); )
+    DEBB0(DF_GP, ("  connection ", at, "/", dir, " ", wc.cw+dir, "=", wcw, " ~ ", at+eudir(dir), "/", dir1, " "); )
     if(!wc1.cw.at) {
       wc1.start = wc.start;
       if(peek(wcw)) {
-        DEBB0(DF_GP, ("(pulled) "); )
+        DEBB0(DF_GP, (" (pulled) "); )
         set_localwalk(wc1, dir1, wcw + wstep);
         if(do_adjm) wc1.adjm = wc.adjm * get_adj(wcw.at, wcw.spin);
         }
@@ -249,14 +249,14 @@ EX namespace gp {
         set_localwalk(wc1, dir1, wcw + wstep);
         if(do_adjm) wc1.adjm = wc.adjm;
         spawn++;
-        DEBB0(DF_GP, ("(created) "); )
+        DEBB0(DF_GP, (" (created) "); )
         }
       }
     DEBB0(DF_GP, (wc1.cw+dir1, " "));
     auto wcw1 = get_localwalk(wc1, dir1);
     if(peek(wcw)) {
       if(wcw+wstep != wcw1) {
-        DEBB(DF_GP, ("FAIL: ", wcw, " / ", wcw1); exit(1); )
+        DEBB(DF_GP, ("FAIL: ", wcw, " connected to ", wcw+wstep, " not to ", wcw1); exit(1); )
         }
       else {
         DEBB(DF_GP, ("(was there)"));
@@ -296,7 +296,10 @@ EX namespace gp {
 
   EX void extend_map(cell *c, int d) {
     DEBB(DF_GP, ("EXTEND ",c, " ", d));
+    indenter ind(2);
     if(c->master->c7 != c) {
+      auto c1 = c;
+      auto d1 = d;
       while(c->master->c7 != c) {
         DEBB(DF_GP, (c, " direction 0 corresponds to ", c->move(0), " direction ", c->c.spin(0)); )
         d = c->c.spin(0);
@@ -306,10 +309,17 @@ EX namespace gp {
       extend_map(c, d);
       extend_map(c, c->c.fix(d-1));
       extend_map(c, c->c.fix(d+1));
-      if(S3 == 4 && !c->move(d))
+      if(S3 == 4 && !c1->move(d1)) {
         for(int i=0; i<S7; i++)
         for(int j=0; j<S7; j++)
           extend_map(createStep(c->master, i)->c7, j);
+        }
+      if(S3 == 4 && !c1->move(d1)) {
+        for(int i=0; i<S7; i++)
+        for(int i1=0; i1<S7; i1++)
+        for(int j=0; j<S7; j++)
+          extend_map(createStep(createStep(c->master, i), i1)->c7, j);
+        }
       return;
       }
 
@@ -354,7 +364,17 @@ EX namespace gp {
         }
       }
     
+    auto fix_mirrors = [&] {
+      if(ac1.cw.mirrored != hs.mirrored) ac1.cw--;
+      if(ac2.cw.mirrored != hs.mirrored) ac2.cw--;
+      if(S3 == 4) {
+        auto& ac3 = get_mapping(vc[2]);
+        if(ac3.cw.mirrored != hs.mirrored) ac3.cw--;
+        }
+      };
+
     if(S3 == 4 && param == loc(1,1)) {
+      fix_mirrors();
       conn(loc(0,0), 1);
       conn(loc(0,1), 0);
       conn(loc(0,1), 1);
@@ -362,11 +382,54 @@ EX namespace gp {
       conn(loc(0,1), 3);
       return;
       }
+
+    if(S3 == 4 && param.first == param.second && nonorientable) {
+      fix_mirrors();
+
+      int size = param.first;
+
+      // go along the boundary of the 'diamond'
+
+      for(int dir=0; dir<4; dir++) {
+        int dir_orth = (dir+1) & 3;
+
+        loc at = vc[dir];
+
+        for(int i=0; i<size; i++) {
+          if(!pull(at, dir)) break;
+          at = at + eudir(dir);
+
+          if(!pull(at, dir_orth)) break;
+          at = at + eudir(dir_orth);
+          }
+        }
+
+      // build the skeleton
+
+      for(int dir=0; dir<4; dir++) {
+        int dir_orth = (dir+1) & 3;
+        for(int i=0; i<size; i++) {
+          conn(vc[dir] + eudir(dir_orth) * i, dir_orth);
+          }
+        }
+
+      // fill everything
+
+      for(int y=0; y<2*size; y++) {
+        int xdist = min(y, 2*size-y);
+        for(int x=0; x<xdist; x++)
+        for(int d=0; d<4; d++) {
+          conn(loc(x, y), d);
+          conn(loc(-x, y), d);
+          }
+        }
+
+      return;
+      }
     
     if(nonorientable && param.first == param.second) {
       int x = param.first;
-      if(ac1.cw.mirrored != hs.mirrored) ac1.cw--;
-      if(ac2.cw.mirrored != hs.mirrored) ac2.cw--;
+      fix_mirrors();
       
       for(int d=0; d<3; d++) for(int k=0; k<3; k++) 
       for(int i=0; i<x; i++) {
@@ -583,22 +646,24 @@ EX namespace gp {
       }
     if(sp>SG3) sp -= SG6;
 
-    return normalize(spin(2*M_PI*sp/S7) * cornmul(T, corner));
+    return normalize(spin(TAU*sp/S7) * cornmul(T, corner));
     }
   
   transmatrix dir_matrix(int i) {
     auto ddspin = [] (int d) -> transmatrix { 
-      return spin(M_PI - d * 2 * M_PI / S7 - cgi.hexshift);
+      return spin(M_PI - d * TAU / S7 - cgi.hexshift);
       };
     return spin(-cgi.gpdata->alpha) * build_matrix(
-      C0, 
-      ddspin(i) * xpush0(cgi.tessf),
-      ddspin(i+1) * xpush0(cgi.tessf),
+      geom3::flipped ? C02 : tile_center(),
+      geom3::flipped ? ddspin(i) * xpush0(cgi.tessf) : ddspin(i) * lxpush0(cgi.tessf),
+      geom3::flipped ? ddspin(i+1) * xpush0(cgi.tessf) : ddspin(i+1) * lxpush0(cgi.tessf),
       C03
       );
     }
   
-  void prepare_matrices() {
+  EX void prepare_matrices(bool inv) {
+    if(!(GOLDBERG_INV || inv)) return;
+    if(embedded_plane) geom3::light_flip(true);
     cgi.gpdata->corners = inverse(build_matrix(
       loctoh_ort(loc(0,0)),
       loctoh_ort(param),
@@ -606,6 +671,9 @@ EX namespace gp {
       C03
       ));
     cgi.gpdata->Tf.resize(S7);
+
+    /* should work directly without flipping but it does not... flipping for now */
+
     for(int i=0; i<S7; i++) {
       transmatrix T = dir_matrix(i);
       for(int x=-GOLDBERG_LIMIT_HALF; x<GOLDBERG_LIMIT_HALF; x++)
@@ -615,9 +683,21 @@ EX namespace gp {
         
         hyperpoint h = atz(T, cgi.gpdata->corners, at, 6);
         hyperpoint hl = atz(T, cgi.gpdata->corners, at + eudir(d), 6);
-        cgi.gpdata->Tf[i][x&GOLDBERG_MASK][y&GOLDBERG_MASK][d] = rgpushxto0(h) * rspintox(gpushxto0(h) * hl) * spin(M_PI);
+        auto& res = cgi.gpdata->Tf[i][x&GOLDBERG_MASK][y&GOLDBERG_MASK][d];
+        res = rgpushxto0(h) * rspintox(gpushxto0(h) * hl) * spin180();
         }
       }       
+
+    if(geom3::flipped) {
+    geom3::light_flip(false);
+    for(int i=0; i<S7; i++) {
+      for(int x=-GOLDBERG_LIMIT_HALF; x<GOLDBERG_LIMIT_HALF; x++)
+      for(int y=-GOLDBERG_LIMIT_HALF; y<GOLDBERG_LIMIT_HALF; y++)
+      for(int d=0; d<(S3==3?6:4); d++) {
+        auto& T = cgi.gpdata->Tf[i][x&GOLDBERG_MASK][y&GOLDBERG_MASK][d];
+        T = cgi.emb->base_to_actual(T);
+        }
+      } }
     }
 
   EX hyperpoint get_corner_position(const local_info& li, int cid, ld cf IS(3)) {
@@ -666,19 +746,28 @@ EX namespace gp {
         cgi.base_distlimit = 2 * param.first + 2 * param.second + 1;
       if(cgi.base_distlimit > SEE_ALL)
         cgi.base_distlimit = SEE_ALL;
-      prepare_matrices();
       DEBB(DF_GEOM | DF_POLY, ("scale = ", scale));
       }
     }
 
   loc config;
   
-  loc internal_representation(loc v) {
+  EX bool rotate_and_check_limits(loc& v) {
     int& x = v.first, &y = v.second;
     while(x < 0 || y < 0 || (x == 0 && y > 0))
       v = v * loc(0, 1);
-    if(x > 8) x = 8;
-    if(y > 8) y = 8;
+    return 2*(x+y) < (1<<GOLDBERG_BITS);
+    }
+
+  EX bool check_limits(loc v) {
+    return rotate_and_check_limits(v);
+    }
+
+  loc internal_representation(loc v) {
+    int& x = v.first, &y = v.second;
+    while(!rotate_and_check_limits(v)) {
+      if(x > y) x--; else y--;
+      }
     if(S3 == 3 && y > x) v = v * loc(1, -1);
     return v;
     }
@@ -698,7 +787,7 @@ EX namespace gp {
     return eVariation::goldberg;
     }
   
-  void whirl_set(loc xy) {
+  EX void whirl_set(loc xy) {
     xy = internal_representation(xy);
     if(xy.second && xy.second != xy.first && nonorientable) {
       addMessage(XLAT("This does not work in non-orientable geometries"));
@@ -733,7 +822,7 @@ EX namespace gp {
 
   void show() {
     cmode = sm::SIDE | sm::MAYDARK;
-    gamescreen(0);  
+    gamescreen();
     dialog::init(XLAT("variations"));
     
     int min_quality_chess = 0;
@@ -800,6 +889,8 @@ EX namespace gp {
     dialog::addSelItem("y", its(config.second), 'y');
     dialog::add_action([] { dialog::editNumber(config.second, 0, 8, 1, 1, "y", helptext()); });
     
+    if(!check_limits(config))
+      dialog::addInfo(XLAT("Outside of the supported limits"));
     if(config.second && config.second != config.first && nonorientable) {
       dialog::addInfo(XLAT("This does not work in non-orientable geometries"));
       }
@@ -820,7 +911,7 @@ EX namespace gp {
       dialog::addBoolItem(XLAT("irregular"), IRREGULAR, 'i');
       dialog::add_action(dialog::add_confirmation([=] () { 
         if(min_quality && !irr::bitruncations_requested) irr::bitruncations_requested++;
-        if(euclid && (!bounded || nonorientable)) { 
+        if(euclid && (!closed_manifold || nonorientable)) { 
           println(hlog, XLAT("To create Euclidean irregular tesselations, first enable a torus"));
           return;
           }
@@ -1087,6 +1178,7 @@ EX namespace gp {
       return S3 == 3 ? XLAT("chamfered") : XLAT("expanded");
     else if(GOLDBERG && param == loc(3, 0) && S3 == 3)
       return XLAT("2x bitruncated");
+    #if MAXMDIM >= 4
     else if(variation == eVariation::subcubes)
       return XLAT("subcubed") + "(" + its(reg3::subcube_count) + ")";
     else if(variation == eVariation::dual_subcubes)
@@ -1095,6 +1187,7 @@ EX namespace gp {
       return XLAT("bitruncated-subcubed") + "(" + its(reg3::subcube_count) + ")";
     else if(variation == eVariation::coxeter)
       return XLAT("subdivided") + "(" + its(reg3::coxeter_param) + ")";
+    #endif
     else {
       auto p = human_representation(param);
       string s = "GP(" + its(p.first) + "," + its(p.second) + ")";
@@ -1186,11 +1279,13 @@ EX namespace gp {
     cell *create_move(cell *parent, int d) {
       if(UNRECTIFIED) {
         cellwalker cw(mapping[parent], d);
+        bool b = cw.mirrored;
         in_underlying([&] {
           cw += wstep;
           cw --;
           cw += wstep;
           cw --;
+          if(cw.mirrored != b) cw++;
           });
         cw.at = get_mapped(cw.at, 0);
         parent->c.connect(d, cw.at, cw.spin, cw.mirrored);
@@ -1364,6 +1459,10 @@ EX namespace gp {
   #define UIU(x) hr::gp::in_underlying_geometry([&] { return (x); })
   #endif
 
+
+auto hooksw = addHook(hooks_swapdim, 100, [] {
+  for(auto& p: gp_adj) swapmatrix(p.second);
+  });
 
     
   }}

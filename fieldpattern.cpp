@@ -43,7 +43,7 @@ EX bool isprime(int n) {
   }
   
 #if HDR
-#define MWDIM (prod ? 3 : WDIM+1)
+#define MWDIM (mproduct ? 3 : WDIM+1)
 
 struct matrix : array<array<int, MAXMDIM>, MAXMDIM> {
   bool operator == (const matrix& B) const {
@@ -142,14 +142,23 @@ struct fpattern {
     }
   
   int sqr(int x) { return mul(x,x); }
-  
+
+  int err;
+
   matrix mmul(const matrix& A, const matrix& B) {
     matrix res;
     for(int i=0; i<MWDIM; i++) for(int k=0; k<MWDIM; k++) {
       int t = 0;
   #ifdef EASY
-      for(int j=0; j<MWDIM; j++) t += mul(A[i][j], B[j][k]);
-      t %= Prime;
+      int tp = 0, tn = 0;
+      for(int j=0; j<MWDIM; j++) {
+        int val = mul(A[i][j], B[j][k]);
+        if(val > 0) tp += val;
+        else tn += val;
+        }
+      tp %= Prime; tn %= Prime;
+      if(tp && tn) err++;
+      t = tp + tn;
   #else
       for(int j=0; j<MWDIM; j++) t = add(t, mul(A[i][j], B[j][k]));
   #endif
@@ -295,6 +304,7 @@ struct fpattern {
       exit(1);
       }
     build();
+    analyze();
     }
     
   fpattern(int p) {
@@ -361,12 +371,13 @@ struct discovery {
 #endif
 
 bool fpattern::check_order(matrix M, int req) {
+  int err = 0;
   matrix P = M;
   for(int i=1; i<req; i++) {
     if(P == Id) return false;
     P = mmul(P, M);
     }
-  return P == Id;
+  return P == Id && !err;
   }
 
 vector<matrix> fpattern::generate_isometries() {
@@ -496,6 +507,7 @@ unsigned fpattern::compute_hash() {
 bool fpattern::generate_all3() {
 
   reg3::generate_fulls();
+  err = 0;
 
   matrices.clear();
   matcode.clear();
@@ -504,19 +516,23 @@ bool fpattern::generate_all3() {
   for(int i=0; i<isize(matrices); i++) {
     add1(mmul(matrices[i], R), fullv[i] * cgi.full_R);
     add1(mmul(matrices[i], X), fullv[i] * cgi.full_X);
+    if(err) return false;
     }
   local_group = isize(matrices);
+  if(local_group != isize(cgi.cellrotations)) return false;
+
   for(int i=0; i<(int)matrices.size(); i++) {
     matrix E = mmul(matrices[i], P);
     if(!matcode.count(E))
       for(int j=0; j<local_group; j++) add1(mmul(E, matrices[j]));
+    if(err) return false;
     if(isize(matrices) >= limitv) { println(hlog, "limitv exceeded"); return false; }
     }
   hashv = compute_hash();
   DEBB(DF_FIELD, ("all = ", isize(matrices), "/", local_group, " = ", isize(matrices) / local_group, " hash = ", hashv, " count = ", ++hash_found[hashv]));
   
   if(use_quotient_fp) 
-    generate_quotientgroup();
+    generate_quotientgroup();  
   return true;
   }
 
@@ -584,8 +600,11 @@ void fpattern::generate_quotientgroup() {
   
   }
 
+EX purehookset hooks_solve3;
+
 int fpattern::solve3() {
-  reg3::construct_relations();
+
+  reg3::generate_fulls();
   
   DEBB(DF_FIELD, ("generating isometries for ", Field));
   
@@ -593,10 +612,6 @@ int fpattern::solve3() {
   auto iso4 = generate_isometries3();
 
   int cmb = 0;
-  
-  int N = isize(cgi.rels);
-  
-  vector<int> fails(N);
   
   vector<matrix> possible_P, possible_X, possible_R;
   
@@ -613,35 +628,32 @@ int fpattern::solve3() {
   DEBB(DF_FIELD, ("field = ", Field, " #P = ", isize(possible_P), " #X = ", isize(possible_X), " #R = ", isize(possible_R), " r_order = ", cgi.r_order, " xp_order = ", cgi.xp_order));
                                                                                                                                
   for(auto& xX: possible_X)
-  for(auto& xP: possible_P) if(check_order(mmul(xP, xX), cgi.xp_order))
-  for(auto& xR: possible_R) if(check_order(mmul(xR, xX), cgi.rx_order)) { // if(xR[0][0] == 1 && xR[0][1] == 0) 
-    #if CAP_THREAD && MAXMDIM >+ 4
+  for(auto& xP: possible_P) if(check_order(mmul(xP, xX), cgi.xp_order)) 
+  for(auto& xR: possible_R) if(check_order(mmul(xR, xX), cgi.rx_order)) {
+
+    err = 0;
+    if(mmul(xX, xP) != mmul(xR, mmul(mmul(xP, xX), xR))) continue;
+    if(err) continue;
+
+    #if CAP_THREAD && MAXMDIM >= 4
     if(dis) dis->check_suspend();
     if(dis && dis->stop_it) return 0;
     #endif
-    auto by = [&] (char ch) -> matrix& { return ch == 'X' ? xX : ch == 'R' ? xR : xP; };
-    for(int i=0; i<N; i++) {
-      matrix ml = Id;
-      for(char c: cgi.rels[i].first) { ml = mmul(ml, by(c)); if(ml == Id) { fails[i]++; goto bad; }}
-      matrix mr = Id;
-      for(char c: cgi.rels[i].second) { mr = mmul(mr, by(c)); if(mr == Id) { fails[i]++; goto bad; }}
-      if(ml != mr) { fails[i]++; goto bad;}
-      }
+
     P = xP; R = xR; X = xX;
     if(!generate_all3()) continue;
+    callhooks(hooks_solve3);
     #if CAP_THREAD && MAXMDIM >= 4
     if(dis) { dis->discovered(); continue; }
     #endif
     if(force_hash && hashv != force_hash) continue;
     cmb++;
     goto ok;
-    bad: ;
     }
-  
+
   ok:
 
   DEBB(DF_FIELD, ("cmb = ", cmb, " for field = ", Field));
-  for(int i=0; i<N; i++) if(fails[i]) DEBB(DF_FIELD, (cgi.rels[i], " fails = ", fails[i]));
   
   return cmb;
   }
@@ -1121,9 +1133,9 @@ void fpattern::analyze() {
   int riverdist = dijkstra(PURE ? distflower : distriver, indist);
   DEBB(DF_FIELD, ("river dist = %d\n", riverdist));
   
-  for(int i=0; i<isize(currfp.matrices); i++)
-    if(currfp.distflower[i] == 0) {
-      distflower0 = currfp.inverses[i]+1;
+  for(int i=0; i<isize(matrices); i++)
+    if(distflower[i] == 0) {
+      distflower0 = inverses[i]+1;
       break;
       }
   
@@ -1269,7 +1281,13 @@ EX struct fpattern& getcurrfp() {
     return current_quotient_field;
   if(geometry == gSpace535) {
     // 120 cells, hash = 9EF7A9C4
-    static fpattern fp(5);
+    static fpattern fp(0);
+    if(use_rule_fp) {
+      fp.Prime = 5; fp.force_hash = 0xDCC3CACEu; fp.solve();
+      }
+    else {
+      fp.Prime = 5; fp.force_hash = 0x9EF7A9C4u; fp.solve();
+      }
     return fp;
     }
   if(geometry == gSpace534) {
@@ -1279,7 +1297,7 @@ EX struct fpattern& getcurrfp() {
     // fp.Prime = 5; fp.force_hash = 0x72414D0C; fp.solve();
     
     if(use_rule_fp) {
-      fp.Prime = 11; fp.force_hash = 0x5FC4CFF0; fp.solve();
+      fp.Prime = 11; fp.force_hash = 0x5FC4CFF0u; fp.solve();
       }
     else {
       shstream ins(STR("\x05\x00\x00\x00\x02\x00\x00\x00\x03\x00\x00\x00\xfc\xff\xff\xff\x01\x00\x00\x00\x04\x00\x00\x00\xfc\xff\xff\xff\x04\x00\x00\x00\xfe\xff\xff\xff\x00\x00\x00\x00\x01\x00\x00\x00\xfe\xff\xff\xff\x04\x00\x00\x00\x02\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x03\x00\x00\x00\x04\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\xff\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00\xfc\xff\xff\xff\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\xfc\xff\xff\xff\x02\x00\x00\x00\x00\x00\x00\x00\xfc\xff\xff\xff\x01\x00\x00\x00\xfd\xff\xff\xff\x00\x00\x00\x00\x02\x00\x00\x00\xfd\xff\xff\xff\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00"));
@@ -1295,7 +1313,7 @@ EX struct fpattern& getcurrfp() {
     // what is 0x72414D0C??
     
     if(use_rule_fp) {
-      fp.Prime = 11; fp.force_hash = 0x65CE0C00; fp.solve();
+      fp.Prime = 11; fp.force_hash = 0x65CE0C00u; fp.solve();
       }
     else {
       shstream ins(STR("\x05\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\xfc\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff\xfc\xff\xff\xff\x04\x00\x00\x00\x02\x00\x00\x00\x04\x00\x00\x00\xff\xff\xff\xff\x02\x00\x00\x00\x03\x00\x00\x00\x03\x00\x00\x00\xfd\xff\xff\xff\x01\x00\x00\x00\x02\x00\x00\x00\x03\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\xfc\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\xfd\xff\xff\xff\xfd\xff\xff\xff\x00\x00\x00\x00\xfd\xff\xff\xff\x02\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\xfd\xff\xff\xff\x03\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00"));
@@ -1305,20 +1323,28 @@ EX struct fpattern& getcurrfp() {
     }
   if(geometry == gSpace436) {
     static fpattern fp(0);
-    // FF82A214
-    shstream ins(STR("\x05\x00\x00\x00\x02\x00\x00\x00\x01\x00\x00\x00\xfd\xff\xff\xff\x00\x00\x00\x00\xfe\xff\xff\xff\xfd\xff\xff\xff\x01\x00\x00\x00\x01\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x04\x00\x00\x00\xfd\xff\xff\xff\x02\x00\x00\x00\x01\x00\x00\x00\x02\x00\x00\x00\x02\x00\x00\x00\xfc\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\xfd\xff\xff\xff\xfd\xff\xff\xff\x00\x00\x00\x00\xfd\xff\xff\xff\x02\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\xfd\xff\xff\xff\x03\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00"));
-    hread_fpattern(ins, fp);
+    if(fp.Prime) return fp;
+    if(use_rule_fp) {
+      fp.Prime = 2; fp.force_hash = 0x235F7508u; fp.solve();
+      }
+    else {
+      // FF82A214
+      shstream ins(STR("\x05\x00\x00\x00\x02\x00\x00\x00\x01\x00\x00\x00\xfd\xff\xff\xff\x00\x00\x00\x00\xfe\xff\xff\xff\xfd\xff\xff\xff\x01\x00\x00\x00\x01\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x04\x00\x00\x00\xfd\xff\xff\xff\x02\x00\x00\x00\x01\x00\x00\x00\x02\x00\x00\x00\x02\x00\x00\x00\xfc\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\xfd\xff\xff\xff\xfd\xff\xff\xff\x00\x00\x00\x00\xfd\xff\xff\xff\x02\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\xfd\xff\xff\xff\x03\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00"));
+      hread_fpattern(ins, fp);
+      }
     return fp;
     }
   if(geometry == gSpace336) {
-    // 672 cells in E3F6B7BC
-    // 672 cells in 885F1184
-    // 9408 cells in C4089F34
     static fpattern fp(0);
     if(fp.Prime) return fp;
-    // fp.Prime = 7; fp.force_hash = 0xE3F6B7BCu; fp.solve();
-    shstream ins(STR("\x07\x00\x00\x00\x03\x00\x00\x00\xfa\xff\xff\xff\x02\x00\x00\x00\x03\x00\x00\x00\x06\x00\x00\x00\x02\x00\x00\x00\xfe\xff\xff\xff\xfb\xff\xff\xff\xfc\xff\xff\xff\x03\x00\x00\x00\xfb\xff\xff\xff\xfd\xff\xff\xff\xfb\xff\xff\xff\x01\x00\x00\x00\xfd\xff\xff\xff\xfe\xff\xff\xff\xfd\xff\xff\xff\x03\x00\x00\x00\x00\x00\x00\x00\xfd\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xfc\xff\xff\xff\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\xfa\xff\xff\xff\xfb\xff\xff\xff\x00\x00\x00\x00\xfa\xff\xff\xff\x02\x00\x00\x00\x06\x00\x00\x00\x00\x00\x00\x00\xfb\xff\xff\xff\x06\x00\x00\x00\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00"));
-    hread_fpattern(ins, fp);
+    if(use_rule_fp) {
+      fp.Prime = 3; fp.force_hash = 0xD29C2418u; fp.solve();
+      }
+    else {
+      // fp.Prime = 7; fp.force_hash = 0xE3F6B7BCu; fp.solve();
+      shstream ins(STR("\x07\x00\x00\x00\x03\x00\x00\x00\xfa\xff\xff\xff\x02\x00\x00\x00\x03\x00\x00\x00\x06\x00\x00\x00\x02\x00\x00\x00\xfe\xff\xff\xff\xfb\xff\xff\xff\xfc\xff\xff\xff\x03\x00\x00\x00\xfb\xff\xff\xff\xfd\xff\xff\xff\xfb\xff\xff\xff\x01\x00\x00\x00\xfd\xff\xff\xff\xfe\xff\xff\xff\xfd\xff\xff\xff\x03\x00\x00\x00\x00\x00\x00\x00\xfd\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xfc\xff\xff\xff\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\xfa\xff\xff\xff\xfb\xff\xff\xff\x00\x00\x00\x00\xfa\xff\xff\xff\x02\x00\x00\x00\x06\x00\x00\x00\x00\x00\x00\x00\xfb\xff\xff\xff\x06\x00\x00\x00\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00"));
+      hread_fpattern(ins, fp);
+      }
     return fp;
     }
   if(geometry == gSpace344) {
@@ -1328,7 +1354,12 @@ EX struct fpattern& getcurrfp() {
     // 2600 cells in EC29DCEC 
     static fpattern fp(0);
     if(fp.Prime) return fp;
-    fp.Prime = 5; fp.force_hash = 0x558C8ED0u; fp.solve();
+    if(use_rule_fp) {
+      fp.Prime = 3; fp.force_hash = 0xB23AF1F4u; fp.solve();
+      }
+    else {
+      fp.Prime = 5; fp.force_hash = 0x558C8ED0u; fp.solve();
+      }
     return fp;
     // 4900 cells in CDCC7860 (7)
     }
@@ -1337,7 +1368,12 @@ EX struct fpattern& getcurrfp() {
     if(fp.Prime) return fp;
     // 130 cells in 3BA5C5A4
     // 260 cells in 9FDE7B38
-    fp.Prime = 5; fp.force_hash = 0x9FDE7B38u; fp.solve();
+    if(use_rule_fp) {
+      fp.Prime = 5; fp.force_hash = 0x61385498u; fp.solve();
+      }
+    else {
+      fp.Prime = 5; fp.force_hash = 0x9FDE7B38u; fp.solve();
+      }
     return fp;
     }
   if(geometry == gSpace345) {
@@ -1346,7 +1382,12 @@ EX struct fpattern& getcurrfp() {
     // 30 cells in 02ADCAA4 (3^2)
     // 650 cells in 7EFE8D98 (5^2)
     // 55 cells in F447F75C (11)
-    fp.Prime = 11; fp.force_hash = 0xF447F75Cu; fp.solve();
+    if(use_rule_fp) {
+      fp.Prime = 3; fp.force_hash = 0xF978E264u; fp.solve();
+      }
+    else {
+      fp.Prime = 11; fp.force_hash = 0xF447F75Cu; fp.solve();
+      }
     return fp;
     }
   if(geometry == gSpace353) {
@@ -1359,12 +1400,16 @@ EX struct fpattern& getcurrfp() {
     }
   if(geometry == gSpace354) {
     static fpattern fp(0);
-    if(fp.Prime) return fp;
-    fp.Prime = 11; fp.force_hash = 0x363D8DA4u; fp.solve();
+    // fp.Prime = 11; fp.force_hash = 0x363D8DA4u; fp.solve();
+    fp.Prime = 5; fp.force_hash = 0x58A8E850u; fp.solve();
+    return fp;
+    }
+  if(geometry == gCubeTiling) {
+    static fpattern fp(2);
     return fp;
     }
   if(!hyperbolic) return fp_invalid;
-  if(WDIM == 3 && !quotient && !hybri && !bt::in()) {
+  if(WDIM == 3 && !quotient && !mhybrid && !bt::in()) {
     static fpattern fp(0);
     if(fp.Prime) return fp;
     for(int p=2; p<20; p++) { fp.Prime = p; if(!fp.solve()) break; }
@@ -1457,19 +1502,22 @@ EX void enableFieldChange() {
   ginf[geometry].distlimit = ginf[gxcur.base].distlimit;
   ginf[geometry].tiling_name = ginf[gxcur.base].tiling_name;
   ginf[geometry].default_variation = ginf[gxcur.base].default_variation;
-  ginf[geometry].flags = qFIELD | qANYQ | qBOUNDED;
+  ginf[geometry].flags = qFIELD | qANYQ | qCLOSED;
   fieldpattern::current_quotient_field.init(gxcur.primes[gxcur.current_prime_id].p);
   }
 
+EX eGeometry underlying_geometry;
+
 EX void field_from_current() {
   auto& go = ginf[geometry];
+  underlying_geometry = geometry;
   dynamicval<eGeometry> g(geometry, gFieldQuotient);
   auto& gg = ginf[geometry];
   gg.sides = go.sides;
   gg.vertex = go.vertex;
   gg.distlimit = go.distlimit;
   gg.tiling_name = go.tiling_name;
-  gg.flags = go.flags | qANYQ | qFIELD | qBOUNDED;
+  gg.flags = go.flags | qANYQ | qFIELD | qCLOSED;
   gg.g = go.g;
   gg.default_variation = go.default_variation;
   fieldpattern::quotient_field_changed = true;  

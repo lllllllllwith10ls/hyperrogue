@@ -15,6 +15,8 @@
 #include "hyper.h"
 namespace hr {
 
+EX bool disable_bigstuff;
+
 // horocycles
 
 EX int newRoundTableRadius() {
@@ -22,6 +24,11 @@ EX int newRoundTableRadius() {
   }
 
 #if CAP_COMPLEX2
+/** should we generate 'Castle Anthrax' instead of Camelot (an infinite sequence of horocyclic Camelot-likes */
+EX bool anthrax() {
+  return ls::single() && hyperbolic && !cryst;
+  }
+
 EX int getAnthraxData(cell *c, bool b) {
   int d = celldistAlt(c);
   int rad = 28 + 3 * camelot::anthraxBonus;
@@ -60,7 +67,7 @@ EX int celldistAltRelative(cell *c) {
     return celldist(c) - 3;
     }
   #if CAP_COMPLEX2
-  if(ls::single()) return getAnthraxData(c, false);
+  if(anthrax()) return getAnthraxData(c, false);
   #endif
   return celldistAlt(c) - roundTableRadius(c);
   }
@@ -146,15 +153,19 @@ EX int default_levs() {
   if(S3 >= OINF)
     return 1;
   #if MAXMDIM >= 4
-  if(reg3::in_rule()) return 0;
+  if(reg3::in_hrmap_rule_or_subrule()) return 0;
   #endif
   return S3-3;
   }
 
 #if HDR
 namespace altmap {
+
+  /* in quotient space we cannot use alt for quotient */
+  extern map<heptagon*, short> quotient_relspins;
+
   /** h->move(relspin(h->alt)) corresponds to h->alt->move(0) */
-  inline short& relspin(heptagon *alt) { return alt->zebraval; }
+  inline short& relspin(heptagon *alt) { return quotient ? quotient_relspins[alt] : alt->zebraval; }
 
   /** for Camelot, the radius */
   inline short& radius(heptagon *alt) { return alt->emeraldval; }
@@ -169,8 +180,11 @@ namespace altmap {
   }
 #endif
 
+map<heptagon*, short> altmap::quotient_relspins;
+auto qclear = addHook(hooks_clearmemory, 200, [] { altmap::quotient_relspins.clear(); });
+
 void hrmap::extend_altmap(heptagon *h, int levs, bool link_cdata) {
-  if(hybri) { PIU ( extend_altmap(h, levs, link_cdata) ); }
+  if(mhybrid) { PIU ( extend_altmap(h, levs, link_cdata) ); }
   if(!h->alt) return;
   preventbarriers(h->c7);
   if(h->c7) forCellEx(c2, h->c7) preventbarriers(c2);
@@ -216,7 +230,7 @@ EX int hrandom_adjacent(cellwalker cw) {
 
 EX heptagon *create_altmap(cell *c, int rad, hstate firststate, int special IS(0)) {
 
-  if(hybri) {
+  if(mhybrid) {
     if(hybrid::under_class() == gcSphere) return NULL;
     c = hybrid::get_where(c).first;
     return PIU ( create_altmap(c, rad, firststate, special) );
@@ -226,7 +240,7 @@ EX heptagon *create_altmap(cell *c, int rad, hstate firststate, int special IS(0
   int gdir = -1;
   for(int i=0; i<c->type; i++) {
     #if MAXMDIM >= 4
-    if(!reg3::in_rule()) {
+    if(!reg3::in_hrmap_rule_or_subrule()) {
     #else
     if(true) {
     #endif
@@ -238,7 +252,7 @@ EX heptagon *create_altmap(cell *c, int rad, hstate firststate, int special IS(0
       }
     }
   #if MAXMDIM >= 4
-  if(reg3::in_rule() && c->master->distance == 0) gdir = 0;
+  if(reg3::in_hrmap_rule_or_subrule() && c->master->distance == 0) gdir = 0;
   #endif
   if(gdir < 0) return NULL;
   
@@ -282,7 +296,7 @@ EX heptagon *create_altmap(cell *c, int rad, hstate firststate, int special IS(0
   if(!currentmap->link_alt(h, alt, firststate, p.last.spin)) {
     return nullptr;
     }
-  if(hybri) hybrid::altmap_heights[alt] = hybrid::get_where(centerover).second;
+  if(mhybrid) hybrid::altmap_heights[alt] = hybrid::get_where(centerover).second;
   alt->alt = alt;
   h->alt = alt;
   alt->cdata = (cdata*) h;
@@ -800,10 +814,10 @@ EX void buildEquidistant(cell *c) {
     ls::nice_walls() ? true :
     false;
   
-  if(c->landparam > 30 && b == laOcean && !generatingEquidistant && !hybri && hrand(10) < 5 && chance) 
+  if(c->landparam > 30 && b == laOcean && !generatingEquidistant && !mhybrid && hrand(10) < 5 && chance)
     buildAnotherEquidistant(c);
 
-  if(c->landparam > HAUNTED_RADIUS+5 && b == laGraveyard && !generatingEquidistant && !hybri && hrand(100) < (PURE?25:5) && items[itBone] >= U10 && chance) 
+  if(c->landparam > HAUNTED_RADIUS+5 && b == laGraveyard && !generatingEquidistant && !mhybrid && hrand(100) < (PURE?25:5) && items[itBone] >= U10 && chance)
     buildAnotherEquidistant(c);
   }
 
@@ -945,7 +959,7 @@ EX void clear_euland(eLand first) {
   }
 
 bool valid_wall_at(int c) {
-  if(nonisotropic || hybri) return true;
+  if(nonisotropic || mhybrid) return true;
   return short(c) % 3 == 0;
   }
   
@@ -958,7 +972,7 @@ EX eLand switchable(eLand nearland, eLand farland, int c) {
   else if(ls::no_walls()) {
     if((dual::state && nearland == laCrossroads4) || hrand(15) == 0)
       return getNewLand(nearland);
-    if(nearland == laCrossroads4 && (nonisotropic || hybri))
+    if(nearland == laCrossroads4 && (nonisotropic || mhybrid))
       return getNewLand(nearland);
     return nearland;
     }
@@ -1355,9 +1369,10 @@ EX int wallchance(cell *c, bool deepOcean) {
 
 /** \brief should we generate the horocycles in the current geometry? */
 EX bool horo_ok() {  
-  if(INVERSE) return false;
+  if(INVERSE) return false;  
   if(currentmap->strict_tree_rules()) return true;
-  return hyperbolic && !bt::in() && !arcm::in() && !kite::in() && !experimental && !hybri && !arb::in() && !quotient;
+  if(reg3::in_hrmap_h3() && !PURE) return false;
+  return mhyperbolic && !bt::in() && !arcm::in() && !kite::in() && !experimental && !mhybrid && !arb::in() && !quotient;
   }
 
 /** \brief should we either generate the horocycles in the current geometry, or have them exist via eubinary? */
@@ -1481,7 +1496,7 @@ EX bool old_nice_walls() {
   }
 
 EX bool nice_walls_available() {
-  if(hybri) return PIU(nice_walls_available());
+  if(mhybrid) return PIU(nice_walls_available());
   if(fake::in()) return FPIU(nice_walls_available());
   return WDIM == 2;
   }
@@ -1505,7 +1520,7 @@ EX void build_walls(cell *c, cell *from) {
   
   // buildgreatwalls
   
-  if(hybri) return;  /* Great Walls generated via the underlying geometry */
+  if(mhybrid) return;  /* Great Walls generated via the underlying geometry */
   
   if(walls_not_implemented()) return; // walls not implemented here  
 
@@ -1655,7 +1670,7 @@ EX void build_horocycles(cell *c, cell *from) {
 
   if(ls::any_order() && bearsCamelot(c->land) && can_start_horo(c) && !bt::in() && 
     #if MAXMDIM >= 4
-    !(hyperbolic && WDIM == 3 && !reg3::in_rule()) && 
+    !(hyperbolic && WDIM == 3 && !reg3::in_hrmap_rule_or_subrule()) &&
     #endif
     (quickfind(laCamelot) || peace::on || (hrand(I2000) < (c->land == laCrossroads4 || ls::no_walls() ? 800 : 200) && horo_ok() &&
     items[itEmerald] >= U5))) 
@@ -1702,8 +1717,16 @@ EX void build_horocycles(cell *c, cell *from) {
     for(cell *c: cl.lst) if(c->master->alt) currentmap->extend_altmap(c->master);
     }
   }
-  
+
 EX void buildBigStuff(cell *c, cell *from) {
+
+  #if CAP_LEGACY
+  if(legacy_racing()) {
+    buildBigStuff_legacy(c, from);
+    return;
+    }
+  #endif
+
   build_walls(c, from);
   
   build_horocycles(c, from);
@@ -1712,7 +1735,7 @@ EX void buildBigStuff(cell *c, cell *from) {
   }
 
 EX bool openplains(cell *c) {
-  if(ls::any_chaos()) {
+  if(ls::any_chaos() || ls::no_walls()) {
     forCellEx(c2, c) if(c2->land != laHunting) return false;
     return true;
     }
@@ -1766,8 +1789,9 @@ EX eMonster camelot_monster() {
   }
 
 EX void buildCamelot(cell *c) {
+  #if CAP_COMPLEX2
   int d = celldistAltRelative(c);
-  if(ls::single() || (d <= 14 && roundTableRadius(c) > 20)) {
+  if(anthrax() || (d <= 14 && roundTableRadius(c) > 20)) {
     gen_alt(c);
     preventbarriers(c);
     if(d == 10) {
@@ -1807,34 +1831,36 @@ EX void buildCamelot(cell *c) {
         }
       }
     if(d == 0) c->wall = waRoundTable;
-    if(celldistAlt(c) == 0 && !ls::single()) c->item = itHolyGrail;
+    if(celldistAlt(c) == 0 && !anthrax()) println(hlog, "placed Holy Grail on ", c);
+    if(celldistAlt(c) == 0 && !anthrax()) c->item = itHolyGrail;
     if(d < 0 && hrand(7000) <= 10 + items[itHolyGrail] * 5)
       c->monst = camelot_monster();
     if(d == 1) {
       // roughly as many knights as table cells
-      if(hrand(1000000) < 1000000 / expansion.get_growth() && !reptilecheat)
+      if(hrand(1000000) < 1000000 / get_expansion().get_growth() && !reptilecheat)
         c->monst = moKnight;
       if(!eubinary) for(int i=0; i<c->master->type; i++) currentmap->extend_altmap(c->master->move(i));
       for(int i=0; i<c->type; i++) 
         if(c->move(i) && celldistAltRelative(c->move(i)) < d)
           c->mondir = (i+3) % 6;
       }
-    if(ls::single() && d >= 2 && d <= 8 && hrand(1000) < 10)
+    if(anthrax() && d >= 2 && d <= 8 && hrand(1000) < 10)
       c->item = itOrbSafety;
-    if(d == 5 && ls::single())
+    if(d == 5 && anthrax())
       c->item = itGreenStone;
     if(d <= 10) c->land = laCamelot;
-    if(d > 10 && !eubinary && !ls::single()) {
+    if(d > 10 && !eubinary && !anthrax()) {
       setland(c, eLand(altmap::orig_land(c->master->alt->alt)));
       if(c->land == laNone) printf("Camelot\n"); // NONEDEBUG
       }
     }
+  #endif
   }
 
 EX int masterAlt(cell *c) {
   if(eubinary) return celldistAlt(c);
   #if MAXMDIM >= 4
-  if(WDIM == 3 && hyperbolic && !reg3::in_rule()) return reg3::altdist(c->master);
+  if(WDIM == 3 && hyperbolic && !reg3::in_hrmap_rule_or_subrule()) return reg3::altdist(c->master);
   #endif
   return c->master->alt->distance;
   }
@@ -1894,7 +1920,7 @@ EX void gen_temple(cell *c) {
       auto d = hybrid::get_where(c);
       if(!PIU(pseudohept(d.first))) c->wall = waColumn;
       }
-    else if(hybri) {
+    else if(mhybrid) {
       auto d = hybrid::get_where(c);
       if(d.first->wall == waColumn || (d.second&1)) c->wall = waColumn;
       }
@@ -1922,6 +1948,7 @@ EX void gen_temple(cell *c) {
   }
 
 EX void moreBigStuff(cell *c) {
+  if(disable_bigstuff) return;
 
   if((bearsCamelot(c->land) && !euclid && !quotient && !nil) || c->land == laCamelot) 
   if(have_alt(c)) if(!(bt::in() && specialland != laCamelot)) 
@@ -1982,7 +2009,7 @@ EX void moreBigStuff(cell *c) {
 EX void generate_mines() {
   vector<cell*> candidates;
 
-  if(bounded)
+  if(closed_or_bounded)
     for(cell *c: currentmap->allcells())
       setdist(c, 7, nullptr);
   

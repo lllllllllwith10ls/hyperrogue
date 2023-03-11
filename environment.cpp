@@ -55,20 +55,14 @@ EX vector<cell*> worms, ivies, ghosts, golems, hexsnakes, ants;
 /** temporary changes during bfs */
 vector<pair<cell*, eMonster>> tempmonsters;
 
-/** additional direction information for BFS algorithms.
- *  It remembers from where we have got to this location
- *  the opposite cell will be added to the queue first,
- *  which helps the AI.
- **/
-EX vector<int> reachedfrom;
-
 /** The position of the first cell in dcal in distance 7. New wandering monsters can be generated in dcal[first7..]. */
 EX int first7;           
 
 /** the list of all nearby cells, according to cpdist */
 EX vector<cell*> dcal;
+
 /** the list of all nearby cells, according to current pathdist */
-EX vector<cell*> pathq;
+EX vector<cellwalker> pathq;
 
 /** the number of big statues -- they increase monster generation */
 EX int statuecount;
@@ -89,25 +83,60 @@ EX int gamerange() { return getDistLimit() + gamerange_bonus; }
 EX cell *pd_from;
 EX int pd_range;
 
-EX void onpath(cell *c, int d) {
-  c->pathdist = d;
-  pathq.push_back(c);
+#if HDR
+/** The pathdata is used to keep a list of visited cells. It is used as follows:
+ *  1) create pathdata object: pathdata pd(identifier)
+ *  2) use one of the following methods to mark cells as visited:
+ *  2a) onpath_with_dir or onpath_random_dir, to mark a cell together with its distance and the direction we came from (used by computePathdist to make pathfinding not sensitive to direction indexing)
+ *  2b) onpath, to mark a cell at its distance (used when ordering is irrelevant: compute_graphical_distance and in shmup)
+ *  2c) onpatk_mark, to just mark a cell (used in groupmove2)
+ *  3) All the visited cells are listed in pathq, and they have 'pathdist' set to their recorded distance (0 in case of onpath_mark).
+ *  4) When the pathdata object is deleted, all the pathdist values are cleared back to PINFD.
+ *  The variable 'pathlock' ensures that we do not use two pathdata objects at once.
+ **/
+
+struct pathdata {
+  void checklock();
+  ~pathdata();
+  pathdata(eMonster m, bool include_allies IS(true));
+  pathdata(int i);
+  };
+#endif
+
+/** using pathdata, record a cell (together with direction) as visited */
+EX void onpath_with_dir(cellwalker cw, int d) {
+  if(!pathlock) {
+    println(hlog, "onpath(", cw, ", ", d, ") without pathlock");
+    }
+  cw.at->pathdist = d;
+  pathq.push_back(cw);
   }
 
-EX void onpath(cell *c, int d, int sp) {
-  c->pathdist = d;
-  pathq.push_back(c);
-  reachedfrom.push_back(sp);
+/** using pathdata, record a cell as visited, with random direction */
+EX void onpath_random_dir(cell *c, int d) {
+  onpath_with_dir(cellwalker(c, hrand(c->type), hrand(2)), d);
+  }
+
+EX void onpath(cell *c, int d) {
+  onpath_with_dir(cellwalker(c, 0, 0), d);
+  }
+
+EX void onpath_mark(cell *c) {
+  onpath_with_dir(cellwalker(c, 0, 0), 0);
   }
 
 EX void clear_pathdata() {
-  for(auto c: pathq) c->pathdist = PINFD;
+  for(auto c: pathq) c.at->pathdist = PINFD;
   pathq.clear(); 
   pathqm.clear();
-  reachedfrom.clear(); 
   }
 
+/** This ensures that we do not use two pathdata objects at once */
 EX int pathlock = 0;
+
+/** compute_graphical_distance determines the distance of every cell
+ *  from the current FOV center. It uses the pathq structures but
+ *  does not lock them */
 
 EX void compute_graphical_distance() {
   if(pathlock) { printf("path error: compute_graphical_distance\n"); }
@@ -116,19 +145,21 @@ EX void compute_graphical_distance() {
   if(pd_from == c1 && pd_range == sr) return;
   clear_pathdata();
   
+  pathlock++;
   pd_from = c1;
   pd_range = sr;
-  c1->pathdist = 0;
-  pathq.push_back(pd_from);
+  onpath(c1, 0);
 
   for(int qb=0; qb<isize(pathq); qb++) {
-    cell *c = pathq[qb];
+    cell *c = pathq[qb].at;
     if(c->pathdist == pd_range) break;
     if(qb == 0) forCellCM(c1, c) ;
     forCellEx(c1, c)
       if(c1->pathdist == PINFD)
         onpath(c1, c->pathdist + 1);
     }
+
+  pathlock--;
   }
 
 const int max_radius = 16;
@@ -152,7 +183,7 @@ struct princess_ai {
 void princess_ai::run() {
   int radius = toggle_radius(waOpenPlate);
   if(pathq.empty()) return;
-  int d = pathq.back()->pathdist;
+  int d = pathq.back().at->pathdist;
   if(d == PINFD - 1) return;
   d++;
   if(d < 5) d = 5; /* the Princess AI avoids plates when too close to the player */
@@ -167,7 +198,7 @@ void princess_ai::run() {
         info[0].visit(c1);
       }
     if(k == radius && c->wall == waOpenPlate && c->pathdist == PINFD)
-      onpath(c, d, hrand(c->type));
+      onpath_random_dir(c, d);
     }
   }
 
@@ -175,7 +206,7 @@ EX void computePathdist(eMonster param, bool include_allies IS(true)) {
   
   for(cell *c: targets)
     if(include_allies || isPlayerOn(c))
-      onpath(c, isPlayerOn(c) ? 0 : 1, hrand(c->type));
+      onpath_random_dir(c, isPlayerOn(c) ? 0 : 1);
 
   int qtarg = isize(targets);
   
@@ -188,8 +219,10 @@ EX void computePathdist(eMonster param, bool include_allies IS(true)) {
   princess_retry:
   
   for(; qb < isize(pathq); qb++) {
-    cell *c = pathq[qb];
-    int fd = reachedfrom[qb] + c->type/2;
+    cellwalker cw = pathq[qb];
+    /* The opposite cell will be added to the queue first, which helps the AI. */
+    cw += cw.at->type/2;
+    cell*& c = cw.at;
     if(c->monst && !isBug(c) && !(isFriendly(c) && !c->stuntime)) {
       pathqm.push_back(c); 
       continue; // no paths going through monsters
@@ -203,15 +236,19 @@ EX void computePathdist(eMonster param, bool include_allies IS(true)) {
     int d = c->pathdist;
     if(d == PINFD - 1) continue;
     for(int j=0; j<c->type; j++) {
-      int i = (fd+j) % c->type; 
+      cellwalker cw1 = cw + j;
       // printf("i=%d cd=%d\n", i, c->move(i)->cpdist);
-      cell *c2 = c->move(i);
+      cell *c2 = cw1.peek();
       
-      flagtype f = P_MONSTER | P_REVDIR;
-      if(param == moTameBomberbird) f |= P_FLYING;
+      flagtype f = P_MONSTER;
+      if(param == moTameBomberbird) f |= P_FLYING | P_ISFRIEND;
+      if(isPrincess(param)) f |= P_ISFRIEND | P_USEBOAT | P_CHAIN;
+      if(param == moGolem) f |= P_ISFRIEND;
+      bool pass = c2 && c2->pathdist == PINFD;
+      if(pass && qb < qtarg && !nonAdjacent(c, c2) && !thruVine(c,c2)) pass = passable(c2, NULL, f);
+      else pass = pass && passable(c, c2, f);
 
-      if(c2 && c2->pathdist == PINFD &&
-        passable(c2, (qb<qtarg) && !nonAdjacent(c,c2) && !thruVine(c,c2) ?NULL:c, f)) {
+      if(pass) {
         
         if(qb >= qtarg) {
           if(param == moTortoise && nogoSlow(c, c2)) continue;
@@ -221,7 +258,7 @@ EX void computePathdist(eMonster param, bool include_allies IS(true)) {
             continue;
           }
 
-        onpath(c2, d+1, c->c.spin(i));
+        onpath_with_dir(cw1 + wstep, d+1);
         }
       
       else if(c2 && c2->wall == waClosedGate && princess)
@@ -235,27 +272,35 @@ EX void computePathdist(eMonster param, bool include_allies IS(true)) {
     }
   }
 
-#if HDR
-struct pathdata {
-  void checklock() { 
-    if(pd_from) pd_from = NULL, clear_pathdata();
-    if(pathlock) printf("path error\n"); 
-    pathlock++; 
-    }
-  ~pathdata() {
-    pathlock--;
-    clear_pathdata();
-    }
-  pathdata(eMonster m, bool include_allies IS(true)) { 
-    checklock();
-    computePathdist(m, include_allies); 
-    }
-  pathdata(int i) { 
-    checklock();
-    }
-  };
-#endif
+pathdata::~pathdata() {
+  pathlock--;
+  clear_pathdata();
+  }
+
+void pathdata::checklock() {
+  if(pd_from) pd_from = NULL, clear_pathdata();
+  if(pathlock) printf("path error\n");
+  pathlock++;
+  }
+
+pathdata::pathdata(int i) { checklock(); }
+
+pathdata::pathdata(eMonster m, bool include_allies IS(true)) {
+  checklock();
+  if(isize(pathq))
+    println(hlog, "! we got tiles on pathq: ", isize(pathq));
+
+  computePathdist(m, include_allies);
+  }
+
 // pathdist end
+
+/** additional direction information for BFS algorithms.
+ *  It remembers from where we have got to this location
+ *  the opposite cell will be added to the queue first,
+ *  which helps the AI. Used in bfs().
+ **/
+EX vector<int> bfs_reachedfrom;
 
 /** calculate cpdist, 'have' flags, and do general fixings */
 EX void bfs() {
@@ -285,7 +330,7 @@ EX void bfs() {
   airmap.clear();
   if(!(hadwhat & HF_ROSE)) rosemap.clear();
   
-  dcal.clear(); reachedfrom.clear(); 
+  dcal.clear(); bfs_reachedfrom.clear();
 
   recalcTide = false;
   
@@ -294,7 +339,7 @@ EX void bfs() {
     c->cpdist = 0;
     checkTide(c);
     dcal.push_back(c);
-    reachedfrom.push_back(hrand(c->type));
+    bfs_reachedfrom.push_back(hrand(c->type));
     if(!invismove) targets.push_back(c);
     }
   
@@ -310,7 +355,7 @@ EX void bfs() {
   first7 = 0;
   while(true) {
     if(qb == isize(dcal)) break;
-    int i, fd = reachedfrom[qb] + 3;
+    int i, fd = bfs_reachedfrom[qb] + dcal[qb]->type/2;
     cell *c = dcal[qb++];
     
     int d = c->cpdist;
@@ -338,7 +383,7 @@ EX void bfs() {
         
         // remove treasures
         if(!peace::on && c2->item && c2->cpdist == distlimit && itemclass(c2->item) == IC_TREASURE &&
-          c2->item != itBabyTortoise &&
+          c2->item != itBabyTortoise && WDIM != 3 &&
           (items[c2->item] >= (ls::any_chaos()?10:20) + currentLocalTreasure || getGhostcount() >= 2)) {
             c2->item = itNone;
             if(c2->land == laMinefield) { c2->landparam &= ~3; }
@@ -391,7 +436,7 @@ EX void bfs() {
         
         if(!keepLightning) c2->ligon = 0;
         dcal.push_back(c2);
-        reachedfrom.push_back(c->c.spin(i));
+        bfs_reachedfrom.push_back(c->c.spin(i));
         
         checkTide(c2);
                 
@@ -794,6 +839,7 @@ EX void findWormIvy(cell *c) {
   }
   
 EX void monstersTurn() {
+  reset_spill();
   checkSwitch();
   mirror::breakAll();
   DEBB(DF_TURN, ("bfs"));
@@ -806,7 +852,7 @@ EX void monstersTurn() {
   if(!phase2) movemonsters();
 
   for(cell *pc: player_positions()) if(pc->item == itOrbSafety)  {
-    collectItem(pc, true);
+    collectItem(pc, pc, true);
     return;
     }
 
@@ -845,7 +891,7 @@ EX void monstersTurn() {
   
   changes.value_keep(crush_now);
   changes.value_keep(crush_next);
-  crush_now = move(crush_next);
+  crush_now = std::move(crush_next);
   crush_next.clear();
   
   DEBB(DF_TURN, ("heat"));
@@ -871,6 +917,27 @@ EX void monstersTurn() {
   for(cell *pc: player_positions())
     history::movehistory.push_back(pc);
 #endif
+  }
+
+/** check if whirlline is looped, if yes, remove the repeat; may not detect loops immediately */
+EX bool looped(vector<cell*>& whirlline) {
+  if(isize(whirlline) == 1)
+    return false;
+  if(whirlline.back() == whirlline.front()) {
+    whirlline.pop_back();
+    return true;
+    }
+  int pos = isize(whirlline)/2;
+  if(isize(whirlline) > 2 && whirlline.back() == whirlline[pos]) {
+    while(pos && whirlline.back() == whirlline[pos])
+      whirlline.pop_back();
+    /* something weird must have happened... */
+    static bool once = true;
+    if(once) addMessage("warning: a looped line");
+    once = false;
+    return true;
+    }
+  return false;
   }
 
 }

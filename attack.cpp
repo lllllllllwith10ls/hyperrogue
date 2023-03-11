@@ -175,9 +175,6 @@ EX bool canAttack(cell *c1, eMonster m1, cell *c2, eMonster m2, flagtype flags) 
   if(m2 == moFlailer && !c2->stuntime)
     if(!(flags & (AF_MAGIC | AF_TOUGH | AF_EAT | AF_HORNS | AF_LANCE | AF_BACK | AF_SWORD_INTO | AF_BULL | AF_CRUSH))) return false;
 
-  if(m2 == moVizier && c2->hitpoints > 1 && !c2->stuntime)
-    if(!(flags & (AF_MAGIC | AF_TOUGH | AF_EAT | AF_HORNS | AF_LANCE | AF_BACK | AF_FAST | AF_BULL | AF_CRUSH))) return false;
-                       
   return true;
   }
 
@@ -229,6 +226,27 @@ EX void killIvy(cell *c, eMonster who) {
   for(int i=0; i<c->type; i++) if(c->move(i))
     if(isIvy(c->move(i)) && c->move(i)->mondir == c->c.spin(i))
       killIvy(c->move(i), who), kills[moIvyDead]++;
+  }
+
+struct spillinfo {
+  eWall orig;
+  int spill_a, spill_b;
+  spillinfo() { spill_a = spill_b = 0; }
+  };
+
+map<cell*, spillinfo> spillinfos;
+
+EX void reset_spill() {
+  spillinfos.clear();
+  }
+
+EX void record_spillinfo(cell *c, eWall t) {
+  if(!isAlchAny(t)) return;
+  auto& si = spillinfos[c];
+  if(si.spill_a == 0 && si.spill_b == 0) si.orig = c->wall;
+  if(si.spill_a == 0 && si.spill_b == 0) si.orig = c->wall;
+  if(t == waFloorA) si.spill_a++;
+  if(t == waFloorB) si.spill_b++;
   }
 
 EX void prespill(cell* c, eWall t, int rad, cell *from) {
@@ -285,8 +303,10 @@ EX void prespill(cell* c, eWall t, int rad, cell *from) {
     c->wall == waCamelotMoat || c->wall == waSea || c->wall == waCTree ||
     c->wall == waRubble || c->wall == waGargoyleFloor || c->wall == waGargoyle ||
     c->wall == waRose || c->wall == waPetrified || c->wall == waPetrifiedBridge || c->wall == waRuinWall ||
-    among(c->wall, waDeepWater, waShallow))
+    among(c->wall, waDeepWater, waShallow)) {
+      record_spillinfo(c, t);
       t = waTemporary;
+      }
 
   if(c->wall == waSulphur) {
     // remove the center as it would not look good
@@ -301,14 +321,22 @@ EX void prespill(cell* c, eWall t, int rad, cell *from) {
     
   destroyHalfvine(c);
   if(c->wall == waTerraWarrior) kills[waTerraWarrior]++;
+  record_spillinfo(c, t);
   c->wall = t;
   // destroy items...
   c->item = itNone;
   // block spill
   if(t == waTemporary) return;
   // cwt.at->item = itNone;
-  if(rad) for(cell *c2: adj_minefield_cells(c))
-    prespill(c2, t, rad-1, c);
+  if(rad) for(auto p: adj_minefield_cells_full(c)) {
+    prespill(p.c, conditional_flip_slime(p.mirrored, t), rad-1, c);
+    }
+  }
+
+EX eWall conditional_flip_slime(bool flip, eWall t) {
+  if(flip && t == waFloorA) return waFloorB;
+  if(flip && t == waFloorB) return waFloorA;
+  return t;
   }
 
 EX void spillfix(cell* c, eWall t, int rad) {
@@ -316,12 +344,24 @@ EX void spillfix(cell* c, eWall t, int rad) {
     changes.ccell(c);
     c->wall = t;
     }
-  if(rad) for(cell *c2: adj_minefield_cells(c))
-    spillfix(c2, t, rad-1);
+  if(rad) for(auto p: adj_minefield_cells_full(c)) {
+    spillfix(p.c, conditional_flip_slime(p.mirrored, t), rad-1);
+    }
   }
 
 EX void spill(cell* c, eWall t, int rad) {
-  prespill(c,t,rad, c); spillfix(c,t,rad);
+  if(isAlchAny(c) && (spillinfos[c].spill_a || spillinfos[c].spill_b) && isAlchAny(spillinfos[c].orig))
+    t = spillinfos[c].orig;
+  prespill(c,t,rad, c);
+  spillfix(c,t,rad);
+  for(auto si: spillinfos) {
+    if(si.second.spill_a && si.second.spill_b)
+    si.first->wall =
+      si.second.spill_a > si.second.spill_b ? waFloorA :
+      si.second.spill_b > si.second.spill_a ? waFloorB :
+      isAlchAny(si.second.orig) ? si.second.orig :
+      waNone;
+    }
   }
 
 EX void degradeDemons() {
@@ -416,7 +456,7 @@ EX void killMutantIvy(cell *c, eMonster who) {
   changes.ccell(c);
   removeIvy(c);
   for(int i=0; i<c->type; i++)
-    if(c->move(i)->mondir == c->c.spin(i) && (isMutantIvy(c->move(i)) || c->move(i)->monst == moFriendlyIvy))
+    if(c->move(i) && c->move(i)->mondir == c->c.spin(i) && (isMutantIvy(c->move(i)) || c->move(i)->monst == moFriendlyIvy))
       kills[c->move(i)->monst]++, killMutantIvy(c->move(i), who);
   if(c->land == laClearing) clearing::imput(c);
   }
@@ -1164,6 +1204,8 @@ EX void killHardcorePlayer(int id, flagtype flags) {
     }
   }
 
+EX bool suicidal;
+
 EX void killThePlayer(eMonster m, int id, flagtype flags) {
   if(markOrb(itOrbShield)) return;
   if(shmup::on) {
@@ -1193,6 +1235,7 @@ EX void killThePlayer(eMonster m, int id, flagtype flags) {
   else {
 //  printf("confused!\n");
     addMessage(XLAT("%The1 is confused!", m));
+    changes.value_set(suicidal, true);
     }
   }
 
@@ -1245,7 +1288,8 @@ EX void stabbingAttack(movei mi, eMonster who, int bonuskill IS(0)) {
     
     bool stabthere = false, away = true;
     if(logical_adjacent(mt, who, c)) stabthere = true, away = false;
-  
+    if(inmirror(c)) c = mirror::reflect(c).at;
+
     if(stabthere && c->wall == waExplosiveBarrel && markOrb(itOrbThorns))
       explodeBarrel(c);
     

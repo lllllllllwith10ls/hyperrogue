@@ -16,30 +16,6 @@
 
 // press 'o' when flocking active to change the parameters.
 
-#ifdef USE_THREADS
-#include <thread>
-int threads = 1;
-#endif
-
-template<class T> auto parallelize(long long N, T action) -> decltype(action(0,0)) {
-#ifndef USE_THREADS
-  return action(0,N);
-#else
-  if(threads == 1) return action(0,N);
-  std::vector<std::thread> v;
-  typedef decltype(action(0,0)) Res;
-  std::vector<Res> results(threads);
-  for(int k=0; k<threads; k++)
-    v.emplace_back([&,k] () { 
-      results[k] = action(N*k/threads, N*(k+1)/threads); 
-      });
-  for(std::thread& t:v) t.join();
-  Res res = 0;
-  for(Res r: results) res += r;
-  return res;
-#endif
-  }
-
 #include "rogueviz.h"
 
 namespace rogueviz {
@@ -116,7 +92,7 @@ namespace flocking {
       vertexdata& vd = vdata[i];
       auto m = vd.m;
       
-      apply_parallel_transport(m->at, m->ori, xtangent(0.01)); // max_speed * d));
+      apply_shift_object(m->at, m->ori, xtangent(0.01)); // max_speed * d));
       
       fixmatrix(m->at);
 
@@ -130,7 +106,7 @@ namespace flocking {
       transmatrix I, Rot;
       bool use_rot = true;
       
-      if(prod) {
+      if(mproduct) {
         I = inverse(m->at);
         Rot = inverse(m->ori);
         }
@@ -224,11 +200,11 @@ namespace flocking {
       oris[i] = m->ori;
       rotate_object(pats[i], oris[i], alphaspin);
       
-      apply_parallel_transport(pats[i], oris[i], xtangent(vels[i] * d));
+      apply_shift_object(pats[i], oris[i], xtangent(vels[i] * d));
       fixmatrix(pats[i]);
       
       /* RogueViz does not correctly rotate them */
-      if(prod) {
+      if(mproduct) {
         hyperpoint h = oris[i] * xtangent(1);
         pats[i] = pats[i] * spin(-atan2(h[1], h[0]));
         oris[i] = spin(+atan2(h[1], h[0])) * oris[i];
@@ -258,10 +234,10 @@ namespace flocking {
         gmatrix.clear();
         vdata[0].m->pat = shiftless(View * calc_relative_matrix(vdata[0].m->base, centerover, C0) * vdata[0].m->at);
         View = inverse(vdata[0].m->pat.T) * View;
-        if(prod) {
+        if(mproduct) {
           NLP = inverse(vdata[0].m->ori);
           
-          NLP = hr::cspin(1, 2, 90 * degree) * spin(90 * degree) * NLP;
+          NLP = hr::cspin90(1, 2) * spin90() * NLP;
 
           if(NLP[0][2]) {
             auto downspin = -atan2(NLP[0][2], NLP[1][2]);
@@ -269,9 +245,9 @@ namespace flocking {
             }
           }          
         else {
-          View =spin(90 * degree) * View;
+          View =spin90() * View;
           if(GDIM == 3) {
-            View = hr::cspin(1, 2, 90 * degree) * View;
+            View = hr::cspin90(1, 2) * View;
             }
           shift_view(ztangent(follow_dist));
           }        
@@ -289,7 +265,7 @@ namespace flocking {
           vdata[i].m->pat = gmatrix[vdata[i].m->base] * vdata[i].m->at;
           auto h1 = unshift(tC0(vdata[i].m->pat));
           cnt++;          
-          if(prod) {
+          if(mproduct) {
             auto d1 = product_decompose(h1);
             lev += d1.first;
             h += d1.second;
@@ -298,8 +274,8 @@ namespace flocking {
             h += h1;
           }
         if(cnt) {
-          h = normalize_flat(h);
-          if(prod) h = zshift(h, lev / cnt);
+          h = cgi.emb->normalize_flat(h);
+          if(mproduct) h = orthogonal_move(h, lev / cnt);
           View = inverse(actual_view_transform) * gpushxto0(h) * actual_view_transform * View;
           shift_view(ztangent(follow_dist));
           }
@@ -372,11 +348,9 @@ namespace flocking {
       shift(); ini_speed = argf();
       shift(); max_speed = argf();
       }
-    #ifdef USE_THREADS
     else if(argis("-threads")) {
       shift(); threads = argi();
       }
-    #endif
     else return 1;
     return 0;
     }
@@ -388,7 +362,7 @@ namespace flocking {
 
   void show() {
     cmode = sm::SIDE | sm::MAYDARK;
-    gamescreen(0);
+    gamescreen();
     dialog::init(XLAT("flocking"), iinf[itPalace].color, 150, 0);
     
     dialog::addSelItem("initial speed", fts(ini_speed), 'i');
@@ -503,8 +477,8 @@ bool drawVertex(const shiftmatrix &V, cell *c, shmup::monster *m) {
   }
   
   void init() {
-    if(!bounded) {
-      addMessage("Flocking simulation needs a bounded space.");
+    if(!closed_manifold) {
+      addMessage("Flocking simulation needs a closed manifold.");
       return;
       }
     stop_game();
@@ -548,11 +522,11 @@ bool drawVertex(const shiftmatrix &V, cell *c, shmup::monster *m) {
       
       if(swarm) {
         rotate_object(vd.m->pat.T, vd.m->ori, spin(angle));
-        apply_parallel_transport(vd.m->pat.T, vd.m->ori, xtangent(i * -0.015));
+        apply_shift_object(vd.m->pat.T, vd.m->ori, xtangent(i * -0.015));
         }
       else {
         rotate_object(vd.m->pat.T, vd.m->ori, random_spin());
-        apply_parallel_transport(vd.m->pat.T, vd.m->ori, xtangent(hrandf() / 2));
+        apply_shift_object(vd.m->pat.T, vd.m->ori, xtangent(hrandf() / 2));
         rotate_object(vd.m->pat.T, vd.m->ori, random_spin());
         }
       

@@ -42,6 +42,7 @@ EX bool doPickupItemsWithMagnetism(cell *c) {
           c4->item = c3->item;
           moveEffect(movei(c3, c4, (cw+j).spin), moDeadBird);
           c3->item = itNone;
+          markOrb(itCurseRepulsion);
           }
         }
       }
@@ -57,31 +58,37 @@ EX bool doPickupItemsWithMagnetism(cell *c) {
       else if(c3->item == itOrbSafety || c3->item == itBuggy || c3->item == itBuggy2)
         csaf = c3;
       else if(markOrb(itOrbMagnetism))
-        collectItem(c3, false);
+        collectItem(c3, c3, false);
       }
   if(csaf)
-    return collectItem(csaf, false);
+    return collectItem(csaf, csaf, false);
   return false;
   }
 
-EX void pickupMovedItems(cell *c) {
+EX void pickupMovedItems(cell *c, cell *from) {
   if(!c->item) return;
   if(c->item == itOrbSafety) return;
-  if(isPlayerOn(c)) collectItem(c, true);  
+  if(isPlayerOn(c)) collectItem(c, from, true);
   if(items[itOrbMagnetism])
     forCellEx(c2, c)
       if(isPlayerOn(c2) && canPickupItemWithMagnetism(c, c2)) {
         changes.ccell(c2);
         changes.ccell(c);
-        collectItem(c, true);
+        collectItem(c, c2, true);
         }
   }
 
 EX bool in_lovasz() {
-  return specialland == laMotion && bounded && ls::single() && !daily::on;
+  return specialland == laMotion && closed_or_bounded && ls::single() && !daily::on;
   }
 
-EX bool collectItem(cell *c2, bool telekinesis IS(false)) {
+EX int threshold_met(int i) {
+  for(int a: {500, 250, 100, 50, 25, 10, 5})
+    if(i >= a) return a;
+  return 0;
+  }
+
+EX bool collectItem(cell *c2, cell *last, bool telekinesis IS(false)) {
 
   bool dopickup = true;
   bool had_choice = false;
@@ -119,7 +126,7 @@ EX bool collectItem(cell *c2, bool telekinesis IS(false)) {
   #endif
   
   if(isRevivalOrb(c2->item) && multi::revive_queue.size()) {
-    multiRevival(cwt.at, c2);
+    multiRevival(last, c2);
     }
   else if(isShmupLifeOrb(c2->item) && shmup::on) {
     playSound(c2, "pickup-orb"); // TODO summon
@@ -139,16 +146,7 @@ EX bool collectItem(cell *c2, bool telekinesis IS(false)) {
     else if(it == itOrbSpeed) playSound(c2, "pickup-speed");
     else if(it == itRevolver) playSound(c2, "pickup-key");
     else playSound(c2, "pickup-orb");
-    if(items[itOrbChoice]) items[itOrbChoice] = 0, had_choice = true;
-    int oc = orbcharges(it);
-    if(dual::state && among(it, itOrbTeleport, itOrbFrog, itOrbPhasing, itOrbDash, itOrbRecall)) {
-      oc = 10;
-      it = itOrbSpeed;
-      }
-    if(c2->land == laAsteroids) oc = 10;
-    if(markOrb(itOrbIntensity)) oc = intensify(oc);
-    if(!items[it]) items[it]++;
-    items[it] += oc;
+    had_choice = items[itOrbChoice];
     
     if(it == itOrbPurity) {
       bool no_curses = true;
@@ -162,15 +160,27 @@ EX bool collectItem(cell *c2, bool telekinesis IS(false)) {
         items[itOrbChoice] += 5;
         }
       }
+
+    if(had_choice) items[itOrbChoice] = 0;
+
+    int oc = orbcharges(it);
+    if(dual::state && among(it, itOrbTeleport, itOrbFrog, itOrbPhasing, itOrbDash, itOrbRecall)) {
+      oc = 10;
+      it = itOrbSpeed;
+      }
+    if(c2->land == laAsteroids) oc = 10;
+    if(markOrb(itOrbIntensity)) oc = intensify(oc);
+    if(!items[it]) items[it]++;
+    items[it] += oc;
     }
   else if(c2->item == itOrbLife) {
     playSound(c2, "pickup-orb"); // TODO summon
-    placeGolem(cwt.at, c2, moGolem);
+    placeGolem(last, c2, moGolem);
     if(cwt.at->monst == moGolem) cwt.at->stuntime = 0;
     }
   else if(c2->item == itOrbFriend) {
     playSound(c2, "pickup-orb"); // TODO summon
-    placeGolem(cwt.at, c2, moTameBomberbird);
+    placeGolem(last, c2, moTameBomberbird);
     if(cwt.at->monst == moTameBomberbird) cwt.at->stuntime = 0;
     }
 #if CAP_TOUR
@@ -195,6 +205,7 @@ EX bool collectItem(cell *c2, bool telekinesis IS(false)) {
     if(shmup::on || multi::players > 1) {
       shmup::delayed_safety = true;
       shmup::delayed_safety_land = c2->land;
+      c2->item = itNone;
       }
     else 
       activateSafety(c2->land);
@@ -209,7 +220,7 @@ EX bool collectItem(cell *c2, bool telekinesis IS(false)) {
     changes.value_set(tortoise::seekbits, bnew);
     changes.value_set(tortoise::last, seekbits);
     if(seek()) {
-      cell *c = passable(cwt.at, NULL, 0) ? cwt.at : c2;
+      cell *c = passable(last, NULL, 0) ? last : c2;
       changes.ccell(c);
       c->item = itBabyTortoise;
       if(c == c2) dopickup = false;
@@ -281,6 +292,9 @@ EX bool collectItem(cell *c2, bool telekinesis IS(false)) {
     halloween::getTreat(c2);
     }   
   else {
+    int q = items[c2->item];
+    int q_el = items[itElemental];
+
     if(c2->item == itBarrow) 
       for(int i=0; i<c2->landparam; i++) gainItem(c2->item);
     else if(c2->item) gainItem(c2->item);
@@ -291,10 +305,14 @@ EX bool collectItem(cell *c2, bool telekinesis IS(false)) {
       else if(c2->item) gainItem(c2->item);
       }
 
-    if(c2->item && (vid.bubbles_all || (among(items[c2->item], 5, 10, 25, 50, 100, 250, 500) && vid.bubbles_threshold))) {
+    if(c2->item && items[c2->item] > q && (vid.bubbles_all || (threshold_met(items[c2->item]) > threshold_met(q) && vid.bubbles_threshold))) {
       drawBubble(c2, iinf[c2->item].color, its(items[c2->item]), 0.5);
       }
     
+    if(c2->item && items[itElemental] > q_el && (vid.bubbles_all || (threshold_met(items[itElemental]) > threshold_met(q_el) && vid.bubbles_threshold))) {
+      drawBubble(c2, iinf[itElemental].color, its(items[itElemental]), 0.5);
+      }
+
     if(c2->item) {
       char ch = iinf[c2->item].glyph;
       if(ch == '*') playSound(c2, "pickup-gem");
@@ -440,7 +458,7 @@ EX void countLocalTreasure() {
   currentLocalTreasure = i ? items[i] : 0;
   if(i != itHyperstone) for(int i=0; i<isize(dcal); i++) {
     cell *c2 = dcal[i];
-    if(c2->cpdist > 3) break;
+    if(c2->cpdist > (WDIM == 3 ? 1 : 3)) break;
     eItem i2 = treasureType(c2->land);
     if(i2 && items[i2] < currentLocalTreasure)
       currentLocalTreasure = items[i2];
@@ -548,7 +566,7 @@ EX void gainItem(eItem it) {
     IF(R30*5/2)
       addMessage(XLAT("Kill monsters and collect treasures, and you may get access to Hell..."));
     IF(R10 * 9) 
-      addMessage(XLAT("To access Hell, collect %1 treasures each of 9 kinds...", its(R10)));
+      addMessage(XLAT("To access Hell, collect %1 treasures each of %2 kinds...", its(R10), its(lands_for_hell())));
     if(landUnlocked(laHell) && !lhu) {
       addMessage(XLAT("Abandon all hope, the gates of Hell are opened!"));
       addMessage(XLAT("And the Orbs of Yendor await!"));
@@ -566,6 +584,9 @@ EX void gainShard(cell *c2, const char *msg) {
   if(is_mirrorland(c2) && !peace::on) {
      collectMessage(c2, itShard);
      gainItem(itShard);
+     if(vid.bubbles_all || (threshold_met(items[itShard]) == items[itShard] && vid.bubbles_threshold)) {
+       drawBubble(c2, iinf[itShard].color, its(items[itShard]), 0.5);
+       }
      s += itemcounter(items[itShard]);
      }
   addMessage(s);
@@ -657,7 +678,7 @@ EX void collectMessage(cell *c2, eItem which) {
     addMessage(XLAT("Better find some other place."));
     }
   else if(which == itHunting && items[itHunting] == 4 && !specialmode && !ISMOBWEB)
-    addMessage(XLAT("Hint: hold Alt to highlights enemies and other important features."));
+    addMessage(XLAT("Hint: hold Alt to highlight enemies and other important features."));
   else if(which == itSpice && items[itSpice] == U10*7/10 && !specialmode && isLandIngame(laHell))
     addMessage(XLAT("You have a vision of the future, fighting demons in Hell..."));
   else if(which == itSpice && items[itSpice] == U10-1 && !specialmode && isLandIngame(laRedRock))

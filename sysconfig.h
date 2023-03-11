@@ -242,6 +242,9 @@
 #define PSEUDOKEY_RELEASE 2503
 #define PSEUDOKEY_EXIT 2504
 #define PSEUDOKEY_MENU 2505
+#define PSEUDOKEY_NOHINT 2506
+#define PSEUDOKEY_LIST_SLIDER 2507
+#define PSEUDOKEY_SELECT 2508
 
 #ifndef CAP_PNG
 #define CAP_PNG (!ISMOBWEB)
@@ -345,6 +348,10 @@
 
 #ifndef HYPERPATH
 #define HYPERPATH ""
+#endif
+
+#ifndef HYPERFONTPATH
+#define HYPERFONTPATH HYPERPATH
 #endif
 
 #if ISWINDOWS
@@ -513,6 +520,8 @@ typedef unsigned GLuint;
 #include <stdexcept>
 #include <array>
 #include <set>
+#include <unordered_set>
+#include <unordered_map>
 #include <random>
 #include <complex>
 #include <new>

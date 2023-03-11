@@ -490,10 +490,10 @@ EX namespace inv {
   
     if(remaining[itOrbSword]) items[itOrbSword]++;
     if(remaining[itOrbSword2]) items[itOrbSword2]++;
-    gamescreen(2);
+    cmode = sm::CENTER | sm::DARKEN;
+    gamescreen();
     if(remaining[itOrbSword]) items[itOrbSword]--;
     if(remaining[itOrbSword2]) items[itOrbSword2]--;
-    cmode = sm::CENTER;
 
     orbcoord.clear();
     for(int y=-3; y<=3; y++) for(int x=-5; x<=5; x++) if(x+y<=6 && x+y >= -6 && (x||y))
@@ -508,8 +508,11 @@ EX namespace inv {
     orbmap.clear();
     which = itNone;
         
-    if(plain) dialog::init(mirroring ? XLAT("mirror what?") : XLAT("inventory"), forecolor, 150, 100);
-    
+    if(plain) {
+      dialog::init(mirroring ? XLAT("mirror what?") : XLAT("inventory"), forecolor, 150, 100);
+      dialog::start_list(2000, 2000);
+      }
+
     int j = 0, oc = 6;
 
     if(1) {
@@ -536,21 +539,32 @@ EX namespace inv {
             if(!remaining[i]) icol = gradient(icol, 0, 0, .5, 1);
             bool gg = graphglyph(false);
             
+            bool b = hypot(mousex-px, mousey-py) < rad;
+
             if(!hiliteclick) {
               if(gg) {
                 initquickqueue();
+                poly_outline = OUTLINE_DEFAULT;
                 transmatrix V = atscreenpos(px, py, rad*2);
                 drawItemType(o, NULL, shiftless(V), icol, ticks/3 + i * 137, false);
                 quickqueue();
                 }
-              
-              int tcol = remaining[i] ? darkenedby(icol, 1) : 0;
-  
-              if(remaining[i] != 1 || !gg)
-                displaystr(px, py, 2, gg?rad:rad*3/2, remaining[i] <= 0 ? "X" : remaining[i] == 1 ? "o" : its(remaining[i]), tcol, 8);
+
+              string s = remaining[i] <= 0 ? "X" : its(remaining[i]);
+
+              if(vid.orbmode < 2) {
+                int tcol = remaining[i] ? darkenedby(icol, 1) : 0;
+
+                if(remaining[i] != 1 || !gg)
+                  displaystr(px, py, 2, gg?rad:rad*3/2, s, tcol, 8);
+                }
+              else {
+                if(remaining[i] != 1 || !gg) {
+                  displayfr(px + rad/2, py + rad/2, 2, gg?rad:rad*3/2, remaining[i] <= 0 ? "X" : remaining[i] == 1 ? "o" : its(remaining[i]), dialog::dialogcolor_over(b), 8);
+                  }
+                }
               }
-            
-            bool b = hypot(mousex-px, mousey-py) < rad;
+
             if(b) {
               getcstat = c, 
               which = o;
@@ -562,7 +576,8 @@ EX namespace inv {
     }
 
     if(plain) {
-      dialog::addBreak(750);
+      dialog::end_list();
+      dialog::addBreak(50);
       dialog::addItem(XLAT("help"), SDLK_F1);
       dialog::addItem(XLAT("return to the game"), 'i');
       dialog::display();
@@ -661,7 +676,7 @@ EX namespace inv {
           eItem it = cwt.at->item; 
           cwt.at->item = orbmap[uni];
           inv::activating = true;
-          collectItem(cwt.at, true);
+          collectItem(cwt.at, cwt.at, true);
           inv::activating = false;
           addMessage(XLAT("You activate %the1.", orbmap[uni]));
           if(!cwt.at->item) usedup[orbmap[uni]]++;

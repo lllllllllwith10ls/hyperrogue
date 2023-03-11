@@ -25,12 +25,12 @@ int qmode;
 
 color_t rainbow_color_at(hyperpoint h) {
   ld sat = 1 - 1 / h[2];
-  ld hue = atan2(h[0], h[1]) / (2 * M_PI);
+  ld hue = atan2(h[0], h[1]) / TAU;
   return rainbow_color(sat, hue);
   }
   
 void set_cell(cell *c) {
-  if(hybri) {
+  if(mhybrid) {
     cell *c1 = hybrid::get_where(c).first;
     if(c1->land != laHive) hybrid::in_underlying_geometry([&] { set_cell(c1); });
     c->land = c1->land;
@@ -218,11 +218,11 @@ auto hooks =
               slide_backup(ray::max_cells, 32768);
               slide_backup(ray::fixed_map, true);
               #endif
-              slide_backup(smooth_scrolling, true);
               slide_backup(camera_speed, .1);
               enable();
               start_game();
               }
+            rogueviz::pres::non_game_slide_scroll(mode);
             if(mode == pmKey)
               edit_stretch();
             }});
@@ -245,11 +245,11 @@ auto hooks =
               slide_backup(ray::fixed_map, true);
               slide_backup(ray::want_use, 2);
               #endif
-              slide_backup(smooth_scrolling, true);
               slide_backup(camera_speed, .1);
               enable();
               start_game();
               }
+            rogueviz::pres::non_game_slide_scroll(mode);
             if(mode == pmKey)
               edit_stretch();
             }});

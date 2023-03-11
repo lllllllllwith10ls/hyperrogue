@@ -28,18 +28,22 @@ namespace rogueviz {
   inline flagtype vizflags;
   extern string weight_label;
   extern ld maxweight;
+  extern ld ggamma;
+  extern bool highlight_target;
   
   extern int vertex_shape;
+  extern int search_for;
 
   void drawExtra();
   void close();
 
   void init(flagtype flags);
   
+  void graph_rv_hooks();
+
   struct edgetype {
     double visible_from;
     double visible_from_hi;
-    double visible_from_help;
     unsigned color, color_hi;
     string name;
     };
@@ -70,6 +74,8 @@ namespace rogueviz {
   extern vector<int> legend;
   extern vector<cell*> named;
   
+  int readLabel(fhstream& f);
+
   #if CAP_TEXTURE
   struct rvimage {
     basic_textureinfo tinf;
@@ -109,24 +115,28 @@ namespace rogueviz {
   
   void do_cleanup();
 
+  inline void on_cleanup_or_next(const reaction_t& del) {
+    #if CAP_TOUR
+    if(tour::on) tour::on_restore(del);
+    else
+    #endif
+    cleanup.push_back(del);
+    }
+
+  template<class T> void rv_change(T& variable, const T& value) {
+    T backup = variable;
+    variable = value;
+    on_cleanup_or_next([backup, &variable] { variable = backup; });
+    }
+
   template<class T, class U> void rv_hook(hookset<T>& m, int prio, U&& hook) {
     int p = addHook(m, prio, hook);
     auto del = [&m, p] { 
       delHook(m, p); 
       };
-    if(tour::on) tour::on_restore(del);
-    else cleanup.push_back(del);
+    on_cleanup_or_next(del);
     }
 
-  namespace anygraph {
-    extern double R, alpha, T;
-    extern vector<pair<double, double> > coords;
-    
-    void fixedges();
-    void read(string fn, bool subdiv = true, bool doRebase = true, bool doStore = true);
-    extern int N;
-    }
-  
   extern bool showlabels;
 
   extern bool rog3;
@@ -152,8 +162,10 @@ namespace rogueviz {
     inline hookset<void(string, vector<slide>&)> hooks_build_rvtour;
     slide *gen_rvtour();
     #if CAP_TEXTURE
-    void draw_texture(texture::texture_data& tex);
+    void draw_texture(texture::texture_data& tex, ld dx = 0, ld dy = 0, ld scale = 1);
     #endif
+
+    extern map<string, texture::texture_data> textures;
 
 template<class T, class U> function<void(presmode)> roguevizslide(char c, const T& t, const U& f) {
   return [c,t,f] (presmode mode) {
@@ -224,10 +236,25 @@ function<void(presmode)> roguevizslide_action(char c, const T& t, const U& act) 
   void add_stat(presmode mode, const bool_reaction_t& stat);  
   void compare_projections(presmode mode, eModel a, eModel b);
   void no_other_hud(presmode mode);
+  void non_game_slide(presmode mode);
+  void non_game_slide_scroll(presmode mode);
+  void white_screen(presmode mode, color_t col = 0xFFFFFFFF);
   void empty_screen(presmode mode, color_t col = 0xFFFFFFFF);
-  void show_picture(presmode mode, string s);    
+  void show_picture(presmode mode, string s, flagtype flags = 0);
+  void sub_picture(string s, flagtype flags = 0, ld dx = 0, ld dy = 0, ld scale = 1);
+  void show_animation(presmode mode, string s, int sx, int sy, int frames, int fps);
   void use_angledir(presmode mode, bool reset);
   void slide_error(presmode mode, string s);
+
+  static const flagtype LATEX_COLOR = 1;
+  
+  void show_latex(presmode mode, string s);
+  void dialog_add_latex(string s, color_t color, int size = 100, flagtype flag = 0);
+  void dialog_may_latex(string latex, string normal, color_t col = dialog::dialogcolor, int size = 100, flagtype flag = 0);
+  void uses_game(presmode mode, string name, reaction_t launcher, reaction_t restore);
+  void latex_slide(presmode mode, string s, flagtype flags = 0, int size = 100);
+  
+  inline purehookset hooks_latex_slide;
 
   inline ld angle = 0;
   inline int dir = -1;
@@ -259,6 +286,8 @@ namespace objmodels {
   
   inline ld prec = 1;
   
+  inline bool shift_to_ctr = false;
+
   struct object {
     hpcshape sh;
     basic_textureinfo tv;
@@ -268,6 +297,7 @@ namespace objmodels {
   struct model_data : gi_extension {
     ld prec_used;
     vector<shared_ptr<object>> objs;
+    vector<int> objindex;
     void render(const shiftmatrix& V);
     };
   
@@ -322,6 +352,27 @@ namespace objmodels {
 #define addHook_slideshows(x, y) 0
 #define addHook_rvtour(x, y) 0
 #endif
+
+  /* parallelize a computation */
+  inline int threads = 1;
+
+  #if CAP_THREAD
+  template<class T> auto parallelize(long long N, T action) -> decltype(action(0,0)) {
+    if(threads == 1) return action(0,N);
+    std::vector<std::thread> v;
+    typedef decltype(action(0,0)) Res;
+    std::vector<Res> results(threads);
+    for(int k=0; k<threads; k++)
+      v.emplace_back([&,k] () { 
+        results[k] = action(N*k/threads, N*(k+1)/threads); 
+        });
+    for(std::thread& t:v) t.join();
+    Res res = 0;
+    for(Res r: results) res += r;
+    return res;
+    }
+  #endif
+
   }
 
 #endif

@@ -28,6 +28,12 @@ EX namespace multi {
   EX config scfg;  
   EX charstyle scs[MAXPLAYER];
 
+  EX bool split_screen;
+  EX bool pvp_mode;
+  EX bool friendly_fire = true;
+  EX bool self_hits;
+  EX bool two_focus;
+
   EX int players = 1;
   EX cellwalker player[MAXPLAYER];
   EX vector<int> revive_queue; // queue for revival
@@ -37,7 +43,7 @@ EX namespace multi {
   EX bool flipped[MAXPLAYER];
   
   // treasure collection, kill, and death statistics
-  EX int treasures[MAXPLAYER], kills[MAXPLAYER], deaths[MAXPLAYER];
+  EX int treasures[MAXPLAYER], kills[MAXPLAYER], deaths[MAXPLAYER], pkills[MAXPLAYER], suicides[MAXPLAYER];
   
   EX bool alwaysuse = false;
 
@@ -192,18 +198,21 @@ string listkeys(int id) {
 #define SCJOY 16
 
 string dsc(int id) {
-  char buf[64];
-  sprintf(buf, " (%d $$$, %d kills, %d deaths)", 
-    multi::treasures[id],
-    multi::kills[id],
-    multi::deaths[id]
+  string buf = XLAT(" (%1 $$$, %2 kills, %3 deaths)",
+    its(multi::treasures[id]),
+    its(multi::kills[id]),
+    its(multi::deaths[id])
     );
+  if(friendly_fire)
+    buf += XLAT(" (%1 pkills)", its(multi::pkills[id]));
+  if(self_hits)
+    buf += XLAT(" (%1 self)", its(multi::suicides[id]));
   return buf;
   }
 
 EX void resetScores() {
   for(int i=0; i<MAXPLAYER; i++)
-    multi::treasures[i] = multi::kills[i] = multi::deaths[i] = 0;
+    multi::treasures[i] = multi::kills[i] = multi::deaths[i] = multi::pkills[i] = multi::suicides[i] = 0;
   }
  
 bool configdead;
@@ -384,8 +393,8 @@ struct shmup_configurer {
 
   void operator()() {
   #if CAP_SDL
-    cmode = sm::SHMUPCONFIG;
-    gamescreen(3);
+    cmode = sm::SHMUPCONFIG | sm::SIDE | sm::DARKEN;
+    gamescreen();
     dialog::init(XLAT("keyboard & joysticks"));
     
     bool haveconfig = shmup::on || players > 1 || multi::alwaysuse;
@@ -494,7 +503,8 @@ EX void configure() {
   }
 
 EX void showConfigureMultiplayer() {
-  gamescreen(1);
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
   dialog::init("multiplayer");
   
   for(int i=1; i <= MAXPLAYER; i++) {
@@ -510,6 +520,7 @@ EX void showConfigureMultiplayer() {
       });
     }
 
+  add_edit(self_hits);
   if(multi::players > 1) {
     dialog::addItem(XLAT("reset per-player statistics"), 'r');
     dialog::add_action([] {
@@ -519,8 +530,29 @@ EX void showConfigureMultiplayer() {
 
     dialog::addSelItem(XLAT("keyboard & joysticks"), "", 'k');
     dialog::add_action(multi::configure);
+    add_edit(split_screen);
+    if(shmup::on && !racing::on) {
+      add_edit(pvp_mode);
+      add_edit(friendly_fire);
+      if(pvp_mode)
+        dialog::addInfo(XLAT("PvP grants infinite lives -- achievements disabled"));
+      else if(friendly_fire)
+        dialog::addInfo(XLAT("friendly fire off -- achievements disabled"));
+      else if(split_screen)
+        dialog::addInfo(XLAT("achievements disabled in split screen"));
+      else
+        dialog::addBreak(100);
+      }
+    else {
+      dialog::addInfo(XLAT("PvP available only in shmup"));
+      dialog::addBreak(400);
+      }
+    if(multi::players == 2 && !split_screen)
+      add_edit(two_focus);
+    else
+      dialog::addBreak(100);
     }
-  else dialog::addBreak(200);
+  else dialog::addBreak(600);
   
   dialog::addBack();
   dialog::display();
@@ -690,6 +722,16 @@ EX void initConfig() {
   
   #if CAP_CONFIG
   addsaver(multi::players, "mode-number of players");
+  param_b(multi::split_screen, "splitscreen", false)
+    ->editable("split screen mode", 's');
+  param_b(multi::pvp_mode, "pvp_mode", false)
+    ->editable("player vs player", 'v');
+  param_b(multi::friendly_fire, "friendly_fire", true)
+    ->editable("friendly fire", 'f');
+  param_b(multi::self_hits, "self_hits", false)
+    ->editable("self hits", 'h');
+  param_b(multi::two_focus, "two_focus", false)
+    ->editable("auto-adjust dual-focus projections", 'f');
   addsaver(alwaysuse, "use configured keys");  
   // unfortunately we cannot use key names here because SDL is not yet initialized
   for(int i=0; i<512; i++)
@@ -710,10 +752,8 @@ EX void initConfig() {
   #endif
   }
 
-EX void handleInput(int delta) {
-#if CAP_SDL
-  double d = delta / 500.;
-
+EX void get_actions() {
+  #if !ISMOBILE
   const Uint8 *keystate = SDL12_GetKeyState(NULL);
 
   for(int i=0; i<NUMACT; i++) 
@@ -749,7 +789,16 @@ EX void handleInput(int delta) {
       }
     }
 #endif
+#endif
+  }
 
+EX void handleInput(int delta) {
+#if CAP_SDL
+  double d = delta / 500.;
+
+  get_actions();
+
+  const Uint8 *keystate = SDL12_GetKeyState(NULL);
   if(keystate[SDLK_LCTRL] || keystate[SDLK_RCTRL]) d /= 5;
   
   double panx = 
@@ -780,7 +829,7 @@ EX void handleInput(int delta) {
 #endif
   
   if(actionspressed[58] && !lactionpressed[58]) 
-    pushScreen(showMainMenu);
+    pushScreen(showGameMenu);
     
   panx *= d;
   pany *= d;

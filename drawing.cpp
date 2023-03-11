@@ -38,6 +38,8 @@ static const int POLY_PRINTABLE = (1<<25);      // these walls are printable
 static const int POLY_FAT = (1<<26);            // fatten this model in WRL export (used for Rug)
 static const int POLY_SHADE_TEXTURE = (1<<27);  // texture has 'z' coordinate for shading
 static const int POLY_ONE_LEVEL = (1<<28);      // only one level of the universal cover in SL(2,R)
+static const int POLY_APEIROGONAL = (1<<29);    // only vertices indexed up to she are drawn as the boundary
+static const int POLY_NO_FOG = (1<<30);         // disable fog for this
 
 /** \brief A graphical element that can be drawn. Objects are not drawn immediately but rather queued.
  *
@@ -71,6 +73,8 @@ struct dqi_poly : drawqueueitem {
   int offset;
   /** \brief how many vertices in the model */
   int cnt;
+  /** cnt for POLY_APEIROGONAL */
+  int apeiro_cnt;
   /** \brief the offset in the texture vertices */
   int offset_texture;
   /** \brief outline color */
@@ -304,9 +308,9 @@ EX bool two_sided_model() {
   #endif
   if(GDIM == 3) return false;
   if(in_vr_sphere) return true;
-  if(pmodel == mdHyperboloid) return !euclid && !in_vr;
+  if(models::is_hyperboloid(pmodel)) return !euclid && !in_vr;
   // if(pmodel == mdHemisphere) return true;
-  if(pmodel == mdDisk) return sphere;
+  if(pmodel == mdDisk) return sphere || (hyperbolic && pconf.alpha < 0 && pconf.alpha > -1);
   if(pmodel == mdRetroLittrow) return sphere;
   if(pmodel == mdRetroHammer) return sphere;
   if(pmodel == mdHemisphere) return !in_vr;
@@ -333,6 +337,9 @@ EX int get_side(const hyperpoint& H) {
     double horizon = curnorm / pconf.alpha;
     return (H[2] <= -horizon) ? -1 : 1;
     }
+  if(pmodel == mdDisk && hyperbolic && pconf.alpha < 0 && pconf.alpha > -1) {
+    return (H[2] * (H[2] + pconf.alpha) < sqhypot_d(2, H)) ? -1 : 1;
+    }
   if(pmodel == mdRetroLittrow && sphere) {
     return H[2] >= 0 ? 1 : -1;
     }
@@ -345,10 +352,20 @@ EX int get_side(const hyperpoint& H) {
     return (models::sin_ball * H[2] > -models::cos_ball * H[1]) ? -1 : 1;
   if(pmodel == mdHyperboloid && sphere)
     return (models::sin_ball * H[2] > models::cos_ball * H[1]) ? -1 : 1;
-  if(pmodel == mdHemisphere) {
+  if(pmodel == mdHyperboloidFlat && sphere)
+    return H[2] >= 0 ? 1 : -1;
+  if(pmodel == mdHemisphere && hyperbolic) {
     hyperpoint res;
     applymodel(shiftless(H), res);
     return res[2] < 0 ? -1 : 1;
+    }
+  if(pmodel == mdHemisphere && sphere) {
+    auto H1 = H;
+    int s = H1[2] > 0 ? 1 : -1;
+    if(hemi_side && s != hemi_side) return -spherespecial;
+    H1[0] /= H1[2]; H1[1] /= H1[2];
+    H1[2] = s * sqrt(1 + H1[0]*H1[0] + H1[1] * H1[1]);
+    return (models::sin_ball * H1[2] > models::cos_ball * H1[1]) ? 1 : -1;
     }
   if(pmodel == mdSpiral && pconf.spiral_cone < 360) {    
     return cone_side(shiftless(H));
@@ -422,10 +439,10 @@ void addpoint(const shiftpoint& H) {
     if(sphere && pmodel == mdSpiral) {
       if(isize(glcoords)) {
         hyperpoint Hscr1;
-        shiftpoint H1 = H; H1.shift += 2 * M_PI;
+        shiftpoint H1 = H; H1.shift += TAU;
         applymodel(H1, Hscr1);
         if(hypot_d(2, Hlast-Hscr1) < hypot_d(2, Hlast-Hscr)) { Hscr = Hscr1; }
-        H1.shift -= 4 * M_PI;
+        H1.shift -= 2 * TAU;
         applymodel(H1, Hscr1);
         if(hypot_d(2, Hlast-Hscr1) < hypot_d(2, Hlast-Hscr)) { Hscr = Hscr1; }
         }
@@ -464,6 +481,10 @@ void coords_to_poly() {
 bool behind3(shiftpoint h) {
   if(pmodel == mdGeodesic) 
     return lp_apply(inverse_exp(h))[2] < 0;
+  if(pmodel == mdLiePerspective)
+    return lp_apply(lie_log(h))[2] < 0;
+  if(pmodel == mdRelPerspective)
+    return lp_apply(rel_log(h, false))[2] < 0;
   return h[2] < 0;
   }
 
@@ -480,7 +501,7 @@ void addpoly(const shiftmatrix& V, const vector<glvertex> &tab, int ofs, int cnt
     return;
     }
   tofix.clear(); knowgood = false;
-  if(among(pmodel, mdPerspective, mdGeodesic)) {
+  if(in_perspective()) {
     if(poly_flags & POLY_TRIANGLES) {
       for(int i=ofs; i<ofs+cnt; i+=3) {
         shiftpoint h0 = V * glhr::gltopoint(tab[i]);
@@ -661,6 +682,7 @@ void dqi_poly::gldraw() {
     else
       glhr::be_textured();
     if(flags & POLY_SHADE_TEXTURE) current_display->next_shader_flags |= GF_TEXTURE_SHADED;
+    if(flags & POLY_NO_FOG) current_display->next_shader_flags |= GF_NO_FOG;
     glBindTexture(GL_TEXTURE_2D, tinf->texture_id);
     if(isize(tinf->colors))
       glhr::vertices_texture_color(v, tinf->tvertices, tinf->colors, offset, offset_texture);
@@ -670,6 +692,7 @@ void dqi_poly::gldraw() {
     }
   else { 
     glhr::be_nontextured();
+    if(flags & POLY_NO_FOG) current_display->next_shader_flags |= GF_NO_FOG;
     glhr::vertices(v);
     }
   
@@ -682,8 +705,13 @@ void dqi_poly::gldraw() {
       current_display->set_all(ed, sl2 ? 0 : V.shift);
       glhr::set_index_sl(V.shift + M_PI * min_slr * hybrid::csteps / cgi.psl_steps);
       }
+    else if(sl2) {
+      current_display->set_all(ed, 0);
+      glhr::set_index_sl(V.shift);
+      }
     else {
-      current_display->set_all(ed, V.shift);
+      current_display->set_all(ed, sl2 ? 0 : V.shift);
+      glhr::set_index_sl(V.shift + M_PI * min_slr * hybrid::csteps / cgi.psl_steps);
       }
     bool draw = color;
 
@@ -699,7 +727,7 @@ void dqi_poly::gldraw() {
         glhr::color2(color, (flags & POLY_INTENSE) ? 2 : 1);
         glhr::set_depthtest(model_needs_depth() && prio < PPR::SUPERLINE);
         glhr::set_depthwrite(model_needs_depth() && prio != PPR::TRANSPARENT_SHADOW && prio != PPR::EUCLIDEAN_SKY);
-        glhr::set_fogbase(prio == PPR::SKY ? 1.0 + (euclid ? 20 : 5 / sightranges[geometry]) : 1.0);
+        glhr::set_fogbase(prio == PPR::SKY ? 1.0 + ((abs(cgi.SKY - cgi.LOWSKY)) / sightranges[geometry]) : 1.0);
         glDrawArrays(GL_TRIANGLES, ioffset, cnt);
         }
       else {
@@ -710,7 +738,7 @@ void dqi_poly::gldraw() {
         glStencilOp( GL_INVERT, GL_INVERT, GL_INVERT);
         glStencilFunc( GL_ALWAYS, 0x1, 0x1 );
         glhr::color2(0xFFFFFFFF);
-        glDrawArrays(tinf ? GL_TRIANGLES : GL_TRIANGLE_FAN, offset, cnt);
+        glDrawArrays(tinf ? GL_TRIANGLES : GL_TRIANGLE_FAN, ioffset, cnt);
         
         current_display->set_mask(ed);
         glhr::color2(color);
@@ -738,7 +766,7 @@ void dqi_poly::gldraw() {
         else { 
           glStencilOp( GL_ZERO, GL_ZERO, GL_ZERO);
           glStencilFunc( GL_EQUAL, 1, 1);
-          glDrawArrays(tinf ? GL_TRIANGLES : GL_TRIANGLE_FAN, offset, cnt);
+          glDrawArrays(tinf ? GL_TRIANGLES : GL_TRIANGLE_FAN, ioffset, cnt);
           }
         
         glDisable(GL_STENCIL_TEST);
@@ -746,6 +774,7 @@ void dqi_poly::gldraw() {
       }
     
     if(outline && !tinf) {
+      if(flags & POLY_APEIROGONAL) cnt = apeiro_cnt;
       glhr::color2(outline);
       glhr::set_depthtest(model_needs_depth() && prio < PPR::SUPERLINE);
       glhr::set_depthwrite(model_needs_depth() && prio != PPR::TRANSPARENT_SHADOW && prio != PPR::EUCLIDEAN_SKY);
@@ -780,12 +809,27 @@ void dqi_poly::gldraw() {
 #endif
 
 EX ld scale_at(const shiftmatrix& T) {
-  if(GDIM == 3 && pmodel == mdPerspective) return 1 / abs((tC0(unshift(T)))[2]);
+  if(GDIM == 3 && pmodel == mdPerspective) {
+    ld z = (tC0(unshift(T)))[2];
+    if(z == 0) return 1;
+    z = 1 / abs(z);
+    if(z > 10) return 10;
+    return z;
+    }
   if(sol) return 1;
   hyperpoint h1, h2, h3;
   applymodel(tC0(T), h1);
   applymodel(T * xpush0(.01), h2);
   applymodel(T * ypush(.01) * C0, h3);
+  if(mdBandAny()) {
+    ld x2 = 2;
+    if(pmodel == mdBandEquiarea) x2 /= 2;
+    ld x4 = 2 * x2;
+    if(h2[0] > h1[0] + x2) h2[0] -= x4;
+    if(h2[0] < h1[0] - x2) h2[0] += x4;
+    if(h3[0] > h1[0] + x2) h3[0] -= x4;
+    if(h3[0] < h1[0] - x2) h3[0] += x4;
+    }
   return sqrt(hypot_d(2, h2-h1) * hypot_d(2, h3-h1) / .0001);
   }
 
@@ -802,6 +846,17 @@ EX ld linewidthat(const shiftpoint& h) {
       dfc = 1 - dfc*dfc;
       return dfc;
       }
+    }
+  else if(hyperbolic && pmodel == mdRelPerspective) {
+    if(abs(h[3]) < 1e-6) return 1;
+    return 1 / (1 + abs(h[3]));
+    }
+  else if(sl2 && pmodel == mdRelPerspective) {
+    if(abs(h[2]) < 1e-6) return 1;
+    return 1 / (1 + abs(h[2]));
+    }
+  else if(hyperbolic && GDIM == 3 && pmodel == mdPerspective && pconf.alpha == 0 && h[3] < 0.99) {
+    return 1;
     }
   else if(perfect_linewidth >= (inHighQual ? 1 : 2)) {
     hyperpoint h0 = h.h / zlevel(h.h);
@@ -1053,7 +1108,7 @@ EX namespace s2xe {
     }
   
   void add2(pt h, int gen) {
-    glcoords.push_back(glhr::pointtogl(point31(sin(h[0]) * (h[1] + 2 * M_PI * gen), cos(h[0]) * (h[1] + 2 * M_PI * gen), h[2])));
+    glcoords.push_back(glhr::pointtogl(point31(sin(h[0]) * (h[1] + TAU * gen), cos(h[0]) * (h[1] + TAU * gen), h[2])));
     stinf.tvertices.push_back(glhr::makevertex(h[3], h[4], 0));
     }
 
@@ -1070,13 +1125,13 @@ EX namespace s2xe {
   bool to_right(const pt& h2, const pt& h1) {
     ld x2 = h2[0];
     ld x1 = h1[0];
-    if(x2 < x1) x2 += 2 * M_PI;
+    if(x2 < x1) x2 += TAU;
     return x2 >= x2 && x2 <= x1 + M_PI;
     }
   
   EX int qrings = 32;
   
-  ld seg() { return 2 * M_PI / qrings; }
+  ld seg() { return TAU / qrings; }
   
   void add_ortho_triangle(pt bl, pt tl, pt br, pt tr) {
     
@@ -1109,12 +1164,12 @@ EX namespace s2xe {
     }
   
   void add_ordered_triangle(array<pt, 3> v) {
-    if(v[1][0] < v[0][0]) v[1][0] += 2 * M_PI;
-    if(v[2][0] < v[1][0]) v[2][0] += 2 * M_PI;
+    if(v[1][0] < v[0][0]) v[1][0] += TAU;
+    if(v[2][0] < v[1][0]) v[2][0] += TAU;
     if(v[2][0] - v[0][0] < 1e-6) return;
     ld x = (v[1][0] - v[0][0]) / (v[2][0] - v[0][0]);
     
-    if(v[2][0] < v[0][0] + M_PI / 4 && maxy < M_PI - M_PI/4 && sightranges[geometry] <= 5) {
+    if(v[2][0] < v[0][0] + 45._deg && maxy < 135._deg && sightranges[geometry] <= 5) {
       addall(v[0], v[1], v[2]);
       return;
       }
@@ -1140,16 +1195,16 @@ EX namespace s2xe {
     }
 
   void add_triangle_around(array<pt, 3> v) {
-    ld baseheight = (v[0][1] > M_PI/2) ? M_PI : 0;
+    ld baseheight = (v[0][1] > 90._deg) ? M_PI : 0;
     ld tu = (v[0][3] + v[1][3] + v[2][3]) / 3;
     ld tv = (v[0][4] + v[1][4] + v[2][4]) / 3;
     array<pt, 3> vhigh;
     for(int i=0; i<3; i++) { vhigh[i] = v[i]; vhigh[i][1] = baseheight; vhigh[i][3] = tu; vhigh[i][4] = tv; }
-    if(v[1][0] < v[0][0]) v[1][0] = v[1][0] + 2 * M_PI, vhigh[1][0] = vhigh[1][0] + 2 * M_PI;
+    if(v[1][0] < v[0][0]) v[1][0] = v[1][0] + TAU, vhigh[1][0] = vhigh[1][0] + TAU;
     add_ortho_triangle(v[0], vhigh[0], v[1], vhigh[1]);
-    if(v[2][0] < v[1][0]) v[2][0] = v[2][0] + 2 * M_PI, vhigh[2][0] = vhigh[2][0] + 2 * M_PI;
+    if(v[2][0] < v[1][0]) v[2][0] = v[2][0] + TAU, vhigh[2][0] = vhigh[2][0] + TAU;
     add_ortho_triangle(v[1], vhigh[1], v[2], vhigh[2]);
-    if(v[0][0] < v[2][0]) v[0][0] = v[0][0] + 2 * M_PI, vhigh[0][0] = vhigh[0][0] + 2 * M_PI;
+    if(v[0][0] < v[2][0]) v[0][0] = v[0][0] + TAU, vhigh[0][0] = vhigh[0][0] + TAU;
     add_ortho_triangle(v[2], vhigh[2], v[0], vhigh[0]);
     }
 
@@ -1160,12 +1215,12 @@ EX namespace s2xe {
     
     minz = min(abs(v[0][2]), max(abs(v[1][2]), abs(v[2][2])));
     auto& s = sightranges[geometry];
-    maxgen = sqrt(s * s - minz * minz) / (2 * M_PI) + 1;
+    maxgen = sqrt(s * s - minz * minz) / TAU + 1;
     
     maxy = max(v[0][1], max(v[1][1], v[2][1]));
     miny = min(v[0][1], min(v[1][1], v[2][1]));
     with_zero = true;
-    if(maxy < M_PI / 4) {
+    if(maxy < 45._deg) {
       add2(v[0], 0);
       add2(v[1], 0);
       add2(v[2], 0);
@@ -1255,7 +1310,7 @@ void draw_s2xe0(dqi_poly *p) {
   set_width(1);
   glcoords.clear();
 
-  int maxgen = sightranges[geometry] / (2 * M_PI) + 1;
+  int maxgen = sightranges[geometry] / TAU + 1;
   
   auto crossdot = [&] (const hyperpoint h1, const hyperpoint h2) { return make_pair(h1[0] * h2[1] - h1[1] * h2[0], h1[0] * h2[0] + h1[1] * h2[1]); };
   vector<point_data> pd;
@@ -1287,7 +1342,7 @@ void draw_s2xe0(dqi_poly *p) {
   for(int i=0; i<p->cnt; i++) {
     auto &c1 = pd[i];
     auto &c0 = pd[i==0?p->cnt-1 : i-1];
-    if(c1.distance > M_PI/2 && c0.distance > M_PI/2 && crossdot(c0.direction, c1.direction).second < 0) return;
+    if(c1.distance > 90._deg && c0.distance > 90._deg && crossdot(c0.direction, c1.direction).second < 0) return;
     if(c1.bad == 2) return;
     if(c1.bad == 1) no_gens = true;
     }
@@ -1299,12 +1354,12 @@ void draw_s2xe0(dqi_poly *p) {
       angles[i] = atan2(pd[i].direction[1], pd[i].direction[0]);
       }
     sort(angles.begin(), angles.end());
-    angles.push_back(angles[0] + 2 * M_PI);
+    angles.push_back(angles[0] + TAU);
     bool ok = false;
     for(int i=1; i<isize(angles); i++)
       if(angles[i] >= angles[i-1] + M_PI) ok = true;
     if(!ok) {
-      for(auto &c: pd) if(c.distance > M_PI/2) return;
+      for(auto &c: pd) if(c.distance > 90._deg) return;
       no_gens = true;
       }
     }
@@ -1314,7 +1369,7 @@ void draw_s2xe0(dqi_poly *p) {
   for(int gen=-g; gen<=g; gen++) {
     for(int i=0; i<p->cnt; i++) {
       auto& cur = pd[i];
-      ld d = cur.distance + 2 * M_PI * gen;
+      ld d = cur.distance + TAU * gen;
       hyperpoint h;
       h[0] = cur.direction[0] * d;
       h[1] = cur.direction[1] * d;
@@ -1504,7 +1559,7 @@ EX namespace ods {
 
       for(int j=0; j<3; j++) {
         hyperpoint o = p->V * glhr::gltopoint((*p->tab)[p->offset+i+j]);
-        if(nonisotropic || prod) {
+        if(nonisotropic || gproduct) {
           o = lp_apply(inverse_exp(o, iTable, false));
           o[3] = 1;
           dynamicval<eGeometry> g(geometry, gEuclid);
@@ -1517,9 +1572,9 @@ EX namespace ods {
       
       for(int j=0; j<6; j++) {
         // let Delta be from 0 to 2PI
-        if(h[j][2]<0) h[j][2] += 2 * M_PI;
+        if(h[j][2]<0) h[j][2] += TAU;
         // Theta is from -PI/2 to PI/2. Let it be from 0 to PI
-        h[j][1] += global_projection * M_PI/2;
+        h[j][1] += global_projection * 90._deg;
         h[j][3] = 1;
         }
 
@@ -1536,8 +1591,8 @@ EX namespace ods {
       cyclefix(h[4][0], h[3][0]);
       cyclefix(h[5][0], h[3][0]);
 
-      if(abs(h[1][1] - h[0][1]) > M_PI/2) goto next_i;
-      if(abs(h[2][1] - h[0][1]) > M_PI/2) goto next_i;
+      if(abs(h[1][1] - h[0][1]) > 90._deg) goto next_i;
+      if(abs(h[2][1] - h[0][1]) > 90._deg) goto next_i;
       
       if(h[0][0] < -M_PI || h[0][0] > M_PI) println(hlog, h[0][0]);
 
@@ -1546,7 +1601,7 @@ EX namespace ods {
         if(h[1][0] < -M_PI || h[2][0] < -M_PI) lst++;
         if(h[1][0] > +M_PI || h[2][0] > +M_PI) fst--;
         for(int x=fst; x<=lst; x++) for(int j=0; j<3; j++) {
-          glcoords.push_back(glhr::makevertex(h[j][0] + 2 * M_PI * x, h[j][1], h[j][2]));
+          glcoords.push_back(glhr::makevertex(h[j][0] + TAU * x, h[j][1], h[j][2]));
           if(npoly.tinf) stinf.tvertices.push_back(p->tinf->tvertices[p->offset_texture+i+j]);
           }
         }
@@ -2060,10 +2115,10 @@ EX void prettypoly(const vector<hyperpoint>& t, color_t fillcol, color_t linecol
   ptd.intester = C0;
   ptd.draw();
   }
-  
-vector<glvertex> curvedata;
-int curvestart = 0;
-bool keep_curvedata = false;
+
+EX vector<glvertex> curvedata;
+EX int curvestart = 0;
+EX bool keep_curvedata = false;
 
 EX void queuereset(eModel m, PPR prio) {
   queueaction(prio, [m] () { glflush(); pmodel = m; });
@@ -2129,7 +2184,7 @@ EX void quickqueue() {
 
 /* todo */
 ld xintval(const shiftpoint& h) {
-  if(sphereflipped()) return -h.h[2];
+  if(sphere_flipped) return -h.h[2];
   if(hyperbolic) return -h.h[2];
   return -intval(h.h, C0);
   }
@@ -2143,7 +2198,7 @@ int qp[PMAX], qp0[PMAX];
 
 color_t darken_color(color_t& color, bool outline) {
   int alpha = color & 255;
-  if(sphere && pmodel == mdDisk && pconf.alpha <= 1)
+  if(sphere && pmodel == mdDisk && pconf.alpha <= 0.99)
     return 0;
   else {
     if(outline && alpha < 255) 
@@ -2173,13 +2228,13 @@ EX void sort_drawqueue() {
 
   #if MINIMIZE_GL_CALLS
   map<color_t, vector<unique_ptr<drawqueueitem>>> subqueue;
-  for(auto& p: ptds) subqueue[(p->prio == PPR::CIRCLE || p->prio == PPR::OUTCIRCLE) ? 0 : p->outline_group()].push_back(move(p));
+  for(auto& p: ptds) subqueue[(p->prio == PPR::CIRCLE || p->prio == PPR::OUTCIRCLE) ? 0 : p->outline_group()].push_back(std::move(p));
   ptds.clear();
-  for(auto& p: subqueue) for(auto& r: p.second) ptds.push_back(move(r));
+  for(auto& p: subqueue) for(auto& r: p.second) ptds.push_back(std::move(r));
   subqueue.clear();
-  for(auto& p: ptds) subqueue[(p->prio == PPR::CIRCLE || p->prio == PPR::OUTCIRCLE) ? 0 : p->color].push_back(move(p));
+  for(auto& p: ptds) subqueue[(p->prio == PPR::CIRCLE || p->prio == PPR::OUTCIRCLE) ? 0 : p->color].push_back(std::move(p));
   ptds.clear();
-  for(auto& p: subqueue) for(auto& r: p.second) ptds.push_back(move(r));
+  for(auto& p: subqueue) for(auto& r: p.second) ptds.push_back(std::move(r));
   #endif
     
   for(auto& p: ptds) {
@@ -2200,7 +2255,7 @@ EX void sort_drawqueue() {
   vector<unique_ptr<drawqueueitem>> ptds2;  
   ptds2.resize(siz);
   
-  for(int i = 0; i<siz; i++) ptds2[qp[int(ptds[i]->prio)]++] = move(ptds[i]);
+  for(int i = 0; i<siz; i++) ptds2[qp[int(ptds[i]->prio)]++] = std::move(ptds[i]);
   swap(ptds, ptds2);
   }
 
@@ -2224,7 +2279,7 @@ EX void draw_backside() {
         ptd->draw();
     }
 
-  spherespecial = sphereflipped() ? 1 : -1;
+  spherespecial = sphere_flipped ? 1 : -1;
   reset_projection();
   
   if(pmodel == mdRotatedHyperboles) {
@@ -2271,9 +2326,39 @@ EX void set_vr_sphere() {
   #endif
   }
 
+EX int hemi_side = 0;
+
 EX void draw_main() {
   DEBBI(DF_GRAPH, ("draw_main"));
   
+  if(pconf.back_and_front == 1 && vid.consider_shader_projection) {
+    dynamicval<int> pa(pconf.back_and_front);
+    pconf.back_and_front = 0;
+    draw_main();
+    pconf.back_and_front = 2;
+    reset_projection();
+    draw_main();
+    return;
+    }
+
+  if(pmodel == mdHemisphere && sphere && hemi_side == 0 && !vrhr::rendering()) {
+    hemi_side = models::sin_ball > 0 ? 1 : -1;
+    draw_main();
+
+    if(pconf.show_hyperboloid_flat) {
+      dynamicval<eModel> dv (pmodel, mdHyperboloidFlat);
+      dynamicval<int> ds (spherespecial, 1);
+      for(auto& ptd: ptds)
+        if(!among(ptd->prio, PPR::MOBILE_ARROW, PPR::OUTCIRCLE, PPR::CIRCLE))
+          ptd->draw();
+      }
+
+    hemi_side *= -1;
+    draw_main();
+    hemi_side = 0;
+    return;
+    }
+
   set_vr_sphere();  
   
   if(sphere && GDIM == 3 && pmodel == mdPerspective && !stretch::in() && !ray::in_use) {
@@ -2371,7 +2456,7 @@ EX void drawqueue() {
   #endif
 
   #if MAXMDIM >= 4 && CAP_GL
-  if(WDIM == 2 && GDIM == 3 && hyperbolic && !vrhr::rendering()) make_air();
+  make_air();
   #endif
   
   #if CAP_VR
@@ -2523,6 +2608,7 @@ EX dqi_poly& queuepolyat(const shiftmatrix& V, const hpcshape& h, color_t col, P
   ptd.tinf = h.tinf;
   if(neon_mode != eNeon::none && (h.flags & POLY_TRIANGLES))
     ptd.tinf = nullptr;
+  ptd.apeiro_cnt = h.she - h.s;
   ptd.offset_texture = h.texture_offset;
   ptd.intester = h.intester;
   return ptd;
@@ -2558,6 +2644,10 @@ void queuepolyb(const shiftmatrix& V, const hpcshape& h, color_t col, int b) {
 
 EX void curvepoint(const hyperpoint& H1) {
   curvedata.push_back(glhr::pointtogl(H1));
+  }
+
+EX void curvepoint_first() {
+  curvedata.push_back(curvedata[curvestart]);
   }
 
 EX dqi_poly& queuecurve(const shiftmatrix& V, color_t linecol, color_t fillcol, PPR prio) {
@@ -2681,7 +2771,7 @@ EX void write_in_space(const shiftmatrix& V, int fsize, double size, const strin
     }
   
   if(frame) for(int i=0; i<360; i+=45) {
-    auto &res = queuetable(V * xspinpush(i*degree, frame*scale), curvedata, isize(curvedata)-curvestart, col & 0xFF, col & 0xFF, prio);
+    auto &res = queuetable(V * xspinpush(i*degree, frame*scale), curvedata, isize(curvedata)-curvestart, poly_outline, poly_outline, prio);
     res.offset = curvestart;
     res.offset_texture = fstart;
     res.tinf = &finf;

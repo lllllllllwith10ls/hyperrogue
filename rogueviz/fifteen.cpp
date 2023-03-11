@@ -64,7 +64,7 @@ void compute_triangle_markers() {
   println(hlog, triangle_markers);
 
   for(int i=0; i<isize(fif); i++) {
-    turns.push_back(triangle_markers[i+1] == 0 ? 90*degree : 0);
+    turns.push_back(triangle_markers[i+1] == 0 ? 90._deg : 0);
     }
   }
 
@@ -164,7 +164,7 @@ void edit_fifteen() {
 
   auto ss = mapstream::save_start();
   ss->item = itGold;
-  gamescreen(0);
+  gamescreen();
   ss->item = itNone;
   
   dialog::init("Fifteen Puzzle", iinf[itPalace].color, 150, 100);
@@ -301,7 +301,7 @@ void launch() {
 
 void enable();
 
-void load_fifteen(fhstream& f) {
+void load_fifteen(hstream& f) {
   int num;
   f.read(num);
   fif.clear();
@@ -334,7 +334,7 @@ void o_key(o_funcs& v) {
 void enable() {
   rogueviz::rv_hook(hooks_o_key, 80, o_key);
   rogueviz::rv_hook(hooks_drawcell, 100, draw_fifteen);
-  rogueviz::rv_hook(mapstream::hooks_savemap, 100, [] (fhstream& f) {
+  rogueviz::rv_hook(mapstream::hooks_savemap, 100, [] (hstream& f) {
     f.write<int>(15);
     f.write<int>(isize(fif));
     for(auto cd: fif) {
@@ -437,7 +437,7 @@ auto fifteen_hook =
     anims::moved();
     }); })
 #endif
-+ addHook(mapstream::hooks_loadmap, 100, [] (fhstream& f, int id) {
++ addHook(mapstream::hooks_loadmap, 100, [] (hstream& f, int id) {
     if(id == 15) load_fifteen(f);
     })
 + addHook(hooks_configfile, 100, [] {
@@ -452,7 +452,8 @@ auto fifteen_hook =
     if(fifteen_slides.empty()) {
       fifteen_slides.emplace_back(
         slide{"Introduction", 999, LEGAL::NONE, 
-          "This is a collection of some geometric and topological variants of the Fifteen puzzle."
+          "This is a collection of some geometric and topological variants of the Fifteen puzzle. Most of these "
+          "are digital implementations of the mechanical designs by Henry Segerman."
           ,
           [] (presmode mode) {}
           });
@@ -473,11 +474,13 @@ auto fifteen_hook =
                 slide_backup(mapeditor::drawplayer, mapeditor::drawplayer);
                 slide_backup(vid.wallmode, 2);
                 slide_backup(pconf.scale, .6);
+                slide_backup(no_find_player, true);
                 stop_game();
                 mapstream::loadMap(fname);
+                popScreenAll();
                 fullcenter();
                 if(lev == "coiled" || lev == "mobiusband")
-                  View = spin(90*degree) * View;
+                  View = spin90() * View;
                 if(lev == "mobiusband")
                   View = MirrorX * View;
                 }
@@ -490,11 +493,16 @@ auto fifteen_hook =
       add("coiled", "coiled", "Coiled fifteen puzzle by Henry Segerman.", "https://www.youtube.com/watch?v=rfAEgxNEOrQ");
       add("Möbius band", "mobiusband", "Fifteen puzzle on a Möbius band.");
       add("Kite-and-dart", "kitedart", "Kite-and-dart puzzle.");
+      add("29", "29", "The 29 puzzle by Henry Segerman.", "https://www.youtube.com/watch?v=EitWHthBY30");
+      add("12", "12", "The 12 puzzle mentioned in the same video by Henry Segerman.", "https://www.youtube.com/watch?v=EitWHthBY30");
+      add("124", "124", "The 124 puzzle mentioned in the same video by Henry Segerman.", "https://www.youtube.com/watch?v=EitWHthBY30");
+      add("60", "60", "The 124 puzzle mentioned in the same video by Henry Segerman.", "https://www.youtube.com/watch?v=EitWHthBY30");
+      add("Continental drift", "sphere19", "Based on the Continental Drift puzzle by Henry Segerman.", "https://www.youtube.com/watch?v=0uQx33KFMO0");
       
       add_end(fifteen_slides);
       }
 
-    cb(XLAT("variants of the fifteen puzzle"), &fifteen_slides[0], 'h');
+    cb(XLAT("variants of the fifteen puzzle"), &fifteen_slides[0], 'f');
     });
 #endif
 

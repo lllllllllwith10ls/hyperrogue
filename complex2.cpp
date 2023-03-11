@@ -8,10 +8,10 @@
  */
 
 #include "hyper.h"
-#if CAP_COMPLEX2
 
 namespace hr {
 
+#if CAP_COMPLEX2
 EX namespace brownian {
 
   #if HDR
@@ -148,7 +148,7 @@ EX namespace brownian {
   
   EX void apply_futures(cell *c) {
     if(futures.count(c)) {
-      auto m = move(futures[c]);
+      auto m = std::move(futures[c]);
       futures.erase(c);
       for(auto p: m)
         recurse(p.first, p.second);
@@ -225,6 +225,7 @@ EX namespace westwall {
     again: 
     cell *at = whirlline[isize(whirlline)-1];
     cell *prev = whirlline[isize(whirlline)-2];
+    if(looped(whirlline)) return;
     for(int i=0; i<at->type; i++) 
       if(at->move(i) && coastvalEdge1(at->move(i)) == d && at->move(i) != prev) {
         whirlline.push_back(at->move(i));
@@ -254,7 +255,7 @@ EX namespace westwall {
         animateMovement(match(whirlline[i+1], whirlline[i]), LAYER_BOAT);
       }
     for(int i=0; i<z; i++) 
-      pickupMovedItems(whirlline[i]);
+      pickupMovedItems(whirlline[i], i<z-1 ? whirlline[i+1] : whirlline[0]);
     }
   
   EX void move() {
@@ -459,7 +460,7 @@ EX void knightFlavorMessage(cell *c2) {
       s = crystal::get_table_boundary();
     #endif
     else if(!quotient && rad)
-      s = expansion.get_descendants(rad).get_str(100);
+      s = get_expansion().get_descendants(rad).get_str(100);
     if(s == "") { msgid++; goto retry; }
     addMessage(XLAT("\"Our Table seats %1 Knights!\"", s));
     }
@@ -471,7 +472,7 @@ EX void knightFlavorMessage(cell *c2) {
       s = crystal::get_table_volume();
     #endif
     else if(!quotient && rad)
-      s = expansion.get_descendants(rad-1, expansion.diskid).get_str(100);
+      s = get_expansion().get_descendants(rad-1, get_expansion().diskid).get_str(100);
     if(s == "") { msgid++; goto retry; }
     addMessage(XLAT("\"There are %1 floor tiles inside our Table!\"", s));
     }
@@ -525,12 +526,12 @@ EX void count_status() {
   for(cell *c: currentmap->allcells()) if(among(c->wall, waMineMine, waMineUnknown) && mine::marked_mine(c)) kills[moTameBomberbird]++;
   if(last && !kills[moBomberbird]) {
     mine::victory_time = getgametime();
-    pushScreen(showMission);
+    showMissionScreen();
     }
   }
 
 EX bool in_minesweeper() {
-  return bounded && specialland == laMinefield;
+  return closed_or_bounded && specialland == laMinefield;
   }
 
 EX bool uncoverMines(cell *c, int lev, int dist, bool just_checking) {
@@ -580,6 +581,8 @@ EX bool mightBeMine(cell *c) {
 
 EX hookset<bool(cell*)> hooks_mark;
 
+EX bool mark_always = true;
+
 EX void performMarkCommand(cell *c) {
   if(!c) return;
   if(callhandlers(false, hooks_mark, c)) return;
@@ -595,6 +598,7 @@ EX void performMarkCommand(cell *c) {
   if(c->item) return;
   if(!mightBeMine(c)) return;
   bool adj = false;
+  if(mark_always) adj = true;
   forCellEx(c2, c) if(c2->wall == waMineOpen) adj = true;
   if(adj) c->landparam ^= 1;
   }
@@ -619,7 +623,7 @@ EX bool safe() {
 
 EX void uncover_full(cell *c2) {
   int mineradius = 
-    bounded ? 3 :
+    closed_or_bounded ? 3 :
     (items[itBombEgg] < 1 && !tactic::on) ? 0 :
     items[itBombEgg] < 20 ? 1 :
     items[itBombEgg] < 30 ? 2 :
@@ -652,6 +656,7 @@ static constexpr bool randterra = false;
 
 EX void check(cell *c) {
   if(c->wall == waTerraWarrior && !c->monst && !racing::on) {
+    changes.ccell(c);
     bool live = false;
     if(randterra) {
       c->wparam++;
@@ -1179,6 +1184,9 @@ EX namespace dice {
       return;
       }
 
+    /* priority used for dice */
+    const auto prio = PPR::BIGSTATUE;
+
     eGeometry orig = geometry;
     bool fpp = GDIM == 3;
 
@@ -1231,7 +1239,7 @@ EX namespace dice {
         }
       }
     
-    shiftmatrix V1 = V * ddspin(c, dir) * spin(M_PI);
+    shiftmatrix V1 = V * ddspin(c, dir, M_PI);
     if(dd.mirrored) V1 = V1 * MirrorY;
     
     // loop:
@@ -1252,8 +1260,8 @@ EX namespace dice {
     
     if(1) {
       dynamicval<eGeometry> g(geometry, gSphere);
-      ld alpha = 360 * degree / dw->order;
-      ld beta = 180 * degree / dw->facesides;
+      ld alpha = TAU / dw->order;
+      ld beta = M_PI / dw->facesides;
       inradius  = edge_of_triangle_with_angles(alpha, beta, beta);
       outradius = edge_of_triangle_with_angles(beta, alpha, beta);
       }
@@ -1312,7 +1320,7 @@ EX namespace dice {
       
       for(int d=0; d<si; d++) {
         dynamicval<eGeometry> g(geometry, highdim);
-        add_to_queue(T * cspin(0, 1, 2*M_PI*d/si) * cspin(2, 0, inradius) * cspin(0, 1, M_PI-2*M_PI*dw->spins[ws][d]/si), dw->sides[ws][d]);
+        add_to_queue(T * cspin(0, 1, TAU*d/si) * cspin(2, 0, inradius) * cspin(0, 1, M_PI-TAU*dw->spins[ws][d]/si), dw->sides[ws][d]);
         }
       
       if(1) {
@@ -1348,14 +1356,14 @@ EX namespace dice {
         h = zpush(-z) * h;
         h[2] = h[3]; h[3] = 0;
         dynamicval<eGeometry> g(geometry, orig);
-        return zshift(h, geom3::scale_at_lev(z));
+        return orthogonal_move(h, z);
         };
 
       for(int d=0; d<=si; d++) {
         hyperpoint h, hs;
         if(1) {
           dynamicval<eGeometry> g(geometry, highdim);
-          h = zpush(base_to_base) * T * cspin(0, 1, 2*M_PI*(d+.5)/si) * cspin(2, 0, outradius) * zpush0(dieradius);
+          h = zpush(base_to_base) * T * cspin(0, 1, TAU*(d+.5)/si) * cspin(2, 0, outradius) * zpush0(dieradius);
           if(d < si) face[d] = h;
           hs = sphere_to_space(h);
           }
@@ -1385,10 +1393,11 @@ EX namespace dice {
         cy = face[1] - (face[3] + face[4]) * .4;
         }
       
-      queuecurve(V1, 0xFFFFFFFF, color & 0xFFFFFF9F, PPR::WALL);
+      queuecurve(V1, (poly_outline == OUTLINE_NONE) ? 0xFFFFFFFF : poly_outline, color & 0xFFFFFF9F, prio);
       
       #if !CAP_EXTFONT
       if(!vid.usingGL) continue;
+      #if CAP_GL
       pointfunction pf = [&] (ld x, ld y) {
         dynamicval<eGeometry> g(geometry, highdim);
         return sphere_to_space(normalize(ctr + cx * x + cy * y));
@@ -1406,7 +1415,7 @@ EX namespace dice {
             cx = (face[j2] - face[j]) / 2;
             cy = face[j1] - (face[j] + face[j2]) / 4;
             }
-          write_in_space(V1, max_glfont_size, -1.2, its(1+dw->sides[q][j]), 0xFFFFFFFF, 0, 8, PPR::WALL, pf);
+          write_in_space(V1, max_glfont_size, -1.2, its(1+dw->sides[q][j]), 0xFFFFFFFF, 0, 8, prio, pf);
           }
         }
       else {
@@ -1415,8 +1424,9 @@ EX namespace dice {
         if(fid == 6) s = "6.";
         else if(fid == 9) s = "9.";
         else s = its(fid);
-        write_in_space(V1, max_glfont_size, dw->faces < 10 ? -1.2 : -.75, s, 0xFFFFFFFF, 0, 8, PPR::WALL, pf);
+        write_in_space(V1, max_glfont_size, dw->faces < 10 ? -1.2 : -.75, s, 0xFFFFFFFF, 0, 8, prio, pf);
         }
+      #endif
       #endif
       }
     }
@@ -1443,5 +1453,17 @@ EX namespace dice {
   int hook = addHook(hooks_clearmemory, 0, [] () { data.clear(); });
 EX }
 
-}
 #endif
+
+#if !CAP_COMPLEX2
+EX namespace dice {
+  EX bool on(cell *c) { return false; }
+  EX bool swap_forbidden(cell *a, cell *b) { return false; }
+  EX void chaos_swap(cellwalker wa, cellwalker wb) {}
+EX }
+
+EX namespace mine {
+  EX bool in_minesweeper() { return false; }
+EX }
+#endif
+}

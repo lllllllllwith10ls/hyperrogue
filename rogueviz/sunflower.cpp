@@ -33,6 +33,8 @@ ld qty = 100;
 ld density = 1, zdensity;
 ld range;
 
+ld yshift;
+
 ld distance_per_rug;
 
 bool adjust_rug;
@@ -48,15 +50,23 @@ ld qfrac;
 
 bool outward = false;
 
+ld step_angle = M_PI * (3 - sqrt(5));
+
 hyperpoint p(int i) {
-  ld step = M_PI * (3 - sqrt(5));
+  ld step = step_angle;
   return spin((outward ? i : i-iqty) * step) * xpush(sphere ? (acos(1 - (i+.5+qfrac) * density)) : euclid ? sqrt((i+.5+qfrac) * density) : acosh(1 + (i+.5+qfrac) * density)) * C0;
   }
 
 vector<int> inext, inext2;
 
-vector<int> fibs = {1, 2};
-  
+vector<int> fibs;
+
+color_t sunflower1 = 0xC04000FF;
+color_t sunflower2 = 0xFFD500FF;
+color_t sunflower3 = 0x000000FF;
+
+bool overlay = false;
+
 bool sunflower_cell(cell *c, shiftmatrix V) {
   density = zdensity / 100;
   
@@ -64,8 +74,8 @@ bool sunflower_cell(cell *c, shiftmatrix V) {
   
   if(sphere) {
     if(infer == 'r') 
-      range = qty * density * M_PI/2;
-    else qd = range * 2/M_PI;
+      range = qty * density * 90._deg;
+    else qd = range / 90._deg;
     }
   else if(euclid) {
     if(infer == 'r')
@@ -94,10 +104,25 @@ bool sunflower_cell(cell *c, shiftmatrix V) {
   if(outward) qfrac = 0;
   if(iqty < 0 || iqty > 2000000) return false;
   
+  if(fibs.empty()) {
+    ld best_error = 1;
+    vector<int> sgns;
+    for(int i=1; i<iqty; i++) {
+      ld v = i * step_angle / TAU;
+      v = frac(v);
+      auto sgn = v > .5;
+      if(sgn) v = 1-v;
+      if(v < best_error) fibs.push_back(i), sgns.push_back(sgn), best_error = v;
+      }
+    println(hlog, "fibs = ", fibs);
+    println(hlog, "sgns = ", sgns);
+    }
+
   ps.resize(iqty);
   inext.resize(iqty);
   inext2.resize(iqty);
   while(fibs.back() < iqty) {
+    /* to do: might not work correctly if step_angle is changed */
     auto add = fibs.back() + *(fibs.end()-2);
     fibs.push_back(add);
     }
@@ -120,25 +145,26 @@ bool sunflower_cell(cell *c, shiftmatrix V) {
       inext2[i] = bj;
       }
 
-    for(int i=0; i<iqty; i++) {    
+    if(sunflower1 || sunflower2 || sunflower3) for(int i=0; i<iqty; i++) {
       if(inext[inext[i]] == inext2[i] || inext2[inext[i]] == inext2[i] || inext[inext2[i]] == inext[i] || inext2[inext2[i]] == inext[i]) {
         curvepoint(ps[i]);
-        curvepoint(ps[inext[i]]);
         curvepoint(ps[inext2[i]]);
+        curvepoint(ps[inext[i]]);
         // queuecurve(0xFFFFFFFF, 0x00C000FF, PPR::LINE);
-        queuecurve(V, 0x000000FF, 0xC04000FF, PPR::LINE);
+        queuecurve(V * ypush(yshift), sunflower3, sunflower1, PPR::LINE);
         }      
       else {
         curvepoint(ps[i]);
         curvepoint(ps[inext[i]]);
         curvepoint(ps[inext[i] + inext2[i] - i]);
         curvepoint(ps[inext2[i]]);
-        queuecurve(V,0x000000FF, 0xFFD500FF, PPR::LINE);
+        queuecurve(V * ypush(yshift), sunflower3, sunflower2, PPR::LINE);
         }
-      if(nodes) queuepolyat(V * rgpushxto0(ps[i]), cgi.shSnowball, 0xFF, PPR::SUPERLINE);
+      if(nodes) queuepolyat(V * ypush(yshift) * rgpushxto0(ps[i]), cgi.shSnowball, 0xFF, PPR::SUPERLINE);
       }
     }
-  return true;
+
+  return !overlay;
   }
 
 void insert_param() {  
@@ -146,6 +172,7 @@ void insert_param() {
   param_f(qty, "sunq");
   param_f(range, "sunr");
   param_f(distance_per_rug, "sunf");
+  param_f(yshift, "sunyshift");
   }
 
 void show();
@@ -178,11 +205,13 @@ int readArgs() {
     nohud = true;
     }
   else if(argis("-sunflower-dr")) {
-    enable();
     infer = 'q';
     shift_arg_formula(zdensity);
     shift_arg_formula(range);
+    enable();
+    /*
     patterns::whichShape = '9';
+    */
     insert_param();
     nohud = true;
     }
@@ -192,9 +221,22 @@ int readArgs() {
   else if(argis("-sunflower-out")) {
     shift(); outward = argi();
     }
+  else if(argis("-sunflower-angle")) {
+    shift_arg_formula(step_angle, [] { fibs.clear(); });
+    }
   else if(argis("-sunflower-adj")) {
     adjust_rug = true;
     shift_arg_formula(distance_per_rug);
+    }
+  else if(argis("-sunflower-colors")) {
+    PHASEFROM(2);
+    shift(); sunflower1 = argcolor(32);
+    shift(); sunflower2 = argcolor(32);
+    shift(); sunflower3 = argcolor(32);
+    }
+  else if(argis("-sunflower-overlay")) {
+    PHASEFROM(2);
+    shift(); overlay = argi();
     }
   else return 1;
   return 0;
@@ -202,7 +244,7 @@ int readArgs() {
 
 void show() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("sunflower spirals"), 0xFFFFFFFF, 150, 0);
   
   dialog::addSelItem("density", fts(zdensity), 'd');
@@ -221,7 +263,7 @@ void show() {
   dialog::addSelItem("radius", fts(range), 'q');
   dialog::add_action([] {
     if(infer == 'r') infer = 'd';
-    dialog::editNumber(range, 0, 10, .1, 2*M_PI, "range", "range");
+    dialog::editNumber(range, 0, 10, .1, TAU, "range", "range");
     dialog::scaleLog();
     });
   

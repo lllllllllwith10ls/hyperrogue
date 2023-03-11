@@ -214,7 +214,7 @@ EX int period_xy_edit, period_z_edit;
 EX void set_flags() {
   auto& flag = ginf[gArnoldCat].flags;
   set_flag(flag, qANYQ, period_xy || period_z);
-  set_flag(flag, qBOUNDED, period_xy && period_z);
+  set_flag(flag, qCLOSED, period_xy && period_z);
   set_flag(flag, qSMALL, period_xy && period_z && (period_xy * period_xy * period_z <= 4096));
   set_flag(flag, qHUGE_BOUNDED, period_xy * period_xy * period_z > 16384);
   }
@@ -226,7 +226,7 @@ EX void prepare_config() {
   
 EX void show_config() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(1);  
+  gamescreen();
   dialog::init(XLAT("Solv quotient spaces"));
 
   dialog::addSelItem(XLAT("%1 period", "X/Y"), its(period_xy_edit), 'x');

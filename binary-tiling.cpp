@@ -478,24 +478,24 @@ EX namespace bt {
         }
       if(d == NODIR) return 0;
       if(d == c->type-1) d++;
-      return -(d+2)*M_PI/4;
+      return -(d+2) * 45._deg;
       }
 
     transmatrix adj(heptagon *h, int dir) override {
       if(geometry == gBinaryTiling) switch(dir) {
-        case bd_up: return xpush(-log(2));
-        case bd_left: return parabolic(-1);
-        case bd_right: return parabolic(+1);
+        case bd_up: return lxpush(-log(2));
+        case bd_left: return parabolic(-2);
+        case bd_right: return parabolic(+2);
         case bd_down: 
-          if(h->type == 6) return xpush(log(2));
+          if(h->type == 6) return lxpush(log(2));
           /* case bd_down_left: */
-          return parabolic(-1) * xpush(log(2));
+          return parabolic(-2) * lxpush(log(2));
         case bd_down_right: 
-          return parabolic(+1) * xpush(log(2));
+          return parabolic(+2) * lxpush(log(2));
         case bd_up_left:
-          return xpush(-log(2)) * parabolic(-1);
+          return lxpush(-log(2)) * parabolic(-2);
         case bd_up_right:
-          return xpush(-log(2)) * parabolic(1);
+          return lxpush(-log(2)) * parabolic(2);
         default:
           throw hr_exception("unknown direction");
         }
@@ -604,6 +604,7 @@ EX namespace bt {
   /** \brief by what factor do the lengths expand after moving one level in hr::bt::expansion_coordinate() */
   EX ld expansion() {
     if(WDIM == 2) return area_expansion_rate();
+    else if(mproduct) return PIU( area_expansion_rate() );
     else return sqrt(area_expansion_rate());
     }
   
@@ -633,9 +634,9 @@ EX namespace bt {
     auto &x = h[0], &y = h[1], &z = h[2];
     switch(geometry) {
       case gBinaryTiling: case gBinary4:
-        return bt::parabolic(y/2) * xpush(x*z2);
+        return bt::parabolic(y) * lxpush(x*z2*2);
       case gTernary:
-        return bt::parabolic(y/2) * xpush(x*z3);
+        return bt::parabolic(y) * lxpush(x*z3*2);
       #if CAP_SOLV
       case gSol:
         return xpush(bwh*x) * ypush(bwh*y) * zpush(z2*z);
@@ -699,18 +700,18 @@ EX namespace bt {
     use_direct = (1 << (S7-1)) - 1;    
     if(geometry == gBinary4) {
       use_direct = 3;
-      direct_tmatrix[0] = xpush(-log(2)) * parabolic(-0.5);
-      direct_tmatrix[1] = xpush(-log(2)) * parabolic(+0.5);
-      direct_tmatrix[2] = parabolic(1);
-      direct_tmatrix[4] = parabolic(-1);
+      direct_tmatrix[0] = lxpush(-log(2)) * parabolic(-1);
+      direct_tmatrix[1] = lxpush(-log(2)) * parabolic(+1);
+      direct_tmatrix[2] = parabolic(2);
+      direct_tmatrix[4] = parabolic(-2);
       use_direct = 1+2+4+16;
       }
     if(geometry == gTernary) {
-      direct_tmatrix[0] = xpush(-log(3)) * parabolic(-1);
-      direct_tmatrix[1] = xpush(-log(3));
-      direct_tmatrix[2] = xpush(-log(3)) * parabolic(+1);
-      direct_tmatrix[3] = parabolic(1);
-      direct_tmatrix[5] = parabolic(-1);
+      direct_tmatrix[0] = lxpush(-log(3)) * parabolic(-2);
+      direct_tmatrix[1] = lxpush(-log(3));
+      direct_tmatrix[2] = lxpush(-log(3)) * parabolic(+2);
+      direct_tmatrix[3] = parabolic(2);
+      direct_tmatrix[5] = parabolic(-2);
       use_direct = 1+2+4+8+32;
       }
     if(geometry == gBinary3) {
@@ -725,20 +726,20 @@ EX namespace bt {
       }
     if(geometry == gHoroTris) {
       ld r3 = sqrt(3);
-      direct_tmatrix[0] = xpush(-log(2)) * cspin(1,2, M_PI);
+      direct_tmatrix[0] = xpush(-log(2)) * cspin180(1,2);
       direct_tmatrix[1] = parabolic3(0, +r3/3) * xpush(-log(2));
       direct_tmatrix[2] = parabolic3(-0.5, -r3/6) * xpush(-log(2));
       direct_tmatrix[3] = parabolic3(+0.5, -r3/6) * xpush(-log(2));
-      direct_tmatrix[4] = parabolic3(0, -r3*2/3) * cspin(1,2, M_PI);
-      direct_tmatrix[5] = parabolic3(1, r3/3) * cspin(1,2,M_PI);
-      direct_tmatrix[6] = parabolic3(-1, r3/3) * cspin(1,2,M_PI);
+      direct_tmatrix[4] = parabolic3(0, -r3*2/3) * cspin180(1,2);
+      direct_tmatrix[5] = parabolic3(1, r3/3) * cspin180(1,2);
+      direct_tmatrix[6] = parabolic3(-1, r3/3) * cspin180(1,2);
       }
     if(geometry == gHoroRec) {
       ld r2 = sqrt(2);
       ld l = -log(2)/2;
       ld z = hororec_scale;
-      direct_tmatrix[0] = parabolic3(0, -z) * xpush(l) * cspin(2,1,M_PI/2);
-      direct_tmatrix[1] = parabolic3(0, +z) * xpush(l) * cspin(2,1,M_PI/2);
+      direct_tmatrix[0] = parabolic3(0, -z) * xpush(l) * cspin90(2,1);
+      direct_tmatrix[1] = parabolic3(0, +z) * xpush(l) * cspin90(2,1);
       direct_tmatrix[2] = parabolic3(+2*r2*z, 0);
       direct_tmatrix[3] = parabolic3(0, +4*z);
       direct_tmatrix[4] = parabolic3(-2*r2*z, 0);
@@ -748,9 +749,9 @@ EX namespace bt {
       // also generated with the help of hexb.cpp
       ld l = log(3)/2;
       auto& t = direct_tmatrix;
-      t[0] = parabolic3(horohex_scale, 0) * xpush(-l) * cspin(1, 2, M_PI/2);
-      t[1] = cspin(1, 2, 2*M_PI/3) * t[0];
-      t[2] = cspin(1, 2, 4*M_PI/3) * t[0];
+      t[0] = parabolic3(horohex_scale, 0) * xpush(-l) * cspin(1, 2, 90._deg);
+      t[1] = cspin(1, 2, 120*degree) * t[0];
+      t[2] = cspin(1, 2, 240*degree) * t[0];
       auto it = iso_inverse(t[0]);
 
       t[5] = it * t[1] * t[1];
@@ -809,12 +810,14 @@ EX namespace bt {
     }
   #endif
 
+  EX ld xy_mul() { return vid.binary_width * log(2) / 2; }
+
   EX transmatrix parabolic(ld u) {
-    return parabolic1(u * vid.binary_width / log(2) / 2);
+    return parabolic1(u * xy_mul());
     }
 
   EX transmatrix parabolic3(ld y, ld z) {
-    ld co = vid.binary_width / log(2) / 4;
+    ld co = xy_mul();
     return hr::parabolic13(y * co, z * co);
     }
 
@@ -827,14 +830,23 @@ EX namespace bt {
     return log(2) + log(-h[0]);
     }
   
-  EX hyperpoint deparabolic3(hyperpoint h) {
-    h /= (1 + h[3]);
-    hyperpoint one = point3(1,0,0);
-    h -= one;
-    h /= sqhypot_d(3, h);
-    h[0] += .5;
-    ld co = vid.binary_width / log(2) / 8;
-    return point3(log(2) + log(-h[0]), h[1] / co, h[2] / co);
+  /** \brief convert BT coordinates to Minkowski coordinates 
+      in the BT coordinates, h[2] is vertical; the center of the horosphere in Klein model is (1,0,0) 
+      */
+
+  EX hyperpoint bt_to_minkowski(hyperpoint h) {
+    ld yy = log(2) / 2;
+    ld co = xy_mul();
+    return hr::parabolic13(h[0] * co, h[1] * co) * xpush0(yy*h[2]);
+    }
+
+  /** \brief inverse of bt_to_minkowski */
+  EX hyperpoint minkowski_to_bt(hyperpoint h) {
+    h = deparabolic13(h);
+    ld co = xy_mul();
+    ld yy = log(2) / 2;
+    h = point31(h[1] / co, h[2] / co, h[0] / yy);
+    return h;
     }
 
 #if CAP_COMMANDLINE  
@@ -966,7 +978,7 @@ EX int celldistance3_hex(heptagon *c1, heptagon *c2) {
   while(isize(d1)) {
     xsteps -= 2;
 
-    T = euscalezoom(hpxy(0,sqrt(3))) * eupush(1,0) * spin(-d2.back() * 2 * M_PI/3) * T * spin(d1.back() * 2 * M_PI/3) * eupush(-1,0) * euscalezoom(hpxy(0,-1/sqrt(3)));
+    T = euscalezoom(hpxy(0,sqrt(3))) * eupush(1,0) * spin(-d2.back() * 120._deg) * T * spin(d1.back() * 2 * M_PI/3) * eupush(-1,0) * euscalezoom(hpxy(0,-1/sqrt(3)));
     
     d1.pop_back(); d2.pop_back();
     
@@ -1015,25 +1027,30 @@ EX int celldistance3(heptagon *c1, heptagon *c2) {
 EX int celldistance3(cell *c1, cell *c2) { return celldistance3(c1->master, c2->master); }
 
 EX hyperpoint get_horopoint(ld y, ld x) {
-  return xpush(-y) * bt::parabolic(x) * C0;
+  return bt::parabolic(x*2) * lxpush(-y) * C0;
   }
 
 EX hyperpoint get_horopoint(hyperpoint h) {
   return get_horopoint(h[0], h[1]);
   }
 
+EX hyperpoint inverse_horopoint(hyperpoint h) {
+  hyperpoint h1 = deparabolic13(h);
+  h1[1] /= 2 * bt::xy_mul(); h1[0] *= -1;
+  return h1;
+  }
+
 EX hyperpoint get_corner_horo_coordinates(cell *c, int i) {
-  ld yx = log(2) / 2;
-  ld yy = yx;
-  ld xx = 1 / sqrt(2)/2;
+  ld yy = log(2) / 2;
+  ld xx = 1 / 2.;
   switch(geometry) {
     case gBinaryTiling:    
       switch(gmod(i, c->type)) {
         case 0: return point2(-yy, xx);
-        case 1: return point2(yy, 2*xx);
-        case 2: return point2(yy, xx);
-        case 3: return point2(yy, -xx);
-        case 4: return point2(yy, -2*xx);
+        case 1: return point2(yy, xx);
+        case 2: return point2(yy, xx/2);
+        case 3: return point2(yy, -xx/2);
+        case 4: return point2(yy, -xx);
         case 5: return point2(-yy, -xx);
         case 6: return point2(-yy, 0);    
         default: return point2(0, 0);
@@ -1041,9 +1058,9 @@ EX hyperpoint get_corner_horo_coordinates(cell *c, int i) {
     
     case gBinary4:
       switch(gmod(i, c->type)) {
-        case 0: return point2(yy, -2*xx);
+        case 0: return point2(yy, -xx);
         case 1: return point2(yy, +0*xx);
-        case 2: return point2(yy, +2*xx);
+        case 2: return point2(yy, +xx);
         case 3: return point2(-yy, xx);
         case 4: return point2(-yy, -xx);
         default: return point2(0, 0);
@@ -1051,12 +1068,11 @@ EX hyperpoint get_corner_horo_coordinates(cell *c, int i) {
     
     case gTernary:
       yy = log(3) / 2;
-      xx = 1 / sqrt(3) / 2;
       switch(gmod(i, c->type)) {
-        case 0: return point2(yy, -3*xx);
-        case 1: return point2(yy, -1*xx);
-        case 2: return point2(yy, +1*xx);
-        case 3: return point2(yy, +3*xx);
+        case 0: return point2(yy, -xx);
+        case 1: return point2(yy, -xx/3);
+        case 2: return point2(yy, +xx/3);
+        case 3: return point2(yy, +xx);
         case 4: return point2(-yy, xx);
         case 5: return point2(-yy, -xx);
         default: return point2(0, 0);
@@ -1154,7 +1170,7 @@ EX void create_faces() {
     hyperpoint down = point3(0,0,2*z);
 
     for(int j=0; j<4; j++) for(int i=0; i<3; i++) {
-      transmatrix T = cspin(0, 1, 2*M_PI*i/3);
+      transmatrix T = cspin(0, 1, 120._deg * i);
 
       hyperpoint hcenter = point3(0,0,-z);
       hyperpoint hu0 = T*point3(+h,  +r3,-z);
@@ -1177,8 +1193,7 @@ EX void create_faces() {
   if(kite::in()) {
     auto kv = kite::make_walls();
     for(auto& v: kv.first) for(auto& h: v) {
-      h = bt::deparabolic3(h);
-      h = point3(h[1], h[2], h[0] / (log(2)/2));
+      h = minkowski_to_bt(h);
       }
     for(int i=0; i<isize(kv.first); i++) {
       add_wall(i, kv.first[i]);

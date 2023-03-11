@@ -271,7 +271,7 @@ template<class T> struct walker {
   template<class U> walker operator + (U t) const { walker<T> w = *this; w += t; return w; }
   template<class U> walker operator - (U t) const { walker<T> w = *this; w += (-t); return w; }
   /** \brief what T are we facing, without creating it */
-  T*& peek() { return at->move(spin); }
+  T*& peek() const { return at->move(spin); }
   /** \brief what T are we facing, with creating it */
   T* cpeek() { return at->cmove(spin); }
   /** \brief would we create a new T if we stepped forwards? */
@@ -464,12 +464,12 @@ EX bool proper(cell *c, int d) { return d >= 0 && d < c->type; }
 
 #if HDR
 
-constexpr int STRONGWIND = 99;
-constexpr int FALL = 98;
-constexpr int NO_SPACE = 97;
-constexpr int TELEPORT = 96;
-constexpr int JUMP = 95;
-constexpr int STAY = 94;
+constexpr int STRONGWIND = 199;
+constexpr int FALL = 198;
+constexpr int NO_SPACE = 197;
+constexpr int TELEPORT = 196;
+constexpr int JUMP = 195;
+constexpr int STAY = 194;
 
 namespace whirlwind { cell *jumpDestination(cell*); }
 
@@ -488,7 +488,7 @@ struct movei {
   movei(cell *_s, int _d) : s(_s), d(_d) {
     if(d == STRONGWIND) t = whirlwind::jumpDestination(s);
     else if(d < 0 || d >= s->type) t = s;
-    else t = s->move(d);
+    else t = s->cmove(d);
     }
   movei(cell *_s, cell *_t, int _d) : s(_s), t(_t), d(_d) {}
   movei(cellwalker cw) : s(cw.at), t(cw.cpeek()), d(cw.spin) {}

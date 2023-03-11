@@ -118,7 +118,7 @@ EX eGravity get_move_gravity(cell *c, cell *c2) {
   }
 
 EX bool isWarped(cell *c) {
-  return isWarpedType(c->land) || (!inmirrororwall(c->land) && (items[itOrb37] && c->cpdist <= 4));
+  return isWarpedType(c->land) || (c->land == laCanvas && canvasfloor == caflWarp) || (!inmirrororwall(c->land) && (items[itOrb37] && c->cpdist <= 4));
   }
 
 EX bool nonAdjacent(cell *c, cell *c2) {
@@ -622,8 +622,12 @@ EX int gravityLevel(cell *c) {
   }
 
 EX int gravityLevelDiff(cell *c, cell *d) {
-  if(c->land != laWestWall || d->land != laWestWall)
-    return gravityLevel(c) - gravityLevel(d);
+  if(c->land != laWestWall || d->land != laWestWall) {
+    int res = gravityLevel(c) - gravityLevel(d);
+    if(res > 1) return 1;
+    if(res < -1) return -1;
+    return res;
+    }
   
   if(shmup::on) return 0;
 
@@ -801,9 +805,9 @@ EX bool makeEmpty(cell *c) {
     c->wall = waBoat; // , c->item = itOrbYendor;
   else if(c->land == laMinefield)
     c->wall = waMineOpen;
-  else if(c->wall == waFan && bounded)
+  else if(c->wall == waFan && closed_manifold)
     ;
-  else if(c->wall == waOpenPlate && bounded)
+  else if(c->wall == waOpenPlate && closed_manifold)
     ;
   else if(c->wall == waTrunk || c->wall == waSolidBranch || c->wall == waWeakBranch)
     ;
@@ -817,13 +821,13 @@ EX bool makeEmpty(cell *c) {
     ;
   else if(c->land == laDocks)
     c->wall = waBoat;
-  else if(c->wall == waFreshGrave && bounded)
+  else if(c->wall == waFreshGrave && closed_manifold)
     ;
   else if(c->wall == waBarrier && sphere && WDIM == 3)
     ;
   else if(isReptile(c->wall))
     c->wparam = reptilemax();
-  else if(c->wall == waAncientGrave && bounded)
+  else if(c->wall == waAncientGrave && closed_manifold)
     ;
   else if(c->wall != waRoundTable)
     c->wall = waNone;

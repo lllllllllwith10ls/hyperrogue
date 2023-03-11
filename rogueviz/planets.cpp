@@ -239,7 +239,7 @@ ld prec = 5;
 void draw_earth() {
   load_planets();
 
-  shiftmatrix S = ggmatrix(currentmap->gamestart()) * spin(90*degree);
+  shiftmatrix S = ggmatrix(currentmap->gamestart()) * spin90();
 
   ld mte = radius[src_planet] / radius[tgt_planet];
   
@@ -425,7 +425,7 @@ EX void compare() {
       dark = dark * dark * (3-2*dark);
       }
     alpha = dark * max_alpha;
-    View = cspin(0, 2, (rot - lrot) * 2 * M_PI) * View;
+    View = cspin(0, 2, (rot - lrot) * TAU) * View;
     lrot = rot;
     anims::moved();
     }
@@ -433,8 +433,9 @@ EX void compare() {
 
 void choose_projection() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("choose projection"), 0xFFFFFFFF, 150, 0);
+  dynamicval<int> di(index);
   for(int i=0; i<8; i++) {
     index = i;
     dynamicval<eModel> md(pmodel, pmodel);
@@ -449,7 +450,7 @@ void choose_projection() {
 
 void choose_planet(texture::texture_data *& t) {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("choose the planet"), 0xFFFFFFFF, 150, 0);
   for(auto opt: {&earth, &moon, &sun, &mars, &neptune}) {
     dialog::addSelItem(pname[opt], its(radius[opt]) + " km", key[opt]);
@@ -461,7 +462,7 @@ void choose_planet(texture::texture_data *& t) {
 
 void show() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("projections between planets"), 0xFFFFFFFF, 150, 0);
   add_edit(alpha);
   add_edit(latit);
@@ -520,7 +521,7 @@ auto msc =
 
         "We can also project a sphere to a sphere of different curvature. For example, what about the azimuthal equidistant projection from Earth to Moon? "
         "This projection correctly maps the angles and distances from a chosen point at Earth. "
-        "Press 'o' to use the place on Earth you are in as the chosen point, try other projections, or change the other settings!"
+        "Press '5' to use the place on Earth you are in as the chosen point, try other projections, or change the other settings!"
         ,
         [] (presmode mode) {
           slide_url(mode, 't', "Twitter link (with description)", "https://twitter.com/ZenoRogue/status/1339946298460483589");
@@ -533,9 +534,12 @@ auto msc =
             slide_backup(pmodel, mdDisk);
             slide_backup(pconf.scale, 1000);
             slide_backup(pconf.alpha, 1000);
+            slide_backup(mapeditor::drawplayer, false);
             start_game();
             slide_backup(max_alpha, 192);
             }
+          slidecommand = "options";
+          if(mode == tour::pmKey) pushScreen(show);
           }});
       });
 

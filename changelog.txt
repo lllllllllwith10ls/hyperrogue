@@ -4483,3 +4483,409 @@ Bugfixes:
 * fixed possible bugs with Brownian colors, snake colors, interactions of arrow traps and terracotta warriors (thanks to @jruderman)
 * fixed 3-dimensional elliptic space
 * tes files: fixed a bug with 'ended at wrong edge determining vertex_valence'
+
+2021-09-30 17:55 Update 12.0g:
+
+Geometries/projections:
+* new manifold (projective Bring surface)
+* fixed the interesting dodecahedral quotient spaces (535c, 535s, 533s)
+* fixed rotation spaces
+* fixed a possible crash in Crystal
+* fixes to the tree rule generator
+* some Euclidean lands are now available only in single land mode
+* two-sided display of hyperbolic disk with -1<projection<0
+* load maps with intra-geometric portals
+
+Gameplay bugfixes:
+* Erase rosemap entries for deleted cells
+* Orb of Trickery messages no longer reveal underwater items
+* Add Orb error messages for Phasing and Vaulting
+* improved ranged Orb error messages
+* warning protection no longer evokes Flash/Lightning
+* no more fatigue cost checking when the Curse is gone
+* cleaned up where summoned creature appears for Orb of Life and Orb of Friendship
+
+Other fixes:
+* fixed PAGEDOWN rotating in the same direction as PAGEUP
+* wall shadows no longer drawn with noshadow
+* an option to disable sky drawing
+* improved the CLI option to set the resolution
+* mimics now destroyed correctly in the map editor
+* parallel linepattern is now configurable
+* fixed message about 9 treasure types in casual
+
+2021-10-10 01:13 Update 12.0h:
+  - improvements to intra portals
+  - Solv maps and subdivided 3D maps are now saved correctly
+  - fixed a crash when generating daily, also Dice Reserve, Cursed Canyon, and the new walls should appear soon
+  - do not switch variation to pure when switching to Archimedean product
+  - fixed Archimedean dual product
+  - raycaster now works correctly in binary products
+  - binary product spaces now use curved shapes
+  - fixed some formulas in binary spaces, and made the default width equal to Solv
+
+2021-12-12 23:06 Update 12.0i:
+
+Gameplay:
+- Hyperbugs now ignore the player in peace mode
+- fixed the Nature + movement orb combo, without Empathy
+- fixed the Nature + Slaying + Empathy combo
+- Krakens no longer destroy player boats in peaceful mode
+- fixed allies affecting Terracotta Warriors without actually moving next to them
+- fixed reporting the Gardener achievement
+
+Other:
+- fixed grammar error 'Orb of the Love'
+- fixed a bug in parsing unary -
+- perf/edit setting in intra-geometric portals
+- do not remove faraway treasures in 3D geometries (they are not that far away...)
+- reduced the other land range for currentLocalTreasure in 3D geometries
+- fixed openplains in nowalls mode
+- fixed raycaster in 2dim geometries crashing
+- the problem of moving in Cat geometry should be fixed
+- stop crashing in Solv if coordinates are NAN
+- fixed weird colors in coxeter
+- fixes to rulegen
+- refer to color by HTML name in commandline arguments, and an option to allocate more colors via CLI
+- pseudohedral display mode in 2.5D
+- TES files: a feature to add commandline options, and stars
+
+2021-12-13 22:32 Update 12.0j:
+- fixed the victory leaderboards (turns/time to Orb of Yendor/Hyperstones)
+- fixed the starting land selection feature for equidistant-based lands
+
+2022-02-03 01:07 Update 12.0k:
+Orb-related fixes:
+- Lazurite Figurines no longer appear immediately after using an Orb of Safety
+- Orb of Chaos is now forbidden in the Dungeon
+- Stunning from the Orb of Chaos now destroys birds/shadows just like the other sources of stunning
+- Shadows are now affected by the Orb of Beauty
+- Stunning the Shadow now temporarily destroys it
+- draining Orb of Choice now happens after gaining the Purity extras
+- Orb of Slaying now works against big trees
+- draw fishtails on friends with empathy
+
+Achievement fixes:
+- fixed racing (official tracks are generated again and acknowledged)
+- Princess Challenge and Heptagonal Knight achievements should be fixed
+
+Geometry:
+- more distinct colors in 'eight domains'
+- improvements to tree rule generator
+- Goldberg-Coxeter improvements (larger limits supported, warn if outside of the supported limits, some are fixed)
+- fixed fat edges in some H3 honeycombs
+- fixed some bugs with Multi-dimensional Crystal quotient space
+
+2022-03-01 09:39 Update 12.0l:
+Orb-related fixes:
+- Curse of Repulsion now correctly marked when used
+- when having Orb of Freedom + Orb of Time, other orbs are no longer drained by Freedom checks
+- Valentine's Easter Egg: Add +1 extra charge to Orb of Love
+
+Geometry:
+- fixed VR in product geometries
+- portals between geometries: fixed some formulas, walking mode
+- fixed dark lines in binary tiling x R raycasting which happened when we got a=0 in quadratic equation
+- made Yendor/Haunted sight radius consistent when the tiling is changed
+- infinite generation for single-land Camelot now only happens in hyperbolic geometry (also fixes the missing Grail in Crystal)
+- additions and fixes to RogueViz
+
+Other:
+- fixed Crossroads wiki links
+- fixed some settings incorrectly showing a warning on editing (this also brings back the 'play music when out of focus' option)
+
+2022-03-27 20:51 Update 12.0m:
+
+Improvements to multiplayer:
+- "split screen mode" can now be set explicitly (don't lose the other player, and don't tell the other player to go right, holonomy matters ;)
+- an option to automatically adjust dual-focus projections to focus on both players (try it with inverted Joukowsky, two-point equidistant/azimuthal and band projections)
+- an option to toggle friendly fire and self-hits in wrapped spaces
+- an option to toggle player-vs-player (this disables limited lives)
+- fixed the radar and cool fog in splitscreen
+
+New options thanks to lottieratworld:
+- idle animation option
+- extra canvas-specific options (map editor->settings)
+
+Other new features:
+- mouse snapping feature in shape editor -- can be used to precisely measure distances and angles (press 'o' to select the point to measure from)
+- when the player is hidden (e.g. in RogueViz visualizations) and the user tries to use WASD, display a hint that they should be using arrow keys instead
+- prevent a crash when entering '(0,0)' in Archimedean
+
+Rendering fixes:
+- fixed levellines in hyperbolic
+- in non-fake 2.5D the raycaster is now disabled by default
+- fixed scale_at for cylindrical projections
+- fixed the orientation of two-point azimuthal and two-point hybrid
+
+Gameplay fixes:
+- fixed the Orb of Safety not disappearing upon use in shmup+OSM
+- fixed the displayed unlock rule for Crossroads III in Casual
+
+2022-04-26 16:19 Update 12.0n:
+
+Gameplay:
+- Viziers were immune to some attacks in illogical circumstances -- this is no longer the case
+- mirrors and non-orientable spaces now flip Alchemist Lab colors
+- slime spills should now have deterministic effect when a cell is hit with slimes of both color simultaneously
+- fixed Zebra-patterned lands in Zebra quotient space
+- fixed Prairie in field quotient space
+
+Graphical/writing bugfixes:
+- the hyperboloid model of S2 (as an anolog of the hemisphere model of H2)
+- fixed hadoken missiles not displaying correctly in shmup 3D
+- fixed some floors scaled incorrectly when 'creature scale' is changed
+- floating bubbles now should work correctly for Mirror Shards, Elemental Gems and Ancient Jewelry
+- fixed the dice layering issue
+- paper model designer and spiral renderer could crash because they were implemented without OpenGL -- should be fixed now
+- "run away from the lava"
+- Hell is no longer "the Hell"
+
+Tes file format:
+- repeat can now be declared before conway or c
+- (unit)tile now accepts the last argument written as "*x", which copies the list x times and also automatically sets repeat (see regular.tes)
+- as a special case, "*inf" produces apeirogonal or pseudogonal tiles with hidden splitting edges (regular.tes, pseudogons.tes, fake-inf-polygon.tes)
+- arcmedge accepts "x:^q" which means that x can be repeated q times. Both x and q can be real, and x can be infinite (see regular.tes)
+- new geometry definition "c2(v)" which automatically selects geometry based on the sign of v -- also arcmcurv command which produces appropriate v (see regular.tes)
+- ideal vertices can now be with the bracket format (see inf.tes or ultratriangle.tes)
+- min, max, ifz (if zero) functions and inf, MAX_EDGE, MAX_VALENCE constants in the parser
+- integer sliders: change the integer values of sliders in the 'experiment with geometry' menu (contrary to real-value sliders, this resets the map) (see e.g. regular.tes)
+
+CLI options:
+- -animformula [formula] to change the timing of an animation
+- -canvasfloor [f] sets the canvas floor type
+- -keys [key list] simulates a list of keypresses
+
+2022-04-28 00:03 Update 12.0o:
+
+Fixed some bugs in the new features for tes, and also fixed spherical geometry.
+
+2022-05-10 08:55 Update 12.0p:
+
+- draw the side walls between shallow water and chasms
+- the smooth movement option now works in the map editor (and some other special screens)
+- "movement along geodesics" off now means that the movement is based on the Lie group exponentials (e.g. straight lines in simple view in rotiationally symmetric model of Nil)
+- buggy window resizing should be fixed
+- simplified display option for tes tilings with apeirogons
+- RogueViz: fixed the VR for the portal demo, and some improvements to the impossibility presentation
+
+2022-05-21 17:16 Update 12.0q:
+- In 'experiments with geometry', added an option to play on a disk. This lets you use the "bounded space" rules on infinite manifolds. Especially useful with Minefield and Halloween.
+- also improved the Halloween generation (outside of spheres)
+- teleportation in bounded minesweeper no longer follows the limited range rule
+- you can now display Minefield clues as numbers (right-click minefield to get its help screen where you can change this option)
+- new projections mostly for Solv: Lie perspective and Lie orthogonal
+
+2022-06-17 12:17 Update 12.0r:
+
+Gameplay:
+- ghosts prioritize attacking players over attacking allies
+- fixed some Orbs not affecting slime
+- Orb of the Sword can now kill yourself through mirror or topology
+- sword attacks reflect in mirrors
+- swords in mirrors are now displayed correctly
+- mimic movements are now affected by Empathy, and no longer can reverse slime colors by going through mirror
+- Woods+Time: do not waste charge on attacking monsters in trees
+- fixed help for life Orbs in the shmup mode
+- Halloween:: fixed the jack-o-lantern
+- the Racing mode now loads pre-generated files instead of trusting the track will be generated in the same way
+- you can also edit the Racing tracks and save them ()
+- Hall of Mirror maps should now be saved correctly
+- fixed a crash bug in computing minefield neighborhoods in some tilings
+- fixed sl2 rendering
+
+Menu improvements:
+- unified the quest status (previously ESC) and main menu (previously V) into a single screen ("game menu")
+- 'creative mode' is moved to the game menu
+- a cleanup to some menus (special modes, highlights, peace&exploration)
+- dual geometry puzzle removed (will still be available in RogueViz)
+- switching shmup mode no longer invokes keyboard configuration
+
+2022-06-23 10:50 Update 12.0s:
+
+- fixed Minesweeper in the highlights menu
+- fixed the racers keeping their speed when restarting
+- when generating strict tree maps for Archimedean/regular tessellation, you now have an option to have all the symmetries of the tessellation taken into account (to minimize the tree)
+- tes files with tree data (tessellations/sample/horotiling.tes) and star tes files (tessellations/sample/star-7-72.tes) should load correctly again
+- show treasure bubbles in the Dice Reserve
+- Shift+A key leaves the map editor, also all options are now displayed in the cheat menu (some obsolete ones are removed)
+
+2022-07-05 14:12 Update 12.0t:
+  Tranlations and bugfixes:
+  - French translation by 3raven (42% complete and untested yet)
+  - fixed the Polish translation of the description of False Princess
+  - a bug where some racing times are set to 0 should now be fixed
+
+  Menu improvements:
+  - fixed the help button in the pause menu
+  - you can now configure by how much you want to darken the background in the menu
+  - menu display should be more consistent now
+  - in sidescreen menus, the background under the menu is now darkened
+  - start animations now can be disabled
+  - nicer sliders and color selectors (unless the ASCII mode is on)
+
+2022-07-12 14:47 Update 12.0u:
+  - honeycomb tree rules for 345 and 355 (better performance, variations work)
+  - some fixes to the French translation
+  - options to show less items/kills in the portrait/landscape mode
+  - an option to have menus centered even in widescreen
+  - mobile fixes: fixed an incorrect button shown in the mobile game menu, and items/kills going over buttons
+
+2022-07-17 14:47 Update 12.0v:
+  - fixes for new Android
+  - preliminary work on tree structures for 3D honeycombs
+  - auto-rotation (Ivory Tower etc.) now works on devices who know their orientation
+  - nicer "pipes" (fat grid lines) in 3D
+  - fixed some crash bugs related to the memory saving mode
+
+2022-08-07 03:03 Update 12.0w:
+- fixed a bug with 'world overview' breaking ESC menu
+- racing fixed (hopefully)
+- minor changes to HyperRogue help: now directly offered when displaying context help; do not suggest to try the Guided Tour if already in the Guided Tour
+- made the RogueViz presentations which contain no HyperRogue PC easier to control (control the camera by using the keys which usually move the PC)
+- added some more demos to RogueViz
+
+2022-08-07 15:01 Update 12.0x:
+- yet another fix to racing
+- fixed a crash when deleting 3-sphere maps
+
+2022-08-26 13:46 Update 12.0y:
+  - new implemenatation of hyperbolic honeycombs in action
+  - field quotients in 3D now finds more honeycombs
+  - variations now work for Euclidean cube tiling
+  - tessellation, texture, etc. files can now be found via HYPERPATH
+  - fixed the Slaying+side attack combo
+  - Pearls now use the Disk graphics
+  - Added some land incompatibilities
+  - updates to French translation
+  - fixes to stereographic projection (as a way to get high FOV)
+
+2022-09-06 14:20 Update 12.0z:
+- various fixes related to 'orb used' rollback
+- fixed Sol geometry (a bug caused the map to change incorrectly when moving)
+- fixed variations of hyperbolic honeycombs (when a ruleset was available only for the pure honeycomb, loading it would reset variation to pure)
+
+2022-09-15 12:40 Update 12.1:
+- documentation for TES files added
+- an option to select the savefile on startup (settings -> other settings)
+- fixed missing 'too far' messages on Frog-like orbs
+- fixed Teleport and Illusion draining Aether etc on mousing (disregarding Time)
+- fixed a crash problem with tes files in 2.5D
+- fixed a possible crash in raytracer
+- when tes files are loaded, football-colorability is now detected (and used to improve the graphics and gameplay)
+- GPU glitches when rendering long bands should be no more
+- fixed the loading of tessellations/affine/affine-square.tes
+- fixed the crash on converting regular/Archimedean tilings to tes format and generating tree rules
+- improvements to line patterns
+- fixed a possible crash when saving images
+
+2022-09-17 12:12 Update 12.1a:
+- fixed Orb of Teleport/Illusion thinking that they are unusable
+- Orb of Earth no longer marked useless in Wetland
+- some fixes for the treasure/kill list: fixed the Onyx graphics; made some icons larger; dark stuff have their text brightened (or use the auxiliary orb color)
+- the monster movement order is more random now (no preference for clockwise)
+
+2022-10-06 13:13 Update 12.1b:
+- Orb icons thanks to Jacob Mandelson. (Can be disabled in general settings)
+- hostile dice are highlighted
+- racing mode fixes: the menu shows whether an official track is on; the settings are set correctly, and land structure is ignored for the achievement
+- Orb of Choice now works with Orb of Safety
+- an option to arbitrarily change the width of tile boundaries (in 'patterns' menu)
+- the option to debug tile/edge/vertexs IDs in the 'experiments with geometry' menu (if a tes file is on, but it works in general)
+- tes format now supports declaring a tile as having a mirror symmetry
+- tile-type display now displays mirror images as the same color (or slightly different colors, depending on settings)
+- tile-type display no longer assigns different colors depending on football type
+- when editing color tables, it is now possible to add more colors
+- Crystal World and Snake Nest were legal in some tilings but they did not actually appear -- should be fixed
+- vertical strafe in walkingmode no longer brings eye level below 0
+
+2022-10-08 02:14 Update 12.1c:
+- some improvements to tes file support. Mirrored tiles should now work for apeirogons. Valence check and thus football colorability should now work with affine/star tessellations. 
+- also included more tes samples
+
+2022-10-27 15:53 Update 12.1d:
+- Various menus displaying lists now use a nicer list widget (including the file dialog and map editor selection).
+- Map editor improvements:
+- - "building mode", which allows Minecraft-style building in 3D geometries
+- - shift-clicking in the map editor now deletes stuff
+- - improvements to portal spaces, including easier creation (convert to portal space from the map editor -> settings, then you can add new worlds from save files)
+- improvements to SL(2,R) and similar:
+- - nonisotropic range parameters now work in all perspective modes
+- - Panini in all perspective modes
+- - more projections possible for SL(2,R)
+- - fixed the 'penrose staircases' on wall blocks in rotation spaces
+- 'load from file' appears directly in the geometry menu in 'experiments with geometry'
+- achievements disabled in ineligible starting lands
+- limit on pauses in the racing mode
+- fixed the ogg files
+
+2022-11-04 23:58 Update 12.1e:
+- fixed some bugs with editing portal spaces
+- some fixes in help text
+- page buttons in PTM are back
+- layout in Yendor should be improved
+- fixed buggy generation when setting Elemental Wall as cheat destination
+- file dialog improvements (more options, automatically set position, search mode)
+- fixes to the shmup mode:
+- - Gadflies no longer appear forever with high Spinel counts
+- - pause count is no longer displayed in non-racing; also reset to 0
+- - fixed pink tortoises appearing in Galápagos
+- - Bulls now correctly destroy walls they crash into
+- - fixed wrong time used in some places (running time instead of game time)
+- - fixed the Flail Guards
+
+2022-12-09 02:38 Update 12.1f:
+
+- WIP: In '3d settings' menu for 2D maps, you can now select the way how the 2D map will be embedded into a 3D space (space of the same curvature as flat/concave/convex eequidistant, space of lower curvature, product space). 
+  The basic functionality should work, but there are probably some bugs and lots of missing features (to do: shmup, raycasting, fog, radar, more intuitive menu, better default settings, embedding into nonisotropic geometries).
+  On the way also some bugs with 2.5D should be fixed ("draw sky" disabled now also disables Euclidean sky; correct movement if the surface the camera moves on is not flat; fixed sky colors; fixed the radar transform computation in 2.5D which also affected fog rendering).
+- fixed: inventory glyphs were missing outlines due to a bug
+- improved the display in OSM when using orb icons
+- Give the Plane of Fire a redder floor than CR4 (thanks to jlm)
+- Draw mimics with sword in left hand if PC's sword in left hand (thanks to jlm)
+
+2022-12-18 00:59 Update 12.1g:
+
+Further improvements to the "3D style" (embed 2D in a 3D geometry) feature:
+- more intuitive settings
+- kite-and-dart and tes should now work correctly
+- Lower and Much Lower curvature settings are now respected even if it was already hyperbolic
+- pure regular Euclidean hex/square tilings can now be embedded in Nil and Sol/NIH
+- binary tiling and similar can now be embedded in Nil and Sol/NIH
+- shmup should work now
+- fixed sky over irregular map
+- fixed slime size
+
+There are still some bugs to fix, but it should mostly work now. And there are more embeddings coming :)
+
+Other bugfixes:
+- fixed coloring of info items
+- fixed centering on reset
+- disabling geodesic movement in Sol/Nil now also assumes that light moves along Lie lines, and shmup monsters move correctly too
+- fixed grid drawing for binary variants
+
+
+2023-01-08 00:59 Update 12.1h:
+
+Bug fixes:
+- fixed context help getting stuck in corner stats mode
+- fixed Princess AI using boat
+- shallow water is no longer glitched when the 3D settings are illegal
+
+Further improvements to the "3D style" (embed 2D in a 3D geometry) feature:
+- four new embeddings of Euclidean space: Clifford torus (S3), product space (H2xR, S2xR), and SL2
+- Hypersian Rug options are now linked in 3D settings
+- fixed movement animations
+- better diagnostics when an embedding does not work
+- fixed a bug rendering band model without shader
+
+2023-02-05 11:27 Update 12.1i:
+
+Further improvements to the "3D style" (embed 2D in a 3D geometry) feature:
+- Overall better design fixes various small errors, including nicer floor shapes, radar, shmup, and 3D models.
+- Six new embeddings of the Euclidean cylinder.
+- Hints how to change settings if the current embedding does not work.
+- some crashes have been fixed (in Zebra/ Reptiles, thanks to Masala for the report; also crashes related to possible missing shadow models)
+
+Also fixed a bug generating Dice in some tessellations.
+

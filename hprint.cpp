@@ -76,11 +76,15 @@ EX string get_stamp() {
 inline string ONOFF(bool b) { return b ? XLAT("ON") : XLAT("OFF"); }
 
 struct hstream {
+  color_t vernum;
   virtual void write_char(char c) = 0;
   virtual void write_chars(const char* c, size_t q) { while(q--) write_char(*(c++)); }
   virtual char read_char() = 0;
   virtual void read_chars(char* c, size_t q) { while(q--) *(c++) = read_char(); }
-  virtual color_t get_vernum() { return VERNUM_HEX; }
+  virtual color_t get_vernum() { return vernum; }
+  virtual void flush() {}
+  
+  hstream() { vernum = VERNUM_HEX; }
 
   template<class T> void write(const T& t) { hwrite(*this, t); }
   template<class T> void read(T& t) { hread(*this, t); }
@@ -138,24 +142,21 @@ template<class C, class C1, class... CS> void hread(hstream& hs, C& c, C1& c1, C
 struct hstream_exception : hr_exception { hstream_exception() {} };
 
 struct fhstream : hstream {
-  color_t vernum;
   FILE *f;
-  explicit fhstream() { f = NULL; vernum = VERNUM_HEX; }
+  explicit fhstream() { f = NULL; }
   explicit fhstream(const string pathname, const char *mode) { f = fopen(pathname.c_str(), mode); vernum = VERNUM_HEX; }
   ~fhstream() { if(f) fclose(f); }
-  color_t get_vernum() override { return vernum; }
   void write_char(char c) override { write_chars(&c, 1); }
   void write_chars(const char* c, size_t i) override { if(fwrite(c, i, 1, f) != 1) throw hstream_exception(); }
   void read_chars(char* c, size_t i) override { if(fread(c, i, 1, f) != 1) throw hstream_exception(); }
   char read_char() override { char c; read_chars(&c, 1); return c; }
+  virtual void flush() override { fflush(f); }
   };
 
 struct shstream : hstream { 
-  color_t vernum;
   string s;
   int pos;
   explicit shstream(const string& t = "") : s(t) { pos = 0; vernum = VERNUM_HEX; }
-  color_t get_vernum() override { return vernum; }
   void write_char(char c) override { s += c; }
   char read_char() override { if(pos == isize(s)) throw hstream_exception(); return s[pos++]; }
   };
@@ -229,8 +230,16 @@ template<class T, size_t X> void print(hstream& hs, const array<T, X>& a) { prin
 template<class T> void print(hstream& hs, const vector<T>& a) { print(hs, "("); comma_printer c(hs); for(const T& t: a) c(t); print(hs, ")"); }
 
 template<class T, class U> void print(hstream& hs, const map<T,U>& a) { print(hs, "("); comma_printer c(hs); for(auto& t: a) c(t); print(hs, ")"); }
+template<class T> void print(hstream& hs, const set<T>& a) { print(hs, "("); comma_printer c(hs); for(auto& t: a) c(t); print(hs, ")"); }
 
-inline void print(hstream& hs, const hyperpoint h) { print(hs, (const array<ld, MAXMDIM>&)h); }
+template<class T> string separated(string separator, const vector<T>& a) {
+  shstream ss;
+  bool first = true;
+  for(auto& v: a) { if(first) first = false; else print(ss, separator); print(ss, v); }
+  return ss.s;
+  }
+
+inline void print(hstream& hs, const hyperpoint h) { print(hs, "("); for(int i=0; i<MDIM; i++) { if(i) print(hs, ","); print(hs, h[i]); } print(hs, ")"); } // (const array<ld, MAXMDIM>&)h); }
 inline void print(hstream& hs, const transmatrix T) { 
   print(hs, "("); comma_printer c(hs);
   for(int i=0; i<MDIM; i++)
@@ -263,6 +272,7 @@ struct logger : hstream {
   explicit logger() { doindent = false; }
   void write_char(char c) override;  
   char read_char() override { throw hstream_exception(); }
+  void flush() override { fflush(stdout); }
   };
 
 extern logger hlog;
@@ -298,6 +308,10 @@ struct indenter {
 
 struct indenter_finish : indenter {
   explicit indenter_finish(bool b = true): indenter(b ? 2:0) {}
+  explicit indenter_finish(string s): indenter(2) {
+    indenter tmp(-2);
+    println(hlog, s);
+    }
   ~indenter_finish() { if(hlog.indentation != ind.backup) println(hlog, "(done)"); }
   };
 
@@ -347,6 +361,13 @@ bool scan(fhstream& hs, color_t& c) { return fscanf(hs.f, "%x", &c) == 1; }
 bool scan(fhstream& hs, ld& x) { return fscanf(hs.f, "%lf", &x) == 1; }
 bool scan(fhstream& hs, string& s) { char t[10000]; t[0] = 0; int err = fscanf(hs.f, "%9500s", t); s = t; return err == 1 && t[0]; }
 string scanline(fhstream& hs) { char buf[10000]; buf[0] = 0; ignore(fgets(buf, 10000, hs.f)); return buf; }
+
+EX string scanline_noblank(fhstream& hs) {
+  string s = scanline(hs);
+  while(s.size() && among(s.back(), '\t', '\r', ' ', '\n')) s.pop_back();
+  while(s.size() && among(s[0], '\t', '\r', ' ', '\n')) s = s.substr(1);
+  return s;
+  }
 
 /*
 string fts_smartdisplay(ld x, int maxdisplay) {
@@ -408,6 +429,16 @@ EX transmatrix kz(transmatrix h) {
   for(int d=0; d<MAXMDIM; d++) 
   for(int e=0; e<MAXMDIM; e++)
     h[d][e] = kz(h[d][e]);
+  return h;
+  }
+
+EX shiftmatrix kz(shiftmatrix h) {
+  h.T = kz(h.T);
+  return h;
+  }
+
+EX shiftpoint kz(shiftpoint h) {
+  h.h = kz(h.h);
   return h;
   }
 

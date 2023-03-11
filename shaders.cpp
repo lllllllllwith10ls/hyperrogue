@@ -18,8 +18,9 @@ constexpr flagtype GF_VARCOLOR = 2;
 constexpr flagtype GF_LIGHTFOG = 4;
 constexpr flagtype GF_LEVELS   = 8;
 constexpr flagtype GF_TEXTURE_SHADED  = 16;
+constexpr flagtype GF_NO_FOG   = 32;
 
-constexpr flagtype GF_which    = 31;
+constexpr flagtype GF_which    = 63;
 
 constexpr flagtype SF_PERS3        = 256;
 constexpr flagtype SF_BAND         = 512;
@@ -83,9 +84,76 @@ EX string stereo_shader() {
     "float s = t.z;\n"
     "float l = length(t.xyz);\n"
     "t /= max(l, 1e-2);\n"
-    "t.z += " + glhr::to_glsl(panini_alpha) + ";\n"
+    "t.z += " + glhr::to_glsl(stereo_alpha) + ";\n"
     "t *= l;\n"
     "t.w = 1.;\n";
+  }
+
+EX string shader_lie_log() {
+  if(nil) {
+    return "vec4 lie_log(vec4 v) { v[2] += v[0] * v[1] / 2.; return v; }\n";
+    }
+  else if(sol && !nih) {
+    return "vec4 lie_log(vec4 v) { if(abs(v[2]) > 1e-6) { v[0] *= -v[2] / (exp(-v[2])-1.); v[1] *= v[2] / (exp(v[2])-1.); } return v; }\n";
+    }
+  else if(sol && nih) {
+    return "vec4 lie_log(vec4 v) { if(abs(v[2]) > 1e-6) { float z = v[2] * log(2); v[0] *= -z / (exp(-z)-1.); z = v[2] * log(3); v[1] *= z / (exp(z)-1.); } return v; }\n";
+    }
+  else if(nih) {
+    return "vec4 lie_log(vec4 v) { if(abs(v[2]) > 1e-6) { float z = v[2] * log(2); v[0] *= z / (exp(z)-1.); z = v[2] * log(3); v[1] *= z / (exp(z)-1.); } return v; }\n";
+    }
+  else if(hyperbolic) {
+    return "vec4 lie_log(vec4 v) { v = deparabolic13(v); v[3] = 1.; /* if(abs(v[0]) > 1e-6) { float m = v[0] / (exp(v[0]) - 1.); v[1] *= m; v[2] *= m; } */ return v; }\n";
+    }
+  else if(sl2) {
+    return shader_rel_log() + "vec4 lie_log(vec4 h) { return rel_log(h); }\n";
+    }
+  else {
+    return "vec4 lie_log(vec4 v) { return v; }\n";
+    }
+  }
+
+EX string shader_rel_log() {
+  if(sl2) return
+  "uniform mediump float uIndexSL;\n"
+  "vec4 rel_log(vec4 h) {\n"
+    "float shift = uIndexSL + atan2(h[2], h[3]); \n"
+    "float ca = cos(uIndexSL); float sa = -sin(uIndexSL);\n"
+    "vec4 h1 = h;\n"
+    "h[2] = h1[2] * ca - h1[3] * sa; h[3] = h1[3] * ca + h1[2] * sa;\n"
+    "h[0] = h1[0] * ca - h1[1] * sa; h[1] = h1[1] * ca + h1[0] * sa;\n"
+    "h1 = h;"
+
+    "if(h1[3] <= 1. && h1[3] >= -1.) {\n"
+    "float r = sqrt(h1[2]*h1[2] - h1[0]*h1[0] - h1[1]*h1[1]);\n"
+    "float z = asin_clamp(r);\n"
+    "if(h1[3] < 0.) z = PI - z;\n"
+    "z += floor(shift / 2. / PI + .5) * 2. * PI;\n"
+    "float scale = z/r;\n"
+    "h1 = h1 * scale; h1[3] = 1.;\n"
+    "} else if(shift > PI || shift < -PI || h1[3] < -1.) { return vec4(0,0,0,1); } else {\n"
+
+    "float r = sqrt(h1[0]*h1[0] + h1[1]*h1[1] - h1[2]*h1[2]);\n"
+    "float z = asinh(r);\n"
+    "float scale = z/r;\n"
+    "h1 = h1 * scale; h1[3] = 1.;\n"
+    "}\n"
+
+    "return h1;\n"
+    "}\n";
+
+  if(hyperbolic && GDIM == 3) return
+    "vec4 rel_log(vec4 h) {\n"
+    "  float choice = h[3] * h[3] - h[0] * h[0] - h[1] * h[1];\n"
+    "  float z, r;\n"
+    "  if(choice > 0.) { r = sqrt(choice); z = asinh(r); }\n"
+    "  else { r = sqrt(-choice); z = asin_clamp(r); if(h[2] < 0.) z = PI - z; }\n"
+    "  h = h * z / r; h[2] = h[3]; h[3] = 1.;\n"
+    "  return h;\n"
+    "  }\n";
+
+  println(hlog, "geometry is: ", geometry);
+  throw hr_exception("shader_rel_log in wrong geometry");
   }
 
 shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
@@ -171,7 +239,7 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
   else if(!vid.consider_shader_projection) {
     shader_flags |= SF_PIXELS;
     }        
-  else if(among(pmodel, mdDisk, mdBall) && GDIM == 2 && vrhr::rendering() && !sphere) {
+  else if(among(pmodel, mdDisk, mdBall) && GDIM == 2 && vrhr::rendering() && !sphere && !(hyperbolic && pconf.alpha < 0 && pconf.alpha > -1)) {
     shader_flags |= SF_DIRECT | SF_BOX;
     vsh += "uniform mediump float uAlpha, uDepth, uDepthScaling, uCamera;";
     
@@ -200,13 +268,13 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
       "t.z = (sin(uCamera) * cos(zl) * cos(d) - sin(zl) * cos(uCamera)) / uz;\n"
       ;
     }
-  else if(pmodel == mdDisk && MDIM == 3 && !spherespecial && !prod) {
+  else if(pmodel == mdDisk && MDIM == 3 && !spherespecial && !gproduct) {
     shader_flags |= SF_DIRECT;
     }
   else if(glhr::noshaders) {
     shader_flags |= SF_PIXELS;
     }
-  else if(pmodel == mdDisk && GDIM == 3 && !spherespecial && !nonisotropic && !prod) {
+  else if(pmodel == mdDisk && GDIM == 3 && !spherespecial && !nonisotropic && !gproduct) {
     coordinator += "t /= (t[3] + uAlpha);\n";
     vsh += "uniform mediump float uAlpha;";
     shader_flags |= SF_DIRECT | SF_BOX | SF_ZFOG;
@@ -238,6 +306,22 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
       "t.xyz /= -rads; t[3] = 1.0;\n";        
     if(dim3) shader_flags |= SF_ZFOG;
     }
+  else if(pmodel == mdLiePerspective) {
+    shader_flags |= SF_PERS3 | SF_DIRECT;
+    if(hyperbolic) {
+      shader_flags |= SF_ORIENT;
+      coordinator += "t = uPP * t;", vsh += "uniform mediump mat4 uPP;";
+      }
+    coordinator += "t = lie_log(t);\n";
+    distfun = "length(t.xyz)";
+    vsh += shader_lie_log();
+    }
+  else if(pmodel == mdRelPerspective) {
+    shader_flags |= SF_PERS3 | SF_DIRECT;
+    coordinator += "t = rel_log(t);\n";
+    distfun = "length(t.xyz)";
+    vsh += shader_rel_log();
+    }
   else if(pmodel == mdGeodesic) {
     shader_flags |= SF_PERS3 | SF_DIRECT;
     coordinator += "t = inverse_exp(t);\n";
@@ -260,28 +344,21 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
       distfun = "length(t.xyz)";
     switch(cgclass) {
       #if CAP_SOLV
-      case gcSolNIH:
-        switch(sn::geom()) {
-          case gSol:
-            if(solv_all) {
-              vsh += "\n#define SOLV_ALL\n";
-              }
-            vsh += sn::shader_symsol;
-            break;
-          case gNIH:
-            vsh += sn::shader_nsym;
-            break;
-          case gSolN:
-            vsh += sn::shader_nsymsol;
-            break;
-          default:
-            println(hlog, "error: unknown sn geometry");
-          }            
-        treset = true;
+      case gcSol:
+        if(solv_all) {
+          vsh += "\n#define SOLV_ALL\n";
+          }
+        vsh += sn::shader_symsol;
+        break;
+      case gcNIH:
+        vsh += sn::shader_nsym;
+        break;
+      case gcSolN:
+        vsh += sn::shader_nsymsol;
         break;
       #endif
       case gcNil:
-        vsh += nilv::nilshader;
+        vsh += nilv::nilshader();
         break;
       case gcSL2:      
         vsh += slr::slshader;
@@ -317,6 +394,14 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
     }
   else if(pmodel == mdPerspective) {
     shader_flags |= SF_PERS3 | SF_DIRECT;
+    if(sl2) {
+      vsh += "uniform mediump float uIndexSL;\n";
+      coordinator +=
+        "float ca = cos(uIndexSL); float sa = -sin(uIndexSL);\n"
+        "vec4 h1 = t;\n"
+        "t[2] = h1[2] * ca - h1[3] * sa; t[3] = 1.;\n"
+        "t[0] = h1[0] * ca - h1[1] * sa; t[1] = h1[1] * ca + h1[0] * sa;\n";
+      }
     #if CAP_VR
     if(vrhr::rendering() && hyperbolic && vrhr::eyes != vrhr::eEyes::truesim) {
       azi_hyperbolic = true;
@@ -356,13 +441,16 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
   if(nil && pmodel == mdPerspective)  {
     vsh += "uniform mediump float uRotCos, uRotSin, uRotNil;\n";
     coordinator +=
-      "t.z += (uRotCos * t.x + uRotSin * t.y) * (uRotCos * t.y - uRotSin * t.x) * uRotNil / 2. - t.x * t.y / 2.;\n";
+      "t.z += (uRotCos * t.x + uRotSin * t.y) * (uRotCos * t.y - uRotSin * t.x) * uRotNil / 2. - " + glhr::to_glsl(nilv::model_used) + " * t.x * t.y / 2.;\n";
     }
 
   if(!skip_t) {
     vmain += "mediump vec4 t = uMV * aPosition;\n";
     vmain += coordinator;
-    if(GDIM == 3 && WDIM == 2 && hyperbolic && context_fog && pmodel == mdPerspective) {
+    if(shader_flags & GF_NO_FOG) {
+      vmain += "// no fog used\n";
+      }
+    else if(GDIM == 3 && WDIM == 2 && hyperbolic && context_fog && cgi.emb->is_same_in_same() && pmodel == mdPerspective) {
       vsh += 
         "uniform mediump mat4 uRadarTransform;\n"
         "uniform mediump sampler2D tAirMap;\n"
@@ -402,7 +490,10 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
       }
     else if(distfun != "") {
       have_vfogs = true;
-      vmain += "vFogs = (uFogBase - " + distfun + " / uFog);\n";
+      if(logfog)
+        vmain += "vFogs = uFogBase * exp(- " + distfun + " / uFog);\n";
+      else
+        vmain += "vFogs = clamp(uFogBase - " + distfun + " / uFog, 0.0, 1.0);\n";
       vsh += 
         "uniform mediump float uFog;\n"
         "uniform mediump float uFogBase;\n";
@@ -417,7 +508,6 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
       shader_flags |= SF_ORIENT;
       }
     else if((shader_flags & SF_PERS3) && stereo_alpha && !vrhr::rendering_eye()) {
-      vmain += "t = uPP * t;", vsh += "uniform mediump mat4 uPP;";
       vmain += stereo_shader();
       }
       
@@ -492,7 +582,7 @@ void display_data::set_projection(int ed, ld shift) {
   if(sol && solv_all) id |= 1;
   if(in_h2xe()) id |= 1;
   if(in_s2xe()) id |= 2;
-  if(WDIM == 2 && GDIM == 3 && hyperbolic && context_fog) id |= 1;
+  if(WDIM == 2 && GDIM == 3 && hyperbolic && context_fog && cgi.emb->is_same_in_same()) id |= 1;
   shared_ptr<glhr::GLprogram> selected;
 
   if(matched_programs.count(id)) selected = matched_programs[id];
@@ -536,7 +626,7 @@ void display_data::set_projection(int ed, ld shift) {
   if(selected->uIterations != -1) {
     glhr::set_index_sl(0);
     glhr::set_sv(stretch::not_squared());
-    glhr::set_sl_iterations(slr::steps);
+    glhr::set_sl_iterations(slr::shader_iterations);
     }
 
   glhr::new_projection();
@@ -571,9 +661,9 @@ void display_data::set_projection(int ed, ld shift) {
       auto cols = glhr::acolor(darkena(backcolor, 0, 0xFF));
       glUniform4f(selected->uFogColor, cols[0], cols[1], cols[2], cols[3]);
       }
-    else M[2][2] /= 1000;
+    else M[2][2] /= 10000;
     glhr::projection_multiply(M);
-    if(nisot::local_perspective_used() && (shader_flags & SF_BOX))
+    if(nisot::local_perspective_used && (shader_flags & SF_BOX))
       glhr::projection_multiply(glhr::tmtogl_transpose(NLP));
     if(ed && vid.stereo_mode != sODS) {
       glhr::glmatrix m = glhr::id;
@@ -625,8 +715,8 @@ void display_data::set_projection(int ed, ld shift) {
     else {
       glhr::projection_multiply(glhr::frustum(cd->tanfov, cd->tanfov * cd->ysize / cd->xsize));
       glhr::projection_multiply(glhr::scale(1, -1, -1));
-      if(nisot::local_perspective_used()) {
-        if(prod) {
+      if(nisot::local_perspective_used) {
+        if(gproduct) {
           for(int i=0; i<3; i++) NLP[3][i] = NLP[i][3] = 0;
           NLP[3][3] = 1;
           }
@@ -652,6 +742,8 @@ void display_data::set_projection(int ed, ld shift) {
     GLfloat sc = current_display->radius / (cd->ysize/2.);
     glhr::projection_multiply(glhr::frustum(cd->xsize / cd->ysize, 1));
     glhr::projection_multiply(glhr::scale(sc, -sc, -1));
+    if(pconf.back_and_front)
+      glhr::projection_multiply(glhr::scale(-1,-1,-1));
     u_alpha = true;
     }
 
@@ -669,7 +761,7 @@ void display_data::set_projection(int ed, ld shift) {
 
     pp = pp * pp0;    
 
-    if(nisot::local_perspective_used()) 
+    if(nisot::local_perspective_used)
       pp = glhr::tmtogl_transpose(NLP) * pp;
 
     if(get_shader_flags() & SF_ORIENT) {
@@ -702,7 +794,7 @@ void display_data::set_projection(int ed, ld shift) {
     glhr::projection_multiply(model_orientation_gl());
 
   if(selected->shader_flags & SF_BAND)
-    glhr::projection_multiply(glhr::scale(2 / M_PI, 2 / M_PI, GDIM == 3 ? 2/M_PI : 1));
+    glhr::projection_multiply(glhr::scale(1 / 90._deg, 1 / 90._deg, GDIM == 3 ? 1/90._deg : 1));
 
   if(selected->shader_flags & SF_BAND) {
     glhr::projection_multiply(glhr::translate(shift, 0, 0));
@@ -751,6 +843,7 @@ EX void add_fixed_functions(string& shader) {
 
   add_if(shader, "tanh", "mediump float tanh(mediump float x) { return sinh(x) / cosh(x); }\n");
   add_if(shader, "sinh", "mediump float sinh(mediump float x) { return (exp(x) - exp(-x)) / 2.0; }\n");
+  add_if(shader, "asin_clamp", "mediump float asin_clamp(mediump float x) { return x > 1. ? PI/2. : x < -1. ? -PI/2. : asin(x); }\n");
   add_if(shader, "cosh", "mediump float cosh(mediump float x) { return (exp(x) + exp(-x)) / 2.0; }\n");
   add_if(shader, "asinh", "mediump float asinh(mediump float x) { return log(sqrt(x*x + 1.0) + x); }\n");
   add_if(shader, "acosh", "mediump float acosh(mediump float x) { return log(sqrt(x*x - 1.0) + x); }\n");
@@ -762,6 +855,20 @@ EX void add_fixed_functions(string& shader) {
     "if(y >= 0.) return atan(y / x) + PI;\n" 
     "if(y < 0.) return atan(y / x) - PI;\n"
     "}\n");
+
+  add_if(shader, "deparabolic13",
+        "mediump vec4 deparabolic13(mediump vec4 h) {\n"
+        "  h /= (1. + h[3]);\n"
+        "  h[0] -= 1.;\n"
+        "  h /= h.x*h.x + h.y*h.y + h.z * h.z;\n"
+        "  h[0] += .5;\n"
+        "  mediump vec4 res;\n"
+        "  res.x = (log(2.) + log(-h.x));\n"
+        "  res.y = h.y * 2.;\n"
+        "  res.z = h.z * 2.;\n"
+        "  res.w = 1.;\n"
+        "  return res;\n"
+        "  }\n\n");
 
   add_if(shader, "PI", "#define PI 3.14159265358979324\n");
   #ifndef GLES_ONLY

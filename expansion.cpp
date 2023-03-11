@@ -23,6 +23,7 @@ void canonicize(vector<int>& t) {
 
 #if HDR
 struct expansion_analyzer {
+  int sibling_limit;
   vector<int> gettype(cell *c);
   int N;
   vector<cell*> samples;  
@@ -112,14 +113,15 @@ void expansion_analyzer::preliminary_grouping() {
       for(int v: rulegen::treestates[i].rules)
         if(v >= 0) children[i].push_back(v);
     }
-  else if(reg3::in_rule()) {
+  else if(reg3::exact_rules()) {
 #if MAXMDIM >= 4
     rootid = reg3::rule_get_root(0);
     auto& chi = reg3::rule_get_children();
-    N = isize(chi) / S7;    
+    auto& chpos = reg3::rule_get_childpos();
+    N = isize(chpos) - 1;
     children.resize(N);
     int k = 0;
-    for(int i=0; i<N; i++) for(int j=0; j<S7; j++) {
+    for(int i=0; i<N; i++) for(int j=0; j<chpos[i+1]-chpos[i]; j++) {
       int ck = chi[k];
       if(ck < -1) ck += (1<<16);
       if(ck >= 0)
@@ -143,7 +145,7 @@ void expansion_analyzer::preliminary_grouping() {
   }
 
 void expansion_analyzer::reduce_grouping() {
-  if(reg3::in_rule()) return;
+  if(reg3::exact_rules()) return;
   if(currentmap->strict_tree_rules()) return;
   int old_N = N;
   vector<int> grouping;
@@ -189,7 +191,7 @@ void expansion_analyzer::reduce_grouping() {
   for(int i=0; i<nogroups; i++) 
     for(int j: children[groupsample[i]])
       newchildren[i].push_back(grouping[j]);
-  children = move(newchildren);
+  children = std::move(newchildren);
   for(auto& p: codeid) p.second = grouping[p.second];
   N = nogroups;
   rootid = grouping[rootid];
@@ -237,7 +239,7 @@ bool expansion_analyzer::verify(int id) {
 
 int expansion_analyzer::valid(int v, int step) {
   if(step < 0) return 0;
-  int more = reg3::in_rule() ? 1 : 5;
+  int more = reg3::exact_rules() ? 1 : 5;
   #if CAP_GMP == 0
   if(get_descendants(step+v+v+more).approx_int() >= bignum::BASE) return 0;
   typedef ld val;
@@ -390,8 +392,8 @@ int type_in_quick(expansion_analyzer& ea, cell *c, const cellfunction& f) {
   }
 
 EX bool sizes_known() {
-  if(reg3::in_rule()) return true;
-  if(bounded) return false;
+  if(reg3::exact_rules()) return true;
+  if(closed_manifold) return false;
   // Castle Anthrax is infinite
   if(bt::in()) return false;
   // not implemented
@@ -420,17 +422,21 @@ string expansion_analyzer::approximate_descendants(int d, int max_length) {
   return XLAT("about ") + fts(pow(10, log_10 - more_digits)) + "E" + its(more_digits);
   }
 
+#if HDR
 enum eDistanceFrom { dfPlayer, dfStart, dfWorld };
+#endif
 EX string dfnames[3] = { "player", "start", "land" };
 
-eDistanceFrom distance_from = dfPlayer;
+EX eDistanceFrom distance_from = dfPlayer;
 
+#if HDR
 enum eNumberCoding { ncNone, ncDistance, ncType, ncDebug, ncError };
+#endif
 EX string ncnames[5] = { "NO", "distance", "type", "debug", "error" };
-eNumberCoding number_coding = ncDistance;
+EX eNumberCoding number_coding = ncDistance;
 
-bool mod_allowed() {
-  return cheater || autocheat || arcm::in() || tour::on;
+EX bool mod_allowed() {
+  return cheater || autocheat || arcm::in() || arb::in() || tour::on;
   }
 
 EX int curr_dist(cell *c) {
@@ -438,6 +444,7 @@ EX int curr_dist(cell *c) {
     case dfPlayer:
       return c->cpdist < INFD ? c->cpdist : celldistance(cwt.at, c);
     case dfStart:
+      if(!mod_allowed()) return 0;
       return celldist(c);
     case dfWorld:
       if(!mod_allowed() && !among(c->land, laOcean, laIvoryTower, laEndorian, laDungeon, laTemple, laWhirlpool, laCanvas))
@@ -456,6 +463,7 @@ int position;
 EX int type_in_reduced(expansion_analyzer& ea, cell *c, const cellfunction& f) {
   int a = ea.N;
   int t = type_in(ea, c, f);
+  auto& expansion = get_expansion();
   if(expansion.N != a) {
     expansion.reduce_grouping();
     t = type_in(ea, c, f);
@@ -539,7 +547,7 @@ EX bool use_color_codes = true;
 EX bool use_analyzer = true;
 EX bool show_distance_lists = true;
 
-int first_distance = 0, scrolltime = 0;
+int last_distance = 16;
 bool scrolling_distances = false;
 
 EX map<int, color_t> expcolors;
@@ -576,7 +584,7 @@ void celldrawer::do_viewdist() {
       }
     case ncType: {
       int t = -1;
-      if(reg3::in_rule()) switch(distance_from) {
+      if(reg3::exact_rules()) switch(distance_from) {
         case dfPlayer: 
           t = -1;
           break;
@@ -598,7 +606,7 @@ void celldrawer::do_viewdist() {
           if(c->master->alt) t = c->master->alt->fieldval;
           break;
         }
-      else t = type_in_reduced(expansion, c, curr_dist);
+      else t = type_in_reduced(get_expansion(), c, curr_dist);
       if(t >= 0) label = its(t), dc = distribute_color(t);
       break;
       }
@@ -617,9 +625,6 @@ void celldrawer::do_viewdist() {
   
   if(!dist_label_colored) dc = dist_label_color;
 
-  // string label = its(fieldpattern::getriverdistleft(c)) + its(fieldpattern::getriverdistright(c));
-  /* queuepolyat(V, shFloor[ct6], darkena(gradient(0, distcolors[cd&7], 0, .25, 1), fd, 0xC0),
-    PPR::TEXT); */
   if(label != "")
     queuestr(V, (isize(label) > 1 ? .6 : 1), label, 0xFF000000 + dc, 1);
   }
@@ -627,7 +632,7 @@ void celldrawer::do_viewdist() {
 EX void viewdist_configure_dialog() {
   dialog::init("");
   cmode |= sm::SIDE | sm::MAYDARK | sm::EXPANSION;
-  gamescreen(0);
+  gamescreen();
   
   dialog::addSelItem(XLAT("which distance"), XLAT(dfnames[distance_from]), 'c');
   dialog::add_action([] () { distance_from = mod_allowed() ? eDistanceFrom((distance_from + 1) % 3) : eDistanceFrom(2 - distance_from); });
@@ -637,25 +642,11 @@ EX void viewdist_configure_dialog() {
 
   dialog::addBoolItem_action(XLAT("color codes"), use_color_codes, 'u');
 
-  dialog::addSelItem(XLAT("display distances from"), its(first_distance), 'd');
-  dialog::add_action([] () { 
-    scrolling_distances = false;
-    dialog::editNumber(first_distance, 0, 3000, 1, 0, XLAT("display distances from"), "");
-    dialog::bound_low(0);
-    });
-
   dialog::addBoolItem(XLAT("strict tree maps"), currentmap->strict_tree_rules(), 's');
   dialog::add_action_push(rulegen::show);
 
-  int id = 0;
-  using namespace linepatterns;
-  for(auto& lp: {&patTriTree, &patTriRings, &patTriOther}) {
-    dialog::addColorItem(XLAT(lp->lpname), lp->color, '1'+(id++));
-    dialog::add_action([&lp] () {
-      dialog::openColorDialog(lp->color, NULL);
-      dialog::dialogflags |= sm::MAYDARK | sm::SIDE | sm::EXPANSION;
-      });
-    }
+  dialog::addItem(XLAT("line patterns"), 'L');
+  dialog::add_action_push(linepatterns::showMenu);
   
   if(!mod_allowed()) {
     dialog::addItem(XLAT("enable the cheat mode for additional options"), 'C');
@@ -711,28 +702,28 @@ string produce_coef_formula(vector<int> coef) {
   return fmt;
   }
 
+EX bool auto_extend = true;
+
 void expansion_analyzer::view_distances_dialog() {
   static int lastticks;
-  if(scrolling_distances && !bounded) {
-    scrolltime += SDL_GetTicks() - lastticks;
-    first_distance += scrolltime / scrollspeed;
-    scrolltime %= scrollspeed;
+  if(scrolling_distances && !closed_manifold) {
+    dialog::list_skip += (SDL_GetTicks() - lastticks) * dialog::dfspace / scrollspeed;
     }
   lastticks = SDL_GetTicks();
-  if(first_distance < 0) first_distance = 0;
   
   dynamicval<color_t> dv(distcolors[0], forecolor);
   dialog::init("");
-  cmode |= sm::DIALOG_STRICT_X | sm::EXPANSION;
+  cmode |= sm::DIALOG_STRICT_X | sm::EXPANSION | sm::AUTO_VALUES | sm::NARROW_LINES;
   
-  int maxlen = bounded ? 128 : 16 + first_distance;
+  int maxlen = last_distance;
   vector<bignum> qty(maxlen);
+  auto& expansion = get_expansion();
   
   bool really_use_analyzer = use_analyzer && sizes_known();
   
   if(really_use_analyzer) {
     int t;
-    if(reg3::in_rule() || currentmap->strict_tree_rules()) {
+    if(reg3::exact_rules() || currentmap->strict_tree_rules()) {
       if(!N) preliminary_grouping();      
       t = rootid;
       }
@@ -743,12 +734,12 @@ void expansion_analyzer::view_distances_dialog() {
     }
   else {
     if(distance_from == dfPlayer) {
-      celllister cl(cwt.at, bounded ? maxlen-1 : gamerange(), 100000, NULL);
+      celllister cl(cwt.at, closed_manifold ? maxlen-1 : gamerange(), 100000, NULL);
       for(int d: cl.dists)
         if(d >= 0 && d < maxlen) qty[d]++;
       }
     else {
-      celllister cl(cwt.at, bounded ? maxlen-1 : gamerange(), 100000, NULL);
+      celllister cl(cwt.at, closed_manifold ? maxlen-1 : gamerange(), 100000, NULL);
       for(cell *c: cl.lst) if((not_only_descendants || is_descendant(c)) && curr_dist(c) < maxlen) qty[curr_dist(c)]++;
       }
     #if !CAP_GMP
@@ -763,13 +754,14 @@ void expansion_analyzer::view_distances_dialog() {
       }
     #endif
     }
-  
-  dialog::addBreak(100 - 100 * scrolltime / scrollspeed);
 
-  for(int i=first_distance; i<maxlen; i++) if(!qty[i].digits.empty())
-    dialog::addInfo(its(i) + ": " + qty[i].get_str(100), distcolors[i]);
-  
-  dialog::addBreak(100 * scrolltime / scrollspeed);
+  dialog::start_list(1600, 1600, 'a');
+  for(int i=0; i<maxlen; i++) if(!qty[i].digits.empty()) {
+    dialog::addSelItem(qty[i].get_str(100), " " + its(i), dialog::list_fake_key);
+    auto& last = dialog::lastItem();
+    last.color = last.colorv = distcolors[i];
+    }
+  dialog::end_list();
 
   if(sizes_known() || bt::in()) {
     if(euclid && !arb::in()) {
@@ -793,12 +785,24 @@ void expansion_analyzer::view_distances_dialog() {
   
   dialog::addItem(XLAT("scroll"), 'S');
   dialog::addItem(XLAT("configure"), 'C');
+  dialog::addSelItem(XLAT("display distances up to"), its(last_distance), 'D');
+  dialog::add_action([] () {
+    scrolling_distances = false;
+    dialog::editNumber(last_distance, 0, 3000, 1, 0, XLAT("display distances up to"), "");
+    dialog::bound_low(0);
+    dialog::extra_options = [] {
+      add_edit(auto_extend);
+      };
+    });
+
   dialog::display();
+  if(auto_extend && dialog::list_skip + dialog::list_actual_size == dialog::list_full_size) last_distance++;
   }
 
 EX void enable_viewdists() {
-  first_distance = 0;
-  scrolltime = 0;
+  last_distance = closed_manifold ? 128 : 16;
+  dialog::list_skip = 0;
+  scrolling_distances = false;
   viewdists = true;
   if(!mod_allowed()) {
     number_coding = ncDistance;
@@ -809,10 +813,11 @@ EX void enable_viewdists() {
 
 bool expansion_handleKey(int sym, int uni) {
   if((cmode & sm::NORMAL) && viewdists) {
+    dialog::handleNavigation(sym, uni);
     if(uni == 'S' && (cmode & sm::EXPANSION)) scrolling_distances = !scrolling_distances;
     else if(uni == 'C') pushScreen(viewdist_configure_dialog);
     else if(uni == 'A' && (cmode & sm::EXPANSION)) use_analyzer = !use_analyzer;
-    else if(sym == SDLK_ESCAPE) first_distance = 0, viewdists = false;
+    else if(sym == SDLK_ESCAPE) dialog::list_skip = 0, viewdists = false;
     else return false;
     return true;
     }
@@ -826,6 +831,7 @@ void compute_coefficients() {
   println(hlog, gp::operation_name(), " ", ginf[geometry].tiling_name);
   start_game();
   
+    auto& expansion = get_expansion();
     printf("  sizes:");
     for(int i=0; i<expansion.valid_from+10; i++) printf(" %d", expansion.get_descendants(i).approx_int());
     
@@ -847,6 +853,7 @@ int expansion_readArgs() {
   else if(argis("-vap")) { 
     PHASEFROM(2); 
     start_game();
+    auto& expansion = get_expansion();
     shift(); int radius = argi();
     while(true) {
       string s = expansion.approximate_descendants(radius, 100);
@@ -857,6 +864,7 @@ int expansion_readArgs() {
   else if(argis("-csizes")) { 
     PHASEFROM(2); 
     start_game();
+    auto& expansion = get_expansion();
     expansion.get_growth();
     shift(); for(int i=0; i<argi(); i++)
       printf("%s / %s\n", expansion.get_descendants(i).get_str(1000).c_str(), expansion.get_descendants(i, expansion.diskid).get_str(1000).c_str());  
@@ -864,6 +872,7 @@ int expansion_readArgs() {
   else if(argis("-csolve")) { 
     PHASEFROM(2); 
     start_game();
+    auto& expansion = get_expansion();
     printf("preliminary_grouping...\n");
     expansion.preliminary_grouping();
     printf("N = %d\n", expansion.N);
@@ -934,7 +943,7 @@ int expansion_readArgs() {
 
   else if(argis("-expansion-labelcolor")) {
     dist_label_colored = false;
-    shift(); dist_label_color = arghex();
+    shift(); dist_label_color = argcolor(24);
     }
 
   else if(argis("-expansion-off")) {
@@ -949,11 +958,13 @@ auto ea_hook = addHook(hooks_args, 100, expansion_readArgs);
 #endif
 #endif
 
-EX expansion_analyzer expansion;
-
-EX int sibling_limit = 0;
+EX expansion_analyzer& get_expansion() {
+  if(!cgi.expansion) cgi.expansion = make_shared<expansion_analyzer> ();
+  return *cgi.expansion;
+  }
 
 EX void set_sibling_limit() {
+  auto& sibling_limit = get_expansion().sibling_limit;
   if(0) ;
   #if CAP_IRR
   else if(IRREGULAR) sibling_limit = 3;
@@ -1006,6 +1017,7 @@ EX int hyperbolic_celldistance(cell *c1, cell *c2) {
   int found_distance = INF;
   
   int d = 0, d1 = celldist0(c1), d2 = celldist0(c2), sl_used = 0;
+  auto& sibling_limit = get_expansion().sibling_limit;
 
   cell *cl1=c1, *cr1=c1, *cl2=c2, *cr2=c2;
   while(true) {

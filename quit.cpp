@@ -139,7 +139,7 @@ EX hint hints[] = {
 #endif
         );
       dialog::addBreak(50);
-      dialog::addItem(XLAT("world overview"), 'z');
+      dialog::addItem(XLAT("world overview") + " ", 'z');
       },
     []() {
       pushScreen(showOverview);
@@ -254,7 +254,7 @@ EX hint hints[] = {
     []() { return !canmove && sizes_known() && celldist(cwt.at) >= 50; },
     []() {
       int d = celldist(cwt.at);
-      string s = expansion.approximate_descendants(d, 10000);
+      string s = get_expansion().approximate_descendants(d, 10000);
       dialog::addHelp(XLAT(
         "You are %1 cells away from the starting point, or "
         "the place where you used an Orb of Safety last time. "
@@ -313,10 +313,11 @@ eLand nextHyperstone() {
   return laCrossroads;
   }
 
-EX void showMission() {
+EX void showGameMenu() {
 
-  cmode = sm::DOTOUR | sm::MISSION | sm::CENTER;
-  gamescreen(1); drawStats();
+  cmode = sm::DOTOUR | sm::MISSION | sm::CENTER | sm::MAYDARK | sm::SIDE;
+  gamescreen(); drawStats();
+  getcstat = SDLK_ESCAPE;
 
   dialog::init(
 #if CAP_TOUR
@@ -329,8 +330,7 @@ EX void showMission() {
     XLAT("GAME OVER"), 
     0xC00000, 200, 100
     );
-  keyhandler = handleKeyQuit;
-  
+
   #if CAP_COMPLEX2
   bool sweeper = mine::in_minesweeper();
   #else
@@ -371,7 +371,7 @@ EX void showMission() {
       }
     dialog::addInfo(XLAT("Dropped floors: %1/%2", its(score), its(all)));
     if(score == all) dialog::addInfo(XLAT("CONGRATULATIONS!"), iinf[itOrbYendor].color);
-    if(score == all && geometry == gKleinQuartic && variation == eVariation::untruncated && gp::param == gp::loc(1,1))
+    if(score == all && geometry == gKleinQuartic && variation == eVariation::untruncated && gp::param == gp::loc(1,1) && !disksize)
       achievement_gain_once("LOVASZ", rg::special_geometry);      
     }
   else {  
@@ -490,23 +490,27 @@ EX void showMission() {
       }
     else
       dialog::addBreak(200);
-    dialog::addItem(XLAT("main menu"), 'v');
     dialog::addItem("continue", SDLK_ESCAPE);
 #endif
     }
   else {
     dialog::addItem(contstr(), SDLK_ESCAPE);
-    dialog::addItem(XLAT("main menu"), 'v');
-    dialog::addItem(XLAT("restart"), SDLK_F5);
-    if(inv::on && items[itInventory])
+    dialog::addItem(get_o_key().first, 'o');
+    dialog::add_action([] {
+      clearMessages();
+      get_o_key().second();
+      });
+    #if CAP_INV
+    if(inv::on && items[itInventory]) {
       dialog::addItem(XLAT("inventory"), 'i');
-    if(racing::on)
-      dialog::addItem(XLAT("racing menu"), 'o');
-#if !ISMOBILE
-    dialog::addItem(quitsaves() ? XLAT("save") : XLAT("quit"), SDLK_F10);
-#endif
+      dialog::add_action([] {
+        clearMessages();
+        pushScreen(inv::show);
+        });
+      }
+    #endif
     if(casual || ISMOBILE) {
-      if(savecount)
+      if(casual && savecount)
         dialog::addItem(XLAT("load (%1 turns passed)", its(turncount - save_turns)), SDLK_F9);
       else
         dialog::addItem(XLAT("how to find an Orb of Safety?"), SDLK_F9);
@@ -517,6 +521,53 @@ EX void showMission() {
     }
   dialog::addItem(XLAT("message log"), 'l');
   
+  if(cheater) {
+    dialog::addItem(XLAT("cheats"), 'C');
+    dialog::add_action_push(showCheatMenu);
+    }
+  dialog::addItem(XLAT("settings"), 's');
+  dialog::add_action_push(showSettings);
+  dialog::addItem(XLAT("creative mode"), 'c');
+  dialog::add_action_push(showCreative);
+  dialog::addItem(XLAT("special modes"), 'm');
+  dialog::add_action_push(showChangeMode);
+#if CAP_SAVE
+  dialog::addItem(XLAT("local highscores"), 't');
+  dialog::add_action([] { scores::load(); });
+#endif
+  #if ISMOBILE
+  dialog::addItem(XLAT("visit the website"), 'q');
+  dialog::add_action([] {
+    extern void openURL();
+    openURL();
+    });
+  #endif
+#if ISMOBILE
+#if CAP_ACHIEVE
+  dialog::addItem(XLAT("leaderboards/achievements"), '3'); 
+  dialog::add_action([] {
+    achievement_final(false);
+    pushScreen(leader::showMenu);
+    });
+#endif
+#endif
+  dialog::addHelp();
+  dialog::add_action([] { buildHelpText(); gotoHelp(help); });
+  dialog::addItem(XLAT("restart"), SDLK_F5);
+  dialog::addItem(inSpecialMode() ? XLAT("reset special modes") : XLAT("back to the start menu"), 'R');
+  dialog::add_action([] {
+    dialog::do_if_confirmed([] {
+      #if CAP_STARTANIM
+      startanims::pick();
+      #endif
+      popScreenAll(), pushScreen(showStartMenu);
+      });
+    });
+#if !ISMOBILE
+  dialog::addItem(quitsaves() ? XLAT("save") : XLAT("quit"), SDLK_F10);
+#endif
+  
+  keyhandler = handleKeyQuit;
   dialog::display();
   }
 
@@ -558,7 +609,6 @@ EX void handleKeyQuit(int sym, int uni) {
     restart_game(rg::nothing);
     msgs.clear();
     });
-  else if(uni == 'v') popScreenAll(), pushScreen(showMainMenu);
   else if(uni == 'l') popScreenAll(), pushScreen(showMessageLog), messagelogpos = isize(gamelog);
   else if(uni == 'z') hints[hinttoshow].action();
   #if CAP_SAVE
@@ -611,7 +661,7 @@ EX void showMissionScreen() {
     #endif
     }
   else
-    pushScreen(showMission);
+    pushScreen(showGameMenu);
 
 #if CAP_TOUR
   if(!tour::on)

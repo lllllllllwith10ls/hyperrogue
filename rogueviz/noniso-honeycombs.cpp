@@ -11,10 +11,8 @@ bool in_special = false;
 auto geoslide(eGeometry g, char canvas, int jhole, int jblock) {
   using namespace tour;
   return [=] (presmode mode) {
+    setCanvas(mode, '0');
     if(mode == pmStart) {
-      tour::slide_backup(mapeditor::drawplayer, false);
-      tour::slide_backup(smooth_scrolling, true);
-      stop_game();
       set_geometry(g);
       if(g == gSphere) {
         set_geometry(gProduct);
@@ -27,7 +25,6 @@ auto geoslide(eGeometry g, char canvas, int jhole, int jblock) {
       tour::slide_backup<ld>(sightranges[gSol], 7);
       tour::slide_backup<ld>(sightranges[gSpace435], 7);
       vid.texture_step = 4;
-      firstland = specialland = laCanvas;
       tour::slide_backup(patterns::jhole, jhole);
       tour::slide_backup(patterns::rwalls, jhole);
       tour::slide_backup(patterns::jblock, jblock);
@@ -39,6 +36,7 @@ auto geoslide(eGeometry g, char canvas, int jhole, int jblock) {
         sightranges[gSol] = 4;
         }
       }
+    rogueviz::pres::non_game_slide_scroll(mode);
     if(mode == pmStop && jblock < 0)
       pmodel = mdGeodesic;
     slidecommand = "switch raycaster";
@@ -157,13 +155,13 @@ tour::slide *gen_noniso_demo() {
   noniso_slides.clear();
   using namespace tour;
   noniso_slides.emplace_back(
-    slide{"Non-isotropic geometry demo", 999, LEGAL::NONE | QUICKSKIP, 
+    slide{"Non-isotropic geometry demo", 999, LEGAL::NONE | QUICKSKIP | QUICKGEO, 
       "This is a presentation of non-isotropic geometries.",
       [] (presmode mode) {
         slide_url(mode, 'p', "paper about non-isotropic geometries", "https://arxiv.org/abs/2002.09533");
+        setCanvas(mode, 'r');
         if(mode == pmStart) {
-          stop_game();
-          set_geometry(gCubeTiling);          
+          set_geometry(gCubeTiling);
           start_game();
           }
         }

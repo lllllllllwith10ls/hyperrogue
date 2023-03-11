@@ -34,8 +34,12 @@ EX namespace fake {
     if(arcm::in() && PURE) return true;
     if(WDIM == 2) return false;
     if(among(geometry, gBitrunc3)) return false;
+    #if MAXMDIM >= 4
     if(reg3::in() && !among(variation, eVariation::pure, eVariation::subcubes, eVariation::coxeter, eVariation::bch_oct)) return false;
     return euc::in() || reg3::in();
+    #else
+    return euc::in();
+    #endif
     }
   
   map<cell*, ld> random_order;
@@ -133,7 +137,11 @@ EX namespace fake {
         }
       transmatrix S1, S2;
       ld dist;
+      #if MAXMDIM >= 4
       bool impure = reg3::in() && !PURE;
+      #else
+      bool impure = !PURE;
+      #endif
       vector<int> mseq;
       if(impure) {
         mseq = FPIU ( currentmap->get_move_seq(c, d) );
@@ -229,19 +237,17 @@ EX namespace fake {
         auto h1 = V * befake(FPIU(get_corner_position(c, (i+1) % c->type)));
         ld b0 = atan2(unshift(h0));
         ld b1 = atan2(unshift(h1));
-        while(b1 < b0) b1 += 2 * M_PI;
+        while(b1 < b0) b1 += TAU;
         if(a0 == -1) {
           draw_recursive(c->move(i), optimized_shift(V * adj(c, i)), b0, b1, c, depth+1);
           }
         else {
           if(b1 - b0 > M_PI) continue;
           
-          if(b0 < a0 - M_PI) b0 += 2 * M_PI;
-          if(b0 > a0 + M_PI) b0 -= 2 * M_PI;
+          cyclefix(b0, a0);
           if(b0 < a0) b0 = a0;
           
-          if(b1 > a1 + M_PI) b1 -= 2 * M_PI;
-          if(b1 < a1 - M_PI) b1 += 2 * M_PI;
+          cyclefix(b1, a1);
           if(b1 > a1) b1 = a1;
           
           if(b0 > b1) continue;
@@ -373,12 +379,16 @@ EX namespace fake {
     transmatrix ray_iadj(cell *c, int i) override {
       if(WDIM == 2)
         return to_other_side(get_corner(c, i), get_corner(c, i+1));
+      #if MAXMDIM >= 4
       if(PURE) return iadj(c, i);      
       auto& v = get_cellshape(c).faces_local[i];
       hyperpoint h = 
         project_on_triangle(v[0], v[1], v[2]);
       transmatrix T = rspintox(h);
       return T * xpush(-2*hdist0(h)) * spintox(h);
+      #else
+      return Id;
+      #endif
       }
     };
   

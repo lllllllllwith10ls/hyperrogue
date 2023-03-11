@@ -159,7 +159,7 @@ bool pcmove::checkNeedMove(bool checkonly, bool attacking) {
   else if(cwt.at->wall == waMagma && !markOrb(itOrbWinter) && !markOrb(itCurseWater) && !markOrb2(itOrbShield)) {
     if(markOrb2(itOrbAether)) return false;
     if(in_gravity_zone(cwt.at) && passable(cwt.at, cwt.at, P_ISPLAYER)) return false;
-    if(vmsg(miWALL)) addMessage(XLAT("Run away from the magma!"));
+    if(vmsg(miWALL)) addMessage(XLAT("Run away from the lava!"));
     }
   else if(cwt.at->wall == waChasm) {
     if(markOrb2(itOrbAether)) return false;
@@ -242,10 +242,13 @@ EX bool movepcto(int d, int subdir IS(1), bool checkonly IS(false)) {
   }
 
 bool pcmove::movepcto() {  
+  reset_spill();
   if(dual::state == 1) return dual::movepc(d, subdir, checkonly);
   if(d >= 0 && !checkonly && subdir != 1 && subdir != -1) printf("subdir = %d\n", subdir);
   mip.t = NULL;
   switchplaces = false;
+  warning_shown = false;
+  suicidal = false;
 
   if(d == MD_USE_ORB) 
     return targetRangedOrb(multi::whereto[multi::cpid].tgt, roMultiGo);
@@ -293,7 +296,7 @@ bool pcmove::movepcto() {
 
     if(items[itOrbFlash]) {
       if(checkonly) { nextmovetype = lmInstant; return true; }
-      if(orbProtection(itOrbFlash)) return true;
+      if(warning_shown || orbProtection(itOrbFlash)) return true;
       activateFlash();
       checkmove();
       return true;
@@ -301,7 +304,7 @@ bool pcmove::movepcto() {
 
     if(items[itOrbLightning]) {
       if(checkonly) { nextmovetype = lmInstant; return true; }
-      if(orbProtection(itOrbLightning)) return true;
+      if(warning_shown || orbProtection(itOrbLightning)) return true;
       activateLightning();
       checkmove();
       return true;
@@ -433,6 +436,7 @@ struct changes_t {
     forCellEx(c1, cwt.at) ccell(c1);
     value_keep(kills);
     value_keep(items);
+    value_keep(orbused);
     value_keep(hrngen);
     checking = ch;
     }
@@ -575,6 +579,9 @@ void apply_chaos() {
   if (cb->wall == waStone) destroyTrapsAround(cb);
   changes.ccell(ca);
   changes.ccell(cb);
+  /* needs to be called separately for Shadows */
+  if(ca->monst == moShadow) checkStunKill(ca);
+  if(cb->monst == moShadow) checkStunKill(cb);
   gcell coa = *ca;
   gcell cob = *cb;
   if(ca->monst != cb->monst)
@@ -587,10 +594,14 @@ void apply_chaos() {
   copy_metadata(cb, &coa);
   if(!switch_lhu_in(ca->land)) ca->LHU = coa.LHU;
   if(!switch_lhu_in(cb->land)) cb->LHU = cob.LHU;
-  if(ca->monst && !(isFriendly(ca) && markOrb(itOrbEmpathy)))
+  if(ca->monst && !(isFriendly(ca) && markOrb(itOrbEmpathy))) {
     ca->stuntime = min(ca->stuntime + 3, 15), markOrb(itOrbChaos);
-  if(cb->monst && !(isFriendly(cb) && markOrb(itOrbEmpathy)))
+    checkStunKill(ca);
+    }
+  if(cb->monst && !(isFriendly(cb) && markOrb(itOrbEmpathy))) {
     cb->stuntime = min(cb->stuntime + 3, 15), markOrb(itOrbChaos);
+    checkStunKill(cb);
+    }
   ca->monmirror = !ca->monmirror;
   cb->monmirror = !cb->monmirror;
   ca->mondir = chaos_mirror_dir(ca->mondir, wb, wa);
@@ -771,10 +782,6 @@ void pcmove::tell_why_cannot_attack() {
     addMessage(XLAT("You cannot attack %the1 directly!", c2->monst));
     addMessage(XLAT("Make him hit himself by walking away from him."));
     }
-  else if(c2->monst == moVizier && c2->hitpoints > 1 && !(attackflags & AF_FAST)) {
-    addMessage(XLAT("You cannot attack %the1 directly!", c2->monst));
-    addMessage(XLAT("Hit him by walking away from him."));
-    }
   else if(c2->monst == moShadow)
     addMessage(XLAT("You cannot defeat the Shadow!"));
   else if(c2->monst == moGreater || c2->monst == moGreaterM)
@@ -802,7 +809,7 @@ void pcmove::tell_why_cannot_attack() {
 bool pcmove::after_escape() {
   cell*& c2 = mi.t;
   
-  bool push_behind = c2->wall == waBigStatue || (among(c2->wall, waCTree, waSmallTree, waBigTree, waShrub, waVinePlant) && markOrb(itOrbWoods));
+  bool push_behind = c2->wall == waBigStatue || (among(c2->wall, waCTree, waSmallTree, waBigTree, waShrub, waVinePlant) && !c2->monst && markOrb(itOrbWoods));
   
   if(thruVine(c2, cwt.at) && markOrb(itOrbWoods)) push_behind = true;
   
@@ -854,7 +861,7 @@ bool pcmove::after_escape() {
   if(attackable && fmsAttack && !dont_attack && !items[itCurseWeakness]) {
     if(checkNeedMove(checkonly, true)) return false;
     nextmovetype = nm ? lmAttack : lmSkip;
-    if(c2->wall == waSmallTree) {
+    if(c2->wall == waSmallTree || (c2->wall == waBigTree && markOrb(itOrbSlaying))) {
       drawParticles(c2, winf[c2->wall].color, 4);
       addMessage(XLAT("You chop down the tree."));
       playSound(c2, "hit-axe" + pick123());
@@ -903,7 +910,7 @@ bool pcmove::after_escape() {
     tell_why_impassable();
     return false;
     }
-  else if(items[itFatigue] + fatigue_cost(mi) > 10) {
+  else if(markOrb(itCurseFatigue) && items[itFatigue] + fatigue_cost(mi) > 10) {
     if(vmsg(miRESTRICTED)) 
       addMessage(XLAT("You are too fatigued!"));
     return false;
@@ -1108,7 +1115,7 @@ bool pcmove::perform_actual_move() {
     });
   if(c2->item && isAlch(c2)) {
     if(alchMayDuplicate(cwt.at->wall)) {
-      c2->wall = cwt.at->wall;
+      c2->wall = conditional_flip_slime(mi.mirror(), cwt.at->wall);
       c2->wparam = cwt.at->wparam;
       }
     else
@@ -1147,11 +1154,11 @@ bool pcmove::perform_actual_move() {
 
   movecost(cwt.at, c2, 1);
 
-  if(!boatmove && collectItem(c2)) return true;
+  if(!boatmove && collectItem(c2, cwt.at)) return true;
   if(boatmove && c2->item && cwt.at->item) {
      eItem it = c2->item;
      c2->item = cwt.at->item;
-     if(collectItem(c2)) return true;
+     if(collectItem(c2, cwt.at)) return true;
      eItem it2 = c2->item;
      c2->item = it;
      cwt.at->item = it2;
@@ -1171,7 +1178,7 @@ bool pcmove::perform_actual_move() {
     forCellEx(c3, c2) if(c3->wall == waIcewall && c3->item) {
       changes.ccell(c3);
       markOrb(itOrbWinter);
-      if(collectItem(c3)) return true;
+      if(collectItem(c3, cwt.at)) return true;
       }
   
   movecost(cwt.at, c2, 2);
@@ -1281,13 +1288,16 @@ bool pcmove::stay() {
 inline bool movepcto(const movedir& md) { return movepcto(md.d, md.subdir); }
 #endif
 
+EX bool warning_shown;
 
 EX bool warningprotection(const string& s) {
   if(hardcore) return false;
   if(multi::activePlayers() > 1) return false;
   if(items[itWarning]) return false;
+  warning_shown = true;
   pushScreen([s] () {
-    gamescreen(1);
+    cmode = sm::DARKEN;
+    gamescreen();
     dialog::addBreak(250);
     dialog::init(XLAT("WARNING"), 0xFF0000, 150, 100);
     dialog::addBreak(500);
@@ -1492,6 +1502,8 @@ EX bool swordAttack(cell *mt, eMonster who, cell *c, int bb) {
     }
   if(c->wall == waExplosiveBarrel)
     explodeBarrel(c);
+  if(!peace::on && isPlayerOn(c) && whichPlayerOn(c) != multi::cpid && !markOrb(itOrbEmpathy)) killThePlayer(moPlayer, whichPlayerOn(mt), 0);
+  if(!peace::on && mt == c && !markOrb(itOrbEmpathy)) killThePlayer(moPlayer, multi::cpid, 0);
   if(!peace::on && canAttack(mt, who, c, m, AF_SWORD)) {
     changes.ccell(c);
     markOrb(bb ? itOrbSword2: itOrbSword);
@@ -1545,7 +1557,7 @@ EX void sideAttackAt(cell *mf, int dir, cell *mt, eMonster who, eItem orb, cell 
     if(who != moPlayer) markOrb(itOrbEmpathy);
     int kk = 0;
     if(orb == itOrbPlague) kk = tkills();
-    if(attackMonster(mt, AF_NORMAL | AF_SIDE | AF_MSG, who) || isAnyIvy(m)) {
+    if(attackMonster(mt, AF_NORMAL | f | AF_MSG, who) || isAnyIvy(m)) {
       if(orb == itOrbPlague && kk < tkills())
         plague_kills++;
       if(mt->monst != m) spread_plague(mf, mt, dir, who);

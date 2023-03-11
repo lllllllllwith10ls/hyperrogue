@@ -10,8 +10,13 @@ namespace hr {
 
 EX namespace mapeditor {
 
+  /* changes when the map is changed */
+  EX int map_version;
+
   EX bool drawing_tool;
   EX bool intexture;
+  EX bool snapping;
+  EX bool building_mode = true;
 
   #if HDR
   enum eShapegroup { sgPlayer, sgMonster, sgItem, sgFloor, sgWall };
@@ -84,7 +89,7 @@ EX namespace mapeditor {
       int ll = ceil(360 * len);
       shiftmatrix W = V * rgpushxto0(s);
       for(int i=0; i<=ll; i++)
-        curvepoint(xspinpush0(360*degree*i/ll, radius));
+        curvepoint(xspinpush0(TAU*i/ll, radius));
       queuecurve(W, col, fill, PPR::LINE);
       }
 
@@ -156,6 +161,14 @@ EX namespace mapeditor {
   
   EX void clear_dtshapes() { dtshapes.clear(); }
   
+  EX shiftpoint full_mouseh() {
+    #if CAP_EDIT
+    if(GDIM == 3) return find_mouseh3();
+    if(snapping) return mouse_snap();
+    #endif
+    return mouseh;
+    }
+
   EX void draw_dtshapes() {
 #if CAP_EDIT
     for(auto& shp: dtshapes) {
@@ -169,7 +182,7 @@ EX namespace mapeditor {
       }
 
     if(drawing_tool && (cmode & sm::DRAW)) {
-      shiftpoint moh = GDIM == 2 ? mouseh : find_mouseh3();      
+      shiftpoint moh = full_mouseh();
       dynamicval<ld> lw(vid.linewidth, vid.linewidth * dtwidth * 100);
       if(holdmouse && mousekey == 'c')
         queue_hcircle(rgpushxto0(lstart), hdist(lstart, moh));
@@ -386,7 +399,7 @@ EX namespace mapstream {
   EX vector<cell*> cellbyid;
   EX vector<char> relspin;
   
-  void load_drawing_tool(fhstream& hs) {
+  void load_drawing_tool(hstream& hs) {
     using namespace mapeditor;
     if(hs.vernum < 0xA82A) return;
     int i = hs.get<int>();
@@ -449,13 +462,28 @@ EX namespace mapstream {
       f.write(gp::param.second);
       }
     #endif
+    #if MAXMDIM >= 4
+    if(variation == eVariation::coxeter) {
+      f.write(reg3::coxeter_param);
+      }
+    if(is_subcube_based(variation )) {
+      f.write(reg3::subcube_count);
+      }
+    #endif
     #if CAP_FIELD
     if(geometry == gFieldQuotient) {
       using namespace fieldpattern;
       f.write(quotient_field_changed);
       if(quotient_field_changed) {
-        f.write(current_extra);
-        f.write(fgeomextras[current_extra].current_prime_id);
+        decltype(current_extra) cex = WDIM == 3 ? -1 : current_extra;
+        f.write(cex);
+        if(cex == -1) {
+          f.write(fieldpattern::underlying_geometry);
+          hwrite_fpattern(f, currfp);
+          }
+        else {
+          f.write(fgeomextras[current_extra].current_prime_id);
+          }
         }
       }
     #endif
@@ -490,15 +518,16 @@ EX namespace mapstream {
       f.write(asonov::period_z);
       }
     #endif
-    if(prod) {
+    if(mproduct) {
       f.write(hybrid::csteps);
       f.write(product::cspin);
       f.write(product::cmirror);
+      f.write(vid.plevel_factor);
       }
     if(rotspace) {
       f.write(hybrid::csteps);
       }
-    if(hybri) {
+    if(mhybrid) {
       hybrid::in_underlying_geometry([&] { save_geometry(f); });
       }
     if(fake::in()) {
@@ -515,6 +544,7 @@ EX namespace mapstream {
     }
   
   EX void load_geometry(hstream& f) {
+    bool was_default = pmodel == default_model();
     auto vernum = f.get_vernum();
     f.read(geometry);
     char nbtype;
@@ -524,6 +554,14 @@ EX namespace mapstream {
     if(GOLDBERG || INVERSE) {
       f.read(gp::param.first);
       f.read(gp::param.second);
+      }
+    #endif
+    #if MAXMDIM >= 4
+    if(variation == eVariation::coxeter && vernum >= 0xA908) {
+      f.read(reg3::coxeter_param);
+      }
+    if(is_subcube_based(variation) && vernum >= 0xA908) {
+      f.read(reg3::subcube_count);
       }
     #endif
     #if CAP_CRYSTAL
@@ -549,18 +587,30 @@ EX namespace mapstream {
       using namespace fieldpattern;
       f.read(quotient_field_changed);
       if(quotient_field_changed) {
+        auto cex = current_extra;
         f.read(current_extra);
-        auto& ge = fgeomextras[current_extra];
-        auto& id = ge.current_prime_id;
-        f.read(id);
-        if(vernum < 0xA80C) switch(ge.base) {
-          case gNormal: id++; break;
-          case g45: id++; break;
-          case g46: id+=2; break;
-          case g47: id++; break;
-          default: ;
+        if(current_extra == -1) {
+          current_extra = cex;
+          f.read(geometry);
+          check_cgi();
+          cgi.require_basics();
+          fieldpattern::field_from_current();
+          set_geometry(gFieldQuotient);
+          hread_fpattern(f, currfp);
           }
-        enableFieldChange();
+        else {
+          auto& ge = fgeomextras[current_extra];
+          auto& id = ge.current_prime_id;
+          f.read(id);
+          if(vernum < 0xA80C) switch(ge.base) {
+            case gNormal: id++; break;
+            case g45: id++; break;
+            case g46: id+=2; break;
+            case g47: id++; break;
+            default: ;
+            }
+          enableFieldChange();
+          }
         }
       }
     #endif
@@ -606,11 +656,12 @@ EX namespace mapstream {
       f.read(hybrid::csteps);
       if(vernum >= 0xA80D) f.read(product::cspin);
       if(vernum >= 0xA833) f.read(product::cmirror);
+      if(vernum >= 0xA908) f.read(vid.plevel_factor);
       }
     if(geometry == gRotSpace && vernum >= 0xA833) {
       f.read(hybrid::csteps);
       }
-    if(hybri && vernum >= 0xA80C) {
+    if(mhybrid && vernum >= 0xA80C) {
       auto g = geometry;
       load_geometry(f);
       set_geometry(g);
@@ -630,19 +681,23 @@ EX namespace mapstream {
       }
     if(vernum >= 0xA810)
       f.read(mine_adjacency_rule);
+    geometry_settings(was_default);
     }
   
-  EX hookset<void(fhstream&)> hooks_savemap, hooks_loadmap_old;
-  EX hookset<void(fhstream&, int)> hooks_loadmap;
+  EX hookset<void(hstream&)> hooks_savemap, hooks_loadmap_old;
+  EX hookset<void(hstream&, int)> hooks_loadmap;
   
   EX cell *save_start() {
-    return (bounded || euclid || prod || arcm::in() || INVERSE) ? currentmap->gamestart() : cwt.at->master->c7;
+    return (closed_manifold || euclid || mproduct || arcm::in() || sol || INVERSE) ? currentmap->gamestart() : cwt.at->master->c7;
     }
 
 #if CAP_EDIT  
-  void save_only_map(fhstream& f) {
+  void save_only_map(hstream& f) {
     f.write(patterns::whichPattern);
     save_geometry(f);
+    #if CAP_RACING
+    if(racing::on) racing::restore_goals();
+    #endif
     
     // game settings
     f.write(safety);
@@ -658,6 +713,8 @@ EX namespace mapstream {
     f.write(canvas_default_wall);
     f.write(mapeditor::drawplayer);
     if(patterns::whichCanvas == 'f') f.write(patterns::color_formula);
+    f.write(canvasfloor);
+    f.write(canvasdark);
     
     {
     int i = ittypes; f.write(i);
@@ -667,6 +724,9 @@ EX namespace mapstream {
     }
     
     addToQueue(save_start());
+    #if MAXMDIM >= 4 && CAP_RAY
+    if(intra::in) intra::prepare_need_to_save();
+    #endif
     for(int i=0; i<isize(cellbyid); i++) {
       cell *c = cellbyid[i];
       if(i) {
@@ -699,24 +759,37 @@ EX namespace mapstream {
         f.write_char(dat.dir);
         f.write_char(dat.mirrored);
         }
-      // f.write_char(c->barleft);
-      // f.write_char(c->barright);
       f.write_char(c->item);
       if(c->item == itBabyTortoise)
         f.write(tortoise::babymap[c]);
       f.write_char(c->mpdist);
-      // f.write_char(c->bardir);
+      if(inmirrororwall(c)) {
+        f.write_char(c->barleft);
+        f.write_char(c->barright);
+        f.write_char(c->bardir);
+        }
       f.write(c->wparam); f.write(c->landparam);
       f.write_char(c->stuntime); f.write_char(c->hitpoints);
+      bool blocked = false;
+      #if MAXMDIM >= 4 && CAP_RAY
+      if(intra::in && isWall3(c) && !intra::need_to_save.count(c)) blocked = true;
+      #endif
+      if(!blocked)
       for(int j=0; j<c->type; j++) {
         cell *c2 = c->move(j);
-        if(c2 && c2->land != laNone) addToQueue(c2);
+        if(c2 && c2->land != laNone && c2->land != laMemory) addToQueue(c2);
         }
       }
     printf("cells saved = %d\n", isize(cellbyid));
     int32_t n = -1; f.write(n);
     int32_t id = cellids.count(cwt.at) ? cellids[cwt.at] : -1;
     f.write(id);
+
+    if(f.vernum >= 0xA90C) {
+      vector<color_t> v;
+      for(auto c: walking::colors_of_floors) v.push_back(c);
+      f.write(v);
+      }
     
     save_drawing_tool(f);
 
@@ -731,7 +804,42 @@ EX namespace mapstream {
     if(multi::players > 1)
       for(int i=0; i<multi::players; i++)
         f.write(cellids[multi::player[i].at]);
+
+    #if MAXMDIM >= 4 && CAP_RAY
+    if(intra::in) {
+      for(int i=0; i<isize(intra::portals_to_save); i++) {
+        auto& p = intra::portals_to_save[i];
+        if(cellids.count(p.cw1.at)) {
+          f.write<char>(1);
+          f.write(i);
+          f.write(cellids[p.cw1.at]);
+          f.write<char>(p.cw1.spin);
+          }
+        if(cellids.count(p.cw2.at)) {
+          f.write<char>(2);
+          f.write(i);
+          f.write(cellids[p.cw2.at]);
+          f.write<char>(p.cw2.spin);
+          }
+        }
+      f.write<char>(0);
+      }
+    #endif
       
+    if(f.vernum >= 0xA912) {
+      #if CAP_RACING
+      f.write(racing::on);
+      if(racing::on) {
+        f.write<int>(isize(racing::track));
+        for(auto& t: racing::track) f.write<int>(cellids[t]);
+        racing::save_ghosts(f);
+        }
+      #else
+      bool on = false;
+      f.write(on);
+      #endif
+      }
+
     callhooks(hooks_savemap, f);
     f.write<int>(0);
 
@@ -739,7 +847,7 @@ EX namespace mapstream {
     cellbyid.clear();
     }
   
-  void load_usershapes(fhstream& f) {
+  void load_usershapes(hstream& f) {
     if(f.vernum >= 7400) while(true) {
       int i = f.get<int>();
       if(i == -1) break;
@@ -769,7 +877,7 @@ EX namespace mapstream {
       }    
     }
   
-  void load_only_map(fhstream& f) {
+  void load_only_map(hstream& f) {
     stop_game();
     if(f.vernum >= 10420 && f.vernum < 10503) {
       int i;
@@ -806,6 +914,10 @@ EX namespace mapstream {
         f.read(canvas_default_wall);
       f.read(mapeditor::drawplayer);
       if(patterns::whichCanvas == 'f') f.read(patterns::color_formula);
+      if(f.vernum >= 0xA90D) {
+        f.read(canvasfloor);
+        f.read(canvasdark);
+        }
       
       int i;
       f.read(i); if(i > ittypes || i < 0) throw hstream_exception();
@@ -814,7 +926,7 @@ EX namespace mapstream {
       for(int k=0; k<i; k++) f.read(kills[k]);    
       }
 
-    int sub = hybri ? 2 : 0;
+    int sub = mhybrid ? 2 : 0;
     while(true) {
       cell *c;
       int rspin;
@@ -835,7 +947,7 @@ EX namespace mapstream {
         
         // spinval becomes xspinval
         rspin = gmod(c2->c.spin(dir) - f.read_char(), c->type - sub);
-        if(GDIM == 3 && rspin && !hybri) {
+        if(GDIM == 3 && rspin && !mhybrid) {
           println(hlog, "rspin in 3D");
           throw hstream_exception();
           }
@@ -864,6 +976,11 @@ EX namespace mapstream {
         f.read(tortoise::babymap[c]);
       c->mpdist = f.read_char();
       c->bardir = NOBARRIERS;
+      if(inmirrororwall(c) && f.vernum >= 0xA912) {
+        c->barleft = (eLand) f.read_char();
+        c->barright = (eLand) f.read_char();
+        c->bardir = fixspin(rspin, f.read_char(), c->type, f.vernum);
+        }
       // fixspin(rspin, f.read_char(), c->type);
       if(f.vernum < 7400) {
         short z;
@@ -912,6 +1029,14 @@ EX namespace mapstream {
     savecount = 0; savetime = 0;
     cheater = 1;
     
+    if(f.vernum >= 0xA90C) {
+      vector<color_t> v;
+      f.read(v);
+      walking::colors_of_floors.clear();
+      for(auto c: v) walking::colors_of_floors.insert(c);
+      }
+    else walking::colors_of_floors.clear();
+
     load_drawing_tool(f);
 
     dynamicval<bool> a3(vid.always3, vid.always3);
@@ -943,7 +1068,42 @@ EX namespace mapstream {
           mp.mirrored = false;
           }
       }
+
+    #if MAXMDIM >= 4 && CAP_RAY
+    if(intra::in) {
+      while(true) {
+        char k = f.get<char>();
+        if(!k) break;
+        int i = f.get<int>();
+        int id = f.get<int>();
+        int spin = f.get<char>();
+        auto& p = intra::portals_to_save[i];
+        auto& cw = (k==1 ? p.cw1 : p.cw2);
+        cw.at = cellbyid[id];
+        cw.spin = fixspin(relspin[id], spin, cw.at->type, f.vernum);
+        }
+      }
+    #endif
     
+    if(f.vernum >= 0xA912) {
+      #if CAP_RACING
+      f.read(racing::on);
+      if(racing::on) {
+        if(!shmup::on) {
+          shmup::on = true;
+          shmup::init();
+          }
+        racing::track.resize(f.get<int>());
+        for(auto& t: racing::track) t = cellbyid[f.get<int>()];
+        racing::load_ghosts(f);
+        racing::configure_track(false);
+        }
+      #else
+      bool on;
+      f.read(on);
+      #endif
+      }
+
     if(f.vernum >= 0xA848) {
       int i;
       f.read(i);
@@ -961,7 +1121,7 @@ EX namespace mapstream {
     game_active = true;
     }
   
-  void save_usershapes(fhstream& f) {
+  void save_usershapes(hstream& f) {
     int32_t n;
     #if CAP_POLY    
     for(int i=0; i<mapeditor::USERSHAPEGROUPS; i++) for(auto usp: usershapes[i]) {
@@ -986,18 +1146,47 @@ EX namespace mapstream {
   EX bool saveMap(const char *fname) {
     fhstream f(fname, "wb");
     if(!f.f) return false;
-    f.write(f.vernum);
-    f.write(dual::state);
-    // make sure we save in correct order
-    if(dual::state) dual::switch_to(1);
-    dual::split_or_do([&] { save_only_map(f); });
-    save_usershapes(f);
+    saveMap(f);
     return true;
+    }
+
+  EX void saveMap(hstream& f) {
+    f.write(f.get_vernum());
+    f.write(dual::state);
+    #if MAXMDIM >= 4 && CAP_RAY
+    int q = intra::in ? isize(intra::data) : 0;
+    f.write(q);
+    #else
+    int q = 0;
+    #endif
+    if(q) {
+      #if MAXMDIM >= 4 && CAP_RAY
+      intra::prepare_to_save();
+      int qp = isize(intra::portals_to_save);
+      f.write(qp);
+      for(auto& ps: intra::portals_to_save) {
+        f.write(ps.spin);
+        f.write(ps.mirrored);
+        }
+      intra::resetter ir;
+      for(int i=0; i<q; i++) { intra::switch_to(i); save_only_map(f); }
+      #endif
+      }
+    else {
+      // make sure we save in correct order
+      if(dual::state) dual::switch_to(1);
+      dual::split_or_do([&] { save_only_map(f); });
+      }
+    save_usershapes(f);
     }
   
   EX bool loadMap(const string& fname) {
     fhstream f(fname, "rb");
     if(!f.f) return false;
+    return loadMap(f);
+    }
+    
+  EX bool loadMap(hstream& f) {
     f.read(f.vernum);
     if(f.vernum > 10505 && f.vernum < 11000) 
       f.vernum = 11005;
@@ -1008,7 +1197,34 @@ EX namespace mapstream {
       ds = 0;
     if(ds == 1 && dual::state == 0) dual::enable();
     if(ds == 0 && dual::state == 1) dual::disable();
-    dual::split_or_do([&] { load_only_map(f); });
+    int q = 0;
+    if(f.vernum >= 0xA907) {
+      f.read(q);
+      }
+    if(q) {
+      int qp;
+      f.read(qp);
+      #if MAXMDIM >= 4 && CAP_RAY
+      intra::portals_to_save.resize(qp);
+      for(auto& ps: intra::portals_to_save) {
+        f.read(ps.spin);
+        f.read(ps.mirrored);
+        println(hlog, tie(ps.spin, ps.mirrored));
+        }
+      for(int i=0; i<q; i++) {
+        intra::in = true; /* so that it knows to load portals */
+        game_active = false;
+        load_only_map(f);
+        intra::in = false;
+        intra::become();
+        }
+      intra::start();
+      intra::load_saved_portals();
+      #endif
+      }
+    else {
+      dual::split_or_do([&] { load_only_map(f); });
+      }
     if(dual::state) dual::assign_landsides();
     if(f.vernum >= 0xA61A) 
       load_usershapes(f);
@@ -1026,6 +1242,7 @@ EX namespace mapeditor {
 
 #if CAP_EDIT
   int paintwhat = 0;
+  int paintwhat_alt_wall = 0;
   int painttype = 0;
   int paintstatueid = 0;
   int radius = 0;
@@ -1161,8 +1378,12 @@ EX namespace mapeditor {
   EX set<int> affected_id;
 
   EX void showMapEditor() {
-    cmode = sm::MAP;
-    gamescreen(0);
+    cmode = sm::MAP | sm::PANNING;
+    if(building_mode) {
+      if(anyshiftclick) cmode |= sm::EDIT_INSIDE_WALLS;
+      else cmode |= sm::EDIT_BEFORE_WALLS;
+      }
+    gamescreen();
   
     int fs = editor_fsize();
     
@@ -1175,7 +1396,14 @@ EX namespace mapeditor {
     
     getcstat = '-';
 
-    displayfr(8, 8 + fs, 2, vid.fsize, paintwhat_str, forecolor, 0);
+    if(anyshiftclick) {
+      displayfr(8, 8 + fs, 2, vid.fsize,
+        (painttype == 6 && (GDIM == 3)) ? "wall" :
+        painttype == 3 ? XLATN(winf[paintwhat_alt_wall].name) : "clear",
+        forecolor, 0);
+      }
+    else
+      displayfr(8, 8 + fs, 2, vid.fsize, paintwhat_str, forecolor, 0);
     displayfr(8, 8+fs*2, 2, vid.fsize, XLAT("use at your own risk!"), 0x800000, 0);
 
     displayButton(8, 8+fs*4, XLAT("0-9 = radius (%1)", its(radius)), ('0' + (radius+1)%10), 0);
@@ -1190,6 +1418,10 @@ EX namespace mapeditor {
       displayButton(8, 8+fs*12, XLAT("f = flip %1", ONOFF(copysource.mirrored)), 'u', 0);
     displayButton(8, 8+fs*13, XLAT("r = regular"), 'r', 0);
     displayButton(8, 8+fs*14, XLAT("p = paint"), 'p', 0);
+    if(painttype == 3)
+      displayButton(8, 8+fs*15, XLAT("z = set Shift+click"), 'z', 0);
+    if(WDIM == 3)
+      displayButton(8, 8+fs*16, XLAT("B = build on walls ") + ONOFF(building_mode), 'B', 0);
 
     displayFunctionKeys();
     displayButton(8, vid.yres-8-fs*4, XLAT("F8 = settings"), SDLK_F8, 0);
@@ -1231,6 +1463,7 @@ EX namespace mapeditor {
     saveUndo(c);
     switch(painttype) {
       case 0: {
+        if(anyshiftclick) { c->monst = moNone; mirror::destroyKilled(); break; }
         eMonster last = c->monst;
         c->monst = eMonster(paintwhat);
         c->hitpoints = 3;
@@ -1256,9 +1489,12 @@ EX namespace mapeditor {
         if(isDie(c->monst)) {
           if(!dice::generate_random(c)) c->monst = moNone;
           }
+
+        mirror::destroyKilled();
         break;
         }
       case 1: {
+        if(anyshiftclick) { c->item = itNone; break; }
         eItem last = c->item;
         c->item = eItem(paintwhat);
         if(c->item == itBabyTortoise)
@@ -1266,6 +1502,7 @@ EX namespace mapeditor {
         break;
         }
       case 2: {
+        if(anyshiftclick) { c->land = laNone; c->wall = waNone; map_version++; break; }
         eLand last = c->land;
         c->land = eLand(paintwhat);
         if(isIcyLand(c) && isIcyLand(last))
@@ -1282,7 +1519,8 @@ EX namespace mapeditor {
         }
       case 3: {
         eWall last = c->wall;
-        c->wall = eWall(paintwhat);
+        c->wall = eWall(anyshiftclick ? paintwhat_alt_wall : paintwhat);
+        map_version++;
         
         if(last != c->wall) {
           if(hasTimeout(c))
@@ -1305,6 +1543,7 @@ EX namespace mapeditor {
         break;
         }
       case 5:
+        map_version++;
         c->land = laNone;
         c->wall = waNone;
         c->item = itNone;
@@ -1313,11 +1552,13 @@ EX namespace mapeditor {
         // c->tmp = -1;
         break;
       case 6:
+        map_version++;
         c->land = laCanvas;
-        c->wall = GDIM == 3 ? waWaxWall : waNone;
+        c->wall = ((GDIM == 3) ^ anyshiftclick) ? waWaxWall : waNone;
         c->landparam = paintwhat >> 8;
         break;
       case 4: {
+        map_version++;
         cell *copywhat = where.second.at;
         c->wall = copywhat->wall;
         c->item = copywhat->item;
@@ -1387,7 +1628,7 @@ EX namespace mapeditor {
   void allInPattern(cellwalker where) {
 
     manual_celllister cl;
-    if(!patterns::whichPattern) {
+    if(!patterns::whichPattern || texture::config.tstate == texture::tsActive) {
       editAt(where, cl);
       return;
       }
@@ -1459,10 +1700,12 @@ EX namespace mapeditor {
     }
   
   void showList() {
+    string caption;
     dialog::v.clear();
     if(painttype == 4) painttype = 0;
     switch(painttype) {
       case 0: 
+        caption = "monsters";
         for(int i=0; i<motypes; i++) {
           eMonster m = eMonster(i);
           if(
@@ -1477,12 +1720,15 @@ EX namespace mapeditor {
           }
         break;
       case 1:
+        caption = "items";
         for(int i=0; i<ittypes; i++) dialog::vpush(i, iinf[i].name);
         break;
       case 2:
+        caption = "lands";
         for(int i=0; i<landtypes; i++) dialog::vpush(i, linf[i].name);
         break;
       case 3:
+        caption = "walls";
         for(int i=0; i<walltypes; i++) if(i != waChasmD) dialog::vpush(i, winf[i].name);
         break;
       }
@@ -1490,26 +1736,18 @@ EX namespace mapeditor {
     
     if(dialog::infix != "") mouseovers = dialog::infix;
     
-    int q = dialog::v.size();
-    int percolumn = vid.yres / (vid.fsize+5) - 4;
-    int columns = 1 + (q-1) / percolumn;
+    cmode = 0;
+    gamescreen();
+    dialog::init(caption);
+    if(dialog::infix != "") mouseovers = dialog::infix;
+    dialog::addBreak(50);
+    dialog::start_list(900, 900, '1');
     
-    for(int i=0; i<q; i++) {
-      int x = 16 + (vid.xres * (i/percolumn)) / columns;
-      int y = (vid.fsize+5) * (i % percolumn) + vid.fsize*2;
-      
-      int actkey = 1000 + i;
-      string vv = dialog::v[i].first;
-      if(i < 9) { vv += ": "; vv += ('1' + i); }
-      
-      displayButton(x, y, vv, actkey, 0);
-      }
-    keyhandler = [] (int sym, int uni) {
-      if(uni >= '1' && uni <= '9') uni = 1000 + uni - '1';
-      if(sym == SDLK_RETURN || sym == SDLK_KP_ENTER || sym == '-' || sym == SDLK_KP_MINUS) uni = 1000;
-      for(int z=0; z<isize(dialog::v); z++) if(1000 + z == uni) {
-        paintwhat = dialog::v[z].second;
-        paintwhat_str = dialog::v[z].first;
+    for(auto& vi: dialog::v) {
+      dialog::addItem(vi.first, dialog::list_fake_key++);
+      dialog::add_action([&vi] {
+        paintwhat = vi.second;
+        paintwhat_str = vi.first;
 
         mousepressed = false;
         popScreen();
@@ -1518,9 +1756,18 @@ EX namespace mapeditor {
           dialog::editNumber(paintstatueid, 0, 127, 1, 1, XLAT1("editable statue"), 
             XLAT("These statues are designed to have their graphics edited in the Vector Graphics Editor. Each number has its own, separate graphics.")
             );
-        return;
-        }
-      if(dialog::editInfix(uni)) ;
+        });
+      }
+
+    dialog::end_list();
+    dialog::addBreak(50);
+    dialog::addInfo(XLAT("press letters to search"));
+    dialog::addBack();
+    dialog::display();
+
+    keyhandler = [] (int sym, int uni) {
+      dialog::handleNavigation(sym, uni);
+      if(dialog::editInfix(uni)) dialog::list_skip = 0;
       else if(doexiton(sym, uni)) popScreen();
       };    
     }
@@ -1532,17 +1779,21 @@ EX namespace mapeditor {
     if(uni == '-' && !holdmouse) undoLock();
     if(uni == '-' && mouseover) {
       allInPattern(mouseover_cw(false));
-      holdmouse = true;
+      if(!(GDIM == 3 && building_mode))
+        holdmouse = true;
       }
     
     if(mouseover) for(int i=0; i<mouseover->type; i++) createMov(mouseover, i);
     if(uni == 'u') applyUndo();
     else if(uni == 'v' || sym == SDLK_F10 || sym == SDLK_ESCAPE) popScreen();
+    else if(uni == 'A') popScreen();
     else if(uni >= '0' && uni <= '9') radius = uni - '0';
     else if(uni == 'm') pushScreen(showList), painttype = 0, dialog::infix = "";
     else if(uni == 'i') pushScreen(showList), painttype = 1, dialog::infix = "";
     else if(uni == 'l') pushScreen(showList), painttype = 2, dialog::infix = "";
     else if(uni == 'w') pushScreen(showList), painttype = 3, dialog::infix = "";
+    else if(uni == 'z' && painttype == 3) paintwhat_alt_wall = paintwhat;
+    else if(uni == 'B') building_mode = !building_mode;
     else if(uni == 'r') pushScreen(patterns::showPattern);
     else if(uni == 't' && mouseover) {
       playermoved = true;
@@ -1728,18 +1979,18 @@ EX namespace mapeditor {
         }
       transmatrix T;
       if(front_config == eFront::equidistants) T = Id;
-      else if(front_config == eFront::const_x) T = cspin(2, 0, M_PI/2);
-      else if(front_config == eFront::const_y) T = cspin(2, 1, M_PI/2);
+      else if(front_config == eFront::const_x) T = cspin90(2, 0);
+      else if(front_config == eFront::const_y) T = cspin90(2, 1);
       else return;
       for(int i=0; i<4; i+=2) {
         for(int u=2; u<=20; u++) {
           PRING(d) {
-            curvepoint(T * xspinpush(M_PI*d/cgi.S42, u/20.) * zpush0(front_edit));
+            curvepoint(T * xspinpush(d*cgi.S_step, u/20.) * zpush0(front_edit));
             }
           queuecurve(d2, cols[i + (u%5 != 0)], 0, i < 2 ? PPR::LINE : PPR::SUPERLINE);
           }
         for(int d=0; d<cgi.S84; d++) {
-          for(int u=0; u<=20; u++) curvepoint(T * xspinpush(M_PI*d/cgi.S42, u/20.) * zpush(front_edit) * C0);
+          for(int u=0; u<=20; u++) curvepoint(T * xspinpush(d*cgi.S_step, u/20.) * zpush(front_edit) * C0);
           queuecurve(d2, cols[i + (d % (cgi.S84/drawcell->type) != 0)], 0, i < 2 ? PPR::LINE : PPR::SUPERLINE);
           }
         }
@@ -1748,15 +1999,18 @@ EX namespace mapeditor {
 
     for(int d=0; d<cgi.S84; d++) {
       unsigned col = (d % (cgi.S84/drawcell->type) == 0) ? gridcolor : lightgrid;
-      queueline(d2 * C0, d2 * xspinpush0(M_PI*d/cgi.S42, 1), col, 4 + vid.linequality);
+      queueline(d2 * C0, d2 * xspinpush0(d*cgi.S_step, 1), col, 4 + vid.linequality);
       }
     for(int u=2; u<=20; u++) {
       PRING(d) {
-        curvepoint(xspinpush0(M_PI*d/cgi.S42, u/20.));
+        curvepoint(xspinpush0(d*cgi.S_step, u/20.));
         }
       queuecurve(d2, (u%5==0) ? gridcolor : lightgrid, 0, PPR::LINE);
       }
     queueline(drawtrans*ccenter, drawtrans*coldcenter, gridcolor, 4 + vid.linequality);
+
+    if(snapping && !mouseout())
+      queuestr(mouse_snap(), 10, "x", 0xC040C0);
     }
 
   void drawHandleKey(int sym, int uni);
@@ -1803,8 +2057,7 @@ EX namespace mapeditor {
         // total: rh2 - rh1
         // ld z = degree;
         ld x = b2 - b1 + M_PI;
-        while(x > M_PI) x -= 2 * M_PI;
-        while(x < -M_PI) x += 2 * M_PI;
+        cyclefix(x, 0);
         area += x;
         }
       }
@@ -1813,10 +2066,31 @@ EX namespace mapeditor {
 
 #define EDITING_TRIANGLES (GDIM == 3)
 
+  EX shiftpoint mouse_snap() {
+    ld xdist = HUGE_VAL;
+    shiftpoint resh;
+    auto snap_to = [&] (shiftpoint h) {
+      ld dist = hdist(h, mouseh);
+      if(dist < xdist) xdist = dist, resh = h;
+      };
+    for(auto& p: gmatrix) {
+      cell *c = p.first;
+      auto& T = p.second;
+      snap_to(T * C0);
+      for(int i=0; i<c->type; i++) {
+        hyperpoint h1 = get_corner_position(c, i);
+        hyperpoint h2 = get_corner_position(c, (i+1) % c->type);
+        snap_to(T * h1);
+        snap_to(T * mid(h1, h2));
+        }
+      }
+    return resh;
+    }
+
   EX void showDrawEditor() {
 #if CAP_POLY
-    cmode = sm::DRAW;
-    gamescreen(0);
+    cmode = sm::DRAW | sm::PANNING;
+    gamescreen();
     drawGrid();
     if(callhandlers(false, hooks_prestats)) return;
 
@@ -1929,7 +2203,8 @@ EX namespace mapeditor {
         displayButton(8, 8+fs*16, XLAT("p = paint"), 'p', 0);
       if(GDIM == 2) 
         displayfr(8, 8+fs*17, 2, vid.fsize, XLAT("z = z-level"), 0xC0C0C0, 0);
-
+      if(GDIM == 2)
+        displayButton(8, 8+fs*18, XLAT("S = snap (%1)", ONOFF(snapping)), 'S', 0);
       }
 #if CAP_TEXTURE
     else if(freedraw) {
@@ -1958,6 +2233,8 @@ EX namespace mapeditor {
       displaymm('u', 8, 8+fs*6, 2, vid.fsize, XLAT("'u' to load current"), 0);
       if(mousekey == 'a' || mousekey == 'd' || mousekey == 'd' ||
         mousekey == 'c') mousekey = 'n';
+      if(GDIM == 2)
+        displayButton(8, 8+fs*7, XLAT("S = snap (%1)", ONOFF(snapping)), 'S', 0);
       }
     
     if(GDIM == 3)
@@ -1982,28 +2259,30 @@ EX namespace mapeditor {
       displaymm('e', vid.xres-8, 8+fs, 2, vid.fsize, XLAT("e = edit this"), 16);
 #endif
 
+    int prec = snapping ? 15 : 4;
+
     if(!mouseout()) {
-      hyperpoint mh;
-      if(GDIM == 2) {
-        transmatrix T = z_inverse(unshift(drawtrans)) * rgpushxto0(ccenter); /* todo? */
-        mh = spintox(gpushxto0(ccenter) * coldcenter) * T * unshift(mouseh);
-        }
-      else
-        mh = inverse_shift(drawtrans, find_mouseh3());
-        
-      displayfr(vid.xres-8, vid.yres-8-fs*7, 2, vid.fsize, XLAT("x: %1", fts(mh[0],4)), 0xC0C0C0, 16);
-      displayfr(vid.xres-8, vid.yres-8-fs*6, 2, vid.fsize, XLAT("y: %1", fts(mh[1],4)), 0xC0C0C0, 16);
-      displayfr(vid.xres-8, vid.yres-8-fs*5, 2, vid.fsize, XLAT("z: %1", fts(mh[2],4)), 0xC0C0C0, 16);
+      shiftpoint h1 = drawtrans * ccenter;
+      shiftpoint h2 = drawtrans * coldcenter;
+      transmatrix T = gpushxto0(unshift(h1));
+      T = spintox(T*unshift(h2)) * T;
+
+      shiftpoint mh1 = full_mouseh();
+      hyperpoint mh = T * unshift(mh1);
+
+      displayfr(vid.xres-8, vid.yres-8-fs*7, 2, vid.fsize, XLAT("x: %1", fts(mh[0],prec)), 0xC0C0C0, 16);
+      displayfr(vid.xres-8, vid.yres-8-fs*6, 2, vid.fsize, XLAT("y: %1", fts(mh[1],prec)), 0xC0C0C0, 16);
+      displayfr(vid.xres-8, vid.yres-8-fs*5, 2, vid.fsize, XLAT("z: %1", fts(mh[2],prec)), 0xC0C0C0, 16);
       if(MDIM == 4)
-        displayfr(vid.xres-8, vid.yres-8-fs*4, 2, vid.fsize, XLAT("w: %1", fts(mh[3],4)), 0xC0C0C0, 16);
+        displayfr(vid.xres-8, vid.yres-8-fs*4, 2, vid.fsize, XLAT("w: %1", fts(mh[3],prec)), 0xC0C0C0, 16);
       mh = inverse_exp(shiftless(mh));
-      displayfr(vid.xres-8, vid.yres-8-fs*3, 2, vid.fsize, XLAT("r: %1", fts(hypot_d(3, mh),4)), 0xC0C0C0, 16);
+      displayfr(vid.xres-8, vid.yres-8-fs*3, 2, vid.fsize, XLAT("r: %1", fts(hypot_d(3, mh),prec)), 0xC0C0C0, 16);
       if(GDIM == 3) {
-        displayfr(vid.xres-8, vid.yres-8-fs, 2, vid.fsize, XLAT("ϕ: %1°", fts(-atan2(mh[2], hypot_d(2, mh)) / degree,4)), 0xC0C0C0, 16);
-        displayfr(vid.xres-8, vid.yres-8-fs*2, 2, vid.fsize, XLAT("λ: %1°", fts(-atan2(mh[1], mh[0]) / degree,4)), 0xC0C0C0, 16);
+        displayfr(vid.xres-8, vid.yres-8-fs, 2, vid.fsize, XLAT("ϕ: %1°", fts(-atan2(mh[2], hypot_d(2, mh)) / degree,prec)), 0xC0C0C0, 16);
+        displayfr(vid.xres-8, vid.yres-8-fs*2, 2, vid.fsize, XLAT("λ: %1°", fts(-atan2(mh[1], mh[0]) / degree,prec)), 0xC0C0C0, 16);
         }
       else {
-        displayfr(vid.xres-8, vid.yres-8-fs*2, 2, vid.fsize, XLAT("ϕ: %1°", fts(-atan2(mh[1], mh[0]) / degree,4)), 0xC0C0C0, 16);
+        displayfr(vid.xres-8, vid.yres-8-fs*2, 2, vid.fsize, XLAT("ϕ: %1°", fts(-atan2(mh[1], mh[0]) / degree,prec)), 0xC0C0C0, 16);
         }
       }
 
@@ -2011,7 +2290,7 @@ EX namespace mapeditor {
       cgi.require_usershapes();
       auto& sh = cgi.ushr[&us->d[dslayer]];
       if(sh.e >= sh.s + 3)
-        displayButton(vid.xres-8, vid.yres-8-fs*8, XLAT("area: %1", area_in_pi ? fts(compute_area(sh) / M_PI, 4) + "π" : fts(compute_area(sh), 4)), 'w', 16);
+        displayButton(vid.xres-8, vid.yres-8-fs*8, XLAT("area: %1", area_in_pi ? fts(compute_area(sh) / M_PI, 4) + "π" : fts(compute_area(sh), prec)), 'w', 16);
       }
 
     
@@ -2093,6 +2372,7 @@ EX namespace mapeditor {
       if(uni == 'n')
         initShape(sg, id);
       else if(uni == 'u') ;
+      else if(uni == 'S') { snapping = !snapping; return; }
       else if(uni >= '0' && uni <= '9') {
         initShape(sg, id);
         xnew = true;
@@ -2112,6 +2392,8 @@ EX namespace mapeditor {
     if(uni == 'u') 
       loadShapes(sg, id);
     
+    if(uni == 'S') snapping = !snapping;
+
     if(uni == 'z' && haveshape && GDIM == 2)
       dialog::editNumber(dsCur->zlevel, -10, +10, 0.1, 0, XLAT("z-level"),
         XLAT("Changing the z-level will make this layer affected by the parallax effect."));
@@ -2137,7 +2419,7 @@ EX namespace mapeditor {
           }
         if(uni == 'c') dsCur->list.push_back(best);
         else if(uni == 'd') {
-          vector<hyperpoint> oldlist = move(dsCur->list);
+          vector<hyperpoint> oldlist = std::move(dsCur->list);
           dsCur->list.clear();
           int i;
           for(i=0; i<isize(oldlist); i+=3)
@@ -2157,7 +2439,7 @@ EX namespace mapeditor {
       }
     
     if(uni == 'a' && haveshape) {
-      mh = spin(2*M_PI*-ew.rotid/dsCur->rots) * mh;
+      mh = spin(TAU*-ew.rotid/dsCur->rots) * mh;
       if(ew.symid) mh = Mirror * mh;
     
       if(ew.pointid < 0 || ew.pointid >= isize(dsCur->list)) 
@@ -2179,7 +2461,7 @@ EX namespace mapeditor {
 
       if(i < 0 || i >= isize(dsCur->list)) return;
 
-      mh = spin(2*M_PI*-ew.rotid/dsCur->rots) * mh;
+      mh = spin(TAU*-ew.rotid/dsCur->rots) * mh;
       if(ew.symid) mh = Mirror * mh;
 
       if(uni == 'm' || uni == 'M') 
@@ -2380,7 +2662,7 @@ EX namespace mapeditor {
         addMessage(XLAT("Hint: use F7 to edit floor under the player"));
       }
     
-    shiftpoint mh = GDIM == 2 ? mouseh : find_mouseh3();
+    shiftpoint mh = full_mouseh();
     hyperpoint mh1 = inverse_shift(drawtrans, mh);
 
     bool clickused = false;
@@ -2496,6 +2778,7 @@ EX namespace mapeditor {
       }
 
     if(sym == SDLK_F10) popScreen();
+    else if(uni == 'A') popScreen();
 
     (void)clickused;
     
@@ -2555,7 +2838,7 @@ EX namespace mapeditor {
           shiftmatrix T = rgpushxto0(lstart);
           texture::where = lstartcell;
           for(int i=0; i<circp; i++)
-            texture::drawPixel(T * xspinpush0(2 * M_PI * i / circp, rad), tcolor);
+            texture::drawPixel(T * xspinpush0(TAU * i / circp, rad), tcolor);
           lstartcell = NULL;
           }
 #endif          
@@ -2639,6 +2922,32 @@ EX namespace mapeditor {
             println(hlog);
             }
           }
+
+        for(int i=0; i<USERSHAPEGROUPS; i++) for(auto usp: usershapes[i]) {
+          auto us = usp.second;
+          if(!us) continue;
+
+          for(int l=0; l<USERLAYERS; l++) if(isize(us->d[l].list)) {
+            usershapelayer& ds(us->d[l]);
+            println(hlog, spaced("//", i, usp.first, l, "[", ds.color, double(ds.zlevel), "]"));
+            print(hlog, "{");
+
+            for(int r=0; r<us->d[l].rots; r++) {
+              for(int i=0; i<isize(us->d[l].list); i++) {
+                hyperpoint h = us->d[l].list[i];
+                h = spin(TAU * r / us->d[l].rots) * h;
+                for(int d=0; d<GDIM; d++) print(hlog, fts(h[d]), ", ");
+                }
+              if(us->d[l].sym) for(int i=isize(us->d[l].list)-1; i>=0; i--) {
+                hyperpoint h = us->d[l].list[i];
+                h[1] = -h[1];
+                h = spin(TAU * r / us->d[l].rots) * h;
+                for(int d=0; d<GDIM; d++) print(hlog, fts(h[d]), ", ");
+                }
+              }
+            println(hlog, "}, ");
+            }
+          }
         }
   
       if(uni == 'p') {
@@ -2712,7 +3021,7 @@ EX namespace mapeditor {
     if(radius > .1) circp *= 2; 
     
     for(int j=0; j<circp; j++)
-      pts.push_back(xspinpush0(M_PI*j*2/circp, radius));
+      pts.push_back(xspinpush0(TAU * j / circp, radius));
     for(int j=0; j<circp; j++) curvepoint(pts[j]);
     curvepoint(pts[0]);
     queuecurve(Ctr, dtcolor, 0, PPR::LINE);
@@ -2747,7 +3056,7 @@ EX namespace mapeditor {
 
       for(int j=0; j<=texture::texturesym; j++)
       for(int i=0; i<c->type; i += sih.symmetries) {
-        shiftmatrix M2 = V * applyPatterndir(c, sih) * spin(2*M_PI*i/c->type);
+        shiftmatrix M2 = V * applyPatterndir(c, sih) * spin(TAU * i / c->type);
         if(j) M2 = M2 * Mirror;
         switch(holdmouse ? mousekey : 'd') {
           case 'c':
@@ -2783,7 +3092,8 @@ EX namespace mapeditor {
         hpcshape& sh(cgi.ushr[&ds]);
     
         if(sh.s != sh.e) {
-          auto& last = queuepolyat(mmscale(V, GDIM == 3 ? 0 : geom3::lev_to_factor(ds.zlevel)), sh, ds.color ? ds.color : color, prio);
+          shiftmatrix V1 = GDIM == 3 ? V : orthogonal_move(V, ds.zlevel);
+          auto& last = queuepolyat(V1, sh, ds.color ? ds.color : color, prio);
           if(GDIM == 3) {
             last.tinf = &user_triangles_texture;
             last.offset_texture = ds.texture_offset;
@@ -2822,7 +3132,7 @@ EX namespace mapeditor {
      
         usershapelayer &ds(us->d[mapeditor::dslayer]);
         
-        shiftpoint moh = GDIM == 2 ? mouseh : find_mouseh3();
+        shiftpoint moh = full_mouseh();
         
         hyperpoint mh = inverse_shift(mapeditor::drawtrans, moh);
     
@@ -2831,14 +3141,14 @@ EX namespace mapeditor {
     
           if(mouseout()) break;
     
-          shiftpoint P2 = V * spin(2*M_PI*a/ds.rots) * (b?Mirror*mh:mh);
+          shiftpoint P2 = V * spin(TAU * a / ds.rots) * (b?Mirror*mh:mh);
         
           queuestr(P2, 10, "x", 0xFF00FF);
           }
         
         if(isize(ds.list) == 0) return us;
         
-        shiftpoint Plast = V * spin(-2*M_PI/ds.rots) * (ds.sym?Mirror*ds.list[0]:ds.list[isize(ds.list)-1]);
+        shiftpoint Plast = V * spin(-TAU / ds.rots) * (ds.sym?Mirror*ds.list[0]:ds.list[isize(ds.list)-1]);
         int state = 0;
         int gstate = 0;
         double dist2 = 0;
@@ -2847,14 +3157,14 @@ EX namespace mapeditor {
         for(int a=0; a<ds.rots; a++) 
         for(int b=0; b<(ds.sym?2:1); b++) {
         
-          hyperpoint mh2 = spin(2*M_PI*-ew.rotid/ds.rots) * mh;
+          hyperpoint mh2 = spin(TAU * -ew.rotid/ds.rots) * mh;
           if(ew.symid) mh2 = Mirror * mh2;
-          shiftpoint pseudomouse = V * spin(2*M_PI*a/ds.rots) * mirrorif(mh2, b);      
+          shiftpoint pseudomouse = V * spin(TAU * a / ds.rots) * mirrorif(mh2, b);
         
           for(int t=0; t<isize(ds.list); t++) {
             int ti = b ? isize(ds.list)-1-t : t;
   
-            shiftpoint P2 = V * spin(2*M_PI*a/ds.rots) * mirrorif(ds.list[ti], b);
+            shiftpoint P2 = V * spin(TAU * a / ds.rots) * mirrorif(ds.list[ti], b);
             
             if(!mouseout()) {
               double d = hdist(moh, P2);
@@ -2908,9 +3218,23 @@ EX namespace mapeditor {
     }
 #endif
 
+
+  EX string canvasFloorName(int id) {
+    if(id>=0 && id<caflEND)
+      return XLAT(canvasFloorNames[id]);
+    return its(id);
+    }
+  string allCanvasFloorNames() {
+    string ret;
+    for(int i=0; i<caflEND; i++) {
+      ret += its(i) + ":" + canvasFloorName(i) + "  ";
+      }
+    return ret;
+    }
+
   EX void map_settings() {
     cmode = sm::SIDE | sm::MAYDARK;
-    gamescreen(1);
+    gamescreen();
   
     dialog::init(XLAT("Map settings"));
   
@@ -2930,7 +3254,20 @@ EX namespace mapeditor {
     dialog::addBoolItem(XLAT("god mode"), autocheat, 'G');
     dialog::add_action([] () { autocheat = true; });
     dialog::addInfo(XLAT("(unlock all, allow cheats, normal character display, cannot be turned off!)"));
+
+    add_edit(game_keys_scroll);
+    dialog::addInfo(XLAT("hint: shift+A to enter the map editor"));
     
+    if(WDIM == 3 && !intra::in) {
+      dialog::addBoolItem(XLAT("become a portal map"), intra::in, 'm');
+      dialog::add_action_push(intra::become_menu);
+      }
+
+    if(WDIM == 3 && intra::in) {
+      dialog::addItem(XLAT("manage portals"), 'm');
+      dialog::add_action_push(intra::show_portals);
+      }
+
     dialog::addItem(XLAT("change the pattern/color of new Canvas cells"), 'c');
     dialog::add_action_push(patterns::showPrePatternNoninstant);
 
@@ -2939,6 +3276,19 @@ EX namespace mapeditor {
 
     dialog::addItem(XLAT("edit cell values"), 'G');
     dialog::add_action(push_debug_screen);
+
+    dialog::addSelItem(XLAT("canvas floor shape"), canvasFloorName(canvasfloor), 'S');
+    dialog::add_action([] {
+      dialog::editNumber(canvasfloor, 0, caflEND - 1, 1, 0, XLAT("canvas floor shape"),allCanvasFloorNames());
+      });
+
+    dialog::addSelItem(XLAT("canvas darkness"), its(canvasdark), 'd');
+    dialog::add_action([] {
+      dialog::editNumber(canvasdark, 0, 2, 1, 0, XLAT("canvas darkness"),
+      "0: no darkening (bright mode, canvas, reptiles, etc)\n"
+      "1: light darkening (r'lyeh, palace, dragon chasms, etc)\n"
+      "2: normal darkening (default, most lands)");
+      });
     
     dialog::addBack();
     dialog::display();

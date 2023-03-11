@@ -45,7 +45,7 @@ void run_sb() {
   stop_game();
   crystal::set_crystal(6);
   set_variation(eVariation::pure);
-  firstland = specialland = laCanvas;
+  enable_canvas();
   patterns::whichCanvas = 'g';
   patterns::canvasback = 0x101010;
   check_cgi();
@@ -98,6 +98,8 @@ void run_sb() {
   vid.use_smart_range = 2;
   undos.push_back(current_state());
   peace::on = true;
+
+  sb_hooks();
   }
 
 void save_undo() {
@@ -171,6 +173,10 @@ void sb_hooks() {
     return true;
     });
   rv_hook(hooks_handleKey, 50, soko_key);
+  on_cleanup_or_next([] {
+    undos.clear();
+    celllist.clear();
+    });
   }
 
 auto sbhook = arg::add2("-crystal-sokoban", run_sb);

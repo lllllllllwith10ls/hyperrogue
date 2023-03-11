@@ -135,7 +135,7 @@ EX namespace models {
   #endif
 
   EX transmatrix rotmatrix() {
-    if(GDIM == 2 || prod) return spin(rotation * degree);
+    if(GDIM == 2 || gproduct) return spin(rotation * degree);
     return spin(rotation_xy2 * degree) * cspin(0, 2, -rotation_xz * degree) * spin(rotation * degree);
     }
   
@@ -176,7 +176,7 @@ EX namespace models {
       euclidean_spin = pispin * iso_inverse(cview().T * currentmap->master_relative(centerover, true));
       euclidean_spin = gpushxto0(euclidean_spin * C0) * euclidean_spin;
       hyperpoint h = inverse(euclidean_spin) * (C0 + (euc::eumove(gp::loc{1,0})*C0 - C0) * vpconf.spiral_x + (euc::eumove(gp::loc{0,1})*C0 - C0) * vpconf.spiral_y);
-      spiral_multiplier = cld(0, 2 * M_PI) / cld(h[0], h[1]);
+      spiral_multiplier = cld(0, TAU) / cld(h[0], h[1]);
       }
     
     if(centerover && !history::on)
@@ -185,20 +185,27 @@ EX namespace models {
       }
     }
   
+  /** mdRelPerspective and mdRelOrthogonal in hyperbolic space only make sense if it is actually a de Sitter visualization */
+  EX bool desitter_projections;
+
   EX bool model_available(eModel pm) {
-    if(prod) {
+    if(mdinf[pm].flags & mf::technical) return false;
+    if(gproduct) {
       if(pm == mdPerspective) return true;
       if(among(pm, mdBall, mdHemisphere)) return false;
       return PIU(model_available(pm));
       }
-    if(sl2) return pm == mdGeodesic;
-    if(nonisotropic) return among(pm, mdDisk, mdPerspective, mdHorocyclic, mdGeodesic, mdEquidistant, mdFisheye);
-    if(pm == mdGeodesic && !sol) return false;
+    if(hyperbolic && desitter_projections && among(pm, mdRelPerspective, mdRelOrthogonal)) return true;
+    if(sl2) return among(pm, mdGeodesic, mdEquidistant, mdRelPerspective, mdRelOrthogonal, mdHorocyclic, mdPerspective);
+    if(nonisotropic) return among(pm, mdDisk, mdPerspective, mdHorocyclic, mdGeodesic, mdEquidistant, mdFisheye, mdLiePerspective, mdLieOrthogonal);
     if(sphere && (pm == mdHalfplane || pm == mdBall))
       return false;
-    if(GDIM == 2 && pm == mdPerspective) return false;
+    if(GDIM == 2 && is_perspective(pm)) return false;
+    if(pm == mdGeodesic && !nonisotropic) return false;
+    if(pm == mdLiePerspective && sphere) return false;
+    if(pm == mdLieOrthogonal && sphere) return false;
     if(GDIM == 2 && pm == mdEquivolume) return false;
-    if(pm == mdThreePoint && !(GDIM == 3 && !nonisotropic && !prod)) return false;
+    if(pm == mdThreePoint && !(GDIM == 3 && !nonisotropic && !gproduct)) return false;
     if(GDIM == 3 && among(pm, mdBall, mdHyperboloid, mdFormula, mdPolygonal, mdRotatedHyperboles, mdSpiral, mdHemisphere)) return false;
     if(pm == mdCentralInversion && !euclid) return false;
     if(pm == mdPoorMan) return hyperbolic;
@@ -207,9 +214,9 @@ EX namespace models {
     }    
   
   EX bool has_orientation(eModel m) {
-    if(m == mdHorocyclic)
-      return hyperbolic;
-    if((m == mdPerspective || m == mdGeodesic) && panini_alpha) return true;
+    if(among(m, mdHorocyclic, mdLieOrthogonal, mdLiePerspective))
+      return hyperbolic || in_h2xe();
+    if(is_perspective(m) && panini_alpha) return true;
     return
       among(m, mdHalfplane, mdPolynomial, mdPolygonal, mdTwoPoint, mdJoukowsky, mdJoukowskyInverted, mdSpiral, mdSimulatedPerspective, mdTwoHybrid, mdHorocyclic, mdAxial, mdAntiAxial, mdQuadrant,
         mdWerner, mdAitoff, mdHammer, mdLoximuthal, mdWinkelTripel, mdThreePoint) || mdBandAny();
@@ -221,9 +228,13 @@ EX namespace models {
     if(sphere) return (mdinf[m].flags & mf::broken) ? 2 : 0;
     return 0;
     }
+
+  EX bool is_hyperboloid(eModel m) {
+    return m == (sphere ? mdHemisphere : mdHyperboloid);
+    }
   
   EX bool is_perspective(eModel m) {
-    return among(m, mdPerspective, mdGeodesic);
+    return among(m, mdPerspective, mdGeodesic, mdLiePerspective, mdRelPerspective);
     }
 
   EX bool is_3d(const projection_configuration& p) {
@@ -236,7 +247,7 @@ EX namespace models {
     }
   
   EX bool product_model(eModel m) {
-    if(!prod) return false;
+    if(!gproduct) return false;
     if(among(m, mdPerspective, mdHyperboloid, mdEquidistant, mdThreePoint)) return false;
     return true;
     }
@@ -245,13 +256,13 @@ EX namespace models {
   
   EX string get_model_name(eModel m) {
     if(m == mdDisk && GDIM == 3 && (hyperbolic || nonisotropic)) return XLAT("ball model/Gans");
-    if(m == mdPerspective && prod) return XLAT("native perspective");
-    if(prod) return PIU(get_model_name(m));
+    if(m == mdPerspective && gproduct) return XLAT("native perspective");
+    if(gproduct) return PIU(get_model_name(m));
     if(nonisotropic) {
       if(m == mdHorocyclic && !sol) return XLAT("simple model: projection");
       if(m == mdPerspective) return XLAT("simple model: perspective");
       if(m == mdGeodesic) return XLAT("native perspective");
-      if(among(m, mdEquidistant, mdFisheye, mdHorocyclic)) return XLAT(mdinf[m].name_hyperbolic);
+      if(among(m, mdEquidistant, mdFisheye, mdHorocyclic, mdLiePerspective, mdLieOrthogonal, mdRelPerspective, mdRelOrthogonal)) return XLAT(mdinf[m].name_hyperbolic);
       }
     if(m == mdDisk && GDIM == 3) return XLAT("perspective in 4D");
     if(m == mdHalfplane && GDIM == 3 && hyperbolic) return XLAT("half-space");
@@ -312,11 +323,11 @@ EX namespace models {
       initquickqueue();
       queuereset(mdPixel, PPR::LINE);              
       for(int a=-1; a<=1; a++) {
-        curvepoint(point2(-M_PI/2 * current_display->radius, a*current_display->radius));
-        curvepoint(point2(+M_PI/2 * current_display->radius, a*current_display->radius));
+        curvepoint(point2(-90._deg * current_display->radius, a*current_display->radius));
+        curvepoint(point2(+90._deg * current_display->radius, a*current_display->radius));
         queuecurve(shiftless(Id), forecolor, 0, PPR::LINE);
-        curvepoint(point2(a*current_display->radius, -M_PI/2*current_display->radius));
-        curvepoint(point2(a*current_display->radius, +M_PI/2*current_display->radius));
+        curvepoint(point2(a*current_display->radius, -90._deg * current_display->radius));
+        curvepoint(point2(a*current_display->radius, +90._deg * current_display->radius));
         queuecurve(shiftless(Id), forecolor, 0, PPR::LINE);
         }
       queuereset(vpconf.model, PPR::LINE);
@@ -354,17 +365,18 @@ EX namespace models {
 
   EX void model_list() {
     cmode = sm::SIDE | sm::MAYDARK | sm::CENTER;
-    gamescreen(0);
+    gamescreen();
     dialog::init(XLAT("models & projections"));
     #if CAP_RUG
     USING_NATIVE_GEOMETRY_IN_RUG;
     #endif
 
-    for(int i=0; i<mdGUARD; i++) {
+    dialog::start_list(2000, 2000, 'a');
+    for(int i=0; i<isize(mdinf); i++) {
       eModel m = eModel(i);
       if(m == mdFormula && ISMOBILE) continue;
       if(model_available(m)) {
-        dialog::addBoolItem(get_model_name(m), vpconf.model == m, (i < 26 ? 'a'+i : 'A'+i-26));
+        dialog::addBoolItem(get_model_name(m), vpconf.model == m, dialog::list_fake_key++);
         dialog::add_action([m] () {
           if(m == mdFormula) {
             edit_formula();
@@ -382,6 +394,9 @@ EX namespace models {
         }
       }
     
+    dialog::end_list();
+    dialog::addBreak(100);
+    dialog::addBack();
     dialog::display();
     }
       
@@ -410,7 +425,7 @@ EX namespace models {
 
   EX void model_menu() {
     cmode = sm::SIDE | sm::MAYDARK | sm::CENTER;
-    gamescreen(0);
+    gamescreen();
     #if CAP_RUG
     USING_NATIVE_GEOMETRY_IN_RUG;
     #endif
@@ -537,6 +552,12 @@ EX namespace models {
       dialog::addBoolItem_action(XLAT("use atan to make it finite"), vpconf.use_atan, 'x');
       }
 
+    if(among(vpmodel, mdLieOrthogonal, mdLiePerspective)) {
+      if(in_s2xe() || (sphere && GDIM == 2)) dialog::addInfo(XLAT("this is not a Lie group"), 0xC00000);
+      else if(!hyperbolic && !sol && !nih && !nil && !euclid && !in_h2xe() && !in_e2xe())
+        dialog::addInfo(XLAT("not implemented"));
+      }
+
     if(vpmodel == mdBall && !vr_settings) {
       dialog::addSelItem(XLAT("projection in ball model"), fts(vpconf.ballproj), 'x');
       dialog::add_action([] () {
@@ -591,7 +612,7 @@ EX namespace models {
         });
       }
     
-    if(vpmodel == mdHyperboloid) 
+    if(is_hyperboloid(vpmodel))
       add_edit(vpconf.top_z);
     
     if(has_transition(vpmodel)) 
@@ -599,6 +620,9 @@ EX namespace models {
 
     if(among(vpmodel, mdJoukowsky, mdJoukowskyInverted, mdSpiral) && GDIM == 2) 
       add_edit(vpconf.skiprope);
+
+    if(vpmodel == mdJoukowskyInverted)
+      add_edit(vpconf.dualfocus_autoscale);
     
     if(vpmodel == mdHemisphere && euclid) 
       add_edit(vpconf.euclid_to_sphere);
@@ -609,7 +633,7 @@ EX namespace models {
     if(vpmodel == mdFisheye) 
       add_edit(vpconf.fisheye_param);
 
-    if(vpmodel == mdHyperboloid) 
+    if(is_hyperboloid(vpmodel))
       add_edit(pconf.show_hyperboloid_flat);
     
     if(vpmodel == mdCollignon) 
@@ -688,8 +712,8 @@ EX namespace models {
     }
     
   EX void quick_model() {
-    cmode = sm::CENTER;
-    gamescreen(1);
+    cmode = sm::CENTER | sm::SIDE | sm::MAYDARK;
+    gamescreen();
     dialog::init("models & projections");
     
     if(GDIM == 2 && !euclid) {
@@ -773,7 +797,12 @@ EX namespace models {
 
   #if CAP_COMMANDLINE
   
-  eModel read_model(const string& ss) {
+  EX eModel read_model(const string& ss) {
+    for(int i=0; i<isize(mdinf); i++) {
+      if(hyperbolic && appears(mdinf[i].name_hyperbolic, ss)) return eModel(i);
+      if(euclid && appears(mdinf[i].name_euclidean, ss)) return eModel(i);
+      if(sphere && appears(mdinf[i].name_spherical, ss)) return eModel(i);
+      }
     for(int i=0; i<isize(mdinf); i++) {
       if(appears(mdinf[i].name_hyperbolic, ss)) return eModel(i);
       if(appears(mdinf[i].name_euclidean, ss)) return eModel(i);
@@ -1006,7 +1035,7 @@ EX namespace models {
           "Here you can change this parameter.", 'b');
       param_f(p.miller_parameter, sp+"miller");
       param_f(p.loximuthal_parameter, sp+"loximuthal")
-      -> editable(-M_PI/2, M_PI/2, .1, "loximuthal parameter", 
+      -> editable(-90._deg, 90._deg, .1, "loximuthal parameter",
           "Loximuthal is similar to azimuthal equidistant, but based on loxodromes (lines of constant geographic direction) rather than geodesics. "
           "The loximuthal projection maps (the shortest) loxodromes to straight lines of the same length, going through the starting point. "
           "This setting changes the latitude of the starting point.\n\n"
@@ -1023,6 +1052,9 @@ EX namespace models {
   
       param_f(p.skiprope, sp+"mobius", 0)
       -> editable(0, 360, 15, "Möbius transformations", "", 'S')->unit = "°";
+
+      param_b(p.dualfocus_autoscale, sp+"dualfocus_autoscale", 0)
+      -> editable("autoscale dual focus", 'A');
       
       addsaver(p.formula, sp+"formula");
       addsaverenum(p.basic_model, sp+"basic model");
@@ -1039,6 +1071,8 @@ EX namespace models {
       param_f(p.scale, sp+"scale", 1);
       param_f(p.xposition, sp+"xposition", 0);
       param_f(p.yposition, sp+"yposition", 0);
+
+      param_i(p.back_and_front, sp+"backandfront", 0);
 
       addsaver(p.alpha, sp+"projection", 1);
       param_custom(p.alpha, sp+"projection", menuitem_projection_distance, 'p')

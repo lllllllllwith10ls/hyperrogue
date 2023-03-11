@@ -13,8 +13,8 @@
 #define _HYPER_H_
 
 // version numbers
-#define VER "12.0f"
-#define VERNUM_HEX 0xA906
+#define VER "12.1i"
+#define VERNUM_HEX 0xA929
 
 #include "sysconfig.h"
 
@@ -110,6 +110,11 @@ struct hr_shortest_path_exception { };
 #define GEN_F 1
 #define GEN_N 2
 #define GEN_O 3
+#define GEN_BASE_MASK   7
+
+#define GENF_ELISION    (1 << 3)
+#define GENF_PLURALONLY (1 << 4)
+#define GENF_PROPER     (1 << 5)
 
 // Add a message to the GUI.
 // If multiple messages appear with the same spamtype != 0, the older ones disappear quickly
@@ -124,7 +129,7 @@ void addMessage(string s, char spamtype = 0);
 #define hyperbolic_37 (S7 == 7 && S3 == 3 && !bt::in() && !arcm::in())
 #define hyperbolic_not37 ((S7 > 7 || S3 > 3 || bt::in() || arcm::in()) && hyperbolic)
 #define weirdhyperbolic ((S7 > 7 || S3 > 3 || !STDVAR || bt::in() || arcm::in() || arb::in()) && hyperbolic)
-#define stdhyperbolic (S7 == 7 && S3 == 3 && STDVAR && !bt::in() && !arcm::in())
+#define stdhyperbolic (S7 == 7 && S3 == 3 && STDVAR && !bt::in() && !arcm::in() && !arb::in())
 
 #define cgflags cginf.flags 
 
@@ -139,24 +144,36 @@ void addMessage(string s, char spamtype = 0);
 #define cgclass (cginf.cclass)
 #define euclid (cgclass == gcEuclid)
 #define sphere (cgclass == gcSphere)
-#define sol (cgflags & qSOL)
-#define nih (cgflags & qNIH)
+#define sol (among(cgclass, gcSol, gcSolN))
+#define nih (among(cgclass, gcNIH, gcSolN))
 #define nil (cgclass == gcNil)
 #define sl2 (cgclass == gcSL2)
-#define prod (cgclass == gcProduct)
-#define hybri (cgflags & qHYBRID)
 #define rotspace (geometry == gRotSpace)
 #define hyperbolic (cgclass == gcHyperbolic)
-#define nonisotropic (among(cgclass, gcSolNIH, gcNil, gcSL2))
+#define nonisotropic (among(cgclass, gcSol, gcSolN, gcNIH, gcSL2, gcNil))
 #define translatable (euclid || nonisotropic)
 #define nonorientable (cgflags & qNONORIENTABLE)
 #define elliptic (cgflags & qELLIPTIC)
 #define quotient (cgflags & qANYQ)
-#define smallbounded (cgflags & qSMALL)
-#define bounded (cgflags & qBOUNDED)
+#define smallbounded ((cgflags & qSMALL) || disksize)
+#define closed_manifold (cgflags & qCLOSED)
+#define closed_or_bounded (closed_manifold || disksize)
+/** the actual map has hybrid geometry, not just the graphics */
+#define mhybrid (cgflags & qHYBRID)
+/** graphics based on a product geometry -- either embedded or actual hybrid product */
+#define gproduct (cgclass == gcProduct)
+
+/** 2D geometry embedded in 3D */
+#define embedded_plane (WDIM == 2 && GDIM == 3)
+/** the actual map is product, not just the graphics */
+#define mproduct (gproduct && !embedded_plane)
+/** the actual map is product, not just the graphics */
+#define meuclid (geom3::mgclass() == gcEuclid)
+#define msphere (geom3::mgclass() == gcSphere)
+#define mhyperbolic (geom3::mgclass() == gcHyperbolic)
 
 // Dry Forest burning, heat transfer, etc. are performed on the whole universe
-#define doall (bounded)
+#define doall (closed_or_bounded)
 
 #define sphere_narcm (sphere && !arcm::in())
 
@@ -266,6 +283,9 @@ struct projection_configuration {
   ld depth_scaling;
   ld hyperboloid_scaling;
   ld vr_angle, vr_zshift, vr_scale_factor;
+  bool dualfocus_autoscale;
+
+  int back_and_front; /* 0 = do not, 1 = do, 2 = only back */
 
   projection_configuration() { 
     formula = "z^2"; top_z = 5; model_transition = 1; spiral_angle = 70; spiral_x = 10; spiral_y = 7; 
@@ -286,10 +306,14 @@ struct projection_configuration {
     hyperboloid_scaling = 1;
     vr_zshift = 0;
     vr_scale_factor = 1;
+    back_and_front = 0;
+    dualfocus_autoscale = false;
     }
   };
 
 enum eThreatLevel { tlNoThreat, tlSpam, tlNormal, tlHighThreat };
+
+constexpr ld use_the_default_value = -20.0625;
 
 struct videopar {
   projection_configuration projection_config, rug_config;
@@ -332,7 +356,7 @@ struct videopar {
   int fsize, abs_fsize, fontscale;
   int flashtime;
   
-  int wallmode, monmode, axes, highlightmode;
+  int wallmode, monmode, axes, highlightmode, orbmode;
   bool axes3;
   bool revcontrol;
   
@@ -394,9 +418,13 @@ struct videopar {
   ld depth;      // world level below the plane
   ld camera;     // camera level above the plane
   ld wall_height, creature_scale, height_width;
-  ld lake_top, lake_bottom;
+  ld lake_top, lake_bottom, lake_shallow, wall_height2, wall_height3;
+  ld lowsky_height, sky_height, star_height, infdeep_height, star_size, sun_size;
+  bool height_limits;
   ld rock_wall_ratio;
   ld human_wall_ratio;
+  bool pseudohedral; // in 3D modes
+  ld depth_bonus;   // to fiix the placement of 3D models in pseudogonal -- not working currently
 
   int tc_alpha, tc_depth, tc_camera;
   ld highdetail, middetail;
@@ -411,6 +439,9 @@ struct videopar {
   
   eThreatLevel faraway_highlight; // draw attention to monsters on the horizon
   int faraway_highlight_color; // 0 = monster color, 100 = red-green oscillation
+
+  ld ispeed;
+  bool flasheffects;
   };
 
 extern videopar vid;
@@ -662,8 +693,6 @@ static const int MAXPLAYER = 7;
 // just in case if I change my mind about when Orbs lose their power
 #define ORBBASE 0
 
-#define mmscale(V, x) (mmspatial ? (ivoryz ? mzscale(V,x) : mscale(V, x)) : (V))
-
 #define SHADOW_WALL 0x60
 #define SHADOW_SL   0x18
 #define SHADOW_MON  0x30
@@ -894,8 +923,8 @@ template <class T> void texture_order(const T& f) {
 
 /** find the smallest value of x in range [dmin..dmax] such that f(x) returns true */
 
-template<class T> ld binsearch(ld dmin, ld dmax, const T& f) {
-  for(int i=0; i<200; i++) {
+template<class T> ld binsearch(ld dmin, ld dmax, const T& f, int iterations = 200) {
+  for(int i=0; i<iterations; i++) {
     ld d = (dmin + dmax) / 2;
     if(dmin == d || dmax == d) break;
     if(f(d)) dmax = d;

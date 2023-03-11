@@ -171,7 +171,7 @@ EX bool monstersnear(cell *c, eMonster who) {
       if(elec::affected(c2)) continue;
       if(fast && c2->monst != moWitchSpeed) continue;
       // Krakens just destroy boats
-      if(who == moPlayer && c2->monst == moKrakenT && c->wall == waBoat) {
+      if(who == moPlayer && c2->monst == moKrakenT && c->wall == waBoat && !peace::on) {
         kraken_will_destroy_boat = true;
         continue;
         }
@@ -203,8 +203,6 @@ EX bool monstersnear_aux() {
   changes.value_set(passive_switch, (gold() & 1) ? moSwitch1 : moSwitch2);
   multi::cpid++;
   bool b = false;
-  bool recorduse[ittypes];
-  for(int i=0; i<ittypes; i++) recorduse[i] = orbused[i];
   if(multi::cpid == multi::players || multi::players == 1 || multi::checkonly) {
 
     if(shmup::delayed_safety) return false;
@@ -238,12 +236,15 @@ EX bool monstersnear_aux() {
     }
   else b = !multimove();
   multi::cpid--;
-  for(int i=0; i<ittypes; i++) orbused[i] = recorduse[i];
   return b;
   }
 
 /** like monstersnear but add the potential moves of other players into account */
 EX bool monstersnear_add_pmi(player_move_info pmi0) {
+  if(suicidal) {
+    who_kills_me = moPlayer;
+    return true;
+    }
   pmi.push_back(pmi0);
   bool b = monstersnear_aux();
   pmi.pop_back();
@@ -295,11 +296,7 @@ EX void checkmove() {
 
   if(multi::players > 1 && !multi::checkonly) return;
   if(hardcore) return;
-  bool orbusedbak[ittypes];
   
-  // do not activate orbs!
-  for(int i=0; i<ittypes; i++) orbusedbak[i] = orbused[i];
-
   legalmoves.clear(); legalmoves.resize(cwt.at->type+1, false);
   move_issues.clear(); move_issues.resize(cwt.at->type, 0);
 
@@ -355,7 +352,6 @@ EX void checkmove() {
     }
   items[itWarning]-=2;
 
-  for(int i=0; i<ittypes; i++) orbused[i] = orbusedbak[i];
   if(recallCell.at && !markOrb(itOrbRecall)) activateRecall();  
   }
 

@@ -71,11 +71,11 @@ bool advance_walkers(int delta) {
       auto& w = walkers[i];
       hyperpoint h = tC0(w.T);
       if(WDIM == 2) {
-        w.T = w.T * xspinpush(randd() * 2 * M_PI, step_size);
+        w.T = w.T * xspinpush(randd() * TAU, step_size);
         }
       else {
         hyperpoint dir = random_spin() * xtangent(step_size);
-        apply_parallel_transport(w.T, w.ori, dir);        
+        apply_shift_object(w.T, w.ori, dir);        
         }
       fixmatrix(w.T);
       hyperpoint h1 = tC0(w.T);
@@ -111,7 +111,7 @@ int args() {
 
 void show() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("random walk"), 0xFFFFFFFF, 150, 0);
 
   dialog::addSelItem("step size", fts(step_size), 'd');

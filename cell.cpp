@@ -27,7 +27,7 @@ struct hrmap {
     return create_step(h, direction);
     }
   virtual heptagon *create_step(heptagon *h, int direction);
-private:
+protected:
   virtual transmatrix relative_matrixh(heptagon *h2, heptagon *h1, const hyperpoint& hint);
   virtual transmatrix relative_matrixc(cell *c2, cell *c1, const hyperpoint& hint);
 public:
@@ -51,7 +51,7 @@ public:
   virtual transmatrix spin_to(cell *c, int d, ld bonus=0);
   virtual transmatrix spin_from(cell *c, int d, ld bonus=0);
   
-  virtual double spacedist(cell *c, int i) { return hdist0(tC0(adj(c, i))); }
+  virtual double spacedist(cell *c, int i);
   
   virtual bool strict_tree_rules() { return false; }
 
@@ -74,6 +74,9 @@ public:
 
   /** \brief the sequence of heptagon movement direction to get from c->master to c->move(i)->master; implemented only for reg3 */
   virtual const vector<int>& get_move_seq(cell *c, int i);
+
+  /** generate a new map that is disconnected from what we already have, disconnected from the map we have so far */
+  virtual cell* gen_extra_origin(int fv) { throw hr_exception("gen_extra_origin not supported on this map"); }
   };
 
 /** hrmaps which are based on regular non-Euclidean 2D tilings, possibly quotient  
@@ -114,6 +117,8 @@ struct hrmap_hyperbolic : hrmap_standard {
   void virtualRebase(heptagon*& base, transmatrix& at) override;
   };
 #endif
+
+double hrmap::spacedist(cell *c, int i) { return hdist(tile_center(), adj(c, i) * tile_center()); }
 
 heptagon *hrmap::create_step(heptagon *h, int direction) {
   throw hr_exception("create_step called unexpectedly");
@@ -166,7 +171,7 @@ const vector<int>& hrmap::get_move_seq(cell *c, int i) {
 transmatrix hrmap::spin_to(cell *c, int d, ld bonus) {
   ld sa = spin_angle(c, d);
   if(sa != SPIN_NOT_AVAILABLE) { return spin(bonus + sa); }
-  transmatrix T = rspintox(tC0(adj(c, d)));
+  transmatrix T = lrspintox(tC0(adj(c, d)));
   if(WDIM == 3) return T * cspin(2, 0, bonus);
   return T * spin(bonus);
   }
@@ -174,7 +179,7 @@ transmatrix hrmap::spin_to(cell *c, int d, ld bonus) {
 transmatrix hrmap::spin_from(cell *c, int d, ld bonus) {
   ld sa = spin_angle(c, d);
   if(sa != SPIN_NOT_AVAILABLE) { return spin(bonus - sa); }
-  transmatrix T = spintox(tC0(adj(c, d)));
+  transmatrix T = lspintox(tC0(adj(c, d)));
   if(WDIM == 3) return T * cspin(2, 0, bonus);
   return T * spin(bonus);
   }
@@ -183,7 +188,8 @@ transmatrix hrmap::adj(heptagon *h, int i) { return relative_matrix(h->cmove(i),
 
 vector<cell*>& hrmap::allcells() { 
   static vector<cell*> default_allcells;
-  if(bounded && !(cgflags & qHUGE_BOUNDED) && !(hybri && hybrid::csteps == 0)) {
+  if(disksize) return all_disk_cells;
+  if(closed_manifold && !(cgflags & qHUGE_BOUNDED) && !(mhybrid && hybrid::csteps == 0)) {
     celllister cl(gamestart(), 1000000, 1000000, NULL);
     default_allcells = cl.lst;
     return default_allcells;
@@ -228,7 +234,7 @@ EX vector<hrmap*> allmaps;
 
 EX hrmap *newAltMap(heptagon *o) { 
   #if MAXMDIM >= 4
-  if(reg3::in_rule())
+  if(reg3::in_hrmap_rule_or_subrule())
     return reg3::new_alt_map(o);
   #endif
   if(currentmap->strict_tree_rules())
@@ -267,12 +273,14 @@ void hrmap_standard::find_cell_connection(cell *c, int d) {
   if(IRREGULAR) {
     irr::link_cell(c, d);
     }
+  #else
+  if(0) {}
   #endif
   #if CAP_GP
   else if(GOLDBERG) {
     gp::extend_map(c, d);
     if(!c->move(d)) {
-      printf("extend failed to create for %p/%d\n", hr::voidp(c), d);
+      println(hlog, "extend failed to create for ", cellwalker(c, d));
       exit(1);
       }
     hybrid::link();
@@ -328,16 +336,88 @@ EX void eumerge(cell* c1, int s1, cell *c2, int s2, bool mirror) {
 
 EX hookset<hrmap*()> hooks_newmap;
 
+#if HDR
+enum eDiskShape { dshTiles, dshVertices, dshGeometric };
+#endif
+
+/** requested disk size */
+EX int req_disksize;
+/** currently used disk size */
+EX int disksize;
+/** all the cells in the disk */
+EX vector<cell*> all_disk_cells;
+/** for quick test of membership */
+EX vector<cell*> all_disk_cells_sorted;
+/** the disk shape to use */
+EX eDiskShape diskshape;
+
+EX void init_disk_cells() {
+  disksize = req_disksize;
+  all_disk_cells.clear();
+  all_disk_cells_sorted.clear();
+  if(!disksize) return;
+  if(diskshape == dshTiles) {
+    celllister cl(currentmap->gamestart(), 1000000, disksize, NULL);
+    all_disk_cells = cl.lst;
+    }
+  else {
+    struct tileinfo {
+      ld dist;
+      cell *c;
+      transmatrix T;
+      bool operator < (const tileinfo& t2) const { return -dist < -t2.dist - 1e-6; }
+      };
+    set<cell*> seen;
+    std::priority_queue<tileinfo> tiles;
+    tiles.push(tileinfo{0, currentmap->gamestart(), Id});
+    ld last_dist = 0;
+    dynamicval<int> dmar(mine_adjacency_rule, 1);
+    while(isize(tiles)) {
+      auto ti = tiles.top();
+      tiles.pop();
+      println(hlog, "dist=", ti.dist, " for c=", ti.c);
+      if(seen.count(ti.c)) continue;
+      seen.insert(ti.c);
+      if(ti.dist > last_dist + 1e-6 && isize(all_disk_cells) >= disksize) break;
+      last_dist = ti.dist;
+      all_disk_cells.push_back(ti.c);
+      for(auto p: adj_minefield_cells_full(ti.c)) {
+        tileinfo next;
+        next.c = p.c;
+        next.T = ti.T * p.T;
+        if(diskshape == dshVertices) next.dist = ti.dist + 1;
+        else next.dist = hdist0(tC0(next.T));
+        println(hlog, ti.c, " -> ", p.c, " at ", next.dist);
+        tiles.push(next);
+        }
+      }
+    }
+  all_disk_cells_sorted = all_disk_cells;
+  sort(all_disk_cells_sorted.begin(), all_disk_cells_sorted.end());
+  }
+
+EX bool is_in_disk(cell *c) {
+  auto it = lower_bound(all_disk_cells_sorted.begin(), all_disk_cells_sorted.end(), c);
+  if(it == all_disk_cells_sorted.end()) return false;
+  return *it == c;
+  }
+
 /** create a map in the current geometry */
 EX void initcells() {
   DEBB(DF_INIT, ("initcells"));
-  
+
+  if(embedded_plane) {
+    IPF(initcells());
+    currentmap->on_dim_change();
+    return;
+    }
+
   hrmap* res = callhandlers((hrmap*)nullptr, hooks_newmap);
   if(res) currentmap = res;
   #if CAP_SOLV
   else if(asonov::in()) currentmap = asonov::new_map();
   #endif
-  else if(nonisotropic || hybri) currentmap = nisot::new_map();
+  else if(nonisotropic || mhybrid) currentmap = nisot::new_map();
   else if(INVERSE) currentmap = gp::new_inverse();
   else if(fake::in()) currentmap = fake::new_map();
   #if CAP_CRYSTAL
@@ -380,13 +460,13 @@ EX void clearcell(cell *c) {
     if(c->move(t)->move(c->c.spin(t)) != NULL &&
       c->move(t)->move(c->c.spin(t)) != c) {
         DEBB(DF_MEMORY | DF_ERROR, (format("cell error: type = %d %d -> %d\n", c->type, t, c->c.spin(t))));
-        exit(1);
+        if(worst_precision_error < 1e-3) exit(1);
         }
     c->move(t)->move(c->c.spin(t)) = NULL;
     }
   DEBB(DF_MEMORY, (format("DEL %p\n", hr::voidp(c))));
-  destroy_cell(c);
   gp::delete_mapped(c);
+  destroy_cell(c);
   }
 
 EX heptagon deletion_marker;
@@ -514,11 +594,11 @@ EX int compdist(int dx[]) {
 
 EX int celldist(cell *c) {
   if(experimental) return 0;
-  if(hybri) 
+  if(mhybrid)
     return hybrid::celldistance(c, currentmap->gamestart());
   if(nil && !quotient) return DISTANCE_UNKNOWN;
   if(euc::in()) return celldistance(currentmap->gamestart(), c);
-  if(sphere || bt::in() || WDIM == 3 || cryst || sn::in() || kite::in() || bounded) return celldistance(currentmap->gamestart(), c);
+  if(sphere || bt::in() || WDIM == 3 || cryst || sn::in() || kite::in() || closed_manifold) return celldistance(currentmap->gamestart(), c);
   #if CAP_IRR
   if(IRREGULAR) return irr::celldist(c, false);
   #endif
@@ -545,7 +625,7 @@ static const int ALTDIST_ERROR = 90000;
 
 EX int celldistAlt(cell *c) {
   if(experimental) return 0;
-  if(hybri) { 
+  if(mhybrid) {
     if(in_s2xe()) return hybrid::get_where(c).second;
     auto w = hybrid::get_where(c); 
     int d = c->master->alt && c->master->alt->alt ? hybrid::altmap_heights[c->master->alt->alt] : 0;
@@ -566,7 +646,7 @@ EX int celldistAlt(cell *c) {
     }
   #if MAXMDIM >= 4
   if(euc::in()) return euc::dist_alt(c);
-  if(hyperbolic && WDIM == 3 && !reg3::in_rule())
+  if(hyperbolic && WDIM == 3 && !reg3::in_hrmap_rule_or_subrule())
     return reg3::altdist(c->master);
   #endif
   if(!c->master->alt) return 0;
@@ -604,8 +684,8 @@ EX int updir(heptagon *h) {
   if(bt::in()) return bt::updir();
   #endif
   #if MAXMDIM >= 4
-  if(WDIM == 3 && reg3::in_rule()) {
-    for(int i=0; i<S7; i++) if(h->move(i) && h->move(i)->distance < h->distance) 
+  if(WDIM == 3 && reg3::in_hrmap_rule_or_subrule()) {
+    for(int i=0; i<h->type; i++) if(h->move(i) && h->move(i)->distance < h->distance) 
       return i;
     return -1;
     }
@@ -618,7 +698,7 @@ EX int updir(heptagon *h) {
 EX int updir_alt(heptagon *h) {
   if(euclid || !h->alt) return -1;
   #if MAXMDIM >= 4
-  if(WDIM == 3 && reg3::in_rule()) {
+  if(WDIM == 3 && reg3::in_hrmap_rule_or_subrule()) {
     for(int i=0; i<S7; i++) if(h->move(i) && h->move(i)->alt && h->move(i)->alt->distance < h->alt->distance) 
       return i;
     return -1;
@@ -759,8 +839,9 @@ EX bool randpatternMajority(cell *c, int ival, int iterations) {
 cdata orig_cdata;
 
 EX bool geometry_supports_cdata() {
-  if(hybri) return PIU(geometry_supports_cdata());
-  return among(geometry, gEuclid, gEuclidSquare, gNormal, gOctagon, g45, g46, g47, gBinaryTiling) || (arcm::in() && !sphere) || currentmap->strict_tree_rules();
+  if(mhybrid) return PIU(geometry_supports_cdata());
+  if(embedded_plane) return IPF( geometry_supports_cdata() );
+  return among(geometry, gEuclid, gEuclidSquare, gNormal, gOctagon, g45, g46, g47, gBinaryTiling) || (arcm::in() && !sphere) || (currentmap && currentmap->strict_tree_rules());
   }
 
 void affect(cdata& d, short rv, signed char signum) {
@@ -853,7 +934,8 @@ cdata *getHeptagonCdata_legacy(heptagon *h) {
 
 
 cdata *getHeptagonCdata(heptagon *h) {
-  if(hybri) return PIU ( getHeptagonCdata(h) );
+  if(mhybrid) return PIU ( getHeptagonCdata(h) );
+  if(embedded_plane) return IPF( getHeptagonCdata(h) );
   if(geometry == gNormal && BITRUNCATED) return getHeptagonCdata_legacy(h);
   if(h->cdata) return h->cdata;
 
@@ -999,7 +1081,7 @@ int ld_to_int(ld x) {
 #if CAP_ARCM
 EX gp::loc pseudocoords(cell *c) {
   transmatrix T = arcm::archimedean_gmatrix[c->master].second;
-  return {ld_to_int(T[0][LDIM]), ld_to_int((spin(60*degree) * T)[0][LDIM])};
+  return {ld_to_int(T[0][LDIM]), ld_to_int((spin(60._deg) * T)[0][LDIM])};
   }
 
 EX cdata *arcmCdata(cell *c) {
@@ -1018,8 +1100,9 @@ EX cdata *arcmCdata(cell *c) {
 
 EX int getCdata(cell *c, int j) {
   if(fake::in()) return FPIU(getCdata(c, j));
+  if(embedded_plane) return IPF(getCdata(c, j));
   if(experimental) return 0;
-  if(hybri) { c = hybrid::get_where(c).first; return PIU(getBits(c)); }
+  if(mhybrid) { c = hybrid::get_where(c).first; return PIU(getBits(c)); }
   else if(INVERSE) {
     cell *c1 = gp::get_mapped(c);
     return UIU(getCdata(c1, j));
@@ -1044,8 +1127,9 @@ EX int getCdata(cell *c, int j) {
 
 EX int getBits(cell *c) {
   if(fake::in()) return FPIU(getBits(c));
+  if(embedded_plane) return IPF(getBits(c));
   if(experimental) return 0;
-  if(hybri) { c = hybrid::get_where(c).first; return PIU(getBits(c)); }
+  if(mhybrid) { c = hybrid::get_where(c).first; return PIU(getBits(c)); }
   else if(INVERSE) {
     cell *c1 = gp::get_mapped(c);
     return UIU(getBits(c1));
@@ -1191,9 +1275,11 @@ EX int clueless_celldistance(cell *c1, cell *c2) {
 
 EX int celldistance(cell *c1, cell *c2) {
 
+  if(embedded_plane) return IPF(celldistance(c1, c2));
+
   if(fake::in()) return FPIU(celldistance(c1, c2));
 
-  if(hybri) return hybrid::celldistance(c1, c2);
+  if(mhybrid) return hybrid::celldistance(c1, c2);
   
   #if CAP_FIELD
   if(geometry == gFieldQuotient && (PURE || BITRUNCATED)) {
@@ -1202,7 +1288,7 @@ EX int celldistance(cell *c1, cell *c2) {
     }
   #endif
   
-  if(bounded) return bounded_celldistance(c1, c2);
+  if(closed_manifold) return bounded_celldistance(c1, c2);
   
   #if CAP_CRYSTAL
   if(cryst) return crystal::precise_distance(c1, c2);
@@ -1235,6 +1321,8 @@ EX int celldistance(cell *c1, cell *c2) {
     return UIU(celldistance(c1, c2)) / 2;
     /* TODO */
     }
+
+  if(euclid) return clueless_celldistance(c1, c2);
 
   return hyperbolic_celldistance(c1, c2);
   }
@@ -1293,6 +1381,12 @@ EX vector<cell*> build_shortest_path(cell *c1, cell *c2) {
   }
 
 EX void clearCellMemory() {
+  #if MAXMDIM >= 4 && CAP_RAY
+  if(intra::in) {
+    intra::erase_all_maps();
+    return;
+    }
+  #endif
   for(int i=0; i<isize(allmaps); i++) 
     if(allmaps[i])
       delete allmaps[i];
@@ -1325,7 +1419,15 @@ EX int neighborId(cell *ofWhat, cell *whichOne) {
 
 EX int mine_adjacency_rule = 0;
 
-EX map<cell*, vector<cell*>> adj_memo;
+#if HDR
+struct adj_data {
+  cell *c;
+  bool mirrored;
+  transmatrix T;
+  };
+#endif
+
+EX array<map<cell*, vector<adj_data>>, 2> adj_memo;
 
 EX bool geometry_has_alt_mine_rule() {
   if(S3 >= OINF) return false;
@@ -1334,24 +1436,30 @@ EX bool geometry_has_alt_mine_rule() {
   return true;
   }
 
-EX vector<cell*> adj_minefield_cells(cell *c) {
-  vector<cell*> res;
-  if(mine_adjacency_rule == 0 || !geometry_has_alt_mine_rule())
-    forCellCM(c2, c) res.push_back(c2);
+EX vector<adj_data> adj_minefield_cells_full(cell *c) {
+  auto& am = adj_memo[mine_adjacency_rule];
+  if(am.count(c)) return am[c];
+  if(isize(am) > 10000) am.clear();
+  auto& res = am[c];
+  if(mine_adjacency_rule == 0 || !geometry_has_alt_mine_rule()) {
+    forCellIdCM(c2, i, c) res.emplace_back(adj_data{c2, c->c.mirror(i), currentmap->adj(c, i)});
+    }
   else if(WDIM == 2) {
     cellwalker cw(c, 0);
+    transmatrix T = Id;
+    T = T * currentmap->adj(c, 0);
     cw += wstep;
     cw++;
     cellwalker cw1 = cw;
     do {
-      res.push_back(cw.at);
+      res.emplace_back(adj_data{cw.at, cw.mirrored, T});
+      T = T * currentmap->adj(cw.at, cw.spin);
       cw += wstep;
       cw++;
       if(cw.cpeek() == c) cw++;
       }
     while(cw != cw1);
     }
-  else if(adj_memo.count(c)) return adj_memo[c];
   else {
     auto& ss = currentmap->get_cellshape(c);
     const vector<hyperpoint>& vertices = ss.vertices_only_local;
@@ -1367,7 +1475,7 @@ EX vector<cell*> adj_minefield_cells(cell *c) {
         auto& vertices1 = ss1.vertices_only_local;
         for(hyperpoint h: vertices) for(hyperpoint h2: vertices1)
           if(hdist(h, T * h2) < 1e-6) shares = true;
-        if(shares) res.push_back(c1);
+        if(shares) res.emplace_back(adj_data{c1, det(T) < 0, T});
         }
       if(shares || c == c1) forCellIdEx(c2, i, c1) {
         if(cl.listed(c2)) continue;
@@ -1375,9 +1483,14 @@ EX vector<cell*> adj_minefield_cells(cell *c) {
         M.push_back(T * currentmap->adj(c1, i));
         }
       }
-    // println(hlog, "adjacent to ", c, " = ", isize(res), " of ", isize(M));
-    adj_memo[c] = res;
     }
+  return res;
+  }
+
+EX vector<cell*> adj_minefield_cells(cell *c) {
+  vector<cell*> res;
+  auto ori = adj_minefield_cells_full(c);
+  for(auto p: ori) res.push_back(p.c);
   return res;
   }
 
@@ -1434,7 +1547,7 @@ EX vector<int> reverse_directions(heptagon *c, int dir) {
   }
 
 EX bool standard_tiling() {
-  return !arcm::in() && !kite::in() && !bt::in() && !arb::in() && !nonisotropic && !hybri;
+  return !arcm::in() && !kite::in() && !bt::in() && !arb::in() && (WDIM == 2 || !nonisotropic) && !mhybrid;
   }
 
 EX int valence() {
@@ -1450,7 +1563,7 @@ EX int valence() {
 /** portalspaces are not defined outside of a boundary */
 EX bool is_boundary(cell *c) {
   if(c == &out_of_bounds) return true;
-  return (cgflags & qPORTALSPACE) && isWall(c->wall);
+  return ((cgflags & qPORTALSPACE) || intra::in) && isWall(c->wall);
   }
 
 /** compute the distlimit for a tessellation automatically */

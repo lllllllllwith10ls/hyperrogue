@@ -30,7 +30,7 @@ EX bool rendering() { return state == 2 || state == 4; }
 EX bool rendering_eye() { return state == 2; }
 
 #if HDR
-enum class eHeadset { none, rotation_only, reference, holonomy, model_viewing };
+enum class eHeadset { none, rotation_only, reference, holonomy, model_viewing, holonomy_z };
 enum class eEyes { none, equidistant, truesim };
 enum class eCompScreen { none, reference, single, eyes };
 #endif
@@ -53,7 +53,8 @@ vector<pair<string, string> > headset_desc = {
   {"reference", "The reference point in the real world corresponds to the reference point in VR. When you move your head in a loop, you return to where you started."},
   {"holonomy", "Headsets movements in the real world are translated to the same movements in VR. Since the geometry is different, when you move your head in a loop, you usually don't return "
    "to where you started."},
-  {"view model", "Fix a 3D projection of the non-Euclidean world, and see it from many viewpoints."}
+  {"view model", "Fix a 3D projection of the non-Euclidean world, and see it from many viewpoints."},
+  {"holonomy Z", "in 2D geometries rendered in 3D, like holonomy, but keep the correct altitude and vertical direction."},
   };
 
 vector<pair<string, string> > eyes_desc = {
@@ -497,12 +498,19 @@ EX void be_33(transmatrix& T) {
   T[3][3] = 1;
   }
 
-EX void apply_movement(const transmatrix& rel) {
+eShiftMethod smVR() {
+  if(gproduct) return smProduct;
+  if(!nisot::geodesic_movement) return smLie;
+  if(nonisotropic || stretch::in()) return smGeodesic;
+  return smIsotropic;
+  }
+
+EX void apply_movement(const transmatrix& rel, eShiftMethod sm) {
   hyperpoint h0 = IN_E4(inverse(rel) * C0);
   hyperpoint h = h0;
   for(int i=0; i<3; i++) h[i] /= -absolute_unit_in_meters;
   
-  shift_view(h);
+  shift_view(h, sm);
   transmatrix Rot = rel;
   be_33(Rot);
   rotate_view(Rot);
@@ -512,11 +520,52 @@ EX void vr_shift() {
   if(first) return;
   rug::using_rugview urv;
   if(GDIM == 2) return;
+
+  auto hsm1 = hsm;
+  if(hsm1 == eHeadset::holonomy_z && !embedded_plane) hsm1 = eHeadset::holonomy;
        
-  if(GDIM == 3 && hsm == eHeadset::holonomy) {    
-    apply_movement(IN_E4(hmd_at * inverse(hmd_ref_at)));
+  if(hsm1 == eHeadset::holonomy) {
+    apply_movement(IN_E4(hmd_at * inverse(hmd_ref_at)), smVR());
     hmd_ref_at = hmd_at;
     playermoved = false;
+    if(!rug::rugged) optimizeview();
+    }
+
+  if(hsm1 == eHeadset::holonomy_z) {
+
+    apply_movement(IN_E4(hmd_at * inverse(hmd_ref_at)), smEmbedded);
+    hmd_ref_at = hmd_at;
+    playermoved = false;
+
+    bool below = cgi.WALL < cgi.FLOOR;
+
+    if(vid.fixed_yz) {
+      transmatrix spin_T;
+      ld eye_level;
+
+      if(1) {
+        dynamicval<eGeometry> g(geometry, gCubeTiling);
+        spin_T = vrhr::hmd_at;
+        spin_T = vrhr::sm * inverse(spin_T);
+        eye_level = -spin_T[1][3] / vrhr::absolute_unit_in_meters;
+        vrhr::be_33(spin_T);
+        }
+      // auto shift = vrhr::sm * (inverse(hmd_at) * C0 - inverse(hmd_ref_at) * C0);
+
+      hyperpoint h = tC0(view_inverse(actual_view_transform * View));
+      auto lcur = cgi.emb->get_logical_z(h);
+      auto lnew = cgi.FLOOR + (below?-1:1) * eye_level;
+      println(hlog, "lcur = ", lcur, " lnew = ", lnew, " below = ", below);
+
+      if(1) {
+        hyperpoint p = Hypc;
+        p[1] = lcur - lnew;
+        p = hmd_ref_at * p;
+        if(below) p = -1 * p;
+        shift_view(p, smVR());
+        }
+      }
+
     if(!rug::rugged) optimizeview();
     }
   }
@@ -577,7 +626,7 @@ EX hyperpoint model_location(shiftpoint h, bool& bad) {
     h.h = hmd_pre_for[2] * h.h;
     eModel md = pmodel_3d_version();
     apply_other_model(h, hscr, md);
-    bad = in_vr_sphere && get_side(hscr) == (sphereflipped() ? -1 : 1);
+    bad = in_vr_sphere && get_side(hscr) == (sphere_flipped ? -1 : 1);
   
     hscr[3] = 1;
     return hscr;
@@ -794,6 +843,24 @@ EX void track_actions() {
     }  
   }
 
+EX void get_eyes() {
+  for(int a=0; a<2; a++) {
+    auto eye = vr::EVREye(a);
+    E4;
+    vrdata.proj[a] =
+      vr_to_hr(vrdata.vr->GetProjectionMatrix(eye, 0.01, 300));
+
+    vrdata.iproj[a] = MirrorZ * inverse(vrdata.proj[a]);
+
+    // println(hlog, "projection = ", vrdata.proj[a]);
+
+    vrdata.eyepos[a] =
+      vr_to_hr(vrdata.vr->GetEyeToHeadTransform(eye));
+
+    // println(hlog, "eye-to-head = ", vrdata.eyepos[a]);
+    }
+  }
+
 EX void start_vr() {
 
   if(true) { sm = Id; sm[1][1] = sm[2][2] = -1; }
@@ -830,23 +897,12 @@ EX void start_vr() {
   println(hlog, "recommended size: ", int(vrdata.xsize), " x ", int(vrdata.ysize));
   
   for(int a=0; a<2; a++) {
-    auto eye = vr::EVREye(a);
     vrdata.eyes[a] = new vr_framebuffer(vrdata.xsize, vrdata.ysize);
     println(hlog, "eye ", a, " : ", vrdata.eyes[a]->ok ? "OK" : "Error");
-    
-    vrdata.proj[a] = 
-      vr_to_hr(vrdata.vr->GetProjectionMatrix(eye, 0.01, 300));
-    
-    vrdata.iproj[a] = MirrorZ * inverse(vrdata.proj[a]);
-    
-    println(hlog, "projection = ", vrdata.proj[a]);
-    
-    vrdata.eyepos[a] =
-      vr_to_hr(vrdata.vr->GetEyeToHeadTransform(eye));
-
-    println(hlog, "eye-to-head = ", vrdata.eyepos[a]);
     }
-  
+    
+  get_eyes();
+
   //CreateFrameBuffer( m_nRenderWidth, m_nRenderHeight, leftEyeDesc );
   //CreateFrameBuffer( m_nRenderWidth, m_nRenderHeight, rightEyeDesc );
   
@@ -1000,10 +1056,9 @@ EX void gen_mv() {
   if(!pers) mu[1][1] *= pconf.stretch;
 
   hmd_mv = Id;
-  bool nlpu = nisot::local_perspective_used();
   if(1) {
     E4;
-    if(nlpu) {
+    if(nisot::local_perspective_used) {
       be_33(NLP);
       hmd_mv = NLP * hmd_mv;          
       }
@@ -1021,7 +1076,8 @@ EX void gen_mv() {
 EX shiftmatrix master_cview;
 
 EX void render() {
-  track_poses();  
+  track_poses();
+  get_eyes();
   resetbuffer rb;
   state = 2;
   vrhr::frusta.clear();
@@ -1033,28 +1089,48 @@ EX void render() {
     if(1) {
       make_actual_view();
       master_cview = cview();
+
+      /* unfortunately we need to backup everything that could change by shift_view... */
       dynamicval<transmatrix> tN(NLP, NLP);
       dynamicval<transmatrix> tV(View, View);
       dynamicval<transmatrix> tC(current_display->which_copy, current_display->which_copy);
-      dynamicval<transmatrix> trt(radar_transform);
+      dynamicval<transmatrix> trt(current_display->radar_transform);
       
+      /* changed in intra */
+      dynamicval<ld> tcs(camera_speed);
+      dynamicval<ld> tcl(anims::cycle_length);
+      dynamicval<ld> tau(vrhr::absolute_unit_in_meters);
+      dynamicval<ld> tel(walking::eye_level);
+      dynamicval<int> tfd(walking::floor_dir);
+      dynamicval<cell*> tof(walking::on_floor_of);
+
+      int id = intra::current;
+      cell *co = centerover;
+      finalizer fin([&] {
+        if(intra::current != id) {
+          println(hlog, "rendering via portal");
+          intra::switch_to(id);
+          centerover = co;
+          }
+        });
+
       if(hsm == eHeadset::rotation_only) {
         transmatrix T = hmd_at;
         be_33(T);
-        apply_movement(T);
+        apply_movement(T, smVR());
         }
       
       else if(GDIM == 3 && hsm == eHeadset::reference) {
-        apply_movement(IN_E4(hmd_at * inverse(hmd_ref_at)));
+        apply_movement(IN_E4(hmd_at * inverse(hmd_ref_at)), smVR());
         }
 
       if(eyes == eEyes::truesim && i != 2) {
-        apply_movement(IN_E4(inverse(vrdata.eyepos[i])));
+        apply_movement(IN_E4(inverse(vrdata.eyepos[i])), smVR());
         }
 
       make_actual_view();
       hmd_pre = hmd_pre_for[i] = cview().T * inverse(master_cview.T);
-      radar_transform = trt.backup * inverse(hmd_pre);
+      current_display->radar_transform = trt.backup * inverse(hmd_pre);
       
       if(i < 2)
         frusta.push_back(frustum_info{hmd_pre, NLP, false, vrdata.proj[i]});
@@ -1125,7 +1201,7 @@ EX void render() {
 
 EX void show_vr_demos() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("VR demos"));
   dialog::addInfo(XLAT("warning: these will restart your game!"));
   
@@ -1271,15 +1347,7 @@ EX void show_vr_demos() {
   dialog::display();
   }
 
-EX void show_vr_settings() {
-  cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
-  dialog::init(XLAT("VR settings"));
-
-  dialog::addItem(XLAT("VR demos"), 'D');
-  dialog::add_action_push(show_vr_demos);
-
-  
+EX void enable_button() {
   dialog::addBoolItem(XLAT("VR enabled"), enabled, 'o');
   dialog::add_action([] {
     enabled = !enabled;
@@ -1290,6 +1358,28 @@ EX void show_vr_settings() {
     dialog::addInfo(XLAT("error: ") + error_msg, 0xC00000);
   else
     dialog::addInfo(XLAT("VR initialized correctly"), 0x00C000);
+  }
+
+EX void reference_button() {
+  if(enabled && among(hsm, eHeadset::reference, eHeadset::model_viewing)) {
+    E4;
+    hyperpoint h = hmd_at * inverse(hmd_ref_at) * C0;
+      
+    dialog::addSelItem(XLAT("reset the reference point"), state ? fts(hypot_d(3, h)) + "m" : "", 'r');
+    dialog::add_action([] { hmd_ref_at = hmd_at; });
+    }
+  else dialog::addBreak(100);
+  }
+
+EX void show_vr_settings() {
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
+  dialog::init(XLAT("VR settings"));
+
+  dialog::addItem(XLAT("VR demos"), 'D');
+  dialog::add_action_push(show_vr_demos);
+
+  enable_button();
   
   dialog::addBreak(100);
 
@@ -1320,14 +1410,7 @@ EX void show_vr_settings() {
   dialog::addSelItem(XLAT("projection"), current_proj_name(), 'M');
   dialog::add_action_push(models::model_menu);
     
-  if(among(hsm, eHeadset::reference, eHeadset::model_viewing)) {
-    E4;
-    hyperpoint h = hmd_at * inverse(hmd_ref_at) * C0;
-      
-    dialog::addSelItem(XLAT("reset the reference point"), state ? fts(hypot_d(3, h)) + "m" : "", 'r');
-    dialog::add_action([] { hmd_ref_at = hmd_at; });
-    }
-  else dialog::addBreak(100);
+  reference_button();
 
   dialog::addSelItem(XLAT("pointer length"), fts(pointer_length) + "m", 'p');
   dialog::add_action([] {

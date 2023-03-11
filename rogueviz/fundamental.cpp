@@ -52,7 +52,7 @@ shiftmatrix labelpos(shiftpoint h1, shiftpoint h2) {
   shiftmatrix T = rgpushxto0(h);
   hyperpoint hx = inverse_shift(T, h2);
   ld alpha = atan2(-hx[1], hx[0]);
-  return T * xspinpush(alpha + M_PI/2, label_dist);
+  return T * xspinpush(alpha + 90._deg, label_dist);
   }
  
 ld widthfactor = 5;
@@ -232,7 +232,7 @@ int readArgs() {
   return 0;
   }
 
-auto fundamentalhook = addHook(hooks_args, 100, readArgs) + addHook(hooks_frame, 100, fundamental_marker);
+auto fundamentalhook = addHook(hooks_args, 100, readArgs) + addHook(hooks_frame, 100, fundamental_marker) + addHook(hooks_clearmemory, 100, [] { same.clear(); gm.clear(); });
 
 }
 

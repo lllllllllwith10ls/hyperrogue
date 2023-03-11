@@ -148,7 +148,7 @@ EX void createArrowTrapAt(cell *c, eLand land) {
 EX eMonster emerald_monster() {
   static eMonster emeraldmonsters[4] = { moHedge, moLancer, moFlailer, moMiner };
   eMonster m = emeraldmonsters[hrand(4)];
-  if(m == moHedge && (S3 != 3 || (hybri && !prod)))
+  if(m == moHedge && (S3 != 3 || (mhybrid && !mproduct)))
     m = moFlailer;
   return m;
   }
@@ -184,7 +184,7 @@ EX int hrand_monster(int x) {
   }
 
 EX bool is_zebra_trapdoor(cell *c) {
-  if(euclid && bounded) return false;
+  if(euclid && closed_or_bounded) return false;
   #if CAP_ARCM
   else if(arcm::in() && arcm::current.have_line)
     return arcm::linespattern(c);
@@ -192,7 +192,7 @@ EX bool is_zebra_trapdoor(cell *c) {
   else if(arb::in() && arb::current.have_line)
     return arb::linespattern(c);
   #if MAXMDIM >= 4
-  else if(reg3::in_rule()) switch(geometry) {
+  else if(PURE && reg3::exact_rules()) switch(geometry) {
     case gSpace534: {
       if(c->master->fieldval == 0) return true;
       forCellCM(c1, c) if(c1->master->fieldval == 0) return true;
@@ -359,7 +359,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
             }
           }
         }
-      else if(PIU(hyperbolic_not37 || (euclid&&bounded) || S7 < 5 || arcm::in() || WDIM == 3)) {
+      else if(PIU(hyperbolic_not37 || (euclid&&closed_or_bounded) || S7 < 5 || arcm::in() || WDIM == 3)) {
         if(fargen) {
           int i = hrand(100);
           if(i < 10) 
@@ -399,7 +399,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
           if(gs == 1)
             c->wall = waPalace;
           if(gs == 3) {
-            if(hybri) {
+            if(mhybrid) {
               c->wall = pick(waClosedGate, waOpenGate);
               if(c->wall == waClosedGate) toggleGates(c, waClosePlate, 1);
               else toggleGates(c, waOpenPlate, 1);
@@ -415,7 +415,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
             c->wall = pick(waClosePlate, waOpenPlate);
           if(gs == -6 && !reptilecheat)
             c->wall = waTrapdoor;
-          if(hybri) {
+          if(mhybrid) {
             int l = hybrid::get_where(c).second;
             if(gs >= 3 && (l % 4) == 0) c->wall = waPalace;
             if(gs < 3 && (l % 4) == 2) c->wall = waPalace;
@@ -424,7 +424,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
     
         else if(d == 8 && !sphere) {
 
-          if(prod && polarb50(c) && (hybrid::get_where(c).second & 3) == 2) {
+          if(mproduct && polarb50(c) && (hybrid::get_where(c).second & 3) == 2) {
             c->wall = waPalace;
             break;
             }          
@@ -462,19 +462,19 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
             if(GOLDBERG) ; 
             else {
               int q = 0, s = 0;
-              if(!ishept(c)) for(int i=0; i<c->type - (hybri ? 2 : 0); i++)
+              if(!ishept(c)) for(int i=0; i<c->type - (mhybrid ? 2 : 0); i++)
                 if(cdist50(c->move(i)) == 3 && polarb50(c->move(i)) && !ishept(c->move(i)))
                   q++, s += i;
               if(q == 1 && c->move(s)->land == laPalace) {
                 switch(princess::generating ? 0 : hrand(2)) {
                   case 0: 
                     c->wall = waClosedGate;
-                    if(hybri) toggleGates(c, waClosePlate, 1);
+                    if(mhybrid) toggleGates(c, waClosePlate, 1);
                     c->move(s)->wall = waClosedGate;
                     break;
                   case 1:
                     c->wall = waOpenGate;
-                    if(hybri) toggleGates(c, waOpenPlate, 1);
+                    if(mhybrid) toggleGates(c, waOpenPlate, 1);
                     c->move(s)->wall = waOpenGate;
                     break;
                   }
@@ -579,7 +579,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
       if(d==8) {
         if(randomPatternsMode)
           c->wall = RANDPAT3(0) ? waCavewall : waCavefloor;
-        else if(euclid && bounded) {
+        else if(euclid && closed_or_bounded) {
           c->wall = waCavefloor;
           }
         else if(nil) {
@@ -685,7 +685,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
         #endif
         else if(arb::in() && arb::current.have_line)
           v = arb::linespattern(c) ? 24 : 16;
-        else if((euclid&&bounded) || hyperbolic_not37 || quotient || arcm::in()) {
+        else if((euclid&&closed_or_bounded) || hyperbolic_not37 || quotient || arcm::in()) {
           v = hrand(100) < 25 ? 24 : 16;
           }
         else if(euclid) {
@@ -760,7 +760,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
       if(d==8) {
         if(randomPatternsMode)
           c->wall = RANDPAT ? waVinePlant : waNone;
-        else if(euclid && bounded) ;
+        else if(euclid && closed_or_bounded) ;
         #if CAP_ARCM
         else if(arcm::in() && arcm::current.have_line)
           c->wall = arcm::linespattern(c) ? waVinePlant : waNone;
@@ -798,7 +798,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
             else if(v == 25 || v == 59 || v == 27 || v == 57)
               c->wall = waVineHalfB;
             else c->wall = waNone;
-            if(hybri && cellHalfvine(c)) c->wall = waNone;
+            if(mhybrid && cellHalfvine(c)) c->wall = waNone;
             if(NONSTDVAR && cellHalfvine(c)) {
               c->wall = waNone;
               forCellCM(c2, c) if(emeraldval(c2) == (v^1))
@@ -1294,50 +1294,6 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
       break;
     
     case laHalloween:
-      if(fargen) {
-        if(GOLDBERG) {
-          int fv = c->master->fiftyval;
-          if(fv == 1 || fv == 4 || fv == 10) 
-            c->wall = waChasm;
-          if(c == c->master->c7 && fv == 3)
-            c->item = itTreat;
-          }
-        else if(!BITRUNCATED && !euclid) {
-          int fv = c->master->fiftyval;
-          if(fv == 1 || fv == 4 || fv == 2) 
-            c->wall = waChasm;
-          if(fv == 3) c->item = itTreat;
-          }
-        else {
-          if(c->type == 5) {
-            int fv = c->master->fiftyval;
-            if(fv == 3 || fv == 4 || fv == 2 || fv == 5) 
-              c->wall = waChasm;
-            if(fv == 2) halloween::dragoncells[0] = c;
-            if(fv == 5) halloween::dragoncells[3] = c;
-            if(fv == 1) c->item = itTreat;
-            }
-          if(c->type == 6 && !euclid) {
-            int fvset = 0;
-            for(int i=0; i<6; i+=2) fvset |= 1 << createMov(c, i)->master->fiftyval;
-            if(fvset == 35 || fvset == 7) c->wall = waChasm;
-            if(fvset == 7) halloween::dragoncells[1] = c;
-            if(fvset == 35) halloween::dragoncells[2] = c;
-            }
-          }
-        if(quotient && zebra40(c) == 7) {
-          c->item = itTreat;
-          halloween::dragoncells[0] = NULL;
-          }
-        if(quotient && zebra40(c) == 5) {
-          c->wall = waChasm;
-          }
-        if(euclid && bounded) {
-          int i = hrand(100);
-          if(i == 0) c->item = itTreat;
-          else if(i < 5) c->wall = waChasm;
-          }
-        }
       break;
     
     case laWildWest:
@@ -1461,7 +1417,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
           while(i) { if(i&1) b++; i>>=1; }
           if(ctof(c) && (b&1) && hrand(100) < 20)  c->wall = (z&2) ? waCharged : waGrounded;
           }
-        else if(hybri) {
+        else if(mhybrid) {
           cell *c1 = hybrid::get_where(c).first;
           if(among(c1->wall, waCharged, waGrounded))
             c->wall = c1->wall;
@@ -2101,10 +2057,10 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
                       if(valence() != 3 || isNeighbor(dog1, dog2)) {
                         dog1->monst = moHunterGuard;
                         dog1->stuntime = 0;
-                        dog1->landparam = 0;
+                        if(dog1->land == laHunting) dog1->landparam = 0;
                         dog2->monst = moHunterGuard;
                         dog2->stuntime = 0;
-                        dog2->landparam = 1;
+                        if(dog2->land == laHunting) dog2->landparam = 1;
                         break;
                         }
                       }
@@ -2212,7 +2168,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
       break;
 
     case laMinefield:  
-      if(d == 7 && bounded) c->wall = waMineUnknown;
+      if(d == 7 && closed_or_bounded) c->wall = waMineUnknown;
       else if(d == 7) {
         c->wall = waMineUnknown;
         // 250: rare mines
@@ -2245,7 +2201,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
           c->monst = moBomberbird;
         else placeLocalSpecial(c, 500);
         }
-      if(d == 3 && safety && (c->wall == waMineMine || c->wall == waMineUnknown) && !bounded)
+      if(d == 3 && safety && (c->wall == waMineMine || c->wall == waMineUnknown) && !closed_or_bounded)
         c->wall = waMineOpen;
       break;
     
@@ -2560,15 +2516,15 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
         if(!BITRUNCATED && c->land == laCrossroads5 && hrand(100) < 60)
           c->wall = waBarrier;
         else if(!inv::on && items[itShard] >= 10 && hrand(8000) < 120*orbcrossfun(items[itShard]) && mirror::build(c)) ;
-        else if(hyperstonesUnlocked() && hrand(8000) < 100 && mirror::build(c)) ;
+        else if(hyperstonesUnlocked() && !racing::on && hrand(8000) < 100 && mirror::build(c)) ;
         else if(tactic::on && isCrossroads(specialland) && hrand(8000) < 120 && mirror::build(c)) ;
         else if(c->land == laCrossroads4 && hrand(24000) < 10 && tactic::on)
           c->wall = waRose;
         else {
-          if(hyperstonesUnlocked() && hrand(25000) < min(PT(tkills(), 2000), 5000) && notDippingFor(itHyperstone))
+          if(hyperstonesUnlocked() && !racing::on && hrand(25000) < min(PT(tkills(), 2000), 5000) && notDippingFor(itHyperstone))
             c->item = itHyperstone;
           int freq = 4000;
-          if(ls::single() && specialland == laCrossroads5)
+          if(ls::single() && specialland == laCrossroads5 && !racing::on)
             freq = 250;
           if(hrand_monster(freq) < items[itHyperstone] && !c->monst) {
             // only interesting monsters here!
@@ -2682,7 +2638,7 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
 
         bool locked = true;
         forCellEx(c1, c) if(!c1->wall) locked = false;
-        if(locked) c->item = itEclectic;
+        if(locked && !safety) c->item = itEclectic;
 
         if(c->wall == waNone && hrand_monster(2500) < 30 + items[itEclectic] + yendor::hardness() && !safety) 
           gen_eclectic_monster(c);
@@ -2972,8 +2928,8 @@ EX void set_land_for_geometry(cell *c) {
   #if MAXMDIM == 4
   else if(euc::in(3)) euc::set_land(c);
   #endif
-  else if(hybri) setLandHybrid(c);
-  else if(sphere || (euclid && bounded)) setLandSphere(c);
+  else if(mhybrid) setLandHybrid(c);
+  else if(sphere || (euclid && closed_or_bounded)) setLandSphere(c);
   else if(euclid) setLandEuclid(c);
   else if(quotient) { setland(c, specialland); setLandQuotient(c); }
   else if(sol) setLandSol(c);
@@ -2987,11 +2943,12 @@ EX void setdist(cell *c, int d, cell *from) {
 
   if(c == &out_of_bounds) return;
   if(fake::in()) return FPIU(setdist(c, d, from));
+  if(embedded_plane) return IPF(setdist(c, d, from));
   
+  if(d < -64) d = -64; /* otherwise it will underflow */
   if(c->mpdist <= d) return;
   if(c->mpdist > d+1 && d < BARLEV) setdist(c, d+1, from);
   c->mpdist = d;
-  // printf("setdist %p %d [%p]\n", c, d, from);
   
   // this fixes the following problem:
   // http://steamcommunity.com/app/342610/discussions/0/1470840994970724215/
@@ -3008,7 +2965,7 @@ EX void setdist(cell *c, int d, cell *from) {
 
   if(d <= 10 - getDistLimit()) lastexplore = shmup::on ? shmup::curtime : turncount;
   
-  if(hybri) {
+  if(mhybrid) {
     auto wc = hybrid::get_where(c).first;
     auto wf = from ? hybrid::get_where(from).first : NULL;
     if(c->land && !wc->land) wc->land = c->land;
@@ -3026,7 +2983,7 @@ EX void setdist(cell *c, int d, cell *from) {
   if(d >= BARLEV) {
   
     #if CAP_BT
-    if(bt::in() && WDIM == 3 && !c->land && !sn::in() && !hybri) {
+    if(bt::in() && WDIM == 3 && !c->land && !sn::in() && !mhybrid) {
       ld z = vid.binary_width;
       cell *cseek = c;
       int step = 0;
@@ -3063,7 +3020,7 @@ EX void setdist(cell *c, int d, cell *from) {
     color_t col = patterns::generateCanvas(c);
     c->landparam = col;
     c->wall = canvas_default_wall;
-    if(GDIM == 3 && (col & 0x1000000)) c->wall = waWaxWall;
+    if((GDIM == 3 || geom3::flipped) && (col & 0x1000000)) c->wall = waWaxWall;
     }
 
   #if CAP_FIELD
@@ -3150,6 +3107,13 @@ EX void setdist(cell *c, int d, cell *from) {
         c->monst = moWorldTurtle, c->wall = waNone, c->hitpoints = 5;
         }
       }
+    }
+
+  if(disksize && !is_in_disk(c)) {
+    setland(c, laMemory);
+    if(!isMultitile(c)) c->monst = moNone;
+    c->item = itNone;
+    c->wall = waChasm;
     }
 
   ONEMPTY if(!c->item) {

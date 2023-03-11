@@ -10,9 +10,7 @@ namespace hr {
 
 EX namespace nisot {
 
-  #if HDR
-  inline bool local_perspective_used() { return nonisotropic || prod; }
-  #endif
+  EX bool local_perspective_used;
   
   EX bool geodesic_movement = true;
 
@@ -33,8 +31,10 @@ EX namespace nisot {
       T[0][0] = pow(2, h[2]);
       T[1][1] = pow(3, h[2]);
       }
-    if(nil) 
-      T[2][1] = h[0];
+    if(nil) {
+      T[2][1] = h[0] * (nilv::model_used + 1) / 2;
+      T[2][0] = h[1] * (nilv::model_used - 1) / 2;
+      }
     if(co < 0) return iso_inverse(T);
     return T;
     }
@@ -50,11 +50,10 @@ EX }
 #if CAP_SOLV
 EX namespace sn {
 
-  EX bool in() { return cgclass == gcSolNIH; }
+  EX bool in() { return among(cgclass, gcSol, gcNIH, gcSolN); }
 
-  EX eGeometry geom() {
-    if(asonov::in()) return gSol;
-    else return geometry;
+  EX eGeometryClass geom() {
+    return cgclass;
     }
 
   #if HDR
@@ -88,11 +87,11 @@ EX namespace sn {
     FILE *f = fopen(fname.c_str(), "rb");
     if(!f) f = fopen((rsrcdir + fname).c_str(), "rb");
     if(!f) { addMessage(XLAT("geodesic table missing")); pmodel = mdPerspective; return; }
-    ignore(fread(&PRECX, 4, 1, f));
-    ignore(fread(&PRECY, 4, 1, f));
-    ignore(fread(&PRECZ, 4, 1, f));
+    hr::ignore(fread(&PRECX, 4, 1, f));
+    hr::ignore(fread(&PRECY, 4, 1, f));
+    hr::ignore(fread(&PRECZ, 4, 1, f));
     tab.resize(PRECX * PRECY * PRECZ);
-    ignore(fread(&tab[0], sizeof(compressed_point) * PRECX * PRECY * PRECZ, 1, f));
+    hr::ignore(fread(&tab[0], sizeof(compressed_point) * PRECX * PRECY * PRECZ, 1, f));
     fclose(f);
     loaded = true;    
     }
@@ -105,14 +104,15 @@ EX namespace sn {
     hyperpoint res;
     
     if(lazy) {
+      if(isnan(ix) || isnan(iy) || isnan(iz)) return Hypc;
       return decompress(get_int(int(ix+.5), int(iy+.5), int(iz+.5)));
       }
     
     else {
   
-      if(ix >= PRECX-1) ix = PRECX-2;
-      if(iy >= PRECX-1) iy = PRECX-2;
-      if(iz >= PRECZ-1) iz = PRECZ-2;
+      if(ix >= PRECX-1 || isnan(ix)) ix = PRECX-2;
+      if(iy >= PRECX-1 || isnan(iy)) iy = PRECX-2;
+      if(iz >= PRECZ-1 || isnan(iz)) iz = PRECZ-2;
       
       int ax = ix, bx = ax+1;
       int ay = iy, by = ay+1;
@@ -132,6 +132,7 @@ EX namespace sn {
     }
   
   GLuint tabled_inverses::get_texture_id() {
+    #if CAP_GL
     if(!toload) return texture_id;
   
     load();
@@ -164,7 +165,8 @@ EX namespace sn {
     // glTexStorage3D(GL_TEXTURE_3D, 1, 34836 /*GL_RGBA32F*/, PRECX, PRECX, PRECZ);
     // glTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 0, PRECX, PRECY, PRECZ, GL_RGBA, GL_FLOAT, xbuffer);
     #endif
-    delete[] xbuffer;    
+    delete[] xbuffer;
+    #endif
     return texture_id;
     }
   
@@ -490,21 +492,21 @@ EX namespace sn {
     const ld l2 = log(2);
     const ld l3 = log(3);
     switch(geom()) {
-      case gSolN:
+      case gcSolN:
         return hpxyz3(
           -(velocity[2] * transported[0] + velocity[0] * transported[2]) * l2,
            (velocity[2] * transported[1] + velocity[1] * transported[2]) * l3,
            velocity[0] * transported[0] * exp(2*l2*at[2]) * l2 - velocity[1] * transported[1] * exp(-2*l3*at[2]) * l3,
            0
            );
-      case gSol:
+      case gcSol:
         return hpxyz3(
           -velocity[2] * transported[0] - velocity[0] * transported[2],
            velocity[2] * transported[1] + velocity[1] * transported[2],
            velocity[0] * transported[0] * exp(2*at[2]) - velocity[1] * transported[1] * exp(-2*at[2]),
            0
            );
-      case gNIH:
+      case gcNIH:
         return hpxyz3(
            (velocity[2] * transported[0] + velocity[0] * transported[2]) * l2,
            (velocity[2] * transported[1] + velocity[1] * transported[2]) * l3,
@@ -673,9 +675,9 @@ EX namespace sn {
   
   EX tabled_inverses& get_tabled() {
     switch(geom()) {
-      case gSol: return solt;
-      case gNIH: return niht;
-      case gSolN: return sont;
+      case gcSol: return solt;
+      case gcNIH: return niht;
+      case gcSolN: return sont;
       default: throw hr_exception("not solnih");
       }
     }
@@ -744,13 +746,68 @@ EX }
 
 EX namespace nilv {
 
-  hyperpoint christoffel(const hyperpoint Position, const hyperpoint Velocity, const hyperpoint Transported) {
-    ld x = Position[0];
-    return point3(
-      x * Velocity[1] * Transported[1] - 0.5 * (Velocity[1] * Transported[2] + Velocity[2] * Transported[1]),
-      -.5 * x * (Velocity[1] * Transported[0] + Velocity[0] * Transported[1]) + .5 * (Velocity[2] * Transported[0] + Velocity[0] * Transported[2]),
-      -.5 * (x*x-1) * (Velocity[1] * Transported[0] + Velocity[0] * Transported[1]) + .5 * x * (Velocity[2] * Transported[0] + Velocity[0] * Transported[2])
-      );
+  #if HDR
+  /** nmSym is the rotationally symmetric model of Nil, while nmHeis is the Heisenberg model. */
+  constexpr ld nmSym = 0, nmHeis = 1;
+  #endif
+
+  /** HyperRogue currently uses nmSym by default, but some parts are still written in nmHeis */
+  EX ld model_used = nmSym;
+
+  /** a helper function for model conversions */
+  EX ld sym_to_heis_bonus(const hyperpoint& H) {
+    return H[0] * H[1] / 2;
+    }
+
+  EX hyperpoint convert(hyperpoint H, ld from, ld to) {
+    H[2] += sym_to_heis_bonus(H) * (to - from);
+    return H;
+    }
+
+  EX void convert_ref(hyperpoint& H, ld from, ld to) {
+    H[2] += sym_to_heis_bonus(H) * (to - from);
+    }
+
+  EX void convert_tangent_ref(hyperpoint at, hyperpoint& v, ld from, ld to) {
+    v[2] += (at[0] * v[1] + at[1] * v[0]) * (to - from) / 2;
+    }
+
+  EX void convert_ref(transmatrix& T, ld from, ld to) {
+    auto T1 = transpose(T);
+    convert_ref(T1[3], from, to);
+    for(int i: {0, 1, 2})
+      convert_tangent_ref(T1[3], T1[i], from, to);
+    T = transpose(T1);
+    }
+
+  EX hyperpoint checked_convert(hyperpoint H, ld from, ld to) {
+    if(nil) return convert(H, from, to);
+    return H;
+    }
+
+  hyperpoint christoffel(const hyperpoint Position, const hyperpoint Velocity, const hyperpoint Transported, ld model = model_used) {
+    /* to do: write these formulas in model */
+    if(model == nmHeis) {
+      ld x = Position[0];
+      return point3(
+        x * Velocity[1] * Transported[1] - 0.5 * (Velocity[1] * Transported[2] + Velocity[2] * Transported[1]),
+        -.5 * x * (Velocity[1] * Transported[0] + Velocity[0] * Transported[1]) + .5 * (Velocity[2] * Transported[0] + Velocity[0] * Transported[2]),
+        -.5 * (x*x-1) * (Velocity[1] * Transported[0] + Velocity[0] * Transported[1]) + .5 * x * (Velocity[2] * Transported[0] + Velocity[0] * Transported[2])
+        );
+      }
+    else {
+      hyperpoint P = Position;
+      hyperpoint V = Velocity;
+      hyperpoint T = Transported;
+      convert_ref(P, model_used, nmHeis);
+      convert_tangent_ref(P, V, model_used, nmHeis);
+      convert_tangent_ref(P, T, model_used, nmHeis);
+      auto res = christoffel(P, V, T, nmHeis);
+      convert_tangent_ref(P, res, nmHeis, model_used);
+      // this is acceleration, not tangent, so:
+      res[2] += (model_used-nmHeis) * V[0] * V[1];
+      return res;
+      }
     }
 
   EX hyperpoint formula_exp(hyperpoint v) {
@@ -761,34 +818,36 @@ EX namespace nilv {
     
     if(v[0] == 0 && v[1] == 0) return point31(v[0], v[1], v[2]);
     
-    if(v[2] == 0) return point31(v[0], v[1], v[0] * v[1] / 2);
+    if(v[2] == 0) return convert(point31(v[0], v[1], 0), nmSym, model_used);
     
     ld alpha = atan2(v[1], v[0]);
     ld w = v[2];
     ld c = hypot(v[0], v[1]) / v[2];
     
-    return point31(
+    return convert(point31(
       2 * c * sin(w/2) * cos(w/2 + alpha), 
       2 * c * sin(w/2) * sin(w/2 + alpha), 
       w * (1 + (c*c/2) * ((1 - sin(w)/w) + (1-cos(w))/w * sin(w + 2 * alpha)))
-      );
+      ), nmHeis, model_used);
     }
   
   EX hyperpoint get_inverse_exp(hyperpoint h, flagtype prec IS(pNORMAL)) {
     ld wmin, wmax;
     
-    ld side = h[2] - h[0] * h[1] / 2;
+    ld side = convert(h, model_used, nmSym)[2];
+
+    convert_ref(h, model_used, nmHeis);
     
     if(hypot_d(2, h) < 1e-6) return point3(h[0], h[1], h[2]);
     else if(side > 1e-6) {
-      wmin = 0, wmax = 2 * M_PI;
+      wmin = 0, wmax = TAU;
       }
     else if(side < -1e-6) {
-      wmin = - 2 * M_PI, wmax = 0;
+      wmin = - TAU, wmax = 0;
       }
     else return point3(h[0], h[1], 0);
     
-    ld alpha_total = h[0] ? atan(h[1] / h[0]) : M_PI/2;
+    ld alpha_total = h[0] ? atan(h[1] / h[0]) : 90._deg;
   
     ld b;
     if(abs(h[0]) > abs(h[1]))
@@ -814,9 +873,10 @@ EX namespace nilv {
       }
     }
   
-  EX string nilshader = 
-    "vec4 inverse_exp(vec4 h) {"
+  EX string nilshader() {
+    return "vec4 inverse_exp(vec4 h) {"
       "float wmin, wmax;"
+      "h[2] += h[0] * h[1] / 2. * " + glhr::to_glsl(1-model_used) + ";"
       "float side = h[2] - h[0] * h[1] / 2.;"
       "if(h[0]*h[0] + h[1]*h[1] < 1e-12) return vec4(h[0], h[1], h[2], 1);"
       "if(side > 1e-6) { wmin = 0.; wmax = 2.*PI; }"
@@ -839,9 +899,11 @@ EX namespace nilv {
       "float c = b / sin(w/2.);"
       "return vec4(c*w*cos(alpha), c*w*sin(alpha), w, 1.);"
       "}";
+    }
   
   #if HDR
   struct mvec : array<int, 3> {
+    /** these are in nmHeis */
     
     mvec() { }
   
@@ -864,7 +926,7 @@ EX namespace nilv {
 
   EX ld nilwidth = 1;
       
-  hyperpoint mvec_to_point(mvec m) { return hpxy3(m[0] * nilwidth, m[1] * nilwidth, m[2] * nilwidth * nilwidth); }
+  hyperpoint mvec_to_point(mvec m) { return convert(hpxy3(m[0] * nilwidth, m[1] * nilwidth, m[2] * nilwidth * nilwidth), nmHeis, model_used); }
   
   #if HDR
   struct nilstructure {
@@ -873,16 +935,18 @@ EX namespace nilv {
     };
   #endif
   
+  EX hyperpoint heis(ld x, ld y, ld z) { return convert(point31(x, y, z), nmHeis, model_used); }
+
   nilstructure ns6 = {
     {{ mvec(-1,0,0), mvec(0,-1,0), mvec(0,0,-1), mvec(1,0,0), mvec(0,1,0), mvec(0,0,1) }},
   
     {{
-    { point31(-0.5,-0.5,-0.25), point31(-0.5,-0.5,0.75), point31(-0.5,0.5,0.25), point31(-0.5,0.5,-0.75), },
-    { point31(0.5,-0.5,-0.5), point31(0.5,-0.5,0.5), point31(-0.5,-0.5,0.5), point31(-0.5,-0.5,-0.5), },
-    { point31(0,0,-0.5), point31(-0.5,0.5,-0.75), point31(-0.5,-0.5,-0.25), point31(0,0,-0.5), point31(-0.5,-0.5,-0.25), point31(-0.5,-0.5,-0.5), point31(0,0,-0.5), point31(-0.5,-0.5,-0.5), point31(0.5,-0.5,-0.5), point31(0,0,-0.5), point31(0.5,-0.5,-0.5), point31(0.5,-0.5,-0.75), point31(0,0,-0.5), point31(0.5,-0.5,-0.75), point31(0.5,0.5,-0.25), point31(0,0,-0.5), point31(0.5,0.5,-0.25), point31(0.5,0.5,-0.5), point31(0,0,-0.5), point31(0.5,0.5,-0.5), point31(-0.5,0.5,-0.5), point31(0,0,-0.5), point31(-0.5,0.5,-0.5), point31(-0.5,0.5,-0.75), },
-    { point31(0.5,0.5,-0.25), point31(0.5,0.5,0.75), point31(0.5,-0.5,0.25), point31(0.5,-0.5,-0.75), },
-    { point31(-0.5,0.5,-0.5), point31(-0.5,0.5,0.5), point31(0.5,0.5,0.5), point31(0.5,0.5,-0.5), },
-    { point31(0,0,0.5), point31(-0.5,0.5,0.25), point31(-0.5,-0.5,0.75), point31(0,0,0.5), point31(-0.5,-0.5,0.75), point31(-0.5,-0.5,0.5), point31(0,0,0.5), point31(-0.5,-0.5,0.5), point31(0.5,-0.5,0.5), point31(0,0,0.5), point31(0.5,-0.5,0.5), point31(0.5,-0.5,0.25), point31(0,0,0.5), point31(0.5,-0.5,0.25), point31(0.5,0.5,0.75), point31(0,0,0.5), point31(0.5,0.5,0.75), point31(0.5,0.5,0.5), point31(0,0,0.5), point31(0.5,0.5,0.5), point31(-0.5,0.5,0.5), point31(0,0,0.5), point31(-0.5,0.5,0.5), point31(-0.5,0.5,0.25), },
+    { heis(-0.5,-0.5,-0.25), heis(-0.5,-0.5,0.75), heis(-0.5,0.5,0.25), heis(-0.5,0.5,-0.75), },
+    { heis(0.5,-0.5,-0.5), heis(0.5,-0.5,0.5), heis(-0.5,-0.5,0.5), heis(-0.5,-0.5,-0.5), },
+    { heis(0,0,-0.5), heis(-0.5,0.5,-0.75), heis(-0.5,-0.5,-0.25), heis(0,0,-0.5), heis(-0.5,-0.5,-0.25), heis(-0.5,-0.5,-0.5), heis(0,0,-0.5), heis(-0.5,-0.5,-0.5), heis(0.5,-0.5,-0.5), heis(0,0,-0.5), heis(0.5,-0.5,-0.5), heis(0.5,-0.5,-0.75), heis(0,0,-0.5), heis(0.5,-0.5,-0.75), heis(0.5,0.5,-0.25), heis(0,0,-0.5), heis(0.5,0.5,-0.25), heis(0.5,0.5,-0.5), heis(0,0,-0.5), heis(0.5,0.5,-0.5), heis(-0.5,0.5,-0.5), heis(0,0,-0.5), heis(-0.5,0.5,-0.5), heis(-0.5,0.5,-0.75), },
+    { heis(0.5,0.5,-0.25), heis(0.5,0.5,0.75), heis(0.5,-0.5,0.25), heis(0.5,-0.5,-0.75), },
+    { heis(-0.5,0.5,-0.5), heis(-0.5,0.5,0.5), heis(0.5,0.5,0.5), heis(0.5,0.5,-0.5), },
+    { heis(0,0,0.5), heis(-0.5,0.5,0.25), heis(-0.5,-0.5,0.75), heis(0,0,0.5), heis(-0.5,-0.5,0.75), heis(-0.5,-0.5,0.5), heis(0,0,0.5), heis(-0.5,-0.5,0.5), heis(0.5,-0.5,0.5), heis(0,0,0.5), heis(0.5,-0.5,0.5), heis(0.5,-0.5,0.25), heis(0,0,0.5), heis(0.5,-0.5,0.25), heis(0.5,0.5,0.75), heis(0,0,0.5), heis(0.5,0.5,0.75), heis(0.5,0.5,0.5), heis(0,0,0.5), heis(0.5,0.5,0.5), heis(-0.5,0.5,0.5), heis(0,0,0.5), heis(-0.5,0.5,0.5), heis(-0.5,0.5,0.25), },
     }}
     };
   
@@ -890,14 +954,14 @@ EX namespace nilv {
     {{ mvec(-1,0,0), mvec(-1,0,1), mvec(0,-1,0), mvec(0,0,-1), mvec(1,0,0), mvec(1,0,-1), mvec(0,1,0), mvec(0,0,1) }},
   
     {{
-      { point31(-0.5,-0.5,-0.25), point31(-0.5,-0.5,0.75), point31(-0.5,0.5,-0.25), },
-      { point31(-0.5,-0.5,0.75), point31(-0.5,0.5,0.75), point31(-0.5,0.5,-0.25), },
-      { point31(-0.5,-0.5,-0.25), point31(-0.5,-0.5,0.75), point31(0.5,-0.5,0.25), point31(0.5,-0.5,-0.75), },
-      { point31(-0.5,-0.5,-0.25), point31(-0.5,0.5,-0.25), point31(0.5,0.5,-0.75), point31(0.5,-0.5,-0.75), },
-      { point31(0.5,0.5,0.25), point31(0.5,-0.5,0.25), point31(0.5,-0.5,-0.75), },
-      { point31(0.5,0.5,-0.75), point31(0.5,0.5,0.25), point31(0.5,-0.5,-0.75), },
-      { point31(-0.5,0.5,0.75), point31(-0.5,0.5,-0.25), point31(0.5,0.5,-0.75), point31(0.5,0.5,0.25), },
-      { point31(-0.5,-0.5,0.75), point31(-0.5,0.5,0.75), point31(0.5,0.5,0.25), point31(0.5,-0.5,0.25), },
+      { heis(-0.5,-0.5,-0.25), heis(-0.5,-0.5,0.75), heis(-0.5,0.5,-0.25), },
+      { heis(-0.5,-0.5,0.75), heis(-0.5,0.5,0.75), heis(-0.5,0.5,-0.25), },
+      { heis(-0.5,-0.5,-0.25), heis(-0.5,-0.5,0.75), heis(0.5,-0.5,0.25), heis(0.5,-0.5,-0.75), },
+      { heis(-0.5,-0.5,-0.25), heis(-0.5,0.5,-0.25), heis(0.5,0.5,-0.75), heis(0.5,-0.5,-0.75), },
+      { heis(0.5,0.5,0.25), heis(0.5,-0.5,0.25), heis(0.5,-0.5,-0.75), },
+      { heis(0.5,0.5,-0.75), heis(0.5,0.5,0.25), heis(0.5,-0.5,-0.75), },
+      { heis(-0.5,0.5,0.75), heis(-0.5,0.5,-0.25), heis(0.5,0.5,-0.75), heis(0.5,0.5,0.25), },
+      { heis(-0.5,-0.5,0.75), heis(-0.5,0.5,0.75), heis(0.5,0.5,0.25), heis(0.5,-0.5,0.25), },
       }}
     };
   
@@ -959,7 +1023,7 @@ EX namespace nilv {
     int coords = 0;
     for(int a=0; a<3; a++) if(nilperiod[a]) coords++;
     set_flag(ginf[gNil].flags, qANYQ, coords);
-    set_flag(ginf[gNil].flags, qBOUNDED, coords == 3);
+    set_flag(ginf[gNil].flags, qCLOSED, coords == 3);
     set_flag(ginf[gNil].flags, qSMALL, coords == 3 && nilperiod[0] * nilperiod[1] * nilperiod[2] <= 4096);
     }
 
@@ -997,7 +1061,7 @@ EX void prepare_niltorus3() {
   
 EX void show_niltorus3() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(1);  
+  gamescreen();
   dialog::init(XLAT("Nil quotient spaces"));
   for(int a=0; a<3; a++) {
     string title = XLAT("%1 period", s0+char('X'+a));
@@ -1046,16 +1110,23 @@ EX void create_faces() {
   
 EX }
 
-EX bool in_s2xe() { return prod && hybrid::under_class() == gcSphere; }
-EX bool in_h2xe() { return prod && hybrid::under_class() == gcHyperbolic; }
-EX bool in_e2xe() { return prod && hybrid::under_class() == gcEuclid; }
+EX bool in_s2xe() { return gproduct && hybrid::under_class() == gcSphere; }
+EX bool in_h2xe() { return gproduct && hybrid::under_class() == gcHyperbolic; }
+EX bool in_e2xe() { return gproduct && hybrid::under_class() == gcEuclid; }
 
 EX namespace hybrid {
 
   EX eGeometry underlying;
   EX geometry_information *underlying_cgip;
 
-  EX eGeometryClass under_class() { return ginf[hybrid::underlying].cclass; }  
+  EX eGeometryClass under_class() {
+    if(embedded_plane) {
+      auto c = geom3::ginf_backup[geometry].cclass;
+      if(c == gcEuclid) c = cginf.g.sig[2] > 0 ? gcSphere : gcHyperbolic;
+      return c;
+      }
+    return ginf[hybrid::underlying].cclass;
+    }
 
   EX int csteps;
   
@@ -1103,7 +1174,7 @@ EX namespace hybrid {
     }
   
   EX void reconfigure() {
-    if(!hybri) return;
+    if(!mhybrid) return;
     stop_game();
     auto g = geometry;
     geometry = underlying;
@@ -1115,13 +1186,18 @@ EX namespace hybrid {
   EX geometry_information *pcgip;
   EX eGeometry actual_geometry;
   
+  #if HDR
   template<class T> auto in_actual(const T& t) -> decltype(t()) {
+    if(pmap == nullptr) return t();
     dynamicval<eGeometry> g(geometry, actual_geometry);
     dynamicval<geometry_information*> gc(cgip, pcgip);
     dynamicval<hrmap*> gu(currentmap, pmap);
     dynamicval<hrmap*> gup(pmap, NULL);
     return t();  
     }
+
+  #define PIA(x) hr::hybrid::in_actual([&] { return (x); })
+  #endif
   
   struct hrmap_hybrid : hrmap {
     
@@ -1226,7 +1302,7 @@ EX namespace hybrid {
     
     EX void fix_bounded_cycles() {
       if(!rotspace) return;
-      if(!bounded) return;
+      if(!closed_manifold) return;
       in_underlying([&] {
         cellwalker final(currentmap->gamestart(), 0);
         auto& ac = currentmap->allcells();
@@ -1306,9 +1382,14 @@ EX namespace hybrid {
       cell *c1 = hybrid::get_where(c).first; 
       return PIU( hr::shvid(c1) );      
       }
-  
-    virtual transmatrix spin_to(cell *c, int d, ld bonus) override { if(d >= c->type-2) return Id; c = get_where(c).first; return in_underlying([&] { return currentmap->spin_to(c, d, bonus); }); }
-    virtual transmatrix spin_from(cell *c, int d, ld bonus) override { if(d >= c->type-2) return Id; c = get_where(c).first; return in_underlying([&] { return currentmap->spin_from(c, d, bonus); }); }
+
+    int full_shvid(cell *c) override {
+      cell *c1 = hybrid::get_where(c).first;
+      return PIU( currentmap->full_shvid(c1) );
+      }
+
+    virtual transmatrix spin_to(cell *c, int d, ld bonus) override { if(d >= c->type-2) return Id; c = get_where(c).first; return fix4( in_underlying([&] { return currentmap->spin_to(c, d, bonus); }) ); }
+    virtual transmatrix spin_from(cell *c, int d, ld bonus) override { if(d >= c->type-2) return Id; c = get_where(c).first; return fix4( in_underlying([&] { return currentmap->spin_from(c, d, bonus); }) ); }
 
     subcellshape& get_cellshape(cell *c) override {      
       int id = full_shvid(c);
@@ -1351,9 +1432,24 @@ EX namespace hybrid {
   
   #if HDR
   template<class T> auto in_underlying_geometry(const T& f) -> decltype(f()) {
-    if(!hybri) return f();
-    dynamicval<eGeometry> g(geometry, underlying);
+    if(!mhybrid && !gproduct) return f();
+    if(embedded_plane) {
+      if(cgi.emb->is_euc_in_product()) {
+        dynamicval<eGeometryClass> dgc(cginf.g.kind, cginf.g.sig[2] < 0 ? gcHyperbolic : gcSphere);
+        return f();
+        }
+      if(cgi.emb->is_cylinder()) {
+        dynamicval<eGeometryClass> dgc(cginf.g.kind, cginf.g.sig[2] < 0 ? gcHyperbolic : gcSphere);
+        return f();
+        }
+      geom3::light_flip(true);
+      finalizer ff([] { geom3::light_flip(false); });
+      return f();
+      }
+    if(geom3::flipped) throw hr_exception("called in_underlying_geometry in flipped");
+    pcgip = cgip;
     dynamicval<eGeometry> gag(actual_geometry, geometry);
+    dynamicval<eGeometry> g(geometry, underlying);
     dynamicval<int> gss(underlying_cgip->single_step, cgi.single_step);
     dynamicval<int> gsp(underlying_cgip->psl_steps, cgi.psl_steps);
     dynamicval<geometry_information*> gc(cgip, underlying_cgip);
@@ -1365,18 +1461,43 @@ EX namespace hybrid {
   #define PIU(x) hr::hybrid::in_underlying_geometry([&] { return (x); })
   #endif
 
+  /** like in_underlying_geometry but does not return */
+  EX void switch_to_underlying() {
+    if(!mhybrid && !gproduct) return;
+    if(embedded_plane) throw hr_exception("switch_to_underlying in embedded_plane");
+    auto m = hmap();
+    pmap = m;
+    actual_geometry = geometry;
+    geometry = underlying;
+    underlying_cgip->single_step = cgi.single_step;
+    underlying_cgip->psl_steps = cgi.psl_steps;
+    pcgip = cgip;
+    cgip = underlying_cgip;
+    currentmap = m->underlying_map;
+    }
+
+  /** like in_actual but does not return */
+  EX void switch_to_actual() {
+    if(!pmap) return;
+    geometry = actual_geometry;
+    cgip = pcgip;
+    currentmap = pmap;
+    pmap = nullptr;
+    }
+
+  // next: 0 = i-th corner, 1 = next corner, 2 = center of the wall
   EX hyperpoint get_corner(cell *c, int i, int next, ld z) {
     ld lev = cgi.plevel * z / 2;
     if(WDIM == 2) {
       ld zz = lerp(cgi.FLOOR, cgi.WALL, (1+z) / 2);
-      hyperpoint h = zshift(get_corner_position(c, i+next), zz);
+      hyperpoint h = orthogonal_move(get_corner_position(c, i+next), zz);
       return h;
       }
-    if(prod) {
+    if(gproduct) {
       dynamicval<eGeometry> g(geometry, hybrid::underlying);
       dynamicval<geometry_information*> gc(cgip, hybrid::underlying_cgip);
       dynamicval<hrmap*> gm(currentmap, ((hrmap_hybrid*)currentmap)->underlying_map);
-      return mscale(get_corner_position(c, i+next), exp(lev));
+      return scale_point(get_corner_position(c, i+next), exp(lev));
       }
     else {
       #if MAXMDIM >= 4
@@ -1384,12 +1505,20 @@ EX namespace hybrid {
       in_underlying_geometry([&] {
         hyperpoint h1 = get_corner_position(c, i);
         hyperpoint h2 = get_corner_position(c, i+1);
-        hyperpoint hm = mid(h1, h2);
+        hyperpoint hm;
+        if(next == 2) {
+          hm = h1;
+          he = 0;
+          }
+        else {
+          hyperpoint hm = mid(h1, h2);
+          he = hdist(hm, h2)/2;
+          if(next) he = -he;
+          }
         tf = hdist0(hm)/2;
-        he = hdist(hm, h2)/2;
         alpha = atan2(hm[1], hm[0]);
         });
-      return spin(alpha) * rots::uxpush(tf) * rots::uypush(next?he:-he) * rots::uzpush(lev) * C0;
+      return spin(alpha) * rots::uxpush(tf) * rots::uypush(he) * rots::uzpush(lev) * C0;
       #else
       throw hr_exception();
       #endif
@@ -1403,12 +1532,14 @@ EX namespace hybrid {
     });
   
   EX vector<pair<int, cell*>> gen_sample_list() {
-    if(!hybri && WDIM != 2 && PURE)
+    if(!mhybrid && WDIM != 2 && PURE)
       return {make_pair(0, centerover), make_pair(centerover->type, nullptr)};
     vector<pair<int, cell*>> result;
     for(auto& v: cgi.walloffsets) if(v.first >= 0) result.push_back(v);
     sort(result.begin(), result.end());
-    result.emplace_back(isize(cgi.wallstart), nullptr);
+    int last = 0;
+    for(auto& r: result) if(r.second) last = r.first + r.second->type  + (WDIM == 2 ? 2 : 0);
+    result.emplace_back(last, nullptr);
     return result;
     }
 
@@ -1495,7 +1626,7 @@ EX namespace hybrid {
     dialog::extra_options = [=] () { 
       if(rotspace) {
         int e_steps = cgi.psl_steps / gcd(cgi.single_step, cgi.psl_steps); 
-        bool ubounded = PIU(bounded);
+        bool ubounded = PIU(closed_manifold);
         dialog::addSelItem( sphere ? XLAT("elliptic") : XLAT("PSL(2,R)"), its(e_steps), 'P');
         dialog::add_action(set_s(e_steps, true));
         dialog::addSelItem( sphere ? XLAT("sphere") : XLAT("SL(2,R)"), its(2*e_steps), 'P');
@@ -1523,26 +1654,26 @@ EX namespace product {
   
   struct hrmap_product : hybrid::hrmap_hybrid {
     transmatrix relative_matrixc(cell *c2, cell *c1, const hyperpoint& hint) override {
-      return in_underlying([&] { return calc_relative_matrix(where[c2].first, where[c1].first, hint); }) * mscale(Id, cgi.plevel * szgmod(where[c2].second - where[c1].second, hybrid::csteps));
+      return in_underlying([&] { return calc_relative_matrix(where[c2].first, where[c1].first, hint); }) * cpush(2, cgi.plevel * szgmod(where[c2].second - where[c1].second, hybrid::csteps));
       }
 
     transmatrix adj(cell *c, int i) override {
       if(twisted && i == c->type-1 && where[c].second == hybrid::csteps-1) {
         auto b = spins[where[c].first].first;
-        transmatrix T = mscale(Id, cgi.plevel);
-        T = T * spin(2 * M_PI * b.spin / b.at->type);
+        transmatrix T = cpush(2, cgi.plevel);
+        T = T * spin(TAU * b.spin / b.at->type);
         if(b.mirrored) T = T * Mirror;
         return T;
         }
       if(twisted && i == c->type-2 && where[c].second == 0) {
         auto b = spins[where[c].first].second;
-        transmatrix T = mscale(Id, -cgi.plevel);
-        T = T * spin(2 * M_PI * b.spin / b.at->type);
+        transmatrix T = cpush(2, -cgi.plevel);
+        T = T * spin(TAU * b.spin / b.at->type);
         if(b.mirrored) T = T * Mirror;
         return T;
         }
-      if(i == c->type-1) return mscale(Id, cgi.plevel);
-      else if(i == c->type-2) return mscale(Id, -cgi.plevel);
+      if(i == c->type-1) return cpush(2, cgi.plevel);
+      else if(i == c->type-2) return cpush(2, -cgi.plevel);
       c = where[c].first;
       return PIU(currentmap->adj(c, i));
       }
@@ -1572,8 +1703,8 @@ EX namespace product {
       }
 
     virtual transmatrix ray_iadj(cell *c, int i) override {
-      if(i == c->type-2) return (mscale(Id, +cgi.plevel));
-      if(i == c->type-1) return (mscale(Id, -cgi.plevel));
+      if(i == c->type-2) return (cpush(2, +cgi.plevel));
+      if(i == c->type-1) return (cpush(2, -cgi.plevel));
       transmatrix T;
       cell *cw = hybrid::get_where(c).first;
       hybrid::in_underlying_geometry([&] {
@@ -1590,7 +1721,7 @@ EX namespace product {
   EX hyperpoint inverse_exp(hyperpoint h) {
     hyperpoint res;
     res[2] = zlevel(h);
-    h = zshift(h, -res[2]);
+    h = h * exp(-res[2]);
     ld r = hypot_d(2, h);
     if(hybrid::under_class() == gcEuclid) {
       res[0] = h[0];
@@ -1616,11 +1747,11 @@ EX namespace product {
     res[0] = h[0] * cd;
     res[1] = h[1] * cd;
     res[2] = cos_auto(d);
-    return zshift(res, h[2]);
+    return res * exp(h[2]);
     }
 
   EX bool validate_spin() {
-    if(prod) return hybrid::in_underlying_geometry(validate_spin);
+    if(mproduct) return hybrid::in_underlying_geometry(validate_spin);
     if(kite::in()) return false;
     if(!quotient && !arcm::in()) return true;
     map<cell*, cellwalker> cws;
@@ -1643,7 +1774,7 @@ EX namespace product {
 
   EX void show_config() {
     cmode = sm::SIDE | sm::MAYDARK;
-    gamescreen(1);
+    gamescreen();
     dialog::init(XLAT("quotient product spaces"));
     dialog::addSelItem(XLAT("%1 period", "Z"), its(hybrid::csteps), 'z');
     dialog::add_action(hybrid::configure_period);
@@ -1680,8 +1811,14 @@ EX }
 
 EX namespace slr {
 
+  /** in what range are we rendering SL(2,R) */
   EX ld range_xy = 2;
-  EX int steps = 15;
+
+  /** in what Z range are we rendering SL(2,R) */
+  EX ld range_z = 2;
+  
+  /** the number of steps for inverse_exp in the shader */
+  EX int shader_iterations = 15;
 
   EX transmatrix translate(hyperpoint h) {
     return matrix4(
@@ -1745,7 +1882,7 @@ EX namespace slr {
   
       ld z = cr * (K - 1/SV/SV);
   
-      ld k = M_PI/2;
+      ld k = 90._deg;
       ld a = k / K;
       ld zw = xy * cr / sr;
       ld u = z * a;
@@ -2178,7 +2315,7 @@ EX namespace rots {
   
     if(det(T) < 0) T = centralsym * T;
     
-    if(prod) d = 0;
+    if(mproduct) d = 0;
   
     hyperpoint h = inverse(View * spin(master_to_c7_angle()) * T) * C0;
     
@@ -2187,7 +2324,7 @@ EX namespace rots {
     
     ld alpha = atan2(ortho_inverse(NLP) * point3(1, 0, 0));
     
-    bool inprod = prod;
+    bool inprod = mproduct;
     transmatrix pView = View;
     if(inprod) {
       pView = spin(alpha) * View;
@@ -2236,7 +2373,9 @@ EX namespace rots {
 
   EX hyperpoint formula_exp(hyperpoint vel) {
     bool sp = sphere;
-    ld K = sp ? 1 : -1;    
+    ld K = sp ? 1 : -1;
+
+    if(vel[0] == 0 && vel[1] == 0 && vel[2] == 0) return C0;
   
     ld len = hypot_d(3, vel);
   
@@ -2516,7 +2655,7 @@ EX namespace stretch {
       
       res.push_back(point31(h[0] * a / d, h[1] * a / d, h[2] * a / d));
       
-      a = a - 2 * M_PI;
+      a = a - TAU;
 
       res.push_back(point31(h[0] * a / d, h[1] * a / d, h[2] * a / d));
       
@@ -2527,7 +2666,7 @@ EX namespace stretch {
       ld a = atan2(h[2], h[3]);
       
       for(int it=-generations; it<generations; it++) {
-        res.push_back(point31(0, 0, (a + 2 * M_PI * it) * SV));
+        res.push_back(point31(0, 0, (a + TAU * it) * SV));
         }
       
       return res;
@@ -2538,16 +2677,13 @@ EX namespace stretch {
     ld base_min_a = asin(xy);
     ld base_max_a = M_PI - base_min_a;
   
-    ld seek = M_PI/2-atan2(h[3], h[2]);
+    ld seek = 90._deg - atan2(h[3], h[2]);
   
     auto ang = [&] (ld a) {
       ld rp = xy / sin(a);
       ld co = abs(rp) >= 1 ? 0 : sqrt(1-rp*rp);
       
       return atan2(co * sin(a), cos(a)) - co * (1 - 1/SV/SV) * a;
-      
-      // while(a0 > M_PI) a0 -= 2 * M_PI;
-      // while(a0 < -M_PI) a0 += 2 * M_PI;
       };
     
     for(int shift=-generations; shift<generations; shift++) {
@@ -2581,10 +2717,10 @@ EX namespace stretch {
           
           // println(hlog, "*** ", mi, t, " ** ", tie(min_a, ang_min), tie(extreme, ang_extreme), tie(max_a, ang_max), " -> ", vmin, " to ", vmax);
           
-          int cmin = ceil((vmin - seek) / 2 / M_PI);
-          int cmax = floor((vmax - seek) / 2 / M_PI);
+          int cmin = ceil((vmin - seek) / TAU);
+          int cmax = floor((vmax - seek) / TAU);
           for(int c = cmin; c <= cmax; c++) {
-            ld cseek = seek + c * 2 * M_PI;
+            ld cseek = seek + c * TAU;
   
             for(int it=0; it<40; it++) {
             
@@ -2784,10 +2920,16 @@ EX namespace nisot {
   EX transmatrix parallel_transport(const transmatrix Position, const hyperpoint direction) {
     auto P = Position;
     nisot::fixmatrix(P);  
-    if(!geodesic_movement) return eupush(Position * translate(-direction) * inverse(Position) * C0, -1) * Position;
     return parallel_transport_bare(P, direction);
     }
-  
+
+  EX transmatrix lie_transport(const transmatrix Position, const hyperpoint direction) {
+    transmatrix pshift = eupush( tC0(Position) );
+    transmatrix irot = iso_inverse(pshift) * Position;
+    hyperpoint tH = unshift(lie_exp(irot * direction));
+    return pshift * eupush(tH) * irot;
+    }
+
   EX transmatrix spin_towards(const transmatrix Position, const hyperpoint goal, flagtype prec IS(pNORMAL)) {
 
     hyperpoint at = tC0(Position);
@@ -2804,10 +2946,10 @@ EX namespace nisot {
     #if CAP_SOLV
     if(sn::in()) return new sn::hrmap_solnih;
     #endif
-    if(prod) return new product::hrmap_product;
+    if(mproduct) return new product::hrmap_product;
     #if MAXMDIM >= 4
     if(nil) return new nilv::hrmap_nil;
-    if(hybri) return new rots::hrmap_rotation_space;
+    if(mhybrid) return new rots::hrmap_rotation_space;
     #endif
     return NULL;
     }
@@ -2824,6 +2966,7 @@ EX namespace nisot {
     #endif
     if(argis("-slrange")) {
       shift_arg_formula(slr::range_xy);
+      shift_arg_formula(slr::range_z);
       return 0;
       }
     #if CAP_SOLV
@@ -2836,16 +2979,6 @@ EX namespace nisot {
       return 0;
       }
     #endif
-    else if(argis("-solgeo")) {
-      geodesic_movement = true;
-      pmodel = mdGeodesic;
-      return 0;
-      }
-    else if(argis("-solnogeo")) {
-      geodesic_movement = false;
-      pmodel = mdPerspective;
-      return 0;
-      }
     else if(argis("-product")) {
       PHASEFROM(2);
       set_geometry(gProduct);
@@ -2909,7 +3042,7 @@ EX namespace nisot {
     #endif
     else if(argis("-prodperiod")) {
       PHASEFROM(2);
-      if(prod) stop_game();
+      if(mproduct) stop_game();
       shift(); hybrid::csteps = argi();
       hybrid::reconfigure();
       return 0;
@@ -2945,9 +3078,13 @@ EX namespace nisot {
       }
     else if(argis("-prodturn")) {
       PHASEFROM(2);
-      if(prod) stop_game();
+      if(mproduct) stop_game();
       shift(); product::cspin = argi();
       shift(); product::cmirror = argi();
+      return 0;
+      }
+    else if(argis("-nil-model")) {
+      shift(); nilv::model_used = argf();
       return 0;
       }
     return 1;

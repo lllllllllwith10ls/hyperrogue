@@ -105,7 +105,44 @@ vector<string> snake = {
   "00555555555555555555555555555555500",
   "00000000000000000000000000000000000"
   };
-  
+
+vector<string> apple = {
+  "0000000000000000000000000000000",
+  "0000000000000000440000000000000",
+  "0000000000000004114000000000000",
+  "0000000000000004140000000000000",
+  "0000000000000041140000000000000",
+  "0000000000000041140000000000000",
+  "0000004444444441144444440000000",
+  "0000041111111111111111114400000",
+  "0000411111111111111111111140000",
+  "0004111111111111111111111114000",
+  "0041111111111111111111111111400",
+  "0041111111111111111111111111140",
+  "0041111111111111111111111111140",
+  "0411111111111111111111111111140",
+  "0411111111111111111111111111140",
+  "0411111111111111111111111111140",
+  "0411111111111111111111111111140",
+  "0411111111111111111111111111140",
+  "0711111111111111111111111111160",
+  "0511111111111111111111111111150",
+  "0511111111111111111111111111150",
+  "0051111111111111111111111111150",
+  "0051111111111111111111111111500",
+  "0051111111111111111111111111500",
+  "0005111111111111111111111111500",
+  "0005111111111111111111111115000",
+  "0005111111111111111111111115000",
+  "0000511111111111111111111150000",
+  "0000051111111111111111111500000",
+  "0000051111111111111111115000000",
+  "0000005111111111111111150000000",
+  "0000000551111511111115500000000",
+  "0000000005555055555550000000000",
+  "0000000000000000000000000000000"
+  };
+
 struct coord { 
   int x, y; 
   coord operator + (int d) {
@@ -416,6 +453,8 @@ void conf_shapes() {
   dialog::add_action([] { fmap = snake; reset_vxy(); popScreen(); });
   dialog::addItem("ellipse 50", 'e');
   dialog::add_action([] { fmap = genellipse(50, hrand(180)); reset_vxy(); popScreen(); });
+  dialog::addItem("apple", 'f');
+  dialog::add_action([] { fmap = apple; reset_vxy(); popScreen(); });
   dialog::addBreak(100);
   dialog::addBack();
   dialog::display();
@@ -472,7 +511,7 @@ void pick_algorithm() {
   dialog::addItem("visualize (fast)", 'b');
   dialog::add_action([] { nconf_prepare(true); popScreen(); });
   dialog::addSelItem("visualization speed", its(algo_speed), 'v');
-  dialog::add_action([] { dialog::editNumber(algo_speed, 100, 1000000, 0.1, 10000, "", ""), dialog::scaleLog(), dialog::dialogflags = 0, dialog::numberdark = dialog::DONT_SHOW; });
+  dialog::add_action([] { dialog::editNumber(algo_speed, 100, 1000000, 0.1, 10000, "", ""), dialog::scaleLog(), dialog::dialogflags = sm::NOSCR; });
   dialog::addBreak(50);
   dialog::addBoolItem_action("pretty corners", pretty, 'p');
   dialog::addBreak(50);
@@ -489,7 +528,7 @@ int redraws;
 
 void redraw_texture() {
   View = Id;
-  if(arcm::in()) View = View * spin(45 * degree);
+  if(arcm::in()) View = View * spin(45._deg);
   dynamicval<int> cgl(vid.cells_generated_limit, 9999999);
   dynamicval<int> cdl(vid.cells_drawn_limit, 9999999);
   dynamicval<bool> r(mousing, false);
@@ -519,7 +558,7 @@ void pick_pattern() {
   dialog::addItem("green football", 'g');
   dialog::add_action([] { 
     chg_pattern([] {
-      firstland = specialland = laCanvas;
+      enable_canvas();
       patterns::whichCanvas = 'B';
       });
     });
@@ -530,7 +569,7 @@ void pick_pattern() {
       gp::param.first = 9;
       gp::param.second = 0;
       set_variation(eVariation::goldberg);
-      firstland = specialland = laCanvas;
+      enable_canvas();
       patterns::whichCanvas = 'F';
       });
     });
@@ -539,7 +578,7 @@ void pick_pattern() {
   dialog::add_action([] { 
     chg_pattern([] {
       set_geometry(gOctagon);
-      firstland = specialland = laCanvas;
+      enable_canvas();
       patterns::whichCanvas = 'T';
       });
     });
@@ -572,7 +611,7 @@ void pick_pattern() {
       set_variation(eVariation::pure);
       arcm::current.parse("4^5");
       set_geometry(gArchimedean);
-      firstland = specialland = laCanvas;
+      enable_canvas();
       patterns::whichCanvas = 'A';
       });
     });
@@ -629,7 +668,7 @@ void draw_ncee() {
     period = 2 * hdist0(tC0(currentmap->adj(cwt.at, 0)));
     }
 
-  period *= 2 / M_PI;
+  period /= 90._deg;
   
   dynamicval<eModel> pm(pmodel, mdPixel);
   dynamicval<eGeometry> pg(geometry, gEuclid);
@@ -824,7 +863,7 @@ void ncee_work() {
 
   calcparam();
   
-  if(ncee_map_prepared < 5) { cmode = sm::NORMAL; ncee_map_prepared++; if(ncee_map_prepared == 5) prepare_ncee_map(); gamescreen(2); return; }
+  if(ncee_map_prepared < 5) { cmode = sm::NORMAL | sm::DARKEN; ncee_map_prepared++; if(ncee_map_prepared == 5) prepare_ncee_map(); gamescreen(); return; }
 
   #if CAP_NCONF
   if(in_visualization) 
@@ -907,7 +946,7 @@ void ncee() {
     if(uni == 's') show_mapping = !show_mapping;
     if(uni == 'g') show_mgrid = !show_mgrid;
     if(uni == 't') pushScreen(conf_shapes);
-    if(uni == 'y') dialog::editNumber(mapping_split, 0, 1, 0.05, 0.75, "", ""), dialog::dialogflags = 0, dialog::numberdark = dialog::DONT_SHOW;
+    if(uni == 'y') dialog::editNumber(mapping_split, 0, 1, 0.05, 0.75, "", ""), dialog::dialogflags = sm::NOSCR;
     if(uni == '-') {
       int x = (mousex - cd->xcenter - xc - x0) / siz;
       int y = (mousey - cd->ycenter - yc - y0) / siz;
@@ -919,7 +958,7 @@ void ncee() {
     if(uni == 'X') {
       int D = 100;
   
-      fmap = genellipse(D, -10 * degree), reset_vxy();
+      fmap = genellipse(D, -10._deg), reset_vxy();
       #if CAP_NCONF
       nconf_solve(); 
       #endif
@@ -975,6 +1014,8 @@ extern "C" {
       fmap = snake, reset_vxy();
     else if(i == 15)
       pushScreen(pick_pattern);
+    else if(i == 16)
+      fmap = apple, reset_vxy();
     }
   }
   

@@ -30,8 +30,10 @@ string preprocessor;
 string compiler;
 string linker;
 string libs;
+string default_exec_name;
 
 bool verbose = false;
+bool quiet = false;
 
 int batch_size = thread::hardware_concurrency() + 1;
 bool mingw64 = false;
@@ -59,24 +61,32 @@ string os = "mingw64";
 string os = "linux";
 #endif
 
+string exec_name = "";
+
 void set_linux() {
   preprocessor = "g++ -E";
   compiler = "g++ -Wall -Wextra -Wno-maybe-uninitialized -Wno-unused-parameter -Wno-implicit-fallthrough -Wno-invalid-offsetof -rdynamic -fdiagnostics-color=always -c";
-  linker = "g++ -rdynamic -o hyper";
+  linker = "g++ -rdynamic";
+  default_exec_name = "hyper";
   if(sdlver == 2) {
     opts = "-DFHS -DLINUX -I/usr/include/SDL2";
     libs = " -lSDL2 -lSDL2_ttf -lSDL2_mixer -lSDL2_gfx -lGLEW -lGL -lpng -rdynamic -lpthread -lz";
     }
-  else {
+  else if(sdlver == 1) {
     opts = "-DFHS -DLINUX -I/usr/include/SDL";
     libs = " -lSDL -lSDL_ttf -lSDL_mixer -lSDL_gfx -lGLEW -lGL -lpng -rdynamic -lpthread -lz";
+    }
+  else {
+    opts = "-DFHS -DLINUX";
+    libs = " -rdynamic -lpthread -lz";
     }
   }
 
 void set_mac() {
   preprocessor = "g++ -E";
-  compiler = "g++ -march=native -W -Wall -Wextra -Wsuggest-override -pedantic -Wno-unused-parameter -Wno-implicit-fallthrough -Wno-invalid-offsetof -c";
-  linker = "g++ -o hyper";
+  compiler = "g++ -W -Wall -Wextra -Wsuggest-override -pedantic -Wno-unused-parameter -Wno-implicit-fallthrough -Wno-invalid-offsetof -c";
+  linker = "g++";
+  default_exec_name = "hyper";
   opts = "-DMAC -I/usr/local/include";
   libs = " -L/usr/local/lib -framework AppKit -framework OpenGL -lSDL -lSDLMain -lSDL_gfx -lSDL_mixer -lSDL_ttf -lpng -lpthread -lz";
   }
@@ -84,8 +94,9 @@ void set_mac() {
 void set_mingw64() {
   mingw64 = true;
   preprocessor = "g++ -E";
-  compiler = "g++ -mwindows -march=native -W -Wall -Wextra -Werror -Wno-unused-parameter -Wno-invalid-offsetof -Wno-implicit-fallthrough -Wno-maybe-uninitialized -c";
-  linker = "g++ -o hyper";
+  compiler = "g++ -mwindows -W -Wall -Wextra -Wno-unused-parameter -Wno-invalid-offsetof -Wno-implicit-fallthrough -Wno-maybe-uninitialized -c";
+  linker = "g++";
+  default_exec_name = "hyper";
   opts = "-DWINDOWS -DCAP_GLEW=1 -DCAP_PNG=1";
   libs = " hyper.res -lopengl32 -lSDL -lSDL_gfx -lSDL_mixer -lSDL_ttf -lpthread -lz -lglew32 -lpng";
   setvbuf(stdout, NULL, _IONBF, 0); // MinGW is quirky with output buffering
@@ -94,10 +105,16 @@ void set_mingw64() {
 /* cross-compile Linux to Windows (tested on Archlinux) */
 void set_mingw64_cross() {
   preprocessor = "x86_64-w64-mingw32-g++ -E";
-  compiler = "x86_64-w64-mingw32-g++ -mwindows -march=native -W -Wall -Wextra -Werror -Wno-unused-parameter -Wno-invalid-offsetof -Wno-implicit-fallthrough -Wno-maybe-uninitialized -c";
-  linker = "x86_64-w64-mingw32-g++ -o hyper.exe";
-  opts = "-DWINDOWS -DGLEW_STATIC -DUSE_STDFUNCTION=1 -DCAP_PNG=1 -I /usr/x86_64-w64-mingw32/include/SDL/";
-  libs = " hyper64.res -static-libgcc -lopengl32 -lSDL -lSDL_gfx -lSDL_mixer -lSDL_ttf -lpthread -lz -lglew32 -lpng";
+  compiler = "x86_64-w64-mingw32-g++ -mwindows -W -Wall -Wextra -Wno-unused-parameter -Wno-invalid-offsetof -Wno-implicit-fallthrough -Wno-maybe-uninitialized -c";
+  linker = "x86_64-w64-mingw32-g++";
+  default_exec_name = "hyper.exe";
+  opts = "-DWINDOWS -DGLEW_STATIC -DUSE_STDFUNCTION=1 -DCAP_PNG=1";
+  if(sdlver == 1) opts += " -I /usr/x86_64-w64-mingw32/include/SDL/";
+  if(sdlver == 2) opts += " -I /usr/x86_64-w64-mingw32/include/SDL2/";
+  libs = " hyper64.res -static-libgcc -lopengl32";
+  if(sdlver == 1) libs += " -lSDL -lSDL_gfx -lSDL_mixer -lSDL_ttf";
+  if(sdlver == 2) libs += " -lSDL2 -lSDL2_gfx -lSDL2_mixer -lSDL2_ttf";
+  libs += " -lpthread -lz -lglew32 -lpng";
   setvbuf(stdout, NULL, _IONBF, 0); // MinGW is quirky with output buffering
   if(!file_exists("hyper64.res"))
     mysystem("x86_64-w64-mingw32-windres hyper.rc -O coff -o hyper64.res");
@@ -112,7 +129,8 @@ void set_web() {
     "/usr/lib/emscripten/em++ -s USE_ZLIB=1 -s DISABLE_DEPRECATED_FIND_EVENT_TARGET_BEHAVIOR=0 -s TOTAL_MEMORY=512MB "
     "-s EXTRA_EXPORTED_RUNTIME_METHODS='[\"FS\",\"ccall\"]' "
     "-s EXPORTED_FUNCTIONS=\"['_main', '_use_file']\" "
-    "-s DISABLE_EXCEPTION_CATCHING=0 -o mhyper.html";
+    "-s DISABLE_EXCEPTION_CATCHING=0";
+  default_exec_name = "mhyper.html";
   libs = "";
   }
 
@@ -130,11 +148,32 @@ void set_os(string o) {
   }
 
 vector<string> modules;
+vector<string> hidden_dependencies;
 
 time_t get_file_time(const string s) {
   struct stat attr;
   if(stat(s.c_str(), &attr)) return 0;
-  return attr.st_mtime;
+  time_t res = attr.st_mtime;
+
+  for(auto& hd: hidden_dependencies) if(s.substr(0, hd.size()) == hd) {
+    int pos = 0;
+    vector<int> slashes = {0};
+    int numslash = 0;
+    for(char c: s) { pos++; if(c == '/') slashes.push_back(pos), numslash++; }
+    ifstream ifs(s);
+    string s1;
+    while(getline(ifs, s1)) {
+      if(s1.substr(0, 10) == "#include \"") {
+        string t = s1.substr(10);
+        t = t.substr(0, t.find("\""));
+        int qdot = 0;
+        while(t.substr(0, 3) == "../" && qdot < numslash) qdot++, t = t.substr(3);
+        string u = s.substr(0, slashes[numslash - qdot]) + t;
+        res = max(res, get_file_time(u));
+        }
+      }
+    }
+  return res;
   }
 
 int optimized = 0;
@@ -163,6 +202,9 @@ int main(int argc, char **argv) {
       }
     else if(s == "-v") {
       verbose = true;
+      }
+    else if(s == "-q") {
+      quiet = true;
       }
     else if(s == "-mingw64") {
       set_os("mingw64");
@@ -197,6 +239,13 @@ int main(int argc, char **argv) {
       setdir += "../";
       opts += " -DCAP_SDL2=0";
       }
+    else if(s == "-sdl0") {
+      sdlver = 0;
+      set_os(os);
+      obj_dir += "/sdl0";
+      setdir += "../";
+      opts += " -DCAP_SDL=0 -DCAP_GL=0 -DCAP_PNG=0";
+      }
     else if(s == "-sdl2") {
       sdlver = 2;
       set_os(os);
@@ -204,19 +253,33 @@ int main(int argc, char **argv) {
       setdir += "../";
       opts += " -DCAP_SDL2=1";
       }
-    else if(s.substr(0, 2) == "-f") {
+    else if(s.substr(0, 2) == "-f" || s.substr(0, 2) == "-m") {
       opts += " " + s;
       obj_dir += "/";
       setdir += "../";
       for(char c: s) 
         if(!isalnum(c)) obj_dir += "_"; 
         else obj_dir += c;
+      compiler += " " + s;
       linker += " " + s;
+      }
+    else if(s == "-o") {
+      exec_name = argv[i+1];
+      i++;
+      }
+    else if(s == "-shared") {
+      obj_dir += "/shared";
+      setdir += "../";
+      opts += " -fPIC -DNOMAIN";
+      linker += " -shared -fPIC";
+      default_exec_name = "libhyper.so";
       }
     else if(s == "-O2")
       optimized = 2, compiler += " -O2", obj_dir += "/O2", setdir += "../";
     else if(s == "-O3")
       optimized = 3, compiler += " -O3", obj_dir += "/O3", setdir += "../";
+    else if(s == "-Werror")
+      compiler += " -Werror", obj_dir += "/Werror", setdir += "../";
     else if(s.substr(0, 4) == "-std")
       standard = s;
     else if(s.substr(0, 2) == "-l")
@@ -232,8 +295,14 @@ int main(int argc, char **argv) {
     else if(s == "-vr") {
       obj_dir += "/vr";
       setdir += "../";
-      linker += " -lopenvr_api";
-      opts += " -DCAP_VR=1 -I/usr/include/openvr/";
+      if(os == "mingw64" || os == "mingw64-cross") {
+        linker += " for-win64/mingw64/bin/libopenvr_api.dll";
+        opts += " -DCAP_VR=1 -I./for-win64/mingw64/include/openvr/";
+        }
+      else {
+        linker += " -lopenvr_api";
+        opts += " -DCAP_VR=1 -I/usr/include/openvr/";
+        }
       }
     else if(s == "-rv") {
       
@@ -247,6 +316,10 @@ int main(int argc, char **argv) {
           string t = s.substr(10);
           t = t.substr(0, t.find(".cpp\""));
           modules.push_back("rogueviz/" + t);
+          }
+        if(s.substr(0, 24) == "// hidden dependencies: ") {
+          while(s.back() == 10 || s.back() == 13) s.pop_back();
+          hidden_dependencies.push_back(s.substr(24));
           }
         }
       }
@@ -284,7 +357,7 @@ int main(int argc, char **argv) {
     }
   fsm.close();
   
-  printf("preprocessing...\n");
+  if(!quiet) printf("preprocessing...\n");
   if(mysystem(preprocessor + " " + opts + " "+obj_dir+"/hyper.cpp -o "+obj_dir+"/hyper.E")) { printf("preprocessing error\n"); exit(1); }
   
   if(true) {
@@ -298,10 +371,10 @@ int main(int argc, char **argv) {
       }
     }
   
-  modules.push_back("savepng");
+  if(sdlver) modules.push_back("savepng");
 
   if(get_file_time(obj_dir + "/hyper.o") < get_file_time("hyper.cpp")) {
-    printf("compiling hyper...\n");
+    if(!quiet) printf("compiling hyper...\n");
     if(mysystem(compiler + " -DREM " + opts + " " + obj_dir + "/hyper.cpp -c -o " + obj_dir + "/hyper.o")) { printf("error\n"); exit(1); }
     }
   
@@ -331,7 +404,7 @@ int main(int argc, char **argv) {
       tasks.push_back(task);
       }
     else {
-      printf("ok: %s\n", m.c_str());
+      if(!quiet) printf("ok: %s\n", m.c_str());
       }
     allobj += " ";
     allobj += obj;
@@ -359,7 +432,8 @@ int main(int argc, char **argv) {
       auto task = tasks[tasks_taken];
       int mid = task.first;
       function<int(void)> do_work = task.second;
-      printf("compiling %s... [%d/%d]\n", modules[mid].c_str(), tasks_taken+1, tasks_amt);
+      if(!quiet)
+        printf("compiling %s... [%d/%d]\n", modules[mid].c_str(), tasks_taken+1, tasks_amt);
       worker = async(launch::async, do_work);
       ++tasks_taken;
       }
@@ -372,7 +446,8 @@ int main(int argc, char **argv) {
     }
 
   printf("linking...\n");
-  retval = mysystem(linker + allobj + libs);
+  if(exec_name == "") exec_name = default_exec_name;
+  retval = mysystem(linker + " -o " + exec_name + allobj + libs);
   if (retval) { printf("linking error!\n"); exit(retval); }
   return 0;
   }

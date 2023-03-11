@@ -31,8 +31,10 @@ namespace rg {
   static const char global = 'x'; 
   /** \brief wrongmode only -- change vid.scfg.players then restart_game(rg::nothing) instead */
   static const char multi = 'm';
-  /** \brief wrongmode only -- mark achievements for special geometries/variations */
+  /** \brief wrongmode only -- mark achievements for special geometries/variations, this automatically marks the expected land_structure as lsSingle */
   static const char special_geometry = 'g';
+  /** \brief wrongmode only -- mark achievements for special geometries/variations */
+  static const char special_geometry_nicewalls = 'G';
   }
 #endif
 
@@ -75,6 +77,7 @@ EX hookset<bool()> hooks_welcome_message;
 /** \brief Print the welcome message during the start of game. Depends on the current mode and other settings. */
 EX void welcomeMessage() {
   if(callhandlers(false, hooks_welcome_message)) return;
+  if(embedded_plane) return IPF(welcomeMessage());
 #if CAP_TOUR
   else if(tour::on) return; // displayed by tour
 #endif
@@ -85,7 +88,9 @@ EX void welcomeMessage() {
       items[itGreenStone] = 99;
     addMessage(XLAT("Welcome to %the1 Challenge!", moPrincess));
     addMessage(XLAT("The more Hypersian Rugs you collect, the harder it is.", moPrincess));
-    }  
+    }
+  else if(intra::in)
+    addMessage(XLAT("Welcome to a portal map! Press 'o' to configure."));
   else if(randomPatternsMode)
     addMessage(XLAT("Welcome to the Random Pattern mode!"));
   else if(tactic::on)
@@ -150,6 +155,8 @@ EX hookset<void()> hooks_post_initgame;
 
 EX bool ineligible_starting_land;
 
+EX int easy_specialland;
+
 /** \brief initialize the game */
 EX void initgame() {
   DEBBI(DF_INIT, ("initGame"));
@@ -169,10 +176,6 @@ EX void initgame() {
     firstland = safetyland;
     }
 
-  #if CAP_RACING  
-  if(racing::on) racing::apply_seed();
-  #endif
-  
   if(!safety) {
     firstland = specialland;
     ineligible_starting_land = !landUnlocked(specialland);
@@ -181,6 +184,8 @@ EX void initgame() {
   if(firstland == laNone || firstland == laBarrier)
     firstland = laCrossroads;
 
+  easy_specialland = 0;
+
   if(firstland == laOceanWall) firstland = laOcean; 
   if(firstland == laHauntedWall) firstland = laGraveyard; 
   if(firstland == laHaunted && !tactic::on) firstland = laGraveyard;
@@ -188,8 +193,10 @@ EX void initgame() {
   if(firstland == laMountain && !tactic::on) firstland = laJungle;
   if(firstland == laPrincessQuest) firstland = laPalace;
   if(firstland == laMemory) firstland = laIce;
-  if((isGravityLand(firstland) && !isCyclic(firstland)) || (firstland == laOcean && !safety && !yendor::on)) 
+  if((isGravityLand(firstland) && !isCyclic(firstland)) || (firstland == laOcean && !safety && !yendor::on)) {
     firstland = weirdhyperbolic ? laCrossroads4 : laCrossroads;
+    easy_specialland = 3;
+    }
   
   clear_euland(firstland);
 
@@ -205,6 +212,7 @@ EX void initgame() {
   clearing::direct = 0;
   clearing::imputed = 0;
   rosephase = 0;
+  shmup::count_pauses = 0;
 
   if(firstland == laElementalWall) cwt.at->land = randomElementalLand();
   
@@ -214,6 +222,7 @@ EX void initgame() {
   pregen();  
   setdist(cwt.at, BARLEV, NULL);
 
+  if(!disable_bigstuff)
   if(isCyclic(specialland) || specialland == laCanvas) {
     #if CAP_COMPLEX2
     camelot::anthraxBonus = items[itHolyGrail];
@@ -270,7 +279,7 @@ EX void initgame() {
 
   if(cwt.at->land == laCrossroads2) {
     cell *c = cwt.at;
-    if(hybri) { c = hybrid::get_where(c).first; PIU( c->cmove(0) ); }
+    if(mhybrid) { c = hybrid::get_where(c).first; PIU( c->cmove(0) ); }
     c->landparam = 12;
     c->cmove(0)->landparam = 44;
     c->cmove(0)->land = laCrossroads2;
@@ -337,11 +346,14 @@ EX void initgame() {
     makeEmpty(cwt.at);
     }
   
-  if(specialland == laMinefield && bounded) {
+  if(specialland == laMinefield && closed_or_bounded) {
     bfs();
     generate_mines();
     }
-  
+
+  if(specialland == laHalloween)
+    halloween::generate();
+
   if(in_lovasz()) {
     cwt.at->item = itOrbInvis;
     }
@@ -368,7 +380,6 @@ EX void initgame() {
     truelotus = 0;
     asteroids_generated = 0;
     asteroid_orbs_generated = 0;
-    dpgen::in = false;
     survivalist = true;
     #if CAP_CRYSTAL
     crystal::used_compass_inside = false;
@@ -807,11 +818,11 @@ EX void applyBoxes() {
   addinv(itOrbMirror);
   addinv(itGreenStone);
   list_invorb();
-  applyBoxBool(inv::on, "inventory"); // 306
   #if CAP_INV
+  applyBoxBool(inv::on, "inventory"); // 306
   applyBoxNum(inv::rseed, "@inv-rseed");
   #else
-  { int u; applyBoxNum(u); }
+  { int u; applyBoxNum(u); applyBoxNum(u); }
   #endif
 
   // 10.1:
@@ -962,7 +973,9 @@ modecode_t fill_modecode() {
   dynamicval<eVariation> sp5(variation, (eVariation) save.box[186]);
   dynamicval<int> sp7(gp::param.first, save.box[342]);
   dynamicval<int> sp8(gp::param.second, save.box[343]);
+  #if CAP_INV
   dynamicval<bool> spinv(inv::on, save.box[306]);
+  #endif
 
   if(save.box[238]) geometry = gSphere;
   if(save.box[239]) geometry = gElliptic;
@@ -1014,9 +1027,10 @@ EX }
 long long saveposition = -1;
 
 EX void remove_emergency_save() {
+  if(scorefile == "") return;
 #if !ISWINDOWS
   if(saveposition >= 0) { 
-    if(truncate(scorefile, saveposition)) {}
+    if(truncate(scorefile.c_str(), saveposition)) {}
     saveposition = -1;
     }
 #endif
@@ -1028,15 +1042,16 @@ EX void saveStats(bool emergency IS(false)) {
   DEBBI(DF_INIT, ("saveStats [", scorefile, "]"));
 
   if(autocheat) return;
+  if(scorefile == "") return;
   #if CAP_TOUR
   if(tour::on) return;
   #endif
   if(randomPatternsMode) return;
   if(daily::on) return;
   if(peace::on) return;
-  if(dpgen::in) return;
   if(experimental) return;
-  if(!gold()) return;
+
+  if(!gold() && !racing::on) return;
   
   remove_emergency_save();
   
@@ -1044,7 +1059,7 @@ EX void saveStats(bool emergency IS(false)) {
 
   xcode = modecode();
   
-  FILE *f = fopen(scorefile, "at");
+  FILE *f = fopen(scorefile.c_str(), "at");
   
   if(!f) {
     // printf("Could not open the score file '%s'!\n", scorefile);
@@ -1091,6 +1106,20 @@ EX void saveStats(bool emergency IS(false)) {
     fclose(f);
     return;
     }
+
+  #if CAP_RACING
+  if(racing::on) {
+    auto& bs = racing::best_scores_to_save;
+    if(racing::official_race && !cheater && bs.count(specialland)) {
+      fprintf(f, "RACING %s %d %d date: %s\n", VER,
+        int(specialland), bs[specialland],
+        buf);
+      bs.erase(specialland);
+      }
+    fclose(f);
+    return;
+    }
+  #endif
 
   fprintf(f, "HyperRogue: game statistics (version " VER ")\n");
   if(cheater)
@@ -1155,12 +1184,13 @@ bool tamper = false;
 // load the save
 EX void loadsave() {
   if(autocheat) return;
+  if(scorefile == "") return;
 #if CAP_TOUR
   if(tour::on) return;
 #endif
   DEBBI(DF_INIT, ("loadSave"));
 
-  FILE *f = fopen(scorefile, "rt");
+  FILE *f = fopen(scorefile.c_str(), "rt");
   havesave = f;
   if(!f) return;
   bool ok = false;
@@ -1258,6 +1288,20 @@ EX void loadsave() {
         }
       }
 
+  #if CAP_RACING
+  if(buf[0] == 'R' && buf[1] == 'A' && buf[2] == 'C') {
+    char buf1[80], ver[10];
+    int land, score;
+    sscanf(buf, "%70s%9s%d%d", buf1, ver, &land, &score);
+    /* score may equal 0 because of earlier bugs */
+    if(score) {
+      auto& res = racing::best_scores[eLand(land)];
+      if(score < res || res == 0) res = score;
+      }
+    println(hlog, "loaded the score for ", dnameof(eLand(land)), " of ", score);
+    }
+  #endif
+
     }
   fclose(f);
   if(ok && sc.box[65 + 4 + itOrbSafety - itOrbLightning]) 
@@ -1283,12 +1327,14 @@ EX void load_last_save() {
 
   loadBox();
 //  printf("boxid = %d\n", boxid);
+  #if CAP_COMPLEX2
   if(items[itHolyGrail]) {
     items[itHolyGrail]--;
     camelot::knighted = newRoundTableRadius();
     items[itHolyGrail]++;
     }
   else camelot::knighted = 0;
+  #endif
   safety = true;
   if(items[itSavedPrincess] < 0) items[itSavedPrincess] = 0;
   addMessage(XLAT("Game loaded."));
@@ -1342,12 +1388,19 @@ EX void stop_game() {
   }
 
 EX eModel default_model() {
-  if(nonisotropic) return mdGeodesic;
+  if(sl2) return mdGeodesic;
+  if(nonisotropic) return nisot::geodesic_movement ? mdGeodesic : mdLiePerspective;
   if(GDIM == 3) return mdPerspective;
   return mdDisk;
   }
 
 EX purehookset hooks_on_geometry_change;
+
+EX void geometry_settings(bool was_default) {
+  if(was_default) pmodel = default_model();
+  if(WDIM == 2 && (cgflags & qIDEAL) && vid.always3 && vid.texture_step < 32) vid.texture_step = 32;
+  if(sl2) nisot::geodesic_movement = true;
+  }
 
 EX void set_geometry(eGeometry target) {
   bool was_default = pmodel == default_model();
@@ -1374,18 +1427,16 @@ EX void set_geometry(eGeometry target) {
         gp::param.second = 0;
       }
     #endif
-    if(DUAL && geometry != gArchimedean && !hybri) 
+    if(DUAL && geometry != gArchimedean && !mhybrid)
       variation = ginf[geometry].default_variation;
     #if CAP_BT
-    if(bt::in() || WDIM == 3 || kite::in() || arb::in()) if(!hybri) variation = eVariation::pure;
+    if(bt::in() || WDIM == 3 || kite::in() || arb::in()) if(!mhybrid) variation = eVariation::pure;
     #endif
     if(S3 >= OINF) variation = eVariation::pure;
-    if(INVERSE && !hybri) variation = gp::variation_for(gp::param);
-    if(ginf[target].default_variation == eVariation::pure && geometry != gArchimedean)
+    if(INVERSE && !mhybrid) variation = gp::variation_for(gp::param);
+    if(ginf[target].default_variation == eVariation::pure && geometry != gArchimedean && !mhybrid)
       variation = eVariation::pure;
-    if(was_default) pmodel = default_model();
-    if(WDIM == 2 && (cgflags & qIDEAL) && vid.always3 && vid.texture_step < 32) vid.texture_step = 32;
-    if(sl2) nisot::geodesic_movement = true;
+    geometry_settings(was_default);
     
     if(geometry == gArbitrary) {
       arb::convert::base_geometry = geometry;
@@ -1413,7 +1464,7 @@ EX void set_variation(eVariation target) {
       return;
       }
     if(target != eVariation::pure) {
-      if(bt::in() || sol || kite::in() || WDIM == 3) if(!prod) geometry = gNormal;
+      if(bt::in() || sol || kite::in() || WDIM == 3) if(!mproduct) geometry = gNormal;
       }
     auto& cd = ginf[gCrystal];
     if(target == eVariation::bitruncated && cryst && cd.sides == 8 && cd.vertex == 4) {
@@ -1462,7 +1513,7 @@ EX void switch_game_mode(char switchWhat) {
       if(tactic::on) firstland = laIce;
       yendor::on = tactic::on = princess::challenge = false;
       land_structure = ls::any_chaos() ? lsNiceWalls : lsChaos;
-      if(bounded) set_geometry(gNormal);
+      if(closed_or_bounded) set_geometry(gNormal);
       racing::on = false;
       break;
 
@@ -1504,7 +1555,8 @@ EX void switch_game_mode(char switchWhat) {
       peace::on = false;
       tour::on = false;
       inv::on = false;
-      land_structure = lsSingle;
+      yendor::on = false;
+      land_structure = racing::on ? lsSingle : lsNiceWalls;
       princess::challenge = false;
       dual::disable();
       break;
@@ -1576,7 +1628,8 @@ EX void start_game() {
   arcm::current_or_fake().compute_geometry();
   #endif
   initcells();
-  expansion.reset();
+  get_expansion().reset();
+  init_disk_cells();
 
   if(randomPatternsMode) {
     for(int i=0; i<landtypes; i++) {
@@ -1608,6 +1661,13 @@ EX void start_game() {
 // popAllScreens + popAllGames + stop_game + switch_game_mode + start_game
 EX void restart_game(char switchWhat IS(rg::nothing)) {
   popScreenAll();  
+  #if CAP_RACING
+  if(switchWhat == rg::nothing && racing::on) {
+    racing::restore_goals();
+    racing::reset_race();
+    return;
+    }
+  #endif
   stop_game();
   switch_game_mode(switchWhat);
   start_game();
@@ -1632,6 +1692,33 @@ EX eLand firstland0;
 
 EX purehookset hooks_initialize;
 
+EX bool savefile_selection = false;
+
+EX void select_savefile() {
+  if(!savefile_selection) return;
+  start_game();
+  bool canceled = true;
+  if(scorefile == "") scorefile = "hyperrogue.log";
+  pushScreen([] { quitmainloop = true; });
+  dialog::openFileDialog(scorefile, XLAT("choose your score/save file"), ".log", [&] {
+    println(hlog, "hook called");
+    canceled = false;
+    quitmainloop = true;
+    return true;
+    });
+  clearMessages();
+  mainloop();
+  quitmainloop = false;
+  stop_game();
+  popScreenAll();
+  if(canceled) scorefile = "";
+  }
+
+EX void progress_warning() {
+  if(scorefile == "" && savefile_selection)
+    addMessage(XLAT("Your progress will not be saved."));
+  }
+
 EX void initAll() {
   callhooks(hooks_initialize);
   init_floorcolors();
@@ -1649,7 +1736,9 @@ EX void initAll() {
   
   // initlanguage();
   initialize_all();
+  
 #if CAP_SAVE
+  select_savefile();
   loadsave();
   if(IRREGULAR) irr::auto_creator();
 #endif
@@ -1697,7 +1786,7 @@ auto cgm = addHook(hooks_clearmemory, 40, [] () {
   crush_next.clear(); 
   crush_now.clear();
   rosemap.clear();
-  adj_memo.clear();
+  for(auto &am: adj_memo) am.clear();
   }) + 
 addHook(hooks_gamedata, 0, [] (gamedata* gd) {
   gd->store(pathq);
@@ -1713,7 +1802,6 @@ addHook(hooks_gamedata, 0, [] (gamedata* gd) {
   gd->store(pd_from);
   gd->store(pd_range);
   gd->store(pathqm);
-  gd->store(reachedfrom);
   gd->store(gravity_state);
   gd->store(last_gravity_state);
   gd->store(shpos);
@@ -1727,5 +1815,8 @@ addHook(hooks_removecells, 0, [] () {
   eliminate_if(butterflies, [] (pair<cell*,int>& p) { return is_cell_removed(p.first); });
   for(int i=0; i<SHSIZE; i++) for(int p=0; p<MAXPLAYER; p++)
     set_if_removed(shpos[i][p], NULL);
+  vector<cell*> to_remove;
+  for(auto p: rosemap) if(is_cell_removed(p.first)) to_remove.push_back(p.first);
+  for(auto r: to_remove) rosemap.erase(r);
   });
 }

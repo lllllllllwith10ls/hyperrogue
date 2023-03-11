@@ -57,7 +57,7 @@ transmatrix hrmap_standard::master_relative(cell *c, bool get_inverse) {
   #if CAP_IRR  
   else if(IRREGULAR) {
     int id = irr::cellindex[c];
-    ld alpha = 2 * M_PI / S7 * irr::periodmap[c->master].base.spin;
+    ld alpha = TAU / S7 * irr::periodmap[c->master].base.spin;
     return get_inverse ? irr::cells[id].rpusher * spin(-alpha-master_to_c7_angle()): spin(alpha + master_to_c7_angle()) * irr::cells[id].pusher;
     }
   #endif
@@ -81,6 +81,8 @@ transmatrix hrmap_standard::master_relative(cell *c, bool get_inverse) {
     }
   else if(WDIM == 3)
     return Id;
+  else if(dont_inverse())
+    return Id;
   else
     return pispin * Id;
   }
@@ -100,12 +102,12 @@ transmatrix hrmap_standard::adj(heptagon *h, int d) {
     int t0 = h->type;
     int t1 = h->cmove(d)->type;
     int sp = h->c.spin(d);
-    return spin(-d * 2 * M_PI / t0) * xpush(spacedist(h->c7, d)) * spin(M_PI + 2*M_PI*sp/t1);
+    return spin(-d * TAU / t0) * lxpush(spacedist(h->c7, d)) * spin(M_PI + TAU * sp / t1);
     }
   transmatrix T = cgi.heptmove[d];
   if(h->c.mirror(d)) T = T * Mirror;
   int sp = h->c.spin(d);
-  if(sp) T = T * spin(2*M_PI*sp/S7);
+  if(sp) T = T * spin(TAU*sp/S7);
   return T;
   }
 
@@ -139,7 +141,7 @@ transmatrix hrmap_standard::relative_matrixh(heptagon *h2, heptagon *h1, const h
     steps++; if(steps > 10000) {
       println(hlog, "not found"); return Id; 
       }
-    if(bounded) {
+    if(closed_manifold) {
       transmatrix T;
       ld bestdist = 1e9;
       for(int d=0; d<S7; d++) {
@@ -235,10 +237,14 @@ void horo_distance::become(hyperpoint h1) {
     a = abs(bt::horo_level(h1));
     }
   #endif
-  else if(hybri)
+  else if(mhybrid || sl2)
     a = 0, b = hdist(h1, C0);
+  else if(cgi.emb->is_euc_in_product())
+    a = 0, b = hdist(h1, C0);
+  else if(cgi.emb->is_cylinder())
+    a = 0, b = hdist(h1, tile_center());
   else
-    a = 0, b = intval(h1, C0);
+    a = 0, b = intval(h1, tile_center());
   }
 
 horo_distance::horo_distance(shiftpoint h1, const shiftmatrix& T) {
@@ -246,9 +252,13 @@ horo_distance::horo_distance(shiftpoint h1, const shiftmatrix& T) {
   if(bt::in()) become(inverse_shift(T, h1));
   else
 #endif
-  if(sn::in() || hybri || nil) become(inverse_shift(T, h1));
+  if(sn::in() || mhybrid || nil || sl2) become(inverse_shift(T, h1));
+  else if(cgi.emb->is_euc_in_product())
+    a = 0, b = hdist(h1.h, unshift(T * tile_center(), h1.shift));
+  else if(cgi.emb->is_cylinder())
+    a = 0, b = hdist(h1.h, unshift(T * tile_center(), h1.shift));
   else
-    a = 0, b = intval(h1.h, unshift(tC0(T), h1.shift));
+    a = 0, b = intval(h1.h, unshift(T * tile_center(), h1.shift));
   }
 
 bool horo_distance::operator < (const horo_distance z) const {
@@ -310,10 +320,10 @@ void virtualRebase_cell(cell*& base, T& at, const U& check) {
 template<class T, class U> 
 void virtualRebase(cell*& base, T& at, const U& check) {
 
-  if(nil) {
+  if(nil && WDIM == 3) {
     hyperpoint h = check(at);
     auto step = [&] (int i) {
-      at = currentmap->iadj(base, i) * at; 
+      at = currentmap->adj(base, (i+S7/2) % S7) * at;
       base = base->cmove(i);
       h = check(at);
       };
@@ -331,7 +341,44 @@ void virtualRebase(cell*& base, T& at, const U& check) {
     return;
     }
 
-  if(prod) {
+  if(geometry == gSol) {
+    /** the general algorithm sometimes makes much more iterations than needed... try to approximate the geodesic */
+    hyperpoint h = check(at);
+    auto step = [&] (int i) {
+      at = currentmap->iadj(base, i) * at;
+      base = base->cmove(i);
+      h = check(at);
+      };
+
+    auto nw = vid.binary_width * log(2);
+    while(abs(h[0]) > 2) step(6);
+    while(h[0] < -0.5 * nw) step(4);
+    while(h[0] > +0.5 * nw) step(0);
+    while(abs(h[1]) > 2) {
+      step(2);
+      while(h[0] < -0.5 * nw) step(4);
+      while(h[0] > +0.5 * nw) step(0);
+      }
+    while(h[1] < -0.5 * nw) step(5);
+    while(h[1] > +0.5 * nw) step(1);
+    while(h[2] > 1) {
+      step(2);
+      while(h[0] < -0.5 * nw) step(4);
+      while(h[0] > +0.5 * nw) step(0);
+      while(h[1] < -0.5 * nw) step(5);
+      while(h[1] > +0.5 * nw) step(1);
+      }
+    while(h[2] < -1) {
+      step(6);
+      while(h[0] < -0.5 * nw) step(4);
+      while(h[0] > +0.5 * nw) step(0);
+      while(h[1] < -0.5 * nw) step(5);
+      while(h[1] > +0.5 * nw) step(1);
+      }
+    }
+  /* todo variants of sol */
+
+  if(mproduct) {
     auto d = product_decompose(check(at)).first;
     while(d > cgi.plevel / 2)  { 
       at = currentmap->iadj(base, base->type-1) * at; 
@@ -342,9 +389,9 @@ void virtualRebase(cell*& base, T& at, const U& check) {
       base = base->cmove(base->type-2); d += cgi.plevel;
       }
     auto w = hybrid::get_where(base);
-    at = mscale(at, -d);
+    at = orthogonal_move(at, -d);
     PIU( virtualRebase(w.first, at, check) );
-    at = mscale(at, +d);
+    at = orthogonal_move(at, +d);
     base = hybrid::get_at(w.first, w.second);
     return;
     }
@@ -403,10 +450,14 @@ EX bool no_easy_spin() {
   return NONSTDVAR || arcm::in() || WDIM == 3 || bt::in() || kite::in();
   }
 
+EX bool never_invert;
+
+EX bool dont_inverse() { return never_invert || (PURE && cgi.emb->is_euc_in_noniso()); }
+
 ld hrmap_standard::spin_angle(cell *c, int d) {
   if(WDIM == 3) return SPIN_NOT_AVAILABLE;
   ld hexshift = 0;
-  if(c == c->master->c7 && (S7 % 2 == 0) && BITRUNCATED) hexshift = cgi.hexshift + 2*M_PI/c->type;
+  if(c == c->master->c7 && (S7 % 2 == 0) && BITRUNCATED) hexshift = cgi.hexshift + TAU/c->type;
   else if(cgi.hexshift && c == c->master->c7) hexshift = cgi.hexshift;
   #if CAP_IRR
   if(IRREGULAR) {
@@ -417,7 +468,8 @@ ld hrmap_standard::spin_angle(cell *c, int d) {
     return -atan2(p[1], p[0]) - hexshift;
     }
   #endif
-  return M_PI - d * 2 * M_PI / c->type - hexshift;
+  if(dont_inverse()) return - d * TAU / c->type;
+  return M_PI - d * TAU / c->type - hexshift;
   }
 
 EX transmatrix ddspin(cell *c, int d, ld bonus IS(0)) { return currentmap->spin_to(c, d, bonus); }
@@ -425,7 +477,10 @@ EX transmatrix iddspin(cell *c, int d, ld bonus IS(0)) { return currentmap->spin
 EX ld cellgfxdist(cell *c, int d) { return currentmap->spacedist(c, d); }
 
 EX transmatrix ddspin_side(cell *c, int d, ld bonus IS(0)) { 
+  if(cgi.emb->is_in_noniso())
+    return spin(bonus);
   if(kite::in()) {
+    if(embedded_plane) return spin(bonus);
     hyperpoint h1 = get_corner_position(c, gmod(d, c->type), 3);
     hyperpoint h2 = get_corner_position(c, gmod(d+1, c->type) , 3);
     hyperpoint hm = mid(h1, h2);
@@ -435,7 +490,10 @@ EX transmatrix ddspin_side(cell *c, int d, ld bonus IS(0)) {
   }
 
 EX transmatrix iddspin_side(cell *c, int d, ld bonus IS(0)) {
+  if(cgi.emb->is_in_noniso())
+    return spin(bonus);
   if(kite::in()) {
+    if(embedded_plane) return spin(bonus);
     hyperpoint h1 = get_corner_position(c, gmod(d, c->type), 3);
     hyperpoint h2 = get_corner_position(c, gmod(d+1, c->type) , 3);
     hyperpoint hm = mid(h1, h2);
@@ -493,7 +551,7 @@ transmatrix hrmap_standard::adj(cell *c, int i) {
     return calc_relative_matrix(c->cmove(i), c, C0);
     }
   double d = cellgfxdist(c, i);
-  transmatrix T = ddspin(c, i) * xpush(d);
+  transmatrix T = ddspin(c, i) * lxpush(d);
   if(c->c.mirror(i)) T = T * Mirror;
   cell *c1 = c->cmove(i);
   T = T * iddspin(c1, c->c.spin(i), M_PI);
@@ -506,14 +564,14 @@ EX hyperpoint randomPointIn(int t) {
   if(NONSTDVAR || arcm::in() || kite::in()) {
     // Let these geometries be less confusing.
     // Also easier to implement ;)
-    return xspinpush0(2 * M_PI * randd(), asinh(randd() / 20));
+    return xspinpush0(TAU * randd(), asinh(randd() / 20));
     }
   while(true) {
-    hyperpoint h = xspinpush0(2*M_PI*(randd()-.5)/t, asinh(randd()));
+    hyperpoint h = xspinpush0(TAU * (randd()-.5)/t, asinh(randd()));
     double d =
       PURE ? cgi.tessf : t == 6 ? cgi.hexhexdist : cgi.crossf;
     if(hdist0(h) < hdist0(xpush(-d) * h))
-      return spin(2*M_PI/t * (rand() % t)) * h;
+      return spin(TAU / t * (rand() % t)) * h;
     }
   }
 
@@ -537,15 +595,18 @@ hyperpoint hrmap_standard::get_corner(cell *c, int cid, ld cf) {
     }
   #endif
   if(PURE) {
-    return ddspin(c,cid,M_PI/S7) * xpush0(cgi.hcrossf * 3 / cf);
+    if(cgi.emb->is_euc_in_noniso()) {
+      return lspinpush0(spin_angle(c, cid) + M_PI/S7, cgi.hcrossf * 3 / cf);
+      }
+    return ddspin(c,cid,M_PI/S7) * lxpush0(cgi.hcrossf * 3 / cf);
     }
   if(BITRUNCATED) {
     if(!ishept(c))
-      return ddspin(c,cid,M_PI/S6) * xpush0(cgi.hexvdist * 3 / cf);
+      return ddspin(c,cid,M_PI/S6) * lxpush0(cgi.hexvdist * 3 / cf);
     else
-      return ddspin(c,cid,M_PI/S7) * xpush0(cgi.rhexf * 3 / cf);
+      return ddspin(c,cid,M_PI/S7) * lxpush0(cgi.rhexf * 3 / cf);
     }
-  return C0;
+  return tile_center();
   }
 
 EX bool approx_nearcorner = false;
@@ -575,7 +636,7 @@ EX hyperpoint nearcorner(cell *c, int i) {
       auto& t = ac.get_triangle(c->master, i-1);
       int id = arcm::id_of(c->master);
       int id1 = ac.get_adj(ac.get_adj(c->master, i-1), -2).first;
-      return xspinpush0(-t.first - M_PI / c->type, ac.inradius[id/2] + ac.inradius[id1/2] + (ac.real_faces == 0 ? 2 * M_PI / (ac.N == 2 ? 2.1 : ac.N) : 0));
+      return xspinpush0(-t.first - M_PI / c->type, ac.inradius[id/2] + ac.inradius[id1/2] + (ac.real_faces == 0 ? TAU / (ac.N == 2 ? 2.1 : ac.N) : 0));
       }
     if(BITRUNCATED) {
       auto &ac = arcm::current;
@@ -594,10 +655,10 @@ EX hyperpoint nearcorner(cell *c, int i) {
     ld yx = log(2) / 2;
     ld yy = yx;
     hyperpoint neis[5];
-    neis[0] = bt::get_horopoint(2*yy, -0.5);
-    neis[1] = bt::get_horopoint(2*yy, +0.5);
+    neis[0] = bt::get_horopoint(2*yy, -0.25);
+    neis[1] = bt::get_horopoint(2*yy, +0.25);
     neis[2] = bt::get_horopoint(0, 1);
-    neis[3] = bt::get_horopoint(-2*yy, c->master->zebraval ? -0.25 : +0.25);
+    neis[3] = bt::get_horopoint(-2*yy, c->master->zebraval ? -0.5 : +0.5);
     neis[4] = bt::get_horopoint(0, -1);
     return neis[i];
     }
@@ -605,11 +666,11 @@ EX hyperpoint nearcorner(cell *c, int i) {
     ld yx = log(3) / 2;
     ld yy = yx;
     hyperpoint neis[6];
-    neis[0] = bt::get_horopoint(2*yy, -1);
+    neis[0] = bt::get_horopoint(2*yy, -1/3.);
     neis[1] = bt::get_horopoint(2*yy, +0);
-    neis[2] = bt::get_horopoint(2*yy, +1);
+    neis[2] = bt::get_horopoint(2*yy, +1/3.);
     neis[3] = bt::get_horopoint(0, 1);
-    neis[4] = bt::get_horopoint(-2*yy, c->master->zebraval / 3.);
+    neis[4] = bt::get_horopoint(-2*yy, c->master->zebraval);
     neis[5] = bt::get_horopoint(0, -1);
     return neis[i];
     }
@@ -629,20 +690,20 @@ EX hyperpoint nearcorner(cell *c, int i) {
     // ld xx = 1 / sqrt(2)/2;
     hyperpoint neis[7];
     neis[0] = bt::get_horopoint(0, 1);
-    neis[1] = bt::get_horopoint(yy*2, 1);
+    neis[1] = bt::get_horopoint(yy*2, 0.5);
     neis[2] = bt::get_horopoint(yy*2, 0);
-    neis[3] = bt::get_horopoint(yy*2, -1);
+    neis[3] = bt::get_horopoint(yy*2, -0.5);
     neis[4] = bt::get_horopoint(0, -1);
     if(c->type == 7)
-      neis[5] = bt::get_horopoint(-yy*2, -.5),
-      neis[6] = bt::get_horopoint(-yy*2, +.5);
+      neis[5] = bt::get_horopoint(-yy*2, -1),
+      neis[6] = bt::get_horopoint(-yy*2, +1);
     else
       neis[5] = bt::get_horopoint(-yy*2, 0);
     return neis[i];
     }
   #endif
   double d = cellgfxdist(c, i);
-  return ddspin(c, i) * xpush0(d);
+  return ddspin(c, i) * lxpush0(d);
   }
 
 /** /brief get the coordinates of the another vertex of c->move(i)
@@ -691,7 +752,7 @@ EX hyperpoint farcorner(cell *c, int i, int which) {
       int id = arcm::id_of(c->master);
       auto id1 = ac.get_adj(ac.get_adj(c->master, i-1), -2).first;
       int n1 = isize(ac.adjacent[id1]);
-      return spin(-t.first - M_PI / c->type) * xpush(ac.inradius[id/2] + ac.inradius[id1/2]) * xspinpush0(M_PI + M_PI/n1*(which?3:-3), ac.circumradius[id1/2]);
+      return spin(-t.first - M_PI / c->type) * lxpush(ac.inradius[id/2] + ac.inradius[id1/2]) * xspinpush0(M_PI + M_PI/n1*(which?3:-3), ac.circumradius[id1/2]);
       }
     if(BITRUNCATED || DUAL) {
       int mul = DUALMUL;
@@ -705,7 +766,7 @@ EX hyperpoint farcorner(cell *c, int i, int which) {
     
       auto& t2 = arcm::current.get_triangle(adj);
       
-      return spin(-t1.first) * xpush(t1.second) * spin(M_PI + t2.first) * get_corner_position(&cx, which ? -mul : 2*mul);
+      return spin(-t1.first) * lxpush(t1.second) * spin(M_PI + t2.first) * get_corner_position(&cx, which ? -mul : 2*mul);
       }
     }
   #endif
@@ -731,7 +792,7 @@ EX hyperpoint get_warp_corner(cell *c, int cid) {
   #if CAP_IRR || CAP_ARCM
   if(IRREGULAR || arcm::in()) return midcorner(c, cid, .5);
   #endif
-  return ddspin(c,cid,M_PI/S7) * xpush0(cgi.tessf/2);
+  return ddspin(c,cid,M_PI/S7) * lxpush0(cgi.tessf/2);
   }
 
 EX map<cell*, map<cell*, vector<transmatrix>>> brm_structure;
@@ -817,7 +878,7 @@ EX bool exhaustive_distance_appropriate() {
   if(asonov::in() && asonov::period_xy && asonov::period_xy <= 256) return true;
   #endif
 
-  if(bounded) return true;
+  if(closed_manifold) return true;
 
   return false;
   }
@@ -862,7 +923,7 @@ EX pathgen generate_random_path(cellwalker start, int length, bool for_yendor, b
     p.last = p.path.back();
     }
 
-  else if(hybri) {
+  else if(mhybrid) {
     /* I am lazy */
     for(int i=1; i<=length; i++) p.path[i] = p.path[i-1]->cmove(p.path[i-1]->type-1);
     p.last = p.path.back();
@@ -876,6 +937,7 @@ EX pathgen generate_random_path(cellwalker start, int length, bool for_yendor, b
 
     cellwalker ycw = start;
     if(for_yendor) setdist(p.path[0], 7, NULL);
+    auto& expansion = get_expansion();
 
     for(int i=0; i<length; i++) {
 
@@ -939,7 +1001,7 @@ EX pathgen generate_random_path(cellwalker start, int length, bool for_yendor, b
           t = type_in(expansion, randomdir ? start.at : start.cpeek(), sdist);
           ycw--;
           if(valence() == 3) ycw--;
-          bignum b = expansion.get_descendants(randomdir ? length : length-1, t);
+          bignum b = get_expansion().get_descendants(randomdir ? length : length-1, t);
           p.full_id_0 = full_id = hrand(b);
           }
 

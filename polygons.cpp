@@ -15,35 +15,93 @@ static constexpr ld NEWSHAPE = (-13.5);
 #endif
 static constexpr ld WOLF = (-15.5);
 
-void geometry_information::hpcpush(hyperpoint h) {
-  if(sphere) h = mid(h,h);
-  ld error_threshold = euclid ? 1000 : 1e10;
-  ld threshold = (GDIM == 3 || last->flags & POLY_TRIANGLES)  ? error_threshold : (sphere ? (ISMOBWEB || NONSTDVAR ? .04 : .001) : 0.1) * pow(.25, vid.linequality);
-  if(/*vid.usingGL && */!first) {
-    ld i = intval(hpc.back(), h);
-    if(i > threshold && i < error_threshold) {
-      hyperpoint md = mid(hpc.back(), h);
-      hpcpush(md);
-      hpcpush(h);
-      return;
-      }
-    }
-  first = false;
-  hpc.push_back(h);
+void geometry_information::hpc_connect_ideal(hyperpoint a, hyperpoint b) {
+  ld left = -atan2(a);
+  ld right = -atan2(b);
+  cyclefix(right, left);
+  /* call hpc.push_back directly to avoid adding points */
+  ld qty = ceil(abs(right-left) / ideal_each);
+  for(int i=0; i<=qty; i++) hpc.push_back(xspinpush0(lerp(left, right, i/qty), ideal_limit));
   }
 
-void geometry_information::chasmifyPoly(double fac, double fac2, int k) {
+void geometry_information::hpcpush(hyperpoint h) {
+
+  if(GDIM == 3 || (last->flags & POLY_TRIANGLES)) {
+    hpc.push_back(h);
+    return;
+    }
+
+  ld error_threshold = euclid ? 1000 : 1e10;
+  ld threshold = (sphere ? (ISMOBWEB || NONSTDVAR ? .04 : .001) : 0.1) * pow(.25, vid.linequality);
+
+  if(first) {
+    starting_ideal = starting_point = last_point = last_ideal = h;
+    first = false;
+    int c = safe_classify_ideals(h);
+    if(c == 0) {
+      starting_ideal = safe_approximation_of_ideal(h);
+      hpc.push_back(starting_ideal);
+      }
+    else if(c > 0) {
+      hpc.push_back(starting_ideal = starting_point = last_point = last_ideal = normalize(h));
+      }
+    }
+  else {
+    int c1 = safe_classify_ideals(last_point);
+    int c2 = safe_classify_ideals(h);
+    if(c1 > 0 && c2 > 0) {
+      h = normalize(h);
+      ld i = intval(last_point, h);
+      if(i > threshold && i < error_threshold) {
+        hyperpoint md = mid(hpc.back(), h);
+        hpcpush(md);
+        hpcpush(h);
+        return;
+        }
+      else {
+        hpc.push_back(h);
+        last_point = last_ideal = h;
+        }
+      }
+    else if(c1 > 0 && c2 <= 0) {
+      for(ld t = threshold; t < ideal_limit; t += threshold) hpc.push_back(last_ideal = towards_inf(last_point, h, t));
+      last_point = h;
+      }
+    else if(c1 <= 0 && c2 > 0) {
+      hyperpoint next_ideal = towards_inf(h, last_point, ideal_limit);
+      hpc_connect_ideal(last_ideal, next_ideal);
+      ld t = threshold; while(t < ideal_limit) t += threshold; t -= threshold;
+      for(; t > threshold/2; t -= threshold) hpc.push_back(towards_inf(h, last_point, t));
+      last_point = last_ideal = h;
+      }
+    else if(c1 <= 0 && c2 <= 0) {
+      hyperpoint p = closest_to_zero(last_point, h);
+      indenter ind(2);
+      int cp = safe_classify_ideals(p);
+      if(cp > 0) {
+        hpcpush(normalize(p));
+        hpcpush(h);
+        return;
+        }
+      else {
+        last_ideal = last_point = h;
+        }
+      }
+    }
+  }
+
+void geometry_information::chasmifyPoly(double fol, double fol2, int k) {
   if(GDIM == 2) {
      for(int i=isize(hpc)-1; i >= last->s; i--) {
-       hpc.push_back(mscale(hpc[i], fac));
-       hpc[i] = mscale(hpc[i], fac2);
+       hpc.push_back(orthogonal_move_fol(hpc[i], fol));
+       hpc[i] = orthogonal_move_fol(hpc[i], fol2);
        }
      hpc.push_back(hpc[last->s]);
      last->flags |= POLY_ISSIDE;
      }
   else {
     vector<hyperpoint> points;
-    for(int s = last->s; s<isize(hpc); s++) points.push_back(hpc[s]);
+    for(int s = last->s; s<isize(hpc); s++) points.push_back(cgi.emb->actual_to_logical( hpc[s] ));
     hpc.resize(last->s);
     last->flags |= POLY_TRIANGLES;
     last->texture_offset = 0;
@@ -53,7 +111,10 @@ void geometry_information::chasmifyPoly(double fac, double fac2, int k) {
       int zf = int(x);
       if(zf == isize(points)-1) zf--;
       x -= zf;
-      hpcpush(zshift(normalize(points[zf] + (points[zf+1] - points[zf]) * x), fac + (fac2-fac) * y));
+      auto hp = points[zf] + (points[zf+1] - points[zf]) * x;
+      hp[2] = fol + (fol2-fol) * y;
+      auto hf = cgi.emb->logical_to_actual(hp);
+      hpcpush(hf);
       };
     texture_order([&] (ld x, ld y) { at((1-x+y)/2, (1-x-y)/2); });
     texture_order([&] (ld x, ld y) { at((1-x-y)/2, (1+x-y)/2); });
@@ -90,7 +151,7 @@ void geometry_information::extra_vertices() {
 #endif
   }
 
-transmatrix geometry_information::ddi(int a, ld x) { return xspinpush(a * M_PI / S42, x); }
+transmatrix geometry_information::ddi(int a, ld x) { return xspinpush(a * S_step, x); }
 
 void geometry_information::drawTentacle(hpcshape &h, ld rad, ld var, ld divby) {
   double tlength = max(crossf, hexhexdist);
@@ -119,6 +180,10 @@ hyperpoint geometry_information::turtlevertex(int u, double x, double y, double 
 
 void geometry_information::finishshape() {
   if(!last) return;
+
+  if(!first && safe_classify_ideals(starting_point) <= 0 && sqhypot_d(LDIM, starting_point - last_point) < 1e-9)
+    hpc_connect_ideal(last_ideal, starting_ideal);
+
   last->e = isize(hpc);
   double area = 0;
   for(int i=last->s; i<last->e-1; i++)
@@ -196,7 +261,8 @@ void geometry_information::bshape(hpcshape& sh, PPR prio) {
   if(last) finishshape();
   hpc.push_back(hpxy(0,0));
   last = &sh;
-  last->s = isize(hpc), last->prio = prio;
+  last->s = isize(hpc);
+  last->prio = prio;
   last->flags = 0;
   last->tinf = NULL;
   first = true;
@@ -255,7 +321,7 @@ void geometry_information::bshape(hpcshape& sh, PPR prio, double shzoom, int sha
       }
     }
   else shzoomx *= bscale7, shzoomy *= bscale7;
-  double bonusf = /* sphere ? M_PI*4/35 : */ (rots-rots2+.0) / rots2;
+  double bonusf = (rots-rots2+.0) / rots2;
 
   auto ipoint = [&] (int i, int mul) {
     hyperpoint h = hpxy(polydata[whereis+2*i] * shzoomx, polydata[whereis+2*i+1] * shzoomy * mul);
@@ -266,10 +332,10 @@ void geometry_information::bshape(hpcshape& sh, PPR prio, double shzoom, int sha
 
   for(int r=0; r<rots2; r++) {
     for(int i=0; i<qty; i++)
-      hpcpush(spin(2*M_PI*r/rots2) * ipoint(i, 1));
+      hpcpush(spin(TAU*r/rots2) * ipoint(i, 1));
     if(sym == 2)
     for(int i=qty-1; i>=0; i--)
-      hpcpush(spin(2*M_PI*r/rots2) * ipoint(i, -1));
+      hpcpush(spin(TAU*r/rots2) * ipoint(i, -1));
     }
   hpcpush(ipoint(0, 1));
   finishshape();
@@ -348,17 +414,19 @@ void geometry_information::make_sidewalls() {
 void geometry_information::procedural_shapes() {
   bshape(shMovestar, PPR::MOVESTAR);
   for(int i=0; i<=8; i++) {
-    hpcpush(xspinpush0(M_PI * i/4, crossf));
-    if(i != 8) hpcpush(xspinpush0(M_PI * i/4 + M_PI/8, crossf/4));
+    hpcpush(xspinpush0(90._deg * i, crossf));
+    if(i != 8) hpcpush(xspinpush0(90._deg * i + 45._deg, crossf/4));
     }
+
+  hyperpoint TC0 = tile_center();
 
   // procedural floors
 
   bshape(shBarrel, PPR::FLOOR);
-  for(int t=0; t<=S84; t+=2) hpcpush(ddi(t, floorrad1*.5) * C0);
+  for(int t=0; t<=S84; t+=2) hpcpush(ddi(t, floorrad1*.5) * TC0);
 
   bshape(shCircleFloor, PPR::FLOOR);
-  for(int t=0; t<=S84; t+=2) hpcpush(ddi(t, floorrad1*.9) * C0);
+  for(int t=0; t<=S84; t+=2) hpcpush(ddi(t, floorrad1*.9) * TC0);
 
   for(int i=0; i<3; i++) for(int j=0; j<3; j++) shadowmulmatrix[i][j] =
     i==2&&j==2 ? 1:
@@ -367,61 +435,61 @@ void geometry_information::procedural_shapes() {
 
   for(int d=0; d<2; d++) {
     bshape(shSemiFloor[d], PPR::FLOOR);
-    for(int t=0; t<=4; t++) hpcpush(ddi(S7 + (3+3*d+t%4)*S14, floorrad0) * C0);
+    for(int t=0; t<=4; t++) hpcpush(ddi(S7 + (3+3*d+t%4)*S14, floorrad0) * TC0);
     }
 
   // todo not shexf
 
   bshape(shBigCarpet1, PPR::GFLOORa);
-  for(int t=0; t<=SD7; t++) hpcpush(ddi(t*S12, -zhexf*2.1) * C0);
+  for(int t=0; t<=SD7; t++) hpcpush(ddi(t*S12, -zhexf*2.1) * TC0);
 
   bshape(shBigCarpet2, PPR::GFLOORb);
-  for(int t=0; t<=SD7; t++) hpcpush(ddi(t*S12, -zhexf*1.9) * C0);
+  for(int t=0; t<=SD7; t++) hpcpush(ddi(t*S12, -zhexf*1.9) * TC0);
 
   bshape(shBigCarpet3, PPR::GFLOORc);
-  for(int t=0; t<=SD7; t++) hpcpush(ddi(t*S12*3, -zhexf*1.7) * C0);
+  for(int t=0; t<=SD7; t++) hpcpush(ddi(t*S12*3, -zhexf*1.7) * TC0);
 
   bshape(shBFloor[0], PPR::BFLOOR);
-  for(int t=0; t<=SD6; t++) hpcpush(ddi(SD7 + t*S14, floorrad0*.1) * C0);
+  for(int t=0; t<=SD6; t++) hpcpush(ddi(SD7 + t*S14, floorrad0*.1) * TC0);
 
   bshape(shBFloor[1], PPR::BFLOOR);
-  for(int t=0; t<=SD7; t++) hpcpush(ddi(t*S12, floorrad1*.1) * C0);
+  for(int t=0; t<=SD7; t++) hpcpush(ddi(t*S12, floorrad1*.1) * TC0);
 
   bshape(shMineMark[0], PPR::MINEMARK);
-  for(int t=0; t<=SD6; t++) hpcpush(ddi(S7 + t*S14, floorrad0*.1) * C0);
+  for(int t=0; t<=SD6; t++) hpcpush(ddi(S7 + t*S14, floorrad0*.1) * TC0);
 
   bshape(shMineMark[1], PPR::MINEMARK);
-  for(int t=0; t<=SD7; t++) hpcpush(ddi(t*S12, floorrad1*.1) * C0);
+  for(int t=0; t<=SD7; t++) hpcpush(ddi(t*S12, floorrad1*.1) * TC0);
 
   bshape(shBigMineMark[0], PPR::MINEMARK);
-  for(int t=0; t<=SD6; t++) hpcpush(ddi(S7 + t*S14, floorrad0*.15) * C0);
+  for(int t=0; t<=SD6; t++) hpcpush(ddi(S7 + t*S14, floorrad0*.15) * TC0);
 
   bshape(shBigMineMark[1], PPR::MINEMARK);
-  for(int t=0; t<=SD7; t++) hpcpush(ddi(t*S12, floorrad1*.15) * C0);
+  for(int t=0; t<=SD7; t++) hpcpush(ddi(t*S12, floorrad1*.15) * TC0);
 
   for(int d=0; d<2; d++) {
     bshape(shSemiBFloor[d], PPR::BFLOOR);
-    for(int t=0; t<=4; t++) hpcpush(ddi(SD7 + (3+3*d+t%4)*S14, floorrad0*.1) * C0);
+    for(int t=0; t<=4; t++) hpcpush(ddi(SD7 + (3+3*d+t%4)*S14, floorrad0*.1) * TC0);
     }
 
   // walls etc
 
   bshape(shGiantStar[1], PPR::GFLOORa);
-  for(int t=0; t<=SD7; t++) hpcpush(ddi(t*S36, -zhexf*2.4) * C0);
+  for(int t=0; t<=SD7; t++) hpcpush(ddi(t*S36, -zhexf*2.4) * TC0);
 
   bshape(shGiantStar[0], PPR::GFLOORa);
   for(int t=0; t<=SD6; t++) {
-    hpcpush(ddi(t*S14, -zhexf*2.4) * C0);
-    hpcpush(ddi(t*S14+S7, zhexf*1.5) * C0);
+    hpcpush(ddi(t*S14, -zhexf*2.4) * TC0);
+    hpcpush(ddi(t*S14+S7, zhexf*1.5) * TC0);
     }
-  hpcpush(ddi(0, -zhexf*2.4) * C0);
+  hpcpush(ddi(0, -zhexf*2.4) * TC0);
 
   bshape(shMirror, PPR::WALL);
   if(PURE) {
-    for(int t=0; t<=S7; t++) hpcpush(ddi(t*12, floorrad1*7/8) * C0);
+    for(int t=0; t<=S7; t++) hpcpush(ddi(t*12, floorrad1*7/8) * TC0);
     }
   else {
-    for(int t=0; t<=6; t++) hpcpush(ddi(S7 + t*S14, floorrad0*7/8) * C0);
+    for(int t=0; t<=6; t++) hpcpush(ddi(S7 + t*S14, floorrad0*7/8) * TC0);
     }
 
   if(0);
@@ -443,170 +511,208 @@ void geometry_information::procedural_shapes() {
     if(S3 >= OINF) rad0 = rad1 = zhexf;
     bshape(shWall[0], PPR::WALL);
     for(int t=0; t<=S6; t++) {
-      hpcpush(ddi(S7 + t*S14, rad0) * C0);
-      if(t != S6) hpcpush(ddi(S14 + t*S14, rad0 /4) * C0);
+      hpcpush(ddi(S7 + t*S14, rad0) * TC0);
+      if(t != S6) hpcpush(ddi(S14 + t*S14, rad0 /4) * TC0);
       }
 
     bshape(shWall[1], PPR::WALL);
     int td = ((!BITRUNCATED || euclid) && !(S7&1)) ? S42+S6 : 0;
     if(S7 == 6 || S7 == 4) {
       for(int t=0; t<=S6; t++) {
-        hpcpush(ddi(S7 + t*S14, rad1) * C0);
-        if(t != S6) hpcpush(ddi(S14 + t*S14, rad1/4) * C0);
+        hpcpush(ddi(S7 + t*S14, rad1) * TC0);
+        if(t != S6) hpcpush(ddi(S14 + t*S14, rad1/4) * TC0);
         }
       }
     else
-      for(int t=0; t<=S7; t++) hpcpush(ddi(t*S36+td, rad1) * C0);
+      for(int t=0; t<=S7; t++) hpcpush(ddi(t*S36+td, rad1) * TC0);
     }
 
   bshape(shCross, PPR::WALL);
   for(int i=0; i<=84; i+=7)
-    hpcpush(xspinpush0(2*M_PI*i/84, zhexf * (i%3 ? 0.8 : 0.3)));
+    hpcpush(xspinpush0(TAU*i/84, zhexf * (i%3 ? 0.8 : 0.3)));
 
 // items
 
   bshape(shGem[0], PPR::ITEM);
   for(int t=0; t<=SD6; t++) {
-    hpcpush(ddi(SD7 + t*S14, zhexf*.4) * C0);
-    if(t != SD6) hpcpush(ddi(S14 + t*S14, zhexf*.1) * C0);
+    hpcpush(ddi(SD7 + t*S14, zhexf*.4) * TC0);
+    if(t != SD6) hpcpush(ddi(S14 + t*S14, zhexf*.1) * TC0);
     }
 
   bshape(shGem[1], PPR::ITEM);
   if(SD7 == 6) {
     for(int t=0; t<=SD6; t++) {
-      hpcpush(ddi(SD7 + t*S14, zhexf*.4) * C0);
-      if(t != SD6) hpcpush(ddi(S14 + t*S14, zhexf*.1) * C0);
+      hpcpush(ddi(SD7 + t*S14, zhexf*.4) * TC0);
+      if(t != SD6) hpcpush(ddi(S14 + t*S14, zhexf*.1) * TC0);
       }
     }
   else
-    for(int t=0; t<=SD7; t++) hpcpush(ddi(t*S36, zhexf*.5) * C0);
+    for(int t=0; t<=SD7; t++) hpcpush(ddi(t*S36, zhexf*.5) * TC0);
 
   bshape(shStar, PPR::ITEM);
   for(int t=0; t<=S84; t+=SD6) {
-    hpcpush(ddi(t, zhexf*.2) * C0);
-    if(t != S84) hpcpush(ddi(t+3,   zhexf*.6) * C0);
+    hpcpush(ddi(t, zhexf*.2) * TC0);
+    if(t != S84) hpcpush(ddi(t+3, zhexf*.6) * TC0);
     }
+
+  bshape(shFlash, PPR::ITEM);
+  for(int t=0; t<S84+SD6; t+=SD6) {
+    hpcpush(ddi(t, zhexf*.25) * TC0);
+    hpcpush(ddi(t+3, zhexf*.4) * TC0);
+    }
+  hpcpush(ddi(3, zhexf*.4) * TC0);
 
   bshape(shDaisy, PPR::ITEM);
   for(int t=0; t<=SD6; t++) {
-    hpcpush(ddi(t*S14, zhexf*.8*3/4) * C0);
-    if(t != SD6) hpcpush(ddi(t*S14+SD7, zhexf*-.5*3/4) * C0);
+    hpcpush(ddi(t*S14, zhexf*.8*3/4) * TC0);
+    if(t != SD6) hpcpush(ddi(t*S14+SD7, zhexf*-.5*3/4) * TC0);
     }
-  hpcpush(ddi(0, zhexf*.6) * C0);
+  hpcpush(ddi(0, zhexf*.6) * TC0);
+
+  bshape(shSnowflake, PPR::ITEM);
+  for(int t=0; t<=SD6; t++) {
+    hpcpush(ddi(t*S14, zhexf*.7*.8*3/4) * TC0);
+    if(t != SD6) hpcpush(ddi(t*S14+SD7, zhexf*.7*-.5*3/4) * TC0);
+    }
+  hpcpush(ddi(0, zhexf*.7*.6) * TC0);
 
   bshape(shTriangle, PPR::ITEM);
   for(int t=0; t<=SD3; t++) {
-    hpcpush(ddi(t*S28, zhexf*.5) * C0);
+    hpcpush(ddi(t*S28, zhexf*.5) * TC0);
     }
 
   bshape(shTinyArrow, PPR::ITEM);
   for(ld d: {0, 90, -90, 0})
     hpcpush(xspinpush0(d*degree, zhexf*.2));
 
+  bshape(shHeptagon, PPR::ITEM);
+  for(int i=0; i<=S84; i+=S12)
+    hpcpush(ddi(i, orbsize * .2) * TC0);
+  bshape(shHeptagram, PPR::ITEM);
+  for(int i=0, skip=3; i<=S84*skip; i+=S12*skip)
+    hpcpush(ddi(i, orbsize * .2) * TC0);
+
   bshape(shDisk, PPR::ITEM);
   for(int i=0; i<=S84; i+=SD3)
-    hpcpush(ddi(i, orbsize * .2) * C0);
+    hpcpush(ddi(i, orbsize * .2) * TC0);
+
+  bshape(shHalfDisk, PPR::ITEM);
+  for(int i=0; i<=S84/2; i+=SD3)
+    hpcpush(ddi(i, orbsize * .2) * TC0);
+
+  bshape(shDiskSegment, PPR::ITEM);
+  for(int i=0; i<=S84/2.5; i+=SD3)
+    hpcpush(ddi(i, orbsize * .2) * TC0);
 
   bshape(shMoonDisk, PPR::ITEM);
   for(int i=0; i<=S84; i+=SD3)
     if(i <= S84 * 2 / 3)
-      hpcpush(ddi(i, orbsize * .2) * C0);
+      hpcpush(ddi(i, orbsize * .2) * TC0);
     else {
-      hyperpoint h1 = ddi(i, orbsize * .2) * C0;
-      hyperpoint h2 = ddi(S84-i*2, orbsize * .2) * C0;      
+      hyperpoint h1 = ddi(i, orbsize * .2) * TC0;
+      hyperpoint h2 = ddi(S84-i*2, orbsize * .2) * TC0;      
       hpcpush(mid(mid(h1,h2), h2));
       }
 
   bshape(shHugeDisk, PPR::ITEM);
   for(int i=0; i<=S84; i+=SD3)
-    hpcpush(ddi(i, orbsize * .4) * C0);
+    hpcpush(ddi(i, orbsize * .4) * TC0);
 
   bshape(shDiskT, PPR::ITEM);
   for(int i=0; i<=S84; i+=S28)
-    hpcpush(ddi(i, orbsize * .2) * C0);
+    hpcpush(ddi(i, orbsize * .2) * TC0);
 
   bshape(shDiskS, PPR::ITEM);
   for(int i=0; i<=S84; i+=S21) {
-    hpcpush(ddi(i, orbsize * .2) * C0);
+    hpcpush(ddi(i, orbsize * .2) * TC0);
     if(i != S84) {
-      hpcpush(ddi(i+S21/3, orbsize * .1) * C0);
-      hpcpush(ddi(i+S21-S21/3, orbsize * .1) * C0);
+      hpcpush(ddi(i+S21/3, orbsize * .1) * TC0);
+      hpcpush(ddi(i+S21-S21/3, orbsize * .1) * TC0);
       }
     }
 
   bshape(shDiskM, PPR::ITEM);
   for(int i=0; i<=S84; i+=SD3) {
-    hpcpush(ddi(i, orbsize * .1) * C0);
+    hpcpush(ddi(i, orbsize * .1) * TC0);
+    }
+
+  bshape(shEccentricDisk, PPR::ITEM);
+  for(int i=0; i<=S84; i+=SD3) {
+    hpcpush(hpxy(sin(i*S_step)*orbsize*.075,
+                 cos(i*S_step)*orbsize*.075 + .07));
     }
 
   bshape(shDiskSq, PPR::ITEM);
   for(int i=0; i<=S84; i+=S21) {
-    hpcpush(ddi(i, orbsize * .15) * C0);
+    hpcpush(ddi(i, orbsize * .15) * TC0);
     }
 
   bshape(shEgg, PPR::ITEM);
-  
   RING(i)
-    hpcpush(hpxy(sin(i*2*M_PI/S84)*0.242 * orbsize, cos(i*2*M_PI/S84)*0.177*orbsize));
+    hpcpush(hpxy(sin(i*S_step)*0.242 * orbsize, cos(i*S_step)*0.177*orbsize));
+
+  bshape(shSmallEgg, PPR::ITEM);
+  RING(i)
+    hpcpush(hpxy(sin(i*S_step)*0.242 * orbsize/2, cos(i*S_step)*0.177*orbsize/2));
   
-  auto make_ring = [this] (hpcshape& sh, reaction_t f) {
+  auto make_ring = [this, &TC0] (hpcshape& sh, reaction_t f) {
     bshape(sh, PPR::ITEM);
     RING(i)
-      hpcpush(ddi(i, orbsize * .25) * C0);
+      hpcpush(ddi(i, orbsize * .25) * TC0);
     first = true;
     f();
     first = true;
-    hpcpush(ddi(0, orbsize * .25) * C0);
+    hpcpush(ddi(0, orbsize * .25) * TC0);
     };
   
-  make_ring(shRing, [this] {    
+  make_ring(shRing, [this, &TC0] {    
     orb_inner_ring = isize(hpc) - shRing.s;
     REVPRING(i) {
-      hpcpush(ddi(i, orbsize * .30) * C0);
+      hpcpush(ddi(i, orbsize * .30) * TC0);
       }
     });
 
-  make_ring(shSpikedRing, [this] {
+  make_ring(shSpikedRing, [this, &TC0] {
     REVPRING(i)
-      hpcpush(ddi(i, orbsize * (int(i)&1?.35:.30)) * C0);
+      hpcpush(ddi(i, orbsize * (int(i)&1?.35:.30)) * TC0);
     });
 
-  make_ring(shTargetRing, [this] {
+  make_ring(shTargetRing, [this, &TC0] {
     REVPRING(i)
-      hpcpush(ddi(i, orbsize * (i >= S42-6 && i <= S42+6 ?.36:.30)) * C0);
+      hpcpush(ddi(i, orbsize * (i >= S42-6 && i <= S42+6 ?.36:.30)) * TC0);
     });
 
-  make_ring(shFrogRing, [this] {
+  make_ring(shFrogRing, [this, &TC0] {
     REVPRING(i)
-      hpcpush(ddi(i, orbsize * (((i >= S42-8 && i <= S42-2) || (i >= S42+2 && i <= S42+8)) ?.36:.30)) * C0);
+      hpcpush(ddi(i, orbsize * (((i >= S42-8 && i <= S42-2) || (i >= S42+2 && i <= S42+8)) ?.36:.30)) * TC0);
     });
 
-  make_ring(shSpearRing, [this] {
+  make_ring(shSpearRing, [this, &TC0] {
     REVPRING(i) {
       double d = i - S42;
       if(d<0) d = -d;
       d = 8 - 2 * d;
       if(d<0) d = 0;
-      hpcpush(ddi(i, orbsize * (.3 + .04 * d)) * C0);
+      hpcpush(ddi(i, orbsize * (.3 + .04 * d)) * TC0);
       }
     });
 
   /* three nice spikes
   bshape(shLoveRing, PPR::ITEM);
   for(int i=0; i<=S84; i+=3)
-    hpcpush(ddi(i, orbsize * .25) * C0);
+    hpcpush(ddi(i, orbsize * .25) * TC0);
   for(int i=S84; i>=0; i--) {
     int j = i*3 % S84;
     int d = j - S42;
     if(d<0) d = -d;
     d = 8 - 2 * d;
     if(d<0) d = 0;
-    hpcpush(ddi(i, orbsize * (.3 + .02 * d)) * C0);
+    hpcpush(ddi(i, orbsize * (.3 + .02 * d)) * TC0);
     }
-  hpcpush(ddi(0, orbsize * .25) * C0);
+  hpcpush(ddi(0, orbsize * .25) * TC0);
   */
 
-  make_ring(shLoveRing, [this] {
+  make_ring(shLoveRing, [this, &TC0] {
     REVPRING(i) {
       double j = i*3;
       while(j >= S84) j -= S84;
@@ -616,87 +722,87 @@ void geometry_information::procedural_shapes() {
       d = 8 - 2 * d;
       if(d<0) d = 0;
       if(d >= 6) d -= (d-6)/3;
-      hpcpush(ddi(i, orbsize * (.27 + .02 * d)) * C0);
+      hpcpush(ddi(i, orbsize * (.27 + .02 * d)) * TC0);
       }
     });
 
   auto dmod = [] (ld a, ld b) { return a - int(a/b)*b; };
 
-  make_ring(shSawRing, [this] {
+  make_ring(shSawRing, [this, &TC0] {
     REVPRING(i)
-      hpcpush(ddi(i, orbsize * (.3 + (int(i) & 3) * .02)) * C0);
+      hpcpush(ddi(i, orbsize * (.3 + (int(i) & 3) * .02)) * TC0);
     });
 
-  make_ring(shMoveRing, [this] {
+  make_ring(shMoveRing, [this, &TC0] {
     REVPRING(i) {
       int ii = i + 3;
       if(int(ii) % 7 == 0) {
-        hpcpush(ddi(i-2, orbsize * (.3 - .02)) * C0);
-        hpcpush(ddi(i-1, orbsize * (.3 - .01)) * C0);
+        hpcpush(ddi(i-2, orbsize * (.3 - .02)) * TC0);
+        hpcpush(ddi(i-1, orbsize * (.3 - .01)) * TC0);
         }
-      hpcpush(ddi(i, orbsize * (.3 + (int(ii) % 7) * .01)) * C0);
+      hpcpush(ddi(i, orbsize * (.3 + (int(ii) % 7) * .01)) * TC0);
       }
     });
 
-  make_ring(shGearRing, [dmod, this] {
+  make_ring(shGearRing, [dmod, this, &TC0] {
     REVPRING(i)
-      hpcpush(ddi(i, orbsize * ((dmod(i, 6)<3)?.3:.36)) * C0);
+      hpcpush(ddi(i, orbsize * ((dmod(i, 6)<3)?.3:.36)) * TC0);
     });
 
-  make_ring(shProtectiveRing, [dmod, this] {
+  make_ring(shProtectiveRing, [dmod, this, &TC0] {
     REVPRING(i)
-      hpcpush(ddi(i, orbsize * ((dmod(i, 12)<3)?.3:.36)) * C0);
+      hpcpush(ddi(i, orbsize * ((dmod(i, 12)<3)?.3:.36)) * TC0);
     });
 
-  make_ring(shPowerGearRing, [dmod, this] {
+  make_ring(shPowerGearRing, [dmod, this, &TC0] {
     REVPRING(i)
-      hpcpush(ddi(i, orbsize * ((dmod(i, 6)<3)?.3:(dmod(i,12) < 6) ? .36 : .42)) * C0);
+      hpcpush(ddi(i, orbsize * ((dmod(i, 6)<3)?.3:(dmod(i,12) < 6) ? .36 : .42)) * TC0);
     });
 
-  make_ring(shTerraRing, [dmod, this] {
+  make_ring(shTerraRing, [dmod, this, &TC0] {
     REVPRING(i)
-      hpcpush(ddi(i, orbsize * ((dmod(i, 6)<3)?.36:(dmod(i,12) < 6) ? .3 : .42)) * C0);
+      hpcpush(ddi(i, orbsize * ((dmod(i, 6)<3)?.36:(dmod(i,12) < 6) ? .3 : .42)) * TC0);
     });
 
-  make_ring(shPeaceRing, [dmod, this] { 
+  make_ring(shPeaceRing, [dmod, this, &TC0] { 
     REVPRING(i)
-      hpcpush(ddi(i, orbsize * (dmod(i, S28) < SD7?.36 : .3)) * C0);
+      hpcpush(ddi(i, orbsize * (dmod(i, S28) < SD7?.36 : .3)) * TC0);
     });
 
-  make_ring(shHeptaRing, [dmod, this] {
+  make_ring(shHeptaRing, [dmod, this, &TC0] {
     REVPRING(i)
-      hpcpush(ddi(i, orbsize * (dmod(i, S12) < SD3?.4 : .27)) * C0);
+      hpcpush(ddi(i, orbsize * (dmod(i, S12) < SD3?.4 : .27)) * TC0);
     });
 
   bshape(shCompass1, PPR::ITEM);
   RING(i)
-    hpcpush(ddi(i, orbsize * .35) * C0);
+    hpcpush(ddi(i, orbsize * .35) * TC0);
 
   bshape(shCompass2, PPR::ITEMa);
   RING(i)
-    hpcpush(ddi(i, orbsize * .30) * C0);
+    hpcpush(ddi(i, orbsize * .30) * TC0);
 
   bshape(shCompass3, PPR::ITEMb);
-  hpcpush(ddi(0, orbsize * .29) * C0);
-  hpcpush(ddi(S21, orbsize * .04) * C0);
-  hpcpush(ddi(-S21, orbsize * .04) * C0);
-  hpcpush(ddi(0, orbsize * .29) * C0);
+  hpcpush(ddi(0, orbsize * .29) * TC0);
+  hpcpush(ddi(S21, orbsize * .04) * TC0);
+  hpcpush(ddi(-S21, orbsize * .04) * TC0);
+  hpcpush(ddi(0, orbsize * .29) * TC0);
 
   bshape(shILeaf[0], PPR::ONTENTACLE);
   for(int t=0; t<=SD6; t++) {
-    hpcpush(ddi(SD7 + t*S14, zhexf*.7) * C0);
+    hpcpush(ddi(SD7 + t*S14, zhexf*.7) * TC0);
     if(t != SD6)
-      hpcpush(ddi(S14 + t*S14, zhexf*.15) * C0);
+      hpcpush(ddi(S14 + t*S14, zhexf*.15) * TC0);
     }
 
   bshape(shILeaf[1], PPR::ONTENTACLE);
   if(SD3 == 3 && SD7 % 3)
-    for(int t=0; t<=SD7; t++) hpcpush(ddi(t*S36, zhexf*.8) * C0);
+    for(int t=0; t<=SD7; t++) hpcpush(ddi(t*S36, zhexf*.8) * TC0);
   else {
     for(int t=0; t<=SD7; t++) {
-      hpcpush(ddi(t*S12, zhexf*.8) * C0);
+      hpcpush(ddi(t*S12, zhexf*.8) * TC0);
       if(t != SD6)
-        hpcpush(ddi(t*S12 + SD6, zhexf*.2) * C0);
+        hpcpush(ddi(t*S12 + SD6, zhexf*.2) * TC0);
       }
     }
 
@@ -710,34 +816,39 @@ void geometry_information::procedural_shapes() {
 
   bshape(shSlime, PPR::MONSTER_BODY);
   PRING(i)
-    hpcpush(ddi(i, scalefactor * hcrossf7 * (0.7 + .2 * sin(i * M_PI * 2 / S84 * 9))) * C0);
+    hpcpush(ddi(i, scalefactor * hcrossf7 * (0.7 + .2 * sin(i * S_step * 9))) * TC0);
 
   bshape(shJelly, PPR::MONSTER_BODY);
   PRING(i)
-    hpcpush(ddi(i, scalefactor * hcrossf7 * (0.4 + .03 * sin(i * M_PI * 2 / S84 * 7))) * C0);
+    hpcpush(ddi(i, scalefactor * hcrossf7 * (0.4 + .03 * sin(i * S_step * 7))) * TC0);
 
   bshape(shHeptaMarker, PPR::HEPTAMARK);
-  for(int t=0; t<=SD7; t++) hpcpush(ddi(t*S12, zhexf*.2) * C0);
+  for(int t=0; t<=SD7; t++) hpcpush(ddi(t*S12, zhexf*.2) * TC0);
 
   bshape(shSnowball, PPR::ITEM);
-  for(int t=0; t<=SD7*4; t++) hpcpush(ddi(t*SD3, zhexf*.1) * C0);
+  for(int t=0; t<=SD7*4; t++) hpcpush(ddi(t*SD3, zhexf*.1) * TC0);
 
   bshape(shRose, PPR::ITEM);
   PRING(t)
-    hpcpush(xspinpush0(M_PI * t / (S42+.0), scalefactor * hcrossf7 * (0.2 + .15 * sin(M_PI * t / (S42+.0) * 3))));
+    hpcpush(xspinpush0(S_step * t, scalefactor * hcrossf7 * (0.2 + .15 * sin(S_step * t * 3))));
   finishshape();
 
   shRoseItem = shRose;
 
+  bshape(shSmallRose, PPR::ITEM);
+  PRING(t)
+    hpcpush(xspinpush0(S_step * t, scalefactor/2 * hcrossf7 * (0.2 + .15 * sin(S_step * t * 3))));
+  finishshape();
+
   bshape(shThorns, PPR::THORNS);
   for(int t=0; t<=60; t++)
-    hpcpush(xspinpush0(M_PI * t / 30.0, scalefactor * hcrossf7 * ((t&1) ? 0.3 : 0.6)));
+    hpcpush(xspinpush0(TAU * t / 60, scalefactor * hcrossf7 * ((t&1) ? 0.3 : 0.6)));
 
   for(int i=0; i<16; i++) {
     bshape(shParticle[i], PPR::PARTICLE);
     for(int t=0; t<6; t++)
 //    hpcpush(xspinpush0(M_PI * t * 2 / 6 + M_PI * 2/6 * hrand(100) / 150., (0.03 + hrand(100) * 0.0003) * scalefactor));
-      hpcpush(xspinpush0(M_PI * t * 2 / 6 + M_PI * 2/6 * randd() / 1.5, (0.03 + randd() * 0.03) * scalefactor));
+      hpcpush(xspinpush0(TAU * t / 6 + 60._deg * randd() / 1.5, (0.03 + randd() * 0.03) * scalefactor));
     hpc.push_back(hpc[last->s]);
     }
 
@@ -746,11 +857,11 @@ void geometry_information::procedural_shapes() {
     if(GDIM == 3) asteroid_size[i] *= 7;
     bshape(shAsteroid[i], PPR::PARTICLE);
     for(int t=0; t<12; t++)
-      hpcpush(xspinpush0(M_PI * t / 6, asteroid_size[i] * (1 - randd() * .2)));
+      hpcpush(xspinpush0(TAU * t / 12, asteroid_size[i] * (1 - randd() * .2)));
     hpc.push_back(hpc[last->s]);
     }
 
-  bshape(shSwitchDisk, PPR::FLOOR); for(int i=0; i<=S84; i+=S3) hpcpush(ddi(i, .06) * C0);
+  bshape(shSwitchDisk, PPR::FLOOR); for(int i=0; i<=S84; i+=S3) hpcpush(ddi(i, .06) * TC0);
   }
 
 vector<ld> equal_weights(1000, 1);
@@ -772,10 +883,11 @@ hyperpoint ray_kleinize(hyperpoint h, int id, ld pz) {
   if(hyperbolic && bt::in()) {
     // ld co = vid.binary_width / log(2) / 4;
     // hyperpoint res = point31(h[2]*log(2)/2, h[0]*co, h[1]*co);
-    return deparabolic10(bt::parabolic3(h[0], h[1]) * xpush0(log(2)/2*h[2]));
+    return deparabolic13(final_coords(h));
     }
   #endif
-  if(prod) {
+  if(gproduct) {
+    if(bt::in()) return point3(h[0], h[1], pz);
     return point3(h[0]/h[2], h[1]/h[2], pz);
     }
   return kleinize(h);
@@ -805,11 +917,13 @@ void geometry_information::make_wall(int id, vector<hyperpoint> vertices, vector
 
   vector<ld> altitudes;
   altitudes.resize(n);
-  if(prod) {
+  if(gproduct) {
     for(int i=0; i<n; i++) {
       auto d = product_decompose(vertices[i]);
       altitudes[i] = d.first;
       vertices[i] = d.second;
+      if(bt::in())
+        vertices[i] = deparabolic13(vertices[i]);
       }
     }
   
@@ -817,11 +931,11 @@ void geometry_information::make_wall(int id, vector<hyperpoint> vertices, vector
 
   ld w = 0;
   for(int i=0; i<n; i++) center += vertices[i] * weights[i], w += weights[i];
-  if(prod) center = normalize_flat(center);
+  if(mproduct && !bt::in()) center = cgi.emb->normalize_flat(center);
   else center /= w;
   
   ld center_altitude = 0;
-  if(prod) for(int i=0; i<n; i++) center_altitude += altitudes[i] * weights[i] / w;
+  if(mproduct) for(int i=0; i<n; i++) center_altitude += altitudes[i] * weights[i] / w;
   
   auto ocenter = center;
   
@@ -847,9 +961,10 @@ void geometry_information::make_wall(int id, vector<hyperpoint> vertices, vector
       hyperpoint h = center + v1 * x + v2 * y;
       if(nil && (x || y))
         h = nilv::on_geodesic(center, nilv::on_geodesic(v1+center, v2+center, y / (x+y)), x + y);
-      if(prod) { 
-        h = zshift(normalize_flat(h), center_altitude * (1-x-y) + altitudes[a] * x + altitudes[b] * y);
-        hpcpush(h); return; 
+      if(mproduct) {
+        if(bt::in()) h = PIU( parabolic13(h) );
+        h = orthogonal_move(cgi.emb->normalize_flat(h), center_altitude * (1-x-y) + altitudes[a] * x + altitudes[b] * y);
+        hpcpush(h); return;
         }
       hpcpush(final_coords(h));
       });
@@ -861,8 +976,9 @@ void geometry_information::make_wall(int id, vector<hyperpoint> vertices, vector
     for(int a=0; a<n; a++) for(int y=0; y<STEP; y++) {
       if(triangles && (a%3 != 1)) continue;
       hyperpoint h = (vertices[a] * (STEP-y) + vertices[(a+1)%n] * y)/STEP;
-      if(prod) { 
-        h = zshift(normalize_flat(h), (altitudes[a] * (STEP-y) + altitudes[(a+1)%n] * y) / STEP);
+      if(mproduct) {
+        if(bt::in()) h = PIU( parabolic13(h) );
+        h = orthogonal_move(cgi.emb->normalize_flat(h), (altitudes[a] * (STEP-y) + altitudes[(a+1)%n] * y) / STEP);
         hpcpush(h);
         }
       else if(nil)
@@ -900,9 +1016,9 @@ void geometry_information::reserve_wall3d(int i) {
 
 void geometry_information::create_wall3d() {
   if(WDIM == 2) return;
-  reserve_wall3d(kite::in() ? 22 : hybri ? 0 : S7);
+  reserve_wall3d(kite::in() ? 22 : mhybrid ? 0 : S7);
   
-  if(hybri) {
+  if(mhybrid) {
     walloffsets.clear();
     }
 
@@ -974,8 +1090,8 @@ void geometry_information::configure_floorshapes() {
 
   double spherezoom = sphere ? 1.2375 : 1;
 
-  double trihepta0 = scalefactor*spherezoom*(.2776+p) * gsca(a4, 1.3, a46, .975, a47, .85, a38, .9) * bscale6;
-  double trihepta1 = (sphere ? .54 : scalefactor*spherezoom*(.5273-2*p)) * gsca(a4, .8, a46, 1.075, sphere4, 1.3) * bscale7;
+  double trihepta0 = spherezoom*(.2776+p) * gsca(a4, 1.3, a46, .975, a47, .85, a38, .9) * bscale6;
+  double trihepta1 = (sphere ? .54 : spherezoom*(.5273-2*p)) * gsca(a4, .8, a46, 1.075, sphere4, 1.3) * bscale7;
 
   double eps = hexhexdist * .05;
   if(euclid) trihepta0 = hexhexdist * .5 - eps * sqrt(3)/2, trihepta1 = hexhexdist * sqrt(3)/2 - eps; // .5-.1; .75-.05
@@ -988,7 +1104,7 @@ void geometry_information::configure_floorshapes() {
   if(!BITRUNCATED) {
     ld hedge = hdist(xspinpush0(M_PI/S7, rhexf), xspinpush0(-M_PI/S7, rhexf));
 
-    trihepta1 = hdist0(xpush(tessf) * xspinpush0(2*M_PI*2/S7, tessf)) / 2 * .98;
+    trihepta1 = hdist0(xpush(tessf) * xspinpush0(TAU*2/S7, tessf)) / 2 * .98;
     trihepta0 = hdist0(xpush(-tessf) * xspinpush0(M_PI/S7, rhexf+hedge/2)) * .98;
     }
 
@@ -1018,7 +1134,7 @@ void geometry_information::prepare_shapes() {
   allshapes.clear();
   DEBBI(DF_POLY, ("buildpolys"));
 
-  if(WDIM == 3 && !hybri) {
+  if(WDIM == 3 && !mhybrid) {
     if(sphere) SD3 = 3, SD7 = 5;
     else SD3 = SD7 = 4;
     }
@@ -1038,9 +1154,10 @@ void geometry_information::prepare_shapes() {
   S28 = SD7 * 4;
   S36 = SD6 * 6;
   S84 = S42 * 2;
+  S_step = A_PI / S42;
 
   // printf("crossf = %f euclid = %d sphere = %d\n", float(crossf), euclid, sphere);
-  hpc.clear();
+  hpc.clear(); ext.clear();
 
   make_sidewalls();
 
@@ -1067,11 +1184,11 @@ void geometry_information::prepare_shapes() {
     dynamicval<int> d(vid.texture_step, max(vid.texture_step, 4));
     ld len6 = hdist0(mid(xpush0(hexvdist), spin(M_PI/S3) * xpush0(hexvdist)));
 
-    ld len7 = hdist0(mid(xpush0(hexf), spin(M_PI*2/S7) * xpush0(hexf)));
-    ld hlen7 = hdist0(mid(xpush0(hcrossf), spin(M_PI*2/S7) * xpush0(hcrossf)));
+    ld len7 = hdist0(mid(xpush0(hexf), spin(TAU/S7) * xpush0(hexf)));
+    ld hlen7 = hdist0(mid(xpush0(hcrossf), spin(TAU/S7) * xpush0(hcrossf)));
 
     ld lenx = hdist(xpush0(hexvdist), spin(M_PI/S3) * xpush0(hexvdist));
-    ld hlenx = hdist(xpush0(hcrossf), spin(2*M_PI/S7) * xpush0(hcrossf));
+    ld hlenx = hdist(xpush0(hcrossf), spin(TAU/S7) * xpush0(hcrossf));
 
     bshape(shHalfMirror[2], PPR::WALL);
     hpcpush(C0); hpcpush(xpush0(-len6*scalefactor));  chasmifyPoly(FLOOR, WALL, 0);
@@ -1090,48 +1207,48 @@ void geometry_information::prepare_shapes() {
 
   for(auto& sh: shTriheptaSpecial) sh.clear();
 
-  bshape(shTriheptaSpecial[2], PPR::FLOOR,  scalefactor, 32);
-  bshape(shTriheptaSpecial[3], PPR::FLOOR,  scalefactor, 33);
-  bshape(shTriheptaSpecial[4], PPR::FLOOR,  scalefactor, 34);
-  bshape(shTriheptaSpecial[5], PPR::FLOOR,  scalefactor, 35);
-  bshape(shTriheptaSpecial[6], PPR::FLOOR,  scalefactor, 36);
-  bshape(shTriheptaSpecial[7], PPR::FLOOR,  scalefactor, 37);
-  bshape(shTriheptaSpecial[12], PPR::FLOOR,  scalefactor, 373);
-  bshape(shTriheptaSpecial[9], PPR::FLOOR,  scalefactor, 38);
-  bshape(shTriheptaSpecial[10], PPR::FLOOR,  scalefactor, 39);
-  bshape(shTriheptaSpecial[11], PPR::FLOOR,  scalefactor, 372);
-  bshape(shSemiFloorShadow, PPR::FLOOR, scalefactor, 263);
+  bshape(shTriheptaSpecial[2], PPR::FLOOR,  1, 32);
+  bshape(shTriheptaSpecial[3], PPR::FLOOR,  1, 33);
+  bshape(shTriheptaSpecial[4], PPR::FLOOR,  1, 34);
+  bshape(shTriheptaSpecial[5], PPR::FLOOR,  1, 35);
+  bshape(shTriheptaSpecial[6], PPR::FLOOR,  1, 36);
+  bshape(shTriheptaSpecial[7], PPR::FLOOR,  1, 37);
+  bshape(shTriheptaSpecial[12], PPR::FLOOR,  1, 373);
+  bshape(shTriheptaSpecial[9], PPR::FLOOR,  1, 38);
+  bshape(shTriheptaSpecial[10], PPR::FLOOR,  1, 39);
+  bshape(shTriheptaSpecial[11], PPR::FLOOR,  1, 372);
+  bshape(shSemiFloorShadow, PPR::FLOOR, 1, 263);
 
-  bshape(shMercuryBridge[0], PPR::FLOOR,  scalefactor, 365);
-  bshape(shMercuryBridge[1], PPR::FLOOR,  scalefactor, 366);
+  bshape(shMercuryBridge[0], PPR::FLOOR,  1, 365);
+  bshape(shMercuryBridge[1], PPR::FLOOR,  1, 366);
   bshape(shWindArrow, PPR::HEPTAMARK,  scalefactor, 367);
 
   bshape(shPalaceGate, PPR::STRUCT1, scalefactor, 47);
-  bshape(shSemiFeatherFloor[0], PPR::FLOOR,  scalefactor, 48);
-  bshape(shSemiFeatherFloor[1], PPR::FLOOR,  scalefactor, 49);
+  bshape(shSemiFeatherFloor[0], PPR::FLOOR,  1, 48);
+  bshape(shSemiFeatherFloor[1], PPR::FLOOR,  1, 49);
 
-  bshape(shZebra[0], PPR::FLOOR,  scalefactor, 162);
-  bshape(shZebra[1], PPR::FLOOR,  scalefactor, 163);
-  bshape(shZebra[2], PPR::FLOOR,  scalefactor, 164);
-  bshape(shZebra[3], PPR::FLOOR,  scalefactor, 165);
+  bshape(shZebra[0], PPR::FLOOR,  1, 162);
+  bshape(shZebra[1], PPR::FLOOR,  1, 163);
+  bshape(shZebra[2], PPR::FLOOR,  1, 164);
+  bshape(shZebra[3], PPR::FLOOR,  1, 165);
   bshape(shZebra[4], PPR::FLOOR,  1, 166); // for pure
-  bshape(shEmeraldFloor[0], PPR::FLOOR,  scalefactor, 167); // 4
-  bshape(shEmeraldFloor[1], PPR::FLOOR,  scalefactor, 168); // 12
-  bshape(shEmeraldFloor[2], PPR::FLOOR,  scalefactor, 169); // 16
-  bshape(shEmeraldFloor[3], PPR::FLOOR,  scalefactor, 170); // 20
-  bshape(shEmeraldFloor[4], PPR::FLOOR,  scalefactor, 171); // 28
-  bshape(shEmeraldFloor[5], PPR::FLOOR,  scalefactor, 172); // 36
-  bshape(shTower[0], PPR::FLOOR_TOWER,  scalefactor, 196); // 4
-  bshape(shTower[1], PPR::FLOOR_TOWER,  scalefactor, 197); // 5
-  bshape(shTower[2], PPR::FLOOR_TOWER,  scalefactor, 198); // 6
-  bshape(shTower[3], PPR::FLOOR_TOWER,  scalefactor, 199); // 8
-  bshape(shTower[4], PPR::FLOOR_TOWER,  scalefactor, 200); // 9
-  bshape(shTower[5], PPR::FLOOR_TOWER,  scalefactor, 201); // 10
-  bshape(shTower[6], PPR::FLOOR_TOWER,  scalefactor, 202); // 10
+  bshape(shEmeraldFloor[0], PPR::FLOOR,  1, 167); // 4
+  bshape(shEmeraldFloor[1], PPR::FLOOR,  1, 168); // 12
+  bshape(shEmeraldFloor[2], PPR::FLOOR,  1, 169); // 16
+  bshape(shEmeraldFloor[3], PPR::FLOOR,  1, 170); // 20
+  bshape(shEmeraldFloor[4], PPR::FLOOR,  1, 171); // 28
+  bshape(shEmeraldFloor[5], PPR::FLOOR,  1, 172); // 36
+  bshape(shTower[0], PPR::FLOOR_TOWER,  1, 196); // 4
+  bshape(shTower[1], PPR::FLOOR_TOWER,  1, 197); // 5
+  bshape(shTower[2], PPR::FLOOR_TOWER,  1, 198); // 6
+  bshape(shTower[3], PPR::FLOOR_TOWER,  1, 199); // 8
+  bshape(shTower[4], PPR::FLOOR_TOWER,  1, 200); // 9
+  bshape(shTower[5], PPR::FLOOR_TOWER,  1, 201); // 10
+  bshape(shTower[6], PPR::FLOOR_TOWER,  1, 202); // 10
   bshape(shTower[7], PPR::FLOOR_TOWER,  1, 203); // pure 7
   bshape(shTower[8], PPR::FLOOR_TOWER,  1, 204); // pure 11
   bshape(shTower[9], PPR::FLOOR_TOWER,  1, 205); // pure 15
-  bshape(shTower[10], PPR::FLOOR_TOWER,  scalefactor, 206);  // Euclidean
+  bshape(shTower[10], PPR::FLOOR_TOWER,  1, 206);  // Euclidean
 
   // structures & walls
   bshape(shBoatOuter, PPR::STRUCT0, scalefactor, 154);
@@ -1152,6 +1269,15 @@ void geometry_information::prepare_shapes() {
   bshape(shKey, PPR::ITEM, scalefactor, 68);
   bshape(shPirateX, PPR::ITEM, scalefactor, 124);
   bshape(shTreat, PPR::ITEM, scalefactor, 253);
+  bshape(shSmallTreat, PPR::ITEM, scalefactor/1.5, 253);
+  bshape(shLightningBolt, PPR::ITEM, scalefactor/1.5, 413);
+  bshape(shSmallFan, PPR::ITEM, scalefactor/3, 59);
+  bshape(shHumanoid, PPR::ITEM, scalefactor/5.5, 414);
+  bshape(shHalfHumanoid, PPR::ITEM, scalefactor/5.5, 415);
+  bshape(shHourglass, PPR::ITEM, scalefactor/2.0, 416);
+  bshape(shShield, PPR::ITEM, scalefactor, 418);
+  bshape(shTreeIcon, PPR::ITEM, scalefactor/1.7, 419);
+  bshape(shLeafIcon, PPR::ITEM, scalefactor, 420);
 
   wormscale = WDIM == 3 ? 3 : 1;
 
@@ -1165,13 +1291,15 @@ void geometry_information::prepare_shapes() {
   copyshape(shJoint, shDisk, PPR::ONTENTACLE);
   bshape(shTentHead, PPR::ONTENTACLE, scalefactor * wormscale, 79);
   bshape(shWormHead, PPR::ONTENTACLE, scalefactor * wormscale, 80);
+  bshape(shSmallWormHead, PPR::ONTENTACLE, scalefactor * wormscale / 2, 80);
 
   bshape(shWormSegment, PPR::TENTACLE1);
+  auto TC0 = tile_center();
   RING(i)
-   hpcpush(ddi(i, .20 * scalefactor * wormscale) * C0);
+   hpcpush(ddi(i, .20 * scalefactor * wormscale) * TC0);
   bshape(shSmallWormSegment, PPR::TENTACLE1);
   RING(i)
-    hpcpush(ddi(i, .16 * scalefactor * wormscale) * C0);
+    hpcpush(ddi(i, .16 * scalefactor * wormscale) * TC0);
   bshape(shWormTail, PPR::TENTACLE1, scalefactor * wormscale, 383);
   bshape(shSmallWormTail, PPR::TENTACLE1, scalefactor * wormscale, 384);
 
@@ -1181,6 +1309,8 @@ void geometry_information::prepare_shapes() {
   bshape(shDragonTail, PPR::TENTACLE1, scalefactor * wormscale, 240); //239 alt
   bshape(shDragonNostril, PPR::ONTENTACLE_EYES, scalefactor * wormscale, 241);
   bshape(shDragonHead, PPR::ONTENTACLE, scalefactor * wormscale, 242);
+  bshape(shSmallDragonNostril, PPR::ONTENTACLE_EYES, scalefactor * wormscale / 2, 241);
+  bshape(shSmallDragonHead, PPR::ONTENTACLE, scalefactor * wormscale / 2, 242);
 
   ld krsc = 1;
   if(sphere) krsc *= 1.4;
@@ -1233,7 +1363,7 @@ void geometry_information::prepare_shapes() {
 
   for(int i=0; i<5; i++)
     for(int j=0; j<4; j++)
-      bshape(shReptile[i][j], j >= 2 ? PPR::LIZEYE : j == 1 ? PPR::FLOORa : PPR::FLOOR_DRAGON, scalefactor * gsca(euclid, 1.16), 277+i*4+j);
+      bshape(shReptile[i][j], j >= 2 ? PPR::LIZEYE : j == 1 ? PPR::FLOORa : PPR::FLOOR_DRAGON, (hyperbolic && S3 == 3 && S7 == 7 && BITRUNCATED) ? 1 : scalefactor * gsca(euclid, 1.16), 277+i*4+j); // todo
 
   finishshape();
 
@@ -1258,6 +1388,7 @@ void geometry_information::prepare_shapes() {
   bshape(shReptileTail, PPR::MONSTER_BODY, scalefactor, 303);
   bshape(shReptileEye, PPR::MONSTER_EYE0, scalefactor, 304);
   bshape(shDodeca, PPR::ITEM, scalefactor, 305);
+  bshape(shSmallerDodeca, PPR::ITEM, scalefactor*.8, 305);
 
   bshape(shTerraArmor1, PPR::MONSTER_BODY, scalefactor, 349);
   bshape(shTerraArmor2, PPR::MONSTER_BODY, scalefactor, 350);
@@ -1275,20 +1406,30 @@ void geometry_information::prepare_shapes() {
   bshape(shFrogFrontLeg, PPR::MONSTER_LEG, scalefactor, 396);
   bshape(shFrogRearLeg2, PPR::MONSTER_LEG, scalefactor, 397);
   bshape(shFrogBody, PPR::MONSTER_BODY, scalefactor, 398);
+  bshape(shSmallFrogRearFoot, PPR::MONSTER_FOOT, scalefactor/2, 393);
+  bshape(shSmallFrogFrontFoot, PPR::MONSTER_FOOT, scalefactor/2, 394);
+  bshape(shSmallFrogRearLeg, PPR::MONSTER_LEG, scalefactor/2, 395);
+  bshape(shSmallFrogFrontLeg, PPR::MONSTER_LEG, scalefactor/2, 396);
+  bshape(shSmallFrogRearLeg2, PPR::MONSTER_LEG, scalefactor/2, 397);
+  bshape(shSmallFrogBody, PPR::MONSTER_BODY, scalefactor/2, 398);
   bshape(shFrogEye, PPR::MONSTER_EYE0, scalefactor, 399);
   bshape(shFrogStripe, PPR::MONSTER_BODY, scalefactor, 400);
   bshape(shFrogJumpFoot, PPR::MONSTER_FOOT, scalefactor, 401);
   bshape(shFrogJumpLeg, PPR::MONSTER_FOOT, scalefactor, 404);
 
   bshape(shPBody, PPR::MONSTER_BODY, scalefactor, 85);
+  bshape(shSmallPBody, PPR::MONSTER_BODY, scalefactor/2, 85);
   bshape(shYeti, PPR::MONSTER_BODY, scalefactor, 86);
   bshape(shPSword, PPR::MONSTER_WPN, scalefactor, 90);
+  bshape(shSmallPSword, PPR::MONSTER_WPN, scalefactor/2, 407);
   bshape(shFerocityM, PPR::MONSTER_WPN, scalefactor, 361);
   bshape(shFerocityF, PPR::MONSTER_WPN, scalefactor, 362);
   bshape(shPKnife, PPR::MONSTER_WPN, scalefactor, 91);
   bshape(shPirateHook, PPR::MONSTER_WPN, scalefactor, 92);
+  bshape(shSmallPirateHook, PPR::MONSTER_WPN, scalefactor, 417);
   bshape(shSabre, PPR::MONSTER_WPN, scalefactor, 93);
   bshape(shHedgehogBlade, PPR::MONSTER_WPN, scalefactor, 94);
+  bshape(shSmallHedgehogBlade, PPR::MONSTER_WPN, scalefactor/2, 406);
   bshape(shHedgehogBladePlayer, PPR::MONSTER_WPN, scalefactor, 95);
   bshape(shFemaleBody, PPR::MONSTER_BODY, scalefactor, 96);
   bshape(shFemaleDress, PPR::MONSTER_ARMOR0, scalefactor, 97);
@@ -1312,6 +1453,11 @@ void geometry_information::prepare_shapes() {
   bshape(shBullRearHoof, PPR::MONSTER_FOOT, scalefactor, 317);
   bshape(shBullFrontHoof, PPR::MONSTER_FOOT, scalefactor, 318);
   bshape(shBullHead, PPR::MONSTER_HEAD, scalefactor, 319);
+  bshape(shSmallBullHead, PPR::MONSTER_HEAD, scalefactor/1.7, 411);
+  bshape(shSmallBullHorn, PPR::MONSTER_HEAD, scalefactor/1.7, 412);
+  bshape(shTinyBullHead, PPR::MONSTER_HEAD, scalefactor/2.5, 319);
+  bshape(shTinyBullHorn, PPR::MONSTER_HEAD, scalefactor/2.5, 316);
+  bshape(shTinyBullBody, PPR::MONSTER_BODY, scalefactor/2.5, 315);
 
   bshape(shButterflyBody, PPR::MONSTER_BODY, scalefactor, 320);
   bshape(shButterflyWing, PPR::MONSTER_BODY, scalefactor, 321);
@@ -1360,9 +1506,11 @@ void geometry_information::prepare_shapes() {
   bshape(shFlowerHand, PPR::MONSTER_WPN, scalefactor, 133);
   bshape(shPFace, PPR::MONSTER_FACE, scalefactor, 134);
   bshape(shEyes, PPR::MONSTER_EYE0, scalefactor, 135);
+  bshape(shSmallEyes, PPR::MONSTER_EYE0, scalefactor/2, 135);
   bshape(shMiniEyes, PPR::MONSTER_EYE0, scalefactor/3, 135);
   bshape(shShark, PPR::MONSTER_BODY, scalefactor, 136);
   shSlimeEyes = shDragonEyes = shWormEyes = shGhostEyes = shEyes;
+  shSmallDragonEyes = shSmallWormEyes = shSmallEyes;
   bshape(shTinyShark, PPR::MONSTER_BODY, scalefactor / 2, 136);
   bshape(shBugBody, PPR::MONSTER_BODY, scalefactor, 137);
   bshape(shBugArmor, PPR::MONSTER_ARMOR0, scalefactor, 138);
@@ -1379,11 +1527,15 @@ void geometry_information::prepare_shapes() {
   bshape(shWolfEyes, PPR::MONSTER_EYE0, WOLF, 147);
   bshape(shWitchDress, PPR::MONSTER_ARMOR0, scalefactor, 148);
   bshape(shPickAxe, PPR::MONSTER_WPN, scalefactor, 149);
+  bshape(shSmallPickAxe, PPR::MONSTER_WPN, scalefactor/1.5, 408);
   bshape(shPike, PPR::MONSTER_WPN, scalefactor, 150);
   bshape(shFlailBall, PPR::MONSTER_WPN, scalefactor, 151);
+  bshape(shSmallFlailBall, PPR::MONSTER_WPN, scalefactor/2, 151);
   bshape(shFlailTrunk, PPR::MONSTER_WPN, scalefactor, 152);
+  bshape(shSmallFlailTrunk, PPR::MONSTER_WPN, scalefactor/2, 409);
   bshape(shFlailChain, PPR::MONSTER_SUBWPN, scalefactor, 153);
   bshape(shHammerHead, PPR::MONSTER_WPN, scalefactor, 376);
+  bshape(shSmallHammerHead, PPR::MONSTER_WPN, scalefactor/1.5, 410);
   // bshape(shScratch, 17, scalefactor, 156);
   bshape(shSkeletonBody, PPR::MONSTER_BODY, scalefactor, 157);
   bshape(shSkull, PPR::MONSTER_HEAD, scalefactor, 158);
@@ -1414,14 +1566,14 @@ void geometry_information::prepare_shapes() {
   bshape(shPikeBody, PPR::MONSTER_BODY, scalefactor, 402);
   bshape(shPikeEye, PPR::MONSTER_BODY, scalefactor, 403);
 
-  bshape(shBrushHandle, PPR::MONSTER_SUBWPN, scalefactor, 405);
-  bshape(shBrushBrush, PPR::MONSTER_WPN, scalefactor, 406);
+  bshape(shBrushHandle, PPR::MONSTER_SUBWPN, scalefactor, 421);
+  bshape(shBrushBrush, PPR::MONSTER_WPN, scalefactor, 422);
 
-  bshape(shPalette, PPR::MONSTER_SUBWPN, scalefactor, 407);
-  bshape(shPaletteCol1, PPR::MONSTER_WPN, scalefactor, 408);
-  bshape(shPaletteCol2, PPR::MONSTER_WPN, scalefactor, 409);
-  bshape(shPaletteCol3, PPR::MONSTER_WPN, scalefactor, 410);
-  bshape(shPaletteCol4, PPR::MONSTER_WPN, scalefactor, 411);
+  bshape(shPalette, PPR::MONSTER_SUBWPN, scalefactor, 423);
+  bshape(shPaletteCol1, PPR::MONSTER_WPN, scalefactor, 424);
+  bshape(shPaletteCol2, PPR::MONSTER_WPN, scalefactor, 425);
+  bshape(shPaletteCol3, PPR::MONSTER_WPN, scalefactor, 426);
+  bshape(shPaletteCol4, PPR::MONSTER_WPN, scalefactor, 427);
 
   // missiles
   bshape(shKnife, PPR::MISSILE, scalefactor, 87);
@@ -1471,6 +1623,7 @@ void geometry_information::prepare_shapes() {
 
   if(scalefactor > 1.5) bshape(shMagicSword, PPR::MAGICSWORD, scalefactor / 1.7570466583108084, 243);
   else bshape(shMagicSword, PPR::MAGICSWORD, scalefactor, 244);
+  bshape(shSmallSword, PPR::MAGICSWORD, scalefactor/2, 405);
 
   sword_size = 0;
   for(int i=shMagicSword.s; i<shMagicSword.e; i++)
@@ -1673,6 +1826,8 @@ NEWSHAPE,  88,1,2, -0.036955,0.001192, -0.036957,-0.007153, -0.048967,-0.028663,
 NEWSHAPE,  89,21,1, -0.064558,0.008369, -0.038156,0.011924,
 // shPSword (1x1)
 NEWSHAPE,  90,1,1, 0.093822,0.244697, 0.105758,0.251015, 0.110908,0.249862, 0.110690,0.245554, 0.113376,0.247134, 0.117228,0.245924, 0.127263,0.237981, 0.131886,0.226997, 0.116494,0.231721, 0.106117,0.231182, 0.105927,0.226986, 0.263283,-0.174653, 0.086104,0.209645, 0.079571,0.202657, 0.074206,0.190462, 0.068951,0.179766, 0.065727,0.200902, 0.068444,0.209067, 0.077641,0.221653, 0.086737,0.227526, 0.086260,0.248631, 0.086431,0.252937,
+// shSmallPSword
+NEWSHAPE,  407,1,1, -0.056178,0.244697, -0.044242,0.251015, -0.039092,0.249862, -0.03931,0.245554, -0.036624,0.247134, -0.032772,0.245924, -0.022737,0.237981, -0.018114,0.226997, -0.033506,0.231721, -0.043883,0.231182, -0.044073,0.226986, 0.113283,-0.174653, -0.063896,0.209645, -0.070429,0.202657, -0.075794,0.190462, -0.081049,0.179766, -0.084273,0.200902, -0.081556,0.209067, -0.072359,0.221653, -0.063263,0.227526, -0.06374,0.248631, -0.063569,0.252937,
 // shPKnife (1x1)
 NEWSHAPE,  91,1,1, 0.070235,0.261061, 0.085110,0.243297, 0.100384,0.253764, 0.115592,0.241462, 0.106046,0.228043, 0.193021,0.140235, 0.223042,0.069158, 0.217457,0.064184, 0.149083,0.101106, 0.073293,0.198875, 0.059119,0.191168, 0.049288,0.208259, 0.061401,0.222183, 0.046445,0.239874,
 // shPirateHook (1x1)
@@ -1681,6 +1836,8 @@ NEWSHAPE,  92,1,1, 0.025637,0.290334, 0.015893,0.212083, 0.070681,0.208634, 0.07
 NEWSHAPE,  93,1,1, 0.052478,0.211644, 0.042242,0.185536, 0.057979,0.181601, 0.068086,0.204991, 0.085295,0.201073, 0.100829,0.193318, 0.113718,0.184489, 0.125735,0.178476, 0.134891,0.170005, 0.144264,0.162907, 0.152391,0.155912, 0.160192,0.146346, 0.166733,0.136894, 0.180659,0.123243, 0.189268,0.108634, 0.197644,0.091550, 0.204992,0.075866, 0.207394,0.063057, 0.213308,0.045015, 0.215741,0.031014, 0.216495,0.013402, 0.217512,-0.002957, 0.216708,-0.025412, 0.215602,-0.037833, 0.209033,-0.050943, 0.249210,-0.008237, 0.247115,0.012233, 0.246190,0.028812, 0.239192,0.052194, 0.237023,0.067663, 0.231339,0.087245, 0.221702,0.107109, 0.215996,0.124316, 0.206323,0.141806, 0.194941,0.164879, 0.173125,0.180454, 0.158905,0.191858, 0.143293,0.202073, 0.128179,0.215193, 0.111272,0.224403, 0.090433,0.232613, 0.079164,0.234740, 0.083027,0.256039, 0.071081,0.264147, 0.060044,0.234679,
 // shHedgehogBlade (1x2)
 NEWSHAPE,  94,1,2, 0.117178,0.032617, 0.102699,0.066452, 0.056807,0.109987, 0.052506,0.272774, 0.079931,0.279758, 0.082589,0.170109, 0.139258,0.126935, 0.240653,0.136967, 0.177567,0.067821, 0.273978,0.042249, 0.187242,-0.000000,
+// shSmallHedgehogBlade (1x2)
+NEWSHAPE,  406,1,2, 0.017178,0.032617, 0.002699,0.066452, -0.043193,0.109987, -0.047494,0.272774, -0.020069,0.279758, -0.017411,0.170109, 0.039258,0.126935, 0.140653,0.136967, 0.077567,0.067821, 0.173978,0.042249, 0.087242,-0.000000,
 // shHedgehogBladePlayer (1x2)
 NEWSHAPE,  95,1,2, 0.117178,0.032617, 0.102699,0.066452, 0.056807,0.109987, 0.052506,0.272774, 0.079931,0.279758, 0.082589,0.170109, 0.173109,0.220554, 0.139258,0.126935, 0.240653,0.136967, 0.177567,0.067821, 0.273978,0.042249, 0.187242,-0.000000,
 // shFemaleBody (1x2)
@@ -1791,6 +1948,8 @@ NEWSHAPE, 147,1,2, 0.172835,0.002452, 0.156071,0.002439, 0.154815,0.012190, 0.13
 NEWSHAPE, 148,1,2, 0.039326,-0.001751, 0.041168,0.053278, 0.035516,0.073044, 0.024685,0.088439, 0.009671,0.096889, -0.002313,0.097795, -0.008219,0.099482, -0.016102,0.107500, -0.016016,0.108729, -0.022078,0.163499, -0.052858,0.141939, -0.084069,0.161675, -0.098088,0.129874, -0.108494,0.122098, -0.117272,0.122997, -0.128424,0.129237, -0.140905,0.138269, -0.152175,0.151195, -0.161208,0.157511, -0.178346,0.167608, -0.195945,0.176675, -0.219689,0.185527, -0.234056,0.190460, -0.219683,0.178715, -0.211330,0.162725, -0.206261,0.134376, -0.201753,0.102919, -0.205795,0.072925, -0.213892,0.049798, -0.218429,0.022623, -0.219265,0.011429,
 // shPickAxe (1x1)
 NEWSHAPE, 149,1,1, 0.064364,0.237609, 0.183353,-0.046466, 0.171819,-0.050455, 0.142623,-0.056105, 0.122591,-0.057865, 0.106467,-0.058329, 0.118180,-0.067773, 0.135948,-0.071025, 0.161536,-0.071733, 0.188994,-0.071278, 0.212623,-0.063402, 0.239189,-0.047822, 0.248564,-0.040034, 0.265990,-0.019250, 0.272276,0.000110, 0.269338,0.000001, 0.247284,-0.019782, 0.224346,-0.034255, 0.208443,-0.042147, 0.086124,0.253692,
+// shSmallPickAxe
+NEWSHAPE, 408,1,1, -0.085636,0.187609, 0.033353,-0.096466, 0.021819,-0.100455, -0.007377,-0.106105, -0.027409,-0.107865, -0.043533,-0.108329, -0.03182,-0.117773, -0.014052,-0.121025, 0.011536,-0.121733, 0.038994,-0.121278, 0.062623,-0.113402, 0.089189,-0.097822, 0.098564,-0.090034, 0.115990,-0.069250, 0.122276,-0.04989, 0.119338,-0.05, 0.097284,-0.069782, 0.074346,-0.084255, 0.058443,-0.092147, -0.063876,0.203692,
 // shPike (1x1)
 NEWSHAPE, 150,1,1, 0.096293,0.278465, 0.083339,-0.050087, 0.079276,-0.383984, 0.095192,-0.378226, 0.073482,-0.534658, 0.070202,-0.534586, 0.045864,-0.377144, 0.061795,-0.383600, 0.062148,-0.049623, 0.069133,0.279061,
 // shFlailBall (1x1)
@@ -2267,20 +2426,58 @@ NEWSHAPE, 402, 1, 2, 0.350118, -0.00051488,  0.337085, 0.0154155,  0.321993, 0.0
 NEWSHAPE, 403, 1, 1, 0.26453, 0.0305227,  0.274541, 0.0290331,  0.280348, 0.0265056,  0.271875, 0.0213835, 
 // FrogJumpLeg
 NEWSHAPE, 404, 1, 1, -0.157104, 0.037552,  -0.119742, 0.0232719,  -0.0800179, 0.03,  -0.0600636, 0.0582003,  -0.0695215, 0.0851648,  -0.0941826, 0.112117,  -0.124214, 0.117626,  -0.162927, 0.123278,  -0.20065, 0.122779,  -0.220489, 0.12271,  -0.294104, 0.0895822,  -0.341594, 0.0607798,  -0.344169, 0.0476839,  -0.336604, 0.0182726,  -0.31669, 0.0111505,  -0.296371, 0.0199419,  -0.257868, 0.0376895,  -0.219528, 0.0568778,  -0.198186, 0.0609263,  
+// shSmallSword (1x2)
+NEWSHAPE, 405,1,2, -0.226885,0.018516, -0.212399,0.032471, -0.193062,0.020928, -0.185621,0.046575, -0.192539,0.086182, -0.199612,0.102458, -0.167905,0.095887, -0.15358,0.056176, -0.148822,0.028094, 0.252221,0.023027, 0.294417,0.005175,
+// shSmallFlailTrunk
+NEWSHAPE, 409,1,1, -0.048707,0.225700, -0.042124,0.230376, -0.032941,0.233710, -0.026424,0.233978, -0.02268,0.229640, 0.047958,-0.201688, 0.041932,-0.211853, 0.038281,-0.216934, 0.029252,-0.216536, 0.018813,-0.210892, 0.012195,-0.202881,
+
+// shSmallHammerHead
+NEWSHAPE, 410, 1, 1, 0.102167, -0.184605, 0.104591, -0.195446, 0.092856, -0.189999, 0.080908, -0.186821, -0.036321, -0.200430, -0.045138, -0.204571, -0.048015, -0.209521, -0.063454, -0.112257, -0.056471, -0.116187, -0.045700, -0.119873, 0.082749, -0.114458, 0.095918, -0.107169, 0.104973, -0.102339, 0.099643, -0.128121, -0.057297, -0.134239, 0.099470, -0.127992, 0.099531, -0.140084, -0.055409, -0.148658, 0.098774, -0.139982, 0.099787, -0.150708, -0.054252, -0.163148, 0.098272, -0.150502, 0.100147, -0.160605, -0.051873, -0.174053, 0.098630, -0.160398, 0.099672, -0.171163, -0.049951, -0.188713, 0.098913, -0.171059,
+
+// shSmallBullHead
+NEWSHAPE, 411, 1, 2, 0.004622,-0.050250, -0.022393,-0.096839, -0.048261,-0.111332, -0.07182,-0.106443, -0.093094,-0.077841, -0.115158,-0.061865, -0.145038,-0.040355, -0.131374,-0.028054, -0.134834,-0.013460, -0.14853,-0.002240,
+// shSmallBullHorn
+NEWSHAPE, 412, 1, 1, -0.008298,-0.078714, -0.000397,-0.122456, 0.012058,-0.140037, 0.030561,-0.149754, 0.049070,-0.152553, 0.065131,-0.150636, 0.093718,-0.142016, 0.118897,-0.133266, 0.111750,-0.150756, 0.096899,-0.163295, 0.073192,-0.169643, 0.041044,-0.173385, 0.015193,-0.167994, -0.016582,-0.152134, -0.02649,-0.135781, -0.032758,-0.118441, -0.037756,-0.102342, -0.021201,-0.096856,
+
+// shLightningBolt
+NEWSHAPE, 413, 1,1, 0.0324, -0.1844, 0.1676, -0.1844, 0.0684, -0.078, 0.1292, -0.078, 0.046, 0.0156, 0.1068, 0.0156, -0.1316, 0.1612, -0.0404, 0.0532, -0.1012, 0.0532, -0.0278, -0.0452, -0.082, -0.0452,
+
+// shHumanoid
+NEWSHAPE, 414, 1, 2, 0.166, 0, 0.619, 0.186, 0.619, 0.348, 0.13, 0.171, -0.161, 0.129, 0.04, 0.254, -0.038, 0.339, -0.32, 0.186, -0.368, 0.078, -0.467, 0.138, -0.569, 0.141, -0.659, 0.081, -0.674, 0.087, -0.7, 0,
+NEWSHAPE, 415, 1, 1, 0.166, 0, 0.619, 0.186, 0.619, 0.348, 0.13, 0.171, -0.161, 0.129, 0.04, 0.254, -0.038, 0.339, -0.32, 0.186, -0.368, 0.078, -0.467, 0.138, -0.569, 0.141, -0.659, 0.081, -0.674, 0.087, -0.7, 0,
+
+// shHourglass
+NEWSHAPE, 416, 1, 2, -0.155, -0.072, -0.155, 0.085, -0.125, 0.085, -0.125, 0.062, -0.088, 0.063, -0.049, 0.054, -0.022, 0.035, 0.024, -0.040, -0.024, 0.040, 0.022, -0.035, 0.049, -0.054, 0.088, -0.063, 0.125, -0.062, 0.125, -0.085, 0.155, -0.085, 0.155, 0.072,
+
+// shSmallPirateHook (1x1)
+NEWSHAPE, 417, 1, 1, -0.037181, 0.070167, -0.042053, 0.031041, -0.014659, 0.029317, -0.010618, 0.031858, -0.003590, 0.032239, 0.014371, -0.025303, 0.007310, -0.026816, 0.002001, -0.030249, -0.001858, -0.038640, -0.003422, -0.049517, -0.000467, -0.058195, 0.005223, -0.064027, 0.013645, -0.067636, 0.022859, -0.070707, 0.033758, -0.070846, 0.028238, -0.067408, 0.020306, -0.063217, 0.016120, -0.060505, 0.009480, -0.057640, 0.004495, -0.050630, 0.003689, -0.045704, 0.007669, -0.036125, 0.015513, -0.032838, 0.025898, -0.030858, 0.006555, 0.042386, 0.002458, 0.051849, 0.002712, 0.054032, -0.001503, 0.057099, -0.005393, 0.057232, -0.006207, 0.061713, -0.009783, 0.064849, -0.013597, 0.065763,
+
+// shShield
+NEWSHAPE, 418, 1, 2, 0.055384, -0.005846, 0.043076, 0.010769, 0.033846, 0.033846, 0.036615, 0.052307, 0.056923, 0.092307, 0.030153, 0.092461, 0.004615, 0.084615, -0.017538, 0.080000, -0.049230, 0.068615, -0.066461, 0.058461, -0.079692, 0.041538, -0.092769, 0.016000, -0.092307, -0.005384,
+
+// shTreeIcon
+NEWSHAPE, 419, 1, 2, -0.175, 0.010, -0.048, 0.100, -0.044, 0.070, 0.025, 0.118, 0.030, 0.074, 0.107, 0.144, 0.110, 0.030, 0.165, 0.010,
+
+// shLeafIcon
+NEWSHAPE, 420, 1, 1,
+-0.05875, 0.09875, -0.05825, 0.101625, -0.070625, 0.07375, -0.07675, 0.026625, -0.06000, -0.00750, -0.047875, -0.01875, -0.01125, -0.04500, 0.05625, -0.06625, 0.04250, -0.01500, 0.04375, 0.01125, 0.03875, 0.063125, 0.02250, 0.08625, -0.028125, 0.10500, -0.051375, 0.10300, -0.04450, 0.070625, 0.01050, 0.06050, -0.03825, 0.06100, 0.003625, -0.01250, -0.03825, 0.035625, -0.048625, 0.01150, -0.043125, 0.04725, -0.05750, 0.08850, -0.05875, 0.09875,
+
 // BrushHandle
-NEWSHAPE, 405, 1, 1, 0.0709237, 0.220497,  0.0801591, 0.241837,  0.171209, 0.213808,  0.158401, 0.187395,
+NEWSHAPE, 421, 1, 1, 0.0709237, 0.220497,  0.0801591, 0.241837,  0.171209, 0.213808,  0.158401, 0.187395,
 // BrushBrush
-NEWSHAPE, 406, 1, 1, 0.174037, 0.166107,  0.196916, 0.164582,  0.216906, 0.173581,  0.236044, 0.178964,  0.246851, 0.182391,  0.229, 0.196357,  0.208876, 0.208919,  0.198846, 0.215214,  0.183835, 0.224677,  0.171858, 0.223539,  0.165242, 0.213252,  0.160616, 0.210412,  0.157683, 0.199318,  0.15707, 0.18967,  0.155499, 0.17638,
+NEWSHAPE, 422, 1, 1, 0.174037, 0.166107,  0.196916, 0.164582,  0.216906, 0.173581,  0.236044, 0.178964,  0.246851, 0.182391,  0.229, 0.196357,  0.208876, 0.208919,  0.198846, 0.215214,  0.183835, 0.224677,  0.171858, 0.223539,  0.165242, 0.213252,  0.160616, 0.210412,  0.157683, 0.199318,  0.15707, 0.18967,  0.155499, 0.17638,
 // Palette
-NEWSHAPE, 407, 1, 1, 0.0890536, -0.279624,  0.0757591, -0.278888,  0.0694131, -0.269384,  0.069868, -0.255722,  0.0746672, -0.244625,  0.0754617, -0.222084,  0.065318, -0.199107,  0.0662073, -0.176861,  0.0863749, -0.166861,  0.101815, -0.165511,  0.121506, -0.168864,  0.132192, -0.178379,  0.142621, -0.196837,  0.150783, -0.219754,  0.154537, -0.244824,  0.140704, -0.262128,  0.129166, -0.277408,  0.110804, -0.284556,  
+NEWSHAPE, 423, 1, 1, 0.0890536, -0.279624,  0.0757591, -0.278888,  0.0694131, -0.269384,  0.069868, -0.255722,  0.0746672, -0.244625,  0.0754617, -0.222084,  0.065318, -0.199107,  0.0662073, -0.176861,  0.0863749, -0.166861,  0.101815, -0.165511,  0.121506, -0.168864,  0.132192, -0.178379,  0.142621, -0.196837,  0.150783, -0.219754,  0.154537, -0.244824,  0.140704, -0.262128,  0.129166, -0.277408,  0.110804, -0.284556,  
 // PaletteCol1
-NEWSHAPE, 408, 1, 1, 0.111721, -0.194993,  0.104876, -0.201301,  0.0938733, -0.200674,  0.0942866, -0.189534,  0.099102, -0.178675,  0.112207, -0.181651,  
+NEWSHAPE, 424, 1, 1, 0.111721, -0.194993,  0.104876, -0.201301,  0.0938733, -0.200674,  0.0942866, -0.189534,  0.099102, -0.178675,  0.112207, -0.181651,  
 // PaletteCol2
-NEWSHAPE, 409, 1, 1, 0.135332, -0.216551,  0.128411, -0.225126,  0.11728, -0.226712,  0.110948, -0.217341,  0.117945, -0.206537,  0.126776, -0.207062,
+NEWSHAPE, 425, 1, 1, 0.135332, -0.216551,  0.128411, -0.225126,  0.11728, -0.226712,  0.110948, -0.217341,  0.117945, -0.206537,  0.126776, -0.207062,
 // PaletteCol3
-NEWSHAPE, 410, 1, 1, 0.140942, -0.25304,  0.131865, -0.259299,  0.127421, -0.259026,  0.118541, -0.258488,  0.114372, -0.249148,  0.119141, -0.238107,  0.128068, -0.236384,  0.136809, -0.241443,  
+NEWSHAPE, 426, 1, 1, 0.140942, -0.25304,  0.131865, -0.259299,  0.127421, -0.259026,  0.118541, -0.258488,  0.114372, -0.249148,  0.119141, -0.238107,  0.128068, -0.236384,  0.136809, -0.241443,  
 // PaletteCol4
-NEWSHAPE, 411, 1, 1, 0.0806899, -0.263145,  0.0803302, -0.274553,  0.0914742, -0.272886,  0.104843, -0.271367,  0.10531, -0.25543,  0.0918917, -0.259211, 
+NEWSHAPE, 427, 1, 1, 0.0806899, -0.263145,  0.0803302, -0.274553,  0.0914742, -0.272886,  0.104843, -0.271367,  0.10531, -0.25543,  0.0918917, -0.259211, 
+
+
 NEWSHAPE, NEWSHAPE
 };
 

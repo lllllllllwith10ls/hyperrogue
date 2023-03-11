@@ -15,9 +15,9 @@ ld eyepos;
 #if MAXMDIM >= 4
 
 #define S (cgi.scalefactor / 0.805578)
-#define SH (cgi.scalefactor / 0.805578 * vid.height_width / 1.5)
+#define SH (embedded_plane ? cgi.human_height : (cgi.scalefactor / 0.805578 * (vid.height_width / 1.5)))
 
-#define revZ ((WDIM == 2 || prod) ? -1 : 1)
+#define revZ ((WDIM == 2 || gproduct) ? -1 : 1)
 
 hyperpoint shcenter;
 
@@ -34,7 +34,8 @@ vector<hyperpoint> geometry_information::get_shape(hpcshape sh) {
 hyperpoint get_center(const vector<hyperpoint>& vh) {
   hyperpoint h = Hypc;
   for(auto h1: vh) h = h + h1;
-  return normalize_flat(h);
+  h /= isize(vh);
+  return cgi.emb->normalize_flat(h);
   }
 
 EX ld zc(ld z) { 
@@ -46,9 +47,9 @@ EX ld zc(ld z) {
 void geometry_information::add_cone(ld z0, const vector<hyperpoint>& vh, ld z1) {
   last->flags |= POLY_TRIANGLES;
   for(int i=0; i<isize(vh); i++) {
-    hpcpush(zpush(z0) * vh[i]);
-    hpcpush(zpush(z0) * vh[(i+1) % isize(vh)]);
-    hpcpush(zpush(z1) * shcenter);
+    hpcpush(lzpush(z0) * vh[i]);
+    hpcpush(lzpush(z0) * vh[(i+1) % isize(vh)]);
+    hpcpush(lzpush(z1) * shcenter);
     }
   }
 
@@ -56,12 +57,12 @@ void geometry_information::add_prism_sync(ld z0, vector<hyperpoint> vh0, ld z1, 
   last->flags |= POLY_TRIANGLES;
   for(int i=0; i<isize(vh0); i++) {
     int i1 = (i+1) % isize(vh0);
-    hpcpush(zpush(z0) * vh0[i]);
-    hpcpush(zpush(z1) * vh1[i]);
-    hpcpush(zpush(z0) * vh0[i1]);
-    hpcpush(zpush(z1) * vh1[i]);
-    hpcpush(zpush(z0) * vh0[i1]);
-    hpcpush(zpush(z1) * vh1[i1]);
+    hpcpush(lzpush(z0) * vh0[i]);
+    hpcpush(lzpush(z1) * vh1[i]);
+    hpcpush(lzpush(z0) * vh0[i1]);
+    hpcpush(lzpush(z1) * vh1[i]);
+    hpcpush(lzpush(z0) * vh0[i1]);
+    hpcpush(lzpush(z1) * vh1[i1]);
     }
   }
 
@@ -88,19 +89,19 @@ void geometry_information::add_prism(ld z0, vector<hyperpoint> vh0, ld z1, vecto
   
   for(auto pp: pairs) {
     int id = pp.owner;
-    hpcpush(zpush(z0) * lasts[0]);
-    hpcpush(zpush(z1) * lasts[1]);
-    hpcpush(zpush(id == 0 ? z0 : z1) * pp.h);
+    hpcpush(lzpush(z0) * lasts[0]);
+    hpcpush(lzpush(z1) * lasts[1]);
+    hpcpush(lzpush(id == 0 ? z0 : z1) * pp.h);
     lasts[id] = pp.h;
     }
   }
   
 void geometry_information::shift_last(ld z) {
-  for(int i=last->s; i<isize(hpc); i++) hpc[i] = zshift(hpc[i], z);
+  for(int i=last->s; i<isize(hpc); i++) hpc[i] = lzpush(z) * hpc[i];
   }
 
 void geometry_information::shift_shape(hpcshape& sh, ld z) {
-  for(int i=sh.s; i<sh.e; i++) hpc[i] = zshift(hpc[i], z);
+  for(int i=sh.s; i<sh.e; i++) hpc[i] = lzpush(z) * hpc[i];
   }
 
 void geometry_information::shift_shape_orthogonally(hpcshape& sh, ld z) {
@@ -115,9 +116,19 @@ void geometry_information::add_texture(hpcshape& sh) {
   auto& utt = models_texture;
   sh.tinf = &utt;
   sh.texture_offset = isize(utt.tvertices);
+
+  auto f = [] (hyperpoint h) {
+    if(!embedded_plane && gproduct) return product::inverse_exp(h);
+    return cgi.emb->actual_to_logical(h);
+    };
+
+  hyperpoint ct = Hypc;
+  int n = 0;
+  for(int i=sh.s; i<isize(hpc); i++) ct += f(hpc[i]), n++;
+  ct /= n;
+
   for(int i=sh.s; i<isize(hpc); i++) {
-    hyperpoint h = hpc[i];
-    if(prod) h = product::inverse_exp(h);
+    hyperpoint h = f(hpc[i]) - ct;
     ld rad = hypot_d(3, h);
     ld factor = 0.50 + (0.17 * h[2] + 0.13 * h[1] + 0.15 * h[0]) / rad;
     utt.tvertices.push_back(glhr::makevertex(0, factor, 0));
@@ -127,18 +138,18 @@ void geometry_information::add_texture(hpcshape& sh) {
 
 vector<hyperpoint> scaleshape(const vector<hyperpoint>& vh, ld s) {
   vector<hyperpoint> res;
-  for(hyperpoint h: vh) res.push_back(normalize_flat(h * s + shcenter * (1-s)));
+  for(hyperpoint h: vh) res.push_back(cgi.emb->normalize_flat(h * s + shcenter * (1-s)));
   return res;
   }
 
 ld get_zlevel(hyperpoint h) {
-  if(prod) return zlevel(h);
+  if(gproduct) return zlevel(h);
   if(sl2) return atan2(h[2], h[3]);
   return asin_auto(h[2]);
   }
 
 void geometry_information::make_ha_3d(hpcshape& sh, bool isarmor, ld scale) {
-  shcenter = C0;
+  shcenter = tile_center();
 
   auto groin = get_shape(shHumanGroin);
   auto body = get_shape(shPBodyOnly);
@@ -154,13 +165,15 @@ void geometry_information::make_ha_3d(hpcshape& sh, bool isarmor, ld scale) {
   auto body26 = body[26];
   body.clear();
 
+  auto& T = cgi.emb->intermediate_to_logical;
+
   bool foundplus = false, foundminus = false;
   for(hyperpoint h: fullbody) {
-    if(h[1] > 0.14 * S) {
+    if((T*h)[1] > 0.14 * S) {
       if(foundplus) ;
       else foundplus = true, body.push_back(body7);
       }
-    else if(h[1] < -0.14 * S) {
+    else if((T*h)[1] < -0.14 * S) {
       if(foundminus) ;
       else foundminus = true, body.push_back(body26);
       }
@@ -171,19 +184,20 @@ void geometry_information::make_ha_3d(hpcshape& sh, bool isarmor, ld scale) {
   bool armused = false;
   arm.clear();  
   for(hyperpoint h: fullbody) {
-    if(h[1] < 0.08 * S) ;
-    else if(h[0] > -0.03 * S) {
+    if((T*h)[1] < 0.08 * S) ;
+    else if((T*h)[0] > -0.03 * S) {
       if(armused) ;
       else armused = true, arm.push_back(arm8);
       }
     else arm.push_back(h);
     }
-  
+
   auto hand0 = hand[0];
   hand.clear();
   hand.push_back(hand0);
   for(hyperpoint h: fullbody) {
-    if(h[1] + h[0] > 0.13 * S) hand.push_back(h);
+    auto h1 = T*h;
+    if(h1[1] + h1[0] > 0.13 * S) hand.push_back(h);
     }
 
   bshape(sh, PPR::MONSTER_BODY);
@@ -207,12 +221,12 @@ void geometry_information::make_ha_3d(hpcshape& sh, bool isarmor, ld scale) {
     for(int i=arm0; i<arm1; i++) {
       hyperpoint h = hpc[i];
       ld zl = get_zlevel(h);
-      h = zpush(-zl) * h;
+      h = lzpush(-zl) * h;
       ld rad = hdist0(h);
       rad = (rad - 0.1124*S) / (0.2804*S - 0.1124*S);
       rad = 1 - rad;
       rad *= zc(0.7) - BODY;
-      hpc[i] = zpush(rad) * hpc[i];
+      hpc[i] = lzpush(rad) * hpc[i];
       }
     }
    // 0.2804 - keep
@@ -259,7 +273,7 @@ void geometry_information::addtri(array<hyperpoint, 3> hs, int kind) {
     bool ok = true;
     ld zzes[3];
     for(int s=0; s<3; s++) {
-      hs[s] = normalize_flat(hs[s]);
+      hs[s] = cgi.emb->normalize_flat(hs[s]);
       hyperpoint h = hs[s];
       ld zz = zc(0.78);
       hsh[s] = abs(h[1]);
@@ -267,8 +281,8 @@ void geometry_information::addtri(array<hyperpoint, 3> hs, int kind) {
       zz -= h[0] * h[0] / 0.10 / 0.10 * 0.01 / S / S * SH;
       if(abs(h[1]) > 0.14*S) ok = false, zz -= revZ * (abs(h[1])/S - 0.14) * SH;
       if(abs(h[0]) > 0.08*S) ok = false, zz -= revZ * (abs(h[0])/S - 0.08) * (abs(h[0])/S - 0.08) * 25 * SH;
-      h = normalize_flat(h);
-      if(!prod || kind != 1) ht[s] = zpush(zz) * h;
+      h = cgi.emb->normalize_flat(h);
+      if(!gproduct || kind != 1) ht[s] = lzpush(zz) * h;
       else ht[s] = h;
       if(hsh[s] < 0.1*S) shi[s] = 0.5;
       else if(hsh[s] < 0.12*S) shi[s] = 0.1 + 0.4 * (hsh[s]/S - 0.1) / (0.12 - 0.1);
@@ -285,14 +299,14 @@ void geometry_information::addtri(array<hyperpoint, 3> hs, int kind) {
         htx[2][i][1] *= 1.7;
         htx[4][i][0] = htx[4][i][0] * 0.4 + scalefactor * 0.1;
         htx[5][i][0] = htx[5][i][0] * 0.3 + scalefactor * 0.1;
-        if(!prod)
+        if(!gproduct)
           for(int a=0; a<6; a++) htx[a][i] = hpxy3(htx[a][i][0], htx[a][i][1], htx[a][i][2]);
         else
-          for(int a=0; a<6; a++) htx[a][i] = zpush(zzes[i]) * hpxy(htx[a][i][0], htx[a][i][1]);
+          for(int a=0; a<6; a++) htx[a][i] = lzpush(zzes[i]) * hpxy(htx[a][i][0], htx[a][i][1]);
         }
       ld levels[6] = {0, 0.125, 0.125, 0.250, 0.375, 0.5};
       for(int a=0; a<6; a++) for(int i=0; i<3; i++) 
-        htx[a][i] = zpush(-min(shi[i], levels[a]) * human_height * revZ) * htx[a][i];
+        htx[a][i] = lzpush(-min(shi[i], levels[a]) * human_height * revZ) * htx[a][i];
       
       hpcpush(htx[0][0]);
       hpcpush(htx[0][1]);
@@ -320,7 +334,7 @@ void geometry_information::addtri(array<hyperpoint, 3> hs, int kind) {
       if(hdist0(h) <= 0.0501*S) {
         zz += revZ * sqrt(0.0026 - pow(hdist0(h)/S, 2)) * SH;
         }
-      hpcpush(zpush(zz) * h);
+      hpcpush(lzpush(zz) * h);
       }
     }
   }
@@ -376,13 +390,15 @@ void geometry_information::make_foot_3d(hpcshape& sh) {
   add_cone(zc(0.4), leg5, zc(0.45));
   add_texture(sh);
   // shift_last(-LEG0);
-  for(int i=last->s; i<isize(hpc); i++) hpc[i] = cpush(0, -0.0125*S) * hpc[i];
+  ld sc = 1;
+  if(cgi.emb->is_euc_in_hyp()) sc *= exp(-vid.depth);
+  for(int i=last->s; i<isize(hpc); i++) hpc[i] = lxpush(-0.0125*S) * hpc[i];
   }
 
 void geometry_information::make_head_only() {
 
   auto addpt = [this] (int d, int u) {
-    hpcpush(zpush(zc(eyepos) + 0.06 * SH * sin(u * degree)) * xspinpush0(d * degree, 0.05 * S * cos(u * degree)));
+    hpcpush(lzpush(zc(eyepos) + 0.06 * SH * sin(u * degree)) * xspinpush0(d * degree, 0.05 * S * cos(u * degree)));
     };
   
   bshape(shPHeadOnly, shPHeadOnly.prio);
@@ -415,7 +431,7 @@ void geometry_information::make_head_3d(hpcshape& sh) {
   
   array<ld, 2> zero = make_array<ld>(0,0);
   pts[1].emplace_back(zero);
-  head.push_back(C0);
+  head.push_back(tile_center());
   
   bshape(sh, sh.prio);
   
@@ -491,8 +507,15 @@ void geometry_information::make_skeletal(hpcshape& sh, ld push) {
   }
 
 hyperpoint yzspin(ld alpha, hyperpoint h) {
-  if(prod) return product::direct_exp(cspin(1, 2, alpha) * product::inverse_exp(h));
-  else return cspin(1, 2, alpha) * h;
+  if(embedded_plane) {
+    h = cgi.emb->actual_to_logical(h);
+    h = cspin(1, 2, alpha) * h;
+    h[2] *= cgi.human_height;
+    h = cgi.emb->logical_to_actual(h);
+    return h;
+    }
+  if(gproduct) return product::direct_exp(cspin(1, 2, alpha) * product::inverse_exp(h));
+  return cspin(1, 2, alpha) * h;
   }
 
 void geometry_information::make_revolution(hpcshape& sh, int mx, ld push) {
@@ -519,8 +542,8 @@ void geometry_information::make_revolution(hpcshape& sh, int mx, ld push) {
 void geometry_information::make_revolution_cut(hpcshape &sh, int each, ld push, ld width) {
   auto body = get_shape(sh);
   body.resize(isize(body) / 2);
-  ld fx = body[0][0];
-  ld lx = body.back()[0];
+  ld fx = cgi.emb->actual_to_logical(body[0])[0];
+  ld lx = cgi.emb->actual_to_logical(body.back())[0];
   body.insert(body.begin(), hpxy(fx + (fx-lx) * 1e-3, 0));
   body.push_back(hpxy(lx + (lx-fx) * 1e-3, 0));
   int n = isize(body);
@@ -541,9 +564,12 @@ void geometry_information::make_revolution_cut(hpcshape &sh, int each, ld push, 
     int cand = -1;
     ld cv = 0;
     for(int i=1; i<n-1; i++) if(stillin[i]) {
-      if((gbody[i][0] < gbody[lastid[i]][0] && gbody[i][0] < gbody[nextid[i]][0]) || (gbody[i][0] > gbody[lastid[i]][0] && gbody[i][0] > gbody[nextid[i]][0]) || abs(gbody[i][1]) > width)
-      if(abs(gbody[i][1]) > cv)
-        cand = i, cv = abs(gbody[i][1]);
+      auto gi = cgi.emb->actual_to_logical(gbody[i]);
+      auto gl = cgi.emb->actual_to_logical(gbody[lastid[i]]);
+      auto gn = cgi.emb->actual_to_logical(gbody[nextid[i]]);
+      if((gi[0] < gl[0] && gi[0] < gn[0]) || (gi[0] > gl[0] && gi[0] > gn[0]) || abs(gi[1]) > width)
+      if(abs(gi[1]) > cv)
+        cand = i, cv = abs(gi[1]);
       }
     if(cand == -1) break;
     int i = cand;
@@ -556,7 +582,11 @@ void geometry_information::make_revolution_cut(hpcshape &sh, int each, ld push, 
   for(int i=0; i<n; i++) if(!stillin[i] && !stillin[lastid[i]]) lastid[i] = lastid[lastid[i]];
 
   for(int i=0; i<n; i++) {
-    if(!stillin[i]) gbody[i] = normalize_flat(gbody[lastid[i]] * (i - lastid[i]) + gbody[nextid[i]] * (nextid[i] - i));
+    if(!stillin[i]) {
+      auto gl = cgi.emb->actual_to_logical(gbody[lastid[i]]);
+      auto gn = cgi.emb->actual_to_logical(gbody[nextid[i]]);
+      gbody[i] = cgi.emb->logical_to_actual((gl * (i - lastid[i]) + gn * (nextid[i] - i)) / (nextid[i] - lastid[i]));
+      }
     }
   
   bshape(sh, PPR::MONSTER_BODY);
@@ -596,6 +626,7 @@ void geometry_information::make_revolution_cut(hpcshape &sh, int each, ld push, 
   }
 
 void geometry_information::clone_shape(hpcshape& sh, hpcshape& target) {
+  finishshape();
   target = sh;
   target.s = isize(hpc);
   for(int i=sh.s; i<sh.e; i++) hpc.push_back(hpc[i]);
@@ -606,13 +637,18 @@ void geometry_information::animate_bird(hpcshape& orig, hpcshape_animated& anima
   for(int i=0; i<=WINGS; i++) {
     auto& tgt = animated[i];
     clone_shape(orig, tgt);
-    ld alpha = cos(180. * degree * i / WINGS) * 30 * degree;
+    ld alpha = cos(M_PI * i / WINGS) * 30 * degree;
     for(int i=tgt.s; i<tgt.e; i++) {
-      if(abs(hpc[i][1]) > body) {
-        ld off = hpc[i][1] > 0 ? body : -body;
-        hpc[i][2] += abs(hpc[i][1] - off) * sin(alpha);
-        hpc[i][1] = off + (hpc[i][1] - off) * cos(alpha);
-        hpc[i] = normalize(hpc[i]);
+      hyperpoint h = hpc[i];
+      h = cgi.emb->actual_to_logical(hpc[i]);
+      if(abs(h[1]) > body) {
+        ld off = h[1] > 0 ? body : -body;
+        h[2] += abs(h[1] - off) * sin(alpha);
+        if(embedded_plane) h[2] *= cgi.human_height;
+        h[1] = off + (h[1] - off) * cos(alpha);
+        h = cgi.emb->logical_to_actual(h);
+        h = normalize(h);
+        hpc[i] = h;
         }
       }
     }
@@ -622,9 +658,12 @@ void geometry_information::animate_bird(hpcshape& orig, hpcshape_animated& anima
 
 void geometry_information::slimetriangle(hyperpoint a, hyperpoint b, hyperpoint c, ld rad, int lev) {
   dynamicval<int> d(vid.texture_step, 8);
+  ld sca = 1;
+  if(mhybrid) sca = .5;
+  if(cgi.emb->is_euc_in_noniso()) sca *= .3 * geom3::euclid_embed_scale;
   texture_order([&] (ld x, ld y) {
     ld z = 1-x-y;
-    ld r = scalefactor * hcrossf7 * (0 + pow(max(x,max(y,z)), .3) * 0.8) * (hybri ? .5 : 1);
+    ld r = scalefactor * hcrossf7 * (0 + pow(max(x,max(y,z)), .3) * 0.8) * sca;
     hyperpoint h = direct_exp(tangent_length(a*x+b*y+c*z, r));
     hpcpush(h);
     });  
@@ -691,9 +730,10 @@ void geometry_information::make_star(hpcshape& sh, ld rad) {
     ld r1 = sqrt(1 - z1*z1) * rad;
     z0 *= rad;
     z1 *= rad;
-    for(int b=0; b<360; b+=(BADMODEL?60:15)) {
+    int step = BADMODEL ? 60 : 15;
+    for(int b=0; b<360; b+=step) {
       ld b0 = b * degree;
-      ld b1 = (b+15) * degree;
+      ld b1 = (b+step) * degree;
       hpcsquare(
         hpxy3(r0 * cos(b0), r0 * sin(b0), z0), hpxy3(r0 * cos(b1), r0 * sin(b1), z0), 
         hpxy3(r1 * cos(b0), r1 * sin(b0), z1), hpxy3(r1 * cos(b1), r1 * sin(b1), z1)
@@ -705,18 +745,23 @@ void geometry_information::make_star(hpcshape& sh, ld rad) {
 void geometry_information::make_euclidean_sky() {
   bshape(cgi.shEuclideanSky, PPR::EUCLIDEAN_SKY);
   for(int x=-20; x<20; x++)
-  for(int y=-20; y<20; y++)
+  for(int y=-20; y<20; y++) {
+    auto x0 = x * cgi.LOWSKY;
+    auto x1 = (x+1) * cgi.LOWSKY;
+    auto y0 = y * cgi.LOWSKY;
+    auto y1 = (y+1) * cgi.LOWSKY;
     hpcsquare(
-      zpush(cgi.WALL) * hpxy(x, y),
-      zpush(cgi.WALL) * hpxy(x, y+1),
-      zpush(cgi.WALL) * hpxy(x+1, y),
-      zpush(cgi.WALL) * hpxy(x+1, y+1)
+      lzpush(cgi.LOWSKY) * hpxy(x0, y0),
+      lzpush(cgi.LOWSKY) * hpxy(x0, y1),
+      lzpush(cgi.LOWSKY) * hpxy(x1, y0),
+      lzpush(cgi.LOWSKY) * hpxy(x1, y1)
       );
+    }
   }
 
 /** res[0] and res[1] place H on the plane, while res[2] is the altitude */
 hyperpoint psmin(hyperpoint H) {
-  if(prod) {
+  if(gproduct) {
     auto d = product_decompose(H);
     d.second[2] = d.first;
     return d.second;
@@ -732,8 +777,10 @@ hyperpoint psmin(hyperpoint H) {
 
 void geometry_information::adjust_eye(hpcshape& eye, hpcshape head, ld shift_eye, ld shift_head, int q, ld zoom) {
   hyperpoint center = Hypc;
-  for(int i=eye.s; i<eye.e; i++) if(q == 1 || hpc[i][1] > 0) center += hpc[i];
-  center = normalize_flat(center);
+  int c = 0;
+  for(int i=eye.s; i<eye.e; i++) if(q == 1 || hpc[i][1] > 0) center += hpc[i], c++;
+  center /= c;
+  center = cgi.emb->normalize_flat(center);
   // center /= (eye.e - eye.s);
   ld rad = 0;
   for(int i=eye.s; i<eye.e; i++) if(q == 1 || hpc[i][1] > 0) rad += hdist(center, hpc[i]);
@@ -746,14 +793,14 @@ void geometry_information::adjust_eye(hpcshape& eye, hpcshape head, ld shift_eye
   
   vector<hyperpoint> pss;
   
-  for(int i=head.s; i<head.e; i++) pss.push_back(psmin(zpush(shift_head) * hpc[i]));
+  for(int i=head.s; i<head.e; i++) pss.push_back(psmin(lzpush(shift_head - cgi.emb->center_z()) * hpc[i]));
   
   ld zmid = 0;
   for(hyperpoint& h: pss) zmid += h[2];
   zmid /= isize(pss);
   
   ld mindist = 1e9;
-  for(int i=0; i<isize(pss); i+=3) if(pss[i][2] < zmid || (WDIM == 3 && !prod)) {
+  for(int i=0; i<isize(pss); i+=3) if(pss[i][2] < zmid || (WDIM == 3 && !gproduct)) {
     ld d = sqhypot_d(2, pss[i]-pscenter) + sqhypot_d(2, pss[i+1]-pscenter) + sqhypot_d(2, pss[i+2]-pscenter);
     if(d < mindist) mindist = d, pos = min(min(pss[i][2], pss[i+1][2]), pss[i+2][2]), qty++;
     qtyall++;
@@ -764,11 +811,11 @@ void geometry_information::adjust_eye(hpcshape& eye, hpcshape head, ld shift_eye
   if(&eye == &shFamiliarEye) cgi.eyelevel_familiar = pos;
   
   make_ball(eye, rad, 0);
-  transmatrix T = zpush(-shift_eye) * rgpushxto0(center) * zpush(pos); 
+  transmatrix T = lzpush(-shift_eye) * rgpushxto0(center) * lzpush(pos);
   for(int i=eye.s; i<isize(hpc); i++) hpc[i] = T * hpc[i];
   int s = isize(hpc);
   if(&eye == &shSkullEyes) 
-    for(int i=eye.s; i<s; i++) hpc[i] = xpush(0.07 * scalefactor) * hpc[i];
+    for(int i=eye.s; i<s; i++) hpc[i] = lxpush(0.07 * scalefactor) * hpc[i];
   if(q == 2)
     for(int i=eye.s; i<s; i++) {
       hpcpush(MirrorY * hpc[i]);
@@ -782,22 +829,22 @@ void geometry_information::adjust_eye(hpcshape& eye, hpcshape head, ld shift_eye
   }
 
 void geometry_information::shift_last_straight(ld z) {
-  for(int i=last->s; i<isize(hpc); i++) hpc[i] = zpush(z) * hpc[i];
+  for(int i=last->s; i<isize(hpc); i++) hpc[i] = lzpush(z) * hpc[i];
   }
 
 EX void queueball(const shiftmatrix& V, ld rad, color_t col, eItem what) {
   if(what == itOrbSpeed) {
-    shiftmatrix V1 = V * cspin(1, 2, M_PI/2);
+    shiftmatrix V1 = V * cspin90(1, 2);
     ld tt = ptick(100);
     for(int t=0; t<5; t++) {
       for(int a=-50; a<50; a++)
-        curvepoint(cspin(0, 2, a * M_PI/100.) * cspin(0, 1, t * 72 * degree + tt + a*2*M_PI/50.) * xpush0(rad));
+        curvepoint(cspin(0, 2, a * M_PI/100.) * cspin(0, 1, t * 72._deg + tt + a*TAU/50.) * xpush0(rad));
       queuecurve(V1, col, 0, PPR::LINE);
       }
     return;
     }
   ld z = 63.43 * degree;
-  shiftmatrix V1 = V * cspin(0, 2, M_PI/2);
+  shiftmatrix V1 = V * cspin90(0, 2);
   if(what == itOrbShield) V1 = V * cspin(0, 1, ptick(500));
   if(what == itOrbFlash) V1 = V * cspin(0, 1, ptick(1500));
   if(what == itOrbShield) V1 = V * cspin(1, 2, ptick(1000));
@@ -821,7 +868,7 @@ EX void queueball(const shiftmatrix& V, ld rad, color_t col, eItem what) {
     line(a, c);
     line(a, d);
     line(d, c);
-    line(c, spin(M_PI));
+    line(c, spin180());
     }
   }
 
@@ -835,7 +882,7 @@ void geometry_information::make_3d_models() {
   if(GDIM == 2 || noGUI) return;
   eyepos = WDIM == 2 ? 0.875 : 0.925;
   DEBBI(DF_POLY, ("make_3d_models"));
-  shcenter = C0;
+  shcenter = tile_center();
 
 #if CAP_GL  
   if(floor_textures) {
@@ -851,12 +898,13 @@ void geometry_information::make_3d_models() {
       &shEagle, &shFemaleBody, &shFlailMissile, &shGadflyWing, &shGargoyleWings, &shHawk, &shJiangShi, &shKnife,
       &shPBody, &shPHead, &shRaiderBody, &shReptileBody, &shSkeletonBody, &shTongue, &shTrapArrow, &shTrylobite,
       &shWaterElemental, &shWolfBody, &shYeti, &shWormHead, &shWormHead, &shDragonHead, &shDragonSegment, &shDragonTail,
-      &shTentacleX, &shTentHead, &shILeaf[0], &shILeaf[1], &shWormSegment, &shSmallWormSegment, &shFrogBody })
+      &shTentacleX, &shTentHead, &shILeaf[0], &shILeaf[1], &shWormSegment, &shSmallWormSegment,
+      &shWormTail, &shSmallWormTail, &shFrogBody })
       make_shadow(*sh);
     
     for(int i=0; i<8; i++) make_shadow(shAsteroid[i]);
     }
-    
+  
   DEBB(DF_POLY, ("humanoids"));
   make_humanoid_3d(shPBody);
   make_humanoid_3d(shYeti);
@@ -926,9 +974,9 @@ void geometry_information::make_3d_models() {
   for(int i=shDogRearPaw.s; i<shDogRearPaw.e; i++) rear_leg += hpc[i];
   front_leg = normalize(front_leg);
   rear_leg = normalize(rear_leg);
-  front_leg_move = zpush(zc(0.4)) * rgpushxto0(front_leg);
+  front_leg_move = lzpush(zc(0.4)) * rgpushxto0(front_leg);
   front_leg_move_inverse = inverse(front_leg_move);
-  rear_leg_move = zpush(zc(0.4)) * rgpushxto0(rear_leg);
+  rear_leg_move = lzpush(zc(0.4)) * rgpushxto0(rear_leg);
   rear_leg_move_inverse = inverse(rear_leg_move);
   leg_length = zc(0.4) - zc(0);
   
@@ -1075,13 +1123,10 @@ void geometry_information::make_3d_models() {
   make_ball(shDisk, orbsize*.2, 2);
   make_ball(shHeptaMarker, zhexf*.2, 1);
   make_ball(shSnowball, zhexf*.1, 1);
-  if(euclid) {
-    make_ball(shSun, 0.5, 2);
-    make_euclidean_sky();
-    }
-  else
-    make_star(shSun, 3);
-  make_star(shNightStar, 0.75);
+  make_ball(shSkyboxSun, 8 * zhexf, 2);
+  if(euclid) make_euclidean_sky();
+  make_star(shSun, vid.sun_size * zhexf);
+  make_star(shNightStar, vid.star_size * zhexf);
   
   if(WDIM == 2) {
     for(int i=0; i<3; i++) {
@@ -1130,10 +1175,10 @@ void geometry_information::make_3d_models() {
   hyperpoint atip = xtangent(-1);
   ld z = 63.43 * degree;
   for(int i=0; i<5; i++) {
-    auto a = cspin(1, 2, (72 * i   ) * degree) * spin(z) * xtangent(1);
-    auto b = cspin(1, 2, (72 * i-72) * degree) * spin(z) * xtangent(1);
-    auto c = cspin(1, 2, (72 * i+36) * degree) * spin(M_PI-z) * xtangent(1);
-    auto d = cspin(1, 2, (72 * i-36) * degree) * spin(M_PI-z) * xtangent(1);
+    auto a = cspin(1, 2, (72 * i   ) * degree) * cspin(0, 1, z) * xtangent(1);
+    auto b = cspin(1, 2, (72 * i-72) * degree) * cspin(0, 1, z) * xtangent(1);
+    auto c = cspin(1, 2, (72 * i+36) * degree) * cspin(0, 1, M_PI-z) * xtangent(1);
+    auto d = cspin(1, 2, (72 * i-36) * degree) * cspin(0, 1, M_PI-z) * xtangent(1);
     slimetriangle(tip, a, b, 1, 0);
     slimetriangle(a, b, c, 1, 0);
     slimetriangle(b, c, d, 1, 0);
@@ -1141,7 +1186,7 @@ void geometry_information::make_3d_models() {
     }
   last->flags |= POLY_TRIANGLES;
   add_texture(*last);
-  if(WDIM == 2) shift_last_straight(FLOOR);
+  if(WDIM == 2) shift_last_straight(FLOOR + cgi.emb->center_z());
   finishshape();
   shJelly = shSlime;
   
@@ -1219,9 +1264,9 @@ void geometry_information::make_3d_models() {
       texture_order([&] (ld x, ld y) {
         ld z = 1-x-y;
         ld rad = 2.1 - i * 0.2;
-        hyperpoint hx = ddi(t*12, -zhexf*rad) * C0;
-        hyperpoint hy = ddi(t*12+12, -zhexf*rad) * C0;
-        hyperpoint hz = C0;
+        hyperpoint hx = ddi(t*12, -zhexf*rad) * tile_center();
+        hyperpoint hy = ddi(t*12+12, -zhexf*rad) * tile_center();
+        hyperpoint hz = tile_center();
         hyperpoint h = hx * x + hy * y + hz * z;
         h = mid(h, h);
         h = orthogonal_move(h, FLOOR - human_height * (i+2.5) / 100 * (x+y+1)/2);
@@ -1235,40 +1280,66 @@ void geometry_information::make_3d_models() {
   finishshape();
   }
 
-hpcshape& geometry_information::generate_pipe(ld length, ld width) {
-  int id = int(length * 17 + .5) + int(157003 * log(width+.001));
+hpcshape& geometry_information::generate_pipe(ld length, ld width, ePipeEnd endtype) {
+  int id = int(length * 172 + .5) + int(157003 * log(width+.001));
+  bool pers = in_perspective();
+  if(!pers) id ^= 0x4126891;
   if(shPipe.count(id)) return shPipe[id];
   hpcshape& pipe = shPipe[id];
   println(hlog, "generating pipe of length ", length, " and width ", width);
   bshape(pipe, PPR::WALL);
 
+#if CAP_GL
+  auto& utt = models_texture;
+  if(floor_textures) {
+    pipe.tinf = &utt;
+    pipe.texture_offset = isize(utt.tvertices);
+    }
+#endif
+
   const int MAX_X = 8;
   const int MAX_R = 20;
-  auto at = [length, width] (int i, int a) {
-    return xpush(i * length / MAX_X) * cspin(1, 2, 360 * degree * a / MAX_R) * ypush0(width); 
+  auto at = [&] (ld i, ld a, ld z = 1, ld s = 1) {
+    a += 0.5;
+    ld alpha = TAU * a / MAX_R;
+    hpcpush(xpush(i * length / MAX_X) * cspin(1, 2, alpha) * ypush0(width*z));
+    #if CAP_GL
+    if(floor_textures) utt.tvertices.push_back(glhr::makevertex(0, pers ? 0.549 - s * 0.45 * sin(alpha) : 0.999, 0));
+    #endif
     };
   for(int i=0; i<MAX_X; i++) {
     for(int a=0; a<MAX_R; a++) {
-      hpcpush(at(i, a));
-      hpcpush(at(i, a+1));
-      hpcpush(at(i+1, a));
-      hpcpush(at(i+1, a+1));
-      hpcpush(at(i+1, a));
-      hpcpush(at(i, a+1));
+      at(i, a, 1);
+      at(i, a+1, 1);
+      at(i+1, a, 1);
+      at(i+1, a+1, 1);
+      at(i+1, a, 1);
+      at(i, a+1, 1);
       }
     }
 
-  for(int a=0; a<MAX_R; a++) {
-    hpcpush(at(MAX_X, a));
-    hpcpush(at(MAX_X, a+1));
-    hpcpush(xpush0(length));
-    hpcpush(at(MAX_X, a+1));
-    hpcpush(at(MAX_X, a));
-    hpcpush(C0);
+  if(endtype == ePipeEnd::sharp) for(int a=0; a<MAX_R; a++) for(int x: {0, MAX_X}) {
+    at(x, a, 1, 0);
+    at(x, a+1, 1, 0);
+    at(x, 0, 0, 0);
+    }
+
+  if(endtype == ePipeEnd::ball) for(int a=0; a<MAX_R; a++) for(int x=-MAX_R; x<MAX_R; x++) {
+    ld xb = x < 0 ? 0 : MAX_X;
+    ld mul = MAX_X * width/length * .9; // .9 to prevent Z-fighting
+    ld x0 = xb + mul * sin(x * 90._deg / MAX_R);
+    ld x1 = xb + mul * sin((x+1) * 90._deg / MAX_R);
+    ld z0 = cos(x * 90._deg / MAX_R);
+    ld z1 = cos((x+1) * 90._deg / MAX_R);
+    at(x0, a, z0, z0);
+    at(x0, a+1, z0, z0);
+    at(x1, a, z1, z1);
+    at(x1, a+1, z1, z1);
+    at(x1, a, z1, z1);
+    at(x0, a+1, z0, z0);
     }
 
   last->flags |= POLY_TRIANGLES | POLY_PRINTABLE;
-  add_texture(*last);
   finishshape();
   extra_vertices();
   return pipe;

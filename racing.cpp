@@ -20,8 +20,7 @@ EX bool on;
 EX bool player_relative = false;
 EX bool standard_centering = false;
 EX bool track_ready;
-
-bool official_race = false;
+EX bool official_race = false;
 
 int TWIDTH;
 
@@ -46,32 +45,25 @@ map<cell*, int> rti_id;
 
 EX int trophy[MAXPLAYER];
 
-EX string track_code = "OFFICIAL";
-
 transmatrix straight;
 
 int race_try;
-
-EX void apply_seed() {
-  int s = race_try;
-  for(char c: track_code) s = 713 * s + c;
-  shrand(s);
-  }
 
 EX int race_start_tick, race_finish_tick[MAXPLAYER];
 
 typedef unsigned char uchar;
 
 uchar frac_to_uchar(ld x) { return uchar(x * 256); }
-uchar angle_to_uchar(ld x) { return frac_to_uchar(x / 2 / M_PI); }
+uchar angle_to_uchar(ld x) { return frac_to_uchar(x / TAU); }
 
 ld uchar_to_frac(uchar x) { return x / 256.; }
-transmatrix spin_uchar(uchar x) { return spin(uchar_to_frac(x) * 2 * M_PI); }
+transmatrix spin_uchar(uchar x) { return spin(uchar_to_frac(x) * TAU); }
 
 static const ld distance_multiplier = 4;
 
 struct ghostmoment {
-  int step, where_id;
+  int step;
+  cell *where_cell;
   uchar alpha, distance, beta, footphase;
   };
 
@@ -83,54 +75,25 @@ struct ghost {
   vector<ghostmoment> history;
   };
 
-typedef map<eLand, vector<ghost>> raceset;
-map<pair<string, modecode_t>, raceset> race_ghosts;
-
-map<pair<string, modecode_t>, raceset> official_race_ghosts;
-
-raceset& ghostset() { return race_ghosts[make_pair(track_code, modecode())]; }
-raceset& oghostset() { return official_race_ghosts[make_pair(track_code, modecode())]; }
-
-int get_score_in_land(eLand l) {
-  auto& gh = ghostset();
-  if(!gh.count(l)) return 0;
-  auto& v = gh[l];
-  if(!isize(v)) return 0;
-  return v[0].result;
-  }
+vector<ghost> ghostset;
 
 array<vector<ghostmoment>, MAXPLAYER> current_history;
 
+EX map<eLand, int> best_scores;
+EX map<eLand, int> best_scores_to_save;
+
 string ghost_prefix = "default";
 
-#if CAP_FILES
-string ghost_filename(string seed, modecode_t mcode) {
-  if(ghost_prefix == "default") {
-    #ifdef FHS
-    if(getenv("HOME")) {
-      string s = getenv("HOME");
-      mkdir((s + "/.hyperrogue").c_str(), 0755);
-      mkdir((s + "/.hyperrogue/racing").c_str(), 0755);
-      ghost_prefix = s + "/.hyperrogue/racing/";
-      }
-    #else
-    #if WINDOWS
-    mkdir("racing");
-    #else
-    mkdir("racing", 0755);
-    #endif
-    ghost_prefix = "racing/";
-    #endif
-    }
-  return ghost_prefix + seed + "-" + itsh(mcode) + ".data";
-  }
-
+#if CAP_FILES && CAP_EDIT
 void hread(hstream& hs, ghostmoment& m) {
-  hread(hs, m.step, m.where_id, m.alpha, m.distance, m.beta, m.footphase);
+  int id;
+  hread(hs, m.step, id, m.alpha, m.distance, m.beta, m.footphase);
+  m.where_cell = mapstream::cellbyid[id];
   }
 
 void hwrite(hstream& hs, const ghostmoment& m) {
-  hwrite(hs, m.step, m.where_id, m.alpha, m.distance, m.beta, m.footphase);
+  int id = mapstream::cellids[m.where_cell];
+  hwrite(hs, m.step, id, m.alpha, m.distance, m.beta, m.footphase);
   }
 
 void hread(hstream& hs, ghost& gh) {
@@ -141,37 +104,18 @@ void hwrite(hstream& hs, const ghost& gh) {
   hwrite(hs, gh.cs, gh.result, gh.timestamp, gh.checksum, gh.history);
   }
 
-bool read_ghosts(string seed, modecode_t mcode) {
-
-  if(seed == "OFFICIAL" && mcode == 2) {
-    fhstream f("officials.data", "rb");
-    if(f.f) {
-      hread(f, f.vernum);
-      hread(f, oghostset());
-      }
-    }
-  
-  string fname = ghost_filename(seed, mcode);
-  println(hlog, "trying to read ghosts from: ", fname);
-  fhstream f(fname, "rb");
-  if(!f.f) return false;
-  hread(f, f.vernum);
-  if(f.vernum <= 0xA600) return true; // scores removed due to the possibility of cheating
-  hread(f, ghostset());
-  return true;
+EX void save_ghosts(hstream& f) {
+  hwrite(f, ghostset);
   }
 
-void write_ghosts(string seed, int mcode) {
-  fhstream f;
-  f.f = fopen(ghost_filename(seed, mcode).c_str(), "wb");
-  if(!f.f) throw hstream_exception(); // ("failed to write the ghost file");
-  hwrite(f, f.vernum);
-  hwrite(f, ghostset());
+EX void load_ghosts(hstream& f) {
+  hread(f, ghostset);
   }
+
 #endif
 
 shiftmatrix get_ghostmoment_matrix(ghostmoment& p) {
-  cell *w = rti[p.where_id].c;
+  cell *w = p.where_cell;
   transmatrix T = spin_uchar(p.alpha) * xpush(uchar_to_frac(p.distance) * distance_multiplier) * spin_uchar(p.beta);
   return gmatrix[w] * T;
   } 
@@ -190,7 +134,7 @@ void fix_cave(cell *c) {
   }
 
 bool keep_to_crossroads() {
-  return specialland == laCrossroads && !(nonisotropic || hybri);
+  return specialland == laCrossroads && !(nonisotropic || mhybrid);
   }
 
 bool bad(cell *c2, cell *c) {
@@ -240,8 +184,6 @@ void tie_info(cell *c, int from_track, int comp) {
 race_cellinfo& get_info(cell *c) {
   return rti[rti_id.at(c)];
   }
-
-int race_checksum;
 
 ld start_line_width;
 
@@ -427,16 +369,13 @@ EX bool bounded_track;
 
 EX void generate_track() {
 
+  official_race = false;
+  ghostset.clear();
   TWIDTH = getDistLimit() - 1;  
   if(TWIDTH == 1) TWIDTH = 2;
   if(sl2) TWIDTH = 2;
   TWIDTH += race_try / 8;
   
-  #if CAP_FILES
-  if(ghostset().empty())
-    read_ghosts(track_code, modecode());
-  #endif
-
   track.clear();
 
   /*
@@ -475,7 +414,7 @@ EX void generate_track() {
     }
     
   try {
-  if(bounded && !prod && !(cgflags & qHUGE_BOUNDED)) {
+  if(closed_or_bounded && !mproduct && !(cgflags & qHUGE_BOUNDED)) {
     bounded_track = true;
     make_bounded_track(s);
     }
@@ -520,8 +459,24 @@ EX void generate_track() {
   if(WDIM == 3) dl = 7 - TWIDTH;
   for(cell *c:track) setdist(c, dl, NULL);
   
+  configure_track(true);
+  }
+
+EX vector<cell*> reachable_goals;
+
+EX void restore_goals() {
+  for(auto c: reachable_goals)
+    c->wall = pick(waCloud, waMirror);
+  }
+
+EX void configure_track(bool gen) {
+  cell *s = track[0];
+  
   if(true) {
     manual_celllister cl;
+    
+    rti.clear();
+    rti_id.clear();
   
     for(int i=0; i<isize(track); i++) {
       tie_info(track[i], 0, i);
@@ -537,7 +492,7 @@ EX void generate_track() {
         tie_info(c2, p.from_track+1, p.completion);
         cl.add(c2);
         }
-      if(bounded_track) continue;
+      if(bounded_track || !gen) continue;
       c->item = itNone;
       if(c->wall == waMirror || c->wall == waCloud) c->wall = waNone;
       if(!isIvy(c))
@@ -567,7 +522,7 @@ EX void generate_track() {
   for(const auto s: rti) byat[s.from_track]++;
   for(int a=0; a<16; a++) printf("%d: %d\n", a, byat[a]);
   
-  if(s->land == laCaves || (s->land == laCrossroads && !keep_to_crossroads())) {
+  if(gen) if(s->land == laCaves || (s->land == laCrossroads && !keep_to_crossroads())) {
     set<unsigned> hash;
     while(true) {
       unsigned hashval = 7;
@@ -596,10 +551,11 @@ EX void generate_track() {
     hyperpoint h = straight * parabolic1(a) * C0;
     cell *at = s;
     virtualRebase(at, h);
-    if(!rti_id.count(at) || get_info(at).from_track >= TWIDTH) break;
+    if(!rti_id.count(at)) break;
+    if(at->land == laMemory) break;
     }
   
-  if(WDIM == 2 && !bounded_track) for(ld cleaner=0; cleaner<a*.75; cleaner += .2) for(int dir=-1; dir<=1; dir+=2) {
+  if(gen) if(WDIM == 2 && !bounded_track) for(ld cleaner=0; cleaner<a*.75; cleaner += .2) for(int dir=-1; dir<=1; dir+=2) {
     transmatrix T = straight * parabolic1(cleaner * dir);
     cell *at = s;
     virtualRebase(at, T);
@@ -613,50 +569,24 @@ EX void generate_track() {
       }
     }
 
-  for(auto s: rti) if(s.c->monst == moIvyDead) s.c->monst = moNone;
+  if(gen) for(auto s: rti) if(s.c->monst == moIvyDead) s.c->monst = moNone;
   
   for(int i=0; i<motypes; i++) kills[i] = 0;
   
-  vector<shiftmatrix> forbidden;
-  for(auto& ghost: ghostset()[specialland])
-    forbidden.push_back(get_ghostmoment_matrix(ghost.history[0]));
-  for(auto& ghost: oghostset()[specialland]) 
-    forbidden.push_back(get_ghostmoment_matrix(ghost.history[0]));
-
-  for(int i=0; i<multi::players; i++) trophy[i] = 0;
-
-  for(int i=0; i<multi::players; i++) {
-    auto who = shmup::pc[i];
-    // this is intentionally not hrand
-    
-    for(int j=0; j<100; j++) {
-      if(WDIM == 3 || bounded_track)
-        who->at = Id; // straight * cspin(0, 2, rand() % 360) * cspin(1, 2, rand() % 360);
-      else
-        who->at = straight * parabolic1(start_line_width * (rand() % 20000 - 10000) / 40000) * spin(rand() % 360);
-      who->base = s;
-      bool ok = true;
-      for(const shiftmatrix& t: forbidden) if(hdist(t*C0, shiftless(who->at) * C0) < 10. / (j+10)) ok = false;
-      if(ok) break;
-      }
-    virtualRebase(who);
-    }
-
-  if(bounded_track) track.back()->wall = waCloud;
+  if(gen && bounded_track) track.back()->wall = waCloud;
   
   if(1) {
     manual_celllister cl;
     cl.add(s);
-    bool goal = false;
     for(int i=0; i<isize(cl.lst); i++) {
       cell *c = cl.lst[i];
       forCellEx(c2, c) {
-        if(among(c2->wall, waCloud, waMirror)) goal = true;
+        if(among(c2->wall, waCloud, waMirror)) reachable_goals.push_back(c2);
         if(passable(c2, c, P_ISPLAYER))
           cl.add(c2);
         }
       }
-    if(!goal) {
+    if(reachable_goals.empty()) {
       printf("error: goal unreachable\n");
       gamegen_failure = true;
       race_try++;
@@ -708,7 +638,7 @@ EX void generate_track() {
   
   for(auto cc: rti) if(blockoff(cc)) to_block.push_back(cc.c);
   
-  block_cells(to_block, [&blockoff] (cell *c) {
+  if(gen) block_cells(to_block, [&blockoff] (cell *c) {
     forCellEx(c2, c) if(passable(c2, c, P_ISPLAYER) && !blockoff(get_info(c2))) return true;
     return false;
     });
@@ -729,16 +659,41 @@ EX void generate_track() {
   */
 
   track_ready = true;
-  race_checksum = hrand(1000000);
+  reset_race();
+  }
+
+EX void reset_race() {
   
+  cell *s = track[0];
+
+  vector<shiftmatrix> forbidden;
+  for(auto& ghost: ghostset)
+    forbidden.push_back(get_ghostmoment_matrix(ghost.history[0]));
+
   race_start_tick = 0;
   for(int i=0; i<MAXPLAYER; i++) race_finish_tick[i] = 0;
 
-  official_race = (track_code == "OFFICIAL" && modecode() == 2);
-  if(official_race && isize(oghostset() [specialland]) && race_checksum != oghostset() [specialland] [0].checksum) {
-    official_race = false;
-    addMessage(XLAT("Race did not generate correctly for some reason -- not ranked"));
+  for(int i=0; i<multi::players; i++) trophy[i] = 0;
+
+  for(int i=0; i<multi::players; i++) {
+    auto who = shmup::pc[i];
+    if(!who) { println(hlog, "who missing"); continue; }
+    who->reset();
+    // this is intentionally not hrand
+    
+    for(int j=0; j<100; j++) {
+      if(WDIM == 3 || bounded_track)
+        who->at = Id; // straight * cspin(0, 2, rand() % 360) * cspin(1, 2, rand() % 360);
+      else
+        who->at = straight * parabolic1(start_line_width * (rand() % 20000 - 10000) / 40000) * spin(rand() % 360);
+      who->base = s;
+      bool ok = true;
+      for(const shiftmatrix& t: forbidden) if(hdist(t*C0, shiftless(who->at) * C0) < 10. / (j+10)) ok = false;
+      if(ok) break;
+      }
+    virtualRebase(who);
     }
+
   }
 
 bool inrec = false;
@@ -746,7 +701,7 @@ bool inrec = false;
 EX ld race_angle = 90;
 
 EX bool force_standard_centering() {
-  return nonisotropic || hybri || quotient || bounded;
+  return nonisotropic || mhybrid || quotient || closed_or_bounded;
   }
 
 EX bool use_standard_centering() {
@@ -781,7 +736,7 @@ EX bool set_view() {
     ld alpha = -atan2(T * C0);
     ld distance = hdist0(T * C0);
     ld beta = -atan2(xpush(-distance) * spin(-alpha) * T * Cx1);
-    current_history[multi::cpid].emplace_back(ghostmoment{ticks - race_start_tick, rti_id[who->base], 
+    current_history[multi::cpid].emplace_back(ghostmoment{ticks - race_start_tick, who->base, 
       angle_to_uchar(alpha),
       frac_to_uchar(distance / distance_multiplier),
       angle_to_uchar(beta),
@@ -792,10 +747,27 @@ EX bool set_view() {
   if(use_standard_centering()) return false;
   if(player_relative && specialland == laAsteroids) return false;
 
-  transmatrix at = ypush(-vid.yshift) * unshift(ggmatrix(who->base)) * who->at;
+  hyperpoint at;
+  transmatrix atm;
+  if(multi::players == 1 || multi::split_screen) {
+    atm = ypush(-vid.yshift) * unshift(ggmatrix(who->base)) * who->at;
+    at = atm * C0;
+    }
+  else {
+    at = Hypc;
+    hyperpoint first;
+    for(int i=0; i<multi::players; i++) {
+      hyperpoint h = ypush(-vid.yshift) * unshift(ggmatrix(shmup::pc[i]->base)) * tC0(shmup::pc[i]->at);;
+      if(i == 0) first = h;
+      at += h;
+      }
+    at /= multi::players;
+    at = normalize(at);
+    atm = rgpushxto0(at) * spin270() * rspintox(gpushxto0(at) * first);
+    }
   
   if(racing::player_relative || quotient || (kite::in() && GDIM == 3)) {
-    View = iso_inverse(at) * View;
+    View = iso_inverse(atm) * View;
     }
   else {
     /* this works only in isotropic geometries, but we don't really care about this in 3D */
@@ -808,7 +780,7 @@ EX bool set_view() {
 
     transmatrix T = spintox(iT1 * T2 * C0);
     
-    hyperpoint h = T * iT1 * ypush(vid.yshift) * at * C0;
+    hyperpoint h = T * iT1 * ypush(vid.yshift) * at;
     ld y = GDIM == 2 ? asin_auto(h[1]) : asin_auto(hypot(h[1], h[2]));
     ld x = asin_auto(h[0] / cos_auto(y));
     x += race_advance;
@@ -816,11 +788,11 @@ EX bool set_view() {
 
     View = xpush(-x) * T * iT1 * ypush(vid.yshift) * View;
 
-    if(GDIM == 3) View = cspin(2, 0, M_PI/2) * View;
+    if(GDIM == 3) View = cspin(2, 0, 90._deg) * View;
     fixmatrix(View);
     }
   if(GDIM == 3 && WDIM == 2)
-    View = cspin(0, 1, M_PI) * cspin(2, 1, M_PI/2 + shmup::playerturny[multi::cpid]) * spin(-M_PI/2) * View;
+    View = spin180() * cspin(2, 1, 90._deg + shmup::playerturny[multi::cpid]) * spin270() * View;
   else if(GDIM == 2) View = spin(race_angle * degree) * View;
   return true;
   }
@@ -837,6 +809,10 @@ int readArgs() {
     stop_game();
     switch_game_mode(rg::racing);
     }
+  else if(argis("-racing-official")) {
+    PHASEFROM(2);
+    load_official_track();
+    }
   else if(argis("-rsc")) {
     standard_centering = true;
     }
@@ -844,6 +820,9 @@ int readArgs() {
     PHASEFROM(3);
     start_game();
     race_start_tick = 1;
+    }
+  else if(argis("-rtry")) {
+    shift(); race_try = argi();
     }
   else return 1;
   return 0;
@@ -862,16 +841,17 @@ auto hook =
     track.clear();
     rti.clear();
     rti_id.clear();
+    reachable_goals.clear();
     for(auto &ch: current_history) ch.clear();
     })
 + addHook(hooks_configfile, 100, [] {
-    addsaver(racing::race_advance, "race_advance");
-    addsaver(racing::race_angle, "race_angle");
-    addsaver(racing::ghosts_to_show, "race_ghosts_to_show");
-    addsaver(racing::ghosts_to_save, "race_ghosts_to_save");
-    addsaver(racing::guiding, "race_guiding");
-    addsaver(racing::player_relative, "race_player_relative");
-    addsaver(racing::standard_centering, "race_standard_centering");
+    param_f(racing::race_advance, "race_advance");
+    param_f(racing::race_angle, "race_angle");
+    param_i(racing::ghosts_to_show, "race_ghosts_to_show");
+    param_i(racing::ghosts_to_save, "race_ghosts_to_save");
+    param_b(racing::guiding, "race_guiding");
+    param_b(racing::player_relative, "race_player_relative");
+    param_b(racing::standard_centering, "race_standard_centering");
     })
 // + addHook(hooks_handleKey, 120, akh);
   ;
@@ -921,10 +901,29 @@ EX string racetimeformat(int t) {
 
 extern int playercfg;
 
-void track_chooser(string new_track) {
-  cmode = 0;
-  gamescreen(2);
-  dialog::init(XLAT("Racing"));
+EX void load_official_track() {
+  fhstream f("officials.data", "rb");
+  hread(f, f.vernum);
+  map<eLand, string> tracks;
+  hread(f, tracks);
+  eLand l = specialland;
+  if(!tracks.count(l)) {
+    println(hlog, "ERROR: no official track in the database");
+    throw hstream_exception();
+    }
+  string s = decompress_string(tracks[l]);
+  shstream sf(s);
+  #if CAP_EDIT
+  mapstream::loadMap(sf);
+  #endif
+  cheater = autocheat = 0;
+  official_race = true;
+  }
+
+void track_chooser(bool official) {
+  cmode = sm::NOSCR;
+  gamescreen();
+  dialog::init(XLAT(official ? "Official tracks" : "Generate a racing track"));
   
   map<char, eLand> landmap;
   
@@ -933,25 +932,23 @@ void track_chooser(string new_track) {
 
   char let = 'a';
   for(eLand l: race_lands) {
-    auto& ghs = race_ghosts[make_pair(new_track, modecode())];
-    const int LOST = 3600000;
-    int best = LOST;
-    if(ghs.count(l)) {
-      auto& gh = ghs[l];
-      for(auto& gc: gh) best = min(best, gc.result);
-      }
-    string s = (best == LOST) ? "" : racetimeformat(best);
     landmap[let] = l;
+    string s = "";
+    if(best_scores.count(l))
+      s = racetimeformat(best_scores[l]);
     dialog::addSelItem(XLAT1(linf[l].name), s, let++);
-    dialog::add_action([l, new_track] () {
+    dialog::add_action([l, official] () {
       stop_game();
       multi::players = playercfg;
-      if(!racing::on) switch_game_mode(rg::racing);
-      track_code = new_track;
       specialland = l;
-      // because of an earlier issue, some races in the Official track start with race_try = 1
-      race_try = among(l, laCaves, laWildWest, laHell, laTerracotta, laElementalWall, laDryForest, laDeadCaves) ? 1 : 0;
-      start_game();
+      if(!racing::on) switch_game_mode(rg::racing);
+      if(official) {
+        racing::on = false;
+        load_official_track();
+        }
+      else {
+        start_game();
+        }
       popScreenAll();
       });
     }
@@ -959,13 +956,13 @@ void track_chooser(string new_track) {
   dialog::addBack();
   dialog::display();
   
-  if(landmap.count(getcstat) && new_track == "OFFICIAL" && modecode() == 2)
-    displayScore(landmap[getcstat]);  
+  if(landmap.count(getcstat) && official)
+    displayScore(landmap[getcstat]);
   }
 
 void race_projection() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(1);
+  gamescreen();
   
   dialog::init(XLAT("racing projections"));
 
@@ -1062,37 +1059,17 @@ void race_projection() {
   }
 
   int playercfg;
-  bool editing_track;
-  string new_track;
   
 /* struct race_configurer { */
 
-  void set_race_configurer() { editing_track = false; new_track = track_code; playercfg = multi::players; }
+  void set_race_configurer() { playercfg = multi::players; }
   
-  static string random_track_name() {
-    string s = "";
-    for(int a = 0; a < 4; a++)  {
-      int u = rand() % 2;
-      if(u == 0)
-        s += "AEIOUY" [ rand() % 6];
-      s += "BCDFGHJKLMNPRSTVWZ" [ rand() % 18];
-      if(u == 1)
-        s += "AEIOUY" [ rand() % 6];
-      }
-    return s;
-    }
-  
-  static string racecheck(int sym, int uni) {
-    if(uni >= 'A' && uni <= 'Z') return string("") + char(uni);
-    if(uni >= 'a' && uni <= 'z') return string("") + char(uni - 32);
-    return "";
-    }
-
   bool alternate = false;
   
   #if MAXMDIM >= 4
   EX void thurston_racing() {
-    gamescreen(1);
+    cmode = sm::NOSCR;
+    gamescreen();
     dialog::init(XLAT("racing in Thurston geometries"));
     
     dialog::addBreak(100);
@@ -1105,7 +1082,6 @@ void race_projection() {
         if(!racing::on) switch_game_mode(rg::racing);
         racing::standard_centering = true;
         launcher();
-        track_code = "OFFICIAL";
         start_game();
         popScreenAll();
         });
@@ -1147,27 +1123,17 @@ void race_projection() {
 
   void raceconfigurer() {
   
-    gamescreen(1);
+    cmode = sm::SIDE | sm::MAYDARK;
+    gamescreen();
   
     dialog::init(XLAT("Racing"));
+
+    dialog::addBoolItem(XLAT("play on an official track"), racing::on && official_race, 'O');
+    dialog::add_action_push([/*this*/] () { track_chooser(true); }); 
+
+    dialog::addItem(XLAT("generate a random track"), 's');
+    dialog::add_action_push([/*this*/] () { track_chooser(false); }); 
   
-    if(false)
-      dialog::addInfo(XLAT("Racing available only in unbounded worlds."), 0xFF0000);
-    else {
-      dialog::addItem(XLAT("select the track and start!"), 's');
-      dialog::add_action([/*this*/] () { 
-        dynamicval<bool> so(shmup::on, true);
-        dynamicval<bool> ro(racing::on, true);
-        #if CAP_FILES
-        if(race_ghosts[make_pair(new_track, modecode())].empty())
-          read_ghosts(new_track, modecode());
-        else
-          println(hlog, "known ghosts: ", isize(race_ghosts[make_pair(new_track, modecode())]));
-        #endif
-        pushScreen([/*this*/] () { track_chooser(new_track); }); 
-        });
-      }
-    
     dialog::addBreak(100);
 
     if(WDIM == 3) {
@@ -1201,18 +1167,6 @@ void race_projection() {
     
     dialog::addBreak(100);
 
-    dialog::addSelItem(XLAT("track seed"), editing_track ? dialog::view_edited_string() : new_track, '/');
-    dialog::add_action([/*this*/] () { 
-      editing_track = !editing_track;
-      if(editing_track) dialog::start_editing(new_track);
-      });
-    dialog::addItem(XLAT("play the official seed"), 'o');
-    dialog::add_action([/*this*/] () { new_track = "OFFICIAL"; });
-    dialog::addItem(XLAT("play a random seed"), 'r');
-    dialog::add_action([/*this*/] () { new_track = random_track_name(); });    
-
-    dialog::addBreak(100);
-    
     dialog::addSelItem(XLAT("best scores to show as ghosts"), its(ghosts_to_show), 'c');
     dialog::add_action([]() { dialog::editNumber(ghosts_to_show, 0, 100, 1, 5, "best scores to show as ghosts", ""); });
 
@@ -1240,12 +1194,8 @@ void race_projection() {
     dialog::display();
 
     keyhandler = [/*this*/] (int sym, int uni) {
-      if(editing_track) {
-        if(sym == SDLK_RETURN) sym = uni = '/';
-        if(dialog::handle_edit_string(sym, uni, racecheck)) return;
-        }
       dialog::handleNavigation(sym, uni);
-      if(doexiton(sym, uni)) { if(editing_track) editing_track = false; else popScreen(); }
+      if(doexiton(sym, uni)) popScreen();
       };
     
     }
@@ -1267,7 +1217,8 @@ map<string, map<eLand, int> > scoreboard;
 void uploadScore() {
   int tscore = 0;
   for(eLand l: race_lands) {
-    int i = get_score_in_land(l);
+    if(!best_scores.count(l)) continue;
+    int i = best_scores[l];
     if(!i) continue;
     scoreboard[myname()][l] = i;
     int score = 60000000 / i; // 1000 points for minute, 2000 points for 30 sec
@@ -1299,14 +1250,31 @@ EX void displayScore(eLand l) {
     }
   }
 
+EX int pause_limit = 3;
+
+EX bool started() {
+  return race_start_tick && ticks >= race_start_tick;
+  }
+
+EX bool finished() {
+  for(int& i: racing::race_finish_tick) if(!i) return false;
+  return true;
+  }
+
 EX void race_won() {
   if(!race_finish_tick[multi::cpid]) {
+
+    if(shmup::count_pauses >= pause_limit) {
+      addMessage(XLAT("Too many pauses!"));
+      race_finish_tick[multi::cpid] = ticks;
+      return;
+      }
+
     int result = ticks - race_start_tick;
     int losers = 0;
     int place = 1;
-    for(int i=0; i<multi::players; i++) if(race_finish_tick[i]) place++; else losers = 0;
-    for(auto& ghost: ghostset()[specialland]) if(ghost.result < result) place++; else losers++;
-    for(auto& ghost: oghostset()[specialland]) if(ghost.result < result) place++; else losers++;
+    for(int i=0; i<multi::players; i++) if(race_finish_tick[i]) place++;
+    for(auto& ghost: ghostset) if(ghost.result < result) place++; else losers++;
 
     if(place == 1 && losers) trophy[multi::cpid] = 0xFFD500FF;
     if(place == 2) trophy[multi::cpid] = 0xFFFFC0FF;
@@ -1317,7 +1285,7 @@ EX void race_won() {
     else
       addMessage(XLAT("Finished the race in time %1!", racetimeformat(result)));
     
-    if(place == 1 && losers && official_race && isize(oghostset()[specialland]))
+    if(place == 1 && official_race)
       achievement_gain("RACEWON", rg::racing);
     
     race_finish_tick[multi::cpid] = ticks;
@@ -1328,31 +1296,24 @@ EX void race_won() {
       part(*x, 0) >>= 2;
       }
       
-    auto &subtrack = ghostset() [specialland];
-
-    int ngh = 0;
-    for(int i=0; i<isize(subtrack); i++) {
-      if(subtrack[i].checksum != race_checksum) {
-        println(hlog, format("wrong checksum: %x, should be %x", subtrack[i].checksum, race_checksum));
-        }
-      else {
-        if(i != ngh)
-          subtrack[ngh] = move(subtrack[i]);
-        ngh++;
-        }
+    if(true) {
+      auto &subtrack = ghostset;
+      subtrack.emplace_back(ghost{gcs, result, VERNUM_HEX, time(NULL), current_history[multi::cpid]});
+      sort(subtrack.begin(), subtrack.end(), [] (const ghost &g1, const ghost &g2) { return g1.result < g2.result; });
+      if(isize(subtrack) > ghosts_to_save && ghosts_to_save > 0) 
+        subtrack.resize(ghosts_to_save);
       }
-    subtrack.resize(ngh);    
-
-    subtrack.emplace_back(ghost{gcs, result, race_checksum, time(NULL), current_history[multi::cpid]});
-    sort(subtrack.begin(), subtrack.end(), [] (const ghost &g1, const ghost &g2) { return g1.result < g2.result; });
-    if(isize(subtrack) > ghosts_to_save && ghosts_to_save > 0) 
-      subtrack.resize(ghosts_to_save);
-    #if CAP_FILES
-    if(ghosts_to_save > 0)
-      write_ghosts(track_code, modecode());
-    #endif
       
-    if(official_race) uploadScore();
+    if(official_race && !cheater) {
+      if(!best_scores.count(specialland))
+        best_scores[specialland] = result;
+      best_scores[specialland] = min(best_scores[specialland], result);
+      best_scores_to_save[specialland] = result;
+      #if CAP_SAVE
+      saveStats();
+      #endif
+      if(official_race) uploadScore();
+      }
     }
   }
 
@@ -1380,14 +1341,14 @@ ghostmoment& get_ghostmoment(ghost& ghost) {
 
 void draw_ghost(ghost& ghost) {
   auto& p = get_ghostmoment(ghost);
-  cell *w = rti[p.where_id].c;
+  cell *w = p.where_cell;
   if(!gmatrix.count(w)) return;
   draw_ghost_at(ghost, w, get_ghostmoment_matrix(p), p);
   }
 
 shiftmatrix racerel(ld rel) {
   int bsize = vid.fsize * 2;
-  return shiftless(atscreenpos(bsize, vid.yres - bsize - rel * (vid.yres - bsize*2) / 100, bsize) * spin(M_PI/2));
+  return shiftless(atscreenpos(bsize, vid.yres - bsize - rel * (vid.yres - bsize*2) / 100, bsize) * spin90());
   }
 
 EX int get_percentage(cell *c) {
@@ -1400,8 +1361,7 @@ EX int get_percentage(int i) {
   
 void draw_ghost_state(ghost& ghost) {
   auto& p = get_ghostmoment(ghost);
-  if(p.where_id >= isize(rti)) return;
-  cell *w = rti[p.where_id].c;
+  cell *w = p.where_cell;
   ld result = ghost_finished(ghost) ? 100 : get_percentage(w);
   draw_ghost_at(ghost, w, racerel(result), p);
   }
@@ -1422,8 +1382,7 @@ EX void drawStats() {
     }
   queuecurve(shiftless(Id), 0xFFFFFFFF, 0, PPR::ZERO);
   
-  for(auto& ghost: ghostset()[specialland]) draw_ghost_state(ghost);
-  for(auto& ghost: oghostset()[specialland]) draw_ghost_state(ghost);
+  for(auto& ghost: ghostset) draw_ghost_state(ghost);
   
   for(int i=0; i<multi::players; i++) {
     dynamicval<int> d(multi::cpid, i);
@@ -1461,14 +1420,8 @@ EX void markers() {
       its(cd), 0x10101 * int(128 - 100 * sintick(150)));
     addauraspecial(H, 0xFFD500, 0);
     }
-  int ghosts_left = ghosts_to_show;
-  for(auto& ghost: ghostset()[specialland]) {
-    if(!ghosts_left) break;
-    ghosts_left--;
-    draw_ghost(ghost);
-    }
   
-  for(auto& ghost: oghostset()[specialland])
+  for(auto& ghost: ghostset)
     draw_ghost(ghost);
   
   if(gmatrix.count(track[0])) {

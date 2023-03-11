@@ -12,6 +12,11 @@ namespace cylon {
   extern bool cylanim;
   }
 
+namespace nilcompass {
+  bool draw_compass(cell *c, const shiftmatrix& V);
+  extern int zeroticks;
+  }
+
 namespace balls {
   struct ball {
     hyperpoint at;
@@ -84,24 +89,38 @@ struct dmv_grapher : grapher {
   };
 
 void nil_screen(presmode mode, int id) {
+  use_angledir(mode, id == 0);
+  setCanvas(mode, '0');
+  if(mode == pmStart) {
+    slide_backup(pmodel);
+    slide_backup(pconf.clip_min);
+    slide_backup(pconf.clip_max);
+    slide_backup(vid.cells_drawn_limit);
+    stop_game(), pmodel = mdHorocyclic, geometry = gCubeTiling, pconf.clip_min = -10000, pconf.clip_max = +100, start_game();
+    }
   add_stat(mode, [id] {
     cmode |= sm::SIDE;
-    flat_model_enabler fme;
+    calcparam();
+
+    vid.cells_drawn_limit = 0;
+    drawthemap();
+
+    // flat_model_enabler fme;
     initquickqueue();
     
-    dmv_grapher g(Id);
+    dmv_grapher g(MirrorZ * cspin(1, 2, .8 * angle) * spin(angle/2));
     
     vid.linewidth *= 3;
     
     ld t = 1e-3;
-    
+
     if(id == 2) {
-      t = ticks / 1000.;
+      t = inHighQual ? ticks * 4. / anims::period : ticks / 1000.;
       if(t - floor(t) > .5) t = ceil(t);
       else t = floor(t) + 2 * (t - floor(t));
       t -= floor(t/4)*4;
       
-      ld t2 = 90 * degree * t;
+      ld t2 = 90._deg * t;
       
       curvepoint(p2(0,0));
       curvepoint(p2(5,5));
@@ -113,21 +132,113 @@ void nil_screen(presmode mode, int id) {
       queuecurve(g.T, col | 0xFF, col | 0x20, PPR::LINE);  
       }
     
-    g.arrow(p2(5,5), p2(7,5), .3);
-    g.arrow(p2(5,5), p2(5,7), .3);
-    g.arrow(p2(5,5), p2(3,5), .3);
-    g.arrow(p2(5,5), p2(5,3), .3);
+    if(id < 3) {
+      g.arrow(p2(5,5), p2(7,5), .3);
+      g.arrow(p2(5,5), p2(5,7), .3);
+      g.arrow(p2(5,5), p2(3,5), .3);
+      g.arrow(p2(5,5), p2(5,3), .3);
+      }
 
     vid.linewidth /= 3;
     
-    drawMonsterType(moEagle, nullptr, g.pos(5,5,1.5) * spin(-t * 90 * degree), 0xFF80D080, ticks / 1000., 0);
+    if(id < 3) {
+
+      if(id == 2) {
+        drawMonsterType(moEagle, nullptr, g.pos(5,5,1.5) * spin(-t * 90._deg) * xyzscale(1.5), 0x40C040, ticks / 1000., 0);
+        }
     
-    queuestr(g.pos(7.5, 5, 1), 1., "E", 0);
-    queuestr(g.pos(5, 7.5, 1), 1., "N", 0);
-    queuestr(g.pos(2.5, 5, 1), 1., "W", 0);
-    queuestr(g.pos(5, 2.5, 1), 1., "S", 0);
+      color_t dark = 0xFF;
+
+      write_in_space(g.pos(7.5, 5, 1) * MirrorY, max_glfont_size, 1., "E", dark);
+      write_in_space(g.pos(5, 7.5, 1) * MirrorY, max_glfont_size, 1., "N", dark);
+      write_in_space(g.pos(2.5, 5, 1) * MirrorY, max_glfont_size, 1., "W", dark);
+      write_in_space(g.pos(5, 2.5, 1) * MirrorY, max_glfont_size, 1., "S", dark);
+      }
     
+    if(id == 3) {
+      vid.linewidth *= 3;
+      t = ticks / anims::period;
+      ld ti = ticks / 1000.;
+      t = frac(t);
+      vector<hyperpoint> loop = { p2(9, 4), p2(9, 9), p2(1, 9), p2(1, 5), p2(6, 6), p2(9,4) };
+      int q = isize(loop) - 1;
+
+      for(hyperpoint h: loop) curvepoint(h);
+      queuecurve(g.T, 0x40C040FF, 0, PPR::LINE);
+      ld total_length = 0;
+      for(int i=0; i<q; i++) total_length += hypot_d(2, loop[i+1] - loop[i]);
+      t *= total_length;
+      t *= 1.2;
+      curvepoint(p2(0,0));
+      shiftmatrix T1 = g.pos(loop[0][0], loop[0][1], 1.5);
+      shiftmatrix T2 = g.pos(loop[0][0], loop[0][1], 1.5);
+
+      ld t1 = t;
+
+      for(int i=0; i<=q; i++) {
+        curvepoint(loop[i]);
+        if(i == q) {
+          T1 = g.pos(loop[i][0],loop[i][1],1.5) * rspintox(loop[i] - loop[i-1]);
+          break;
+          }
+        ld len = hypot_d(2, loop[i+1] - loop[i]);
+        if(len < t1) { t1 -= len; continue; }
+        hyperpoint cur = lerp(loop[i], loop[i+1], t1 / len);
+        T1 = g.pos(cur[0],cur[1],1.5) * rspintox(loop[i+1] - loop[i]);
+        curvepoint(cur);
+        break;
+        }
+      curvepoint(p2(0,0));
+      color_t col = 0x8080FF00;
+      queuecurve(g.T, col | 0xFF, col | 0x40, PPR::LINE);
+
+      ld z = 0;
+
+      ld zsca = .05;
+
+      vector<pair<hyperpoint, hyperpoint> > vlines;
+
+      for(int i=0; i<=q; i++) {
+        vlines.emplace_back(loop[i], loop[i] + ztangent(z));
+        curvepoint(loop[i] + ztangent(z));
+        if(i == q) {
+          T2 = g.pos(loop[i][0],loop[i][1],1.5) * cpush(2, z) * rspintox(loop[i] - loop[i-1]);
+          break;
+          }
+        ld len = hypot_d(2, loop[i+1] - loop[i]);
+        if(len < t) {
+          t -= len;
+          z += (loop[i+1][1] * loop[i][0] - loop[i+1][0] * loop[i][1]) * zsca;
+          continue;
+          }
+        hyperpoint cur = lerp(loop[i], loop[i+1], t / len);
+        z += (cur[1] * loop[i][0] - cur[0] * loop[i][1]) * zsca;
+        T2 = g.pos(cur[0],cur[1],1.5) * cpush(2, z) * rspintox(loop[i+1] - loop[i]);
+        curvepoint(cur + ztangent(z));
+        break;
+        }
+      queuecurve(g.T, 0x40C040FF, 0, PPR::LINE);
+
+      for(auto l: vlines) queueline(g.T*l.first, g.T*l.second, 0x40, 0, PPR::MONSTER_BODY);
+
+      vid.linewidth /= 3;
+
+      drawMonsterType(moEagle, nullptr, T2, 0x40C040, ti, 0);
+      auto& bp = cgi.shEagle;
+      if(bp.she > bp.shs && bp.she < bp.shs + 1000) {
+        auto& p = queuepolyat(T1, bp, 0x80, PPR::TRANSPARENT_SHADOW);
+        p.outline = 0;
+        p.subprio = -100;
+        p.offset = bp.shs;
+        p.cnt = bp.she - bp.shs;
+        p.flags &=~ POLY_TRIANGLES;
+        p.tinf = NULL;
+        }
+      // queuepolyat(T2, cgi.shEagle, 0x40C040FF, PPR::SUPERLINE);
+      }
+
     quickqueue();
+    glflush();
 
     dialog::init();        
     // dialog::addTitle(id ? "Nil coordinates" : "Cartesian coordinates", forecolor, 150);
@@ -135,27 +246,34 @@ void nil_screen(presmode mode, int id) {
     poly_outline = 0xFFFFFFFF;
     
     dialog::addBreak(100);
-    dialog::addInfo("start: (x,y,z)");
     dialog::addBreak(50);
+    auto dirbox = [] (string s) {
+      return "\\makebox[5em][r]{\\textsf{" + s + "}} ";
+      };
+    auto cbox = [] (string s) {
+      return "\\makebox[9em][l]{$" + s + "$} ";
+      };
+    dialog_may_latex(dirbox("start:") + cbox("(x,y,z)"), "start: (x,y,z)");
+    dialog::addBreak(50);
+
     if(id == 0) {
-      dialog::addInfo("N: (x,y+d,z)");
-      dialog::addInfo("W: (x-d,y,z)");
-      dialog::addInfo("S: (x,y-d,z)");
-      dialog::addInfo("E: (x+d,y,z)");
+      dialog_may_latex(dirbox("N:") + cbox("(x,y+d,z)"), "N: (x,y+d,z)");
+      dialog_may_latex(dirbox("W:") + cbox("(x-d,y,z)"), "W: (x-d,y,z)");
+      dialog_may_latex(dirbox("S:") + cbox("(x,y-d,z)"), "S: (x,y-d,z)");
+      dialog_may_latex(dirbox("E:") + cbox("(x+d,y,z)"), "E: (x+d,y,z)");
       }
     else {
-      dialog::addInfo("N: (x,y+d,z+xd/2)", t == 1 ? 0xFFD500 : dialog::dialogcolor);
-      dialog::addInfo("W: (x-d,y,z+yd/2)", t == 2 ? 0xFFD500 : dialog::dialogcolor);
-      dialog::addInfo("S: (x,y-d,z-xd/2)", t == 3 ? 0xFFD500 : dialog::dialogcolor);
-      dialog::addInfo("E: (x+d,y,z-yd/2)", t == 0 ? 0xFFD500 : dialog::dialogcolor);
+      dialog_may_latex(dirbox("N:") + cbox("(x,y+d,z+\\frac{xd}{2})"), "N: (x,y+d,z+xd/2)", t == 1 ? 0xFFD500 : dialog::dialogcolor);
+      dialog_may_latex(dirbox("W:") + cbox("(x-d,y,z+\\frac{yd}{2})"), "W: (x-d,y,z+yd/2)", t == 2 ? 0xFFD500 : dialog::dialogcolor);
+      dialog_may_latex(dirbox("S:") + cbox("(x,y-d,z-\\frac{xd}{2})"), "S: (x,y-d,z-xd/2)", t == 3 ? 0xFFD500 : dialog::dialogcolor);
+      dialog_may_latex(dirbox("E:") + cbox("(x+d,y,z-\\frac{yd}{2})"), "E: (x+d,y,z-yd/2)", t == 0 ? 0xFFD500 : dialog::dialogcolor);
       }
     dialog::addBreak(50);
-    dialog::addInfo("U: (x,y,z-d)");
-    dialog::addInfo("D: (x,y,z+d)");
+    dialog_may_latex(dirbox("U:") + cbox("(x,y,z-d)"), "U: (x,y,z-d)");
+    dialog_may_latex(dirbox("D:") + cbox("(x,y,z+d)"), "D: (x,y,z+d)");
     dialog::display();
     
     dynamicval<eGeometry> gg(geometry, gNil);
-    println(hlog, eupush(point31(5, 0, 0)) * eupush(point31(0, 5, 0)) * eupush(point31(-5, 0, 0)) * eupush(point31(0, -5, 0)) * C0);
 
     return false;
     });
@@ -169,7 +287,13 @@ void geodesic_screen(presmode mode, int id) {
   use_angledir(mode, id == 0);
   
   setCanvas(mode, '0');
-  if(mode == pmStart) stop_game(), pmodel = mdHorocyclic, geometry = gCubeTiling, pconf.clip_min = -10000, pconf.clip_max = +100, start_game();
+  if(mode == pmStart) {
+    slide_backup(pmodel);
+    slide_backup(pconf.clip_min);
+    slide_backup(pconf.clip_max);
+    slide_backup(vid.cells_drawn_limit);
+    stop_game(), pmodel = mdHorocyclic, geometry = gCubeTiling, pconf.clip_min = -10000, pconf.clip_max = +100, start_game();
+    }
   
   add_stat(mode, [id] {
     cmode |= sm::SIDE;
@@ -181,7 +305,7 @@ void geodesic_screen(presmode mode, int id) {
     // flat_model_enabler fme;
     initquickqueue();
 
-    dmv_grapher g(MirrorZ * cspin(1, 2, .3 * angle / (M_PI/2)) * spin(angle/2));
+    dmv_grapher g(MirrorZ * cspin(1, 2, .3 * angle / 90._deg) * spin(angle/2));
     
     ld val = 25;
     
@@ -196,10 +320,10 @@ void geodesic_screen(presmode mode, int id) {
     ld rrh = radh * sqrt(1/2.);
     
     ld zmove = val - M_PI * radh * radh;
-    ld len = hypot(2 * M_PI * radh, zmove);
+    ld len = hypot(TAU * radh, zmove);
     
-    ld t = (ticks - geo_zero) / 500;
-    
+    ld t = inHighQual ? ticks / 1000. : (ticks - geo_zero) / 500;
+
     auto frac_of = [&] (ld z) { return t - z * floor(t/z); };
     
     t = frac_of(val);
@@ -210,7 +334,7 @@ void geodesic_screen(presmode mode, int id) {
       queuecurve(g.T, col, 0, PPR::LINE);
       
       auto be_shadow = [&] (hyperpoint& h) {
-        // ld part = 1 - angle / (M_PI / 2);
+        // ld part = 1 - angle / 90._deg;
         // h[0] += h[2] * part / 10;
         h[2] = 0;
         };
@@ -272,8 +396,8 @@ void geodesic_screen(presmode mode, int id) {
 
     if(id >= 2) 
       draw_path([&] (ld t) { 
-        ld tx = min(t, 2 * M_PI * rad);
-        ld ta = tx / rad - 135 * degree;
+        ld tx = min(t, TAU * rad);
+        ld ta = tx / rad - 135._deg;
         ld x = rr + rad * cos(ta);
         ld y = rr + rad * sin(ta);
         ld z = rad * tx / 2 - ((rr * x) - (rr * y)) / 2;
@@ -283,10 +407,10 @@ void geodesic_screen(presmode mode, int id) {
     if(id >= 3)
       draw_path([&] (ld t) { 
         ld tx = min(t, len);
-        ld ta = tx / len * 2 * M_PI - 135 * degree;
+        ld ta = tx / len * TAU - 135._deg;
         ld x = rrh + radh * cos(ta);
         ld y = rrh + radh * sin(ta);
-        ld z = radh * radh * (tx/len*2*M_PI) / 2 - ((rrh * x) - (rrh * y)) / 2 + zmove * tx / len;
+        ld z = radh * radh * (tx/len*TAU) / 2 - ((rrh * x) - (rrh * y)) / 2 + zmove * tx / len;
         
         return point31(x, y, z);
         }, helix);
@@ -307,30 +431,30 @@ void geodesic_screen(presmode mode, int id) {
     quickqueue();
 
     dialog::init();
-    dialog::addTitle("from (0,0,0) to (0,0,25)", forecolor, 150);
+    dialog_may_latex("\\textsf{from $(0,0,0)$ to $(0,0,25)$}", "from (0,0,0) to (0,0,25)", forecolor, 150);
 
     dialog::addBreak(100);
-    dialog::addInfo("straight upwards", straight >> 8);
-    dialog::addInfo("25", straight >> 8);
+    dialog_may_latex("\\textsf{straight upwards}", "straight upwards", straight >> 8);
+    dialog_may_latex("$25$", "25", straight >> 8);
     
     if(id >= 1) {
       dialog::addBreak(100);
-      dialog::addInfo("square", square >> 8);
-      dialog::addInfo("20", square >> 8);
+      dialog_may_latex("\\textsf{square}", "square", square >> 8);
+      dialog_may_latex("$20$", "20", square >> 8);
       }
     else dialog::addBreak(300);
 
     if(id >= 2) {
       dialog::addBreak(100);
-      dialog::addInfo("circle", circle >> 8);
-      dialog::addInfo(fts(2 * M_PI * rad), circle >> 8);
+      dialog_may_latex("\\textsf{circle}", "circle", circle >> 8);
+      dialog_may_latex("$"+fts(TAU * rad)+"$", fts(TAU * rad), circle >> 8);
       }
     else dialog::addBreak(300);
 
     if(id >= 3) {
       dialog::addBreak(100);
-      dialog::addInfo("helix", helix >> 8);
-      dialog::addInfo(fts(len), helix >> 8);
+      dialog_may_latex("\\textsf{helix}", "helix", helix >> 8);
+      dialog_may_latex("$"+fts(len)+"$", fts(len), helix >> 8);
       }
     else dialog::addBreak(300);
     
@@ -429,7 +553,7 @@ void impossible_ring_slide(tour::presmode mode) {
     for(int id=0; id<2; id++) {
       shiftmatrix T = ggmatrix(currentmap->gamestart());
       println(hlog, "angle = ", angle);
-      if(id == 1) T = T * spin(180*degree) * xpush(1.5) * cspin(0, 2, angle) * xpush(-1.5);
+      if(id == 1) T = T * spin180() * xpush(1.5) * cspin(0, 2, angle) * xpush(-1.5);
       
       for(ld z: {+.5, -.5}) {
         for(ld d=0; d<=180; d++)
@@ -465,7 +589,7 @@ void enable_earth() {
   texture::texture_aura = true;
   stop_game();
   set_geometry(gSphere);
-  firstland = specialland = laCanvas;
+  enable_canvas();
   patterns::whichCanvas = 'F';
   start_game();        
   texture::config.configname = "textures/earth.txc";
@@ -475,7 +599,7 @@ void enable_earth() {
   texture::config.color_alpha = 255;
   mapeditor::drawplayer = false;
   fullcenter();
-  View = spin(4 * M_PI / 5 + M_PI / 2) * View;
+  View = spin(234._deg) * View;
   }
 
 slide dmv_slides[] = {
@@ -484,7 +608,8 @@ slide dmv_slides[] = {
       empty_screen(mode);
       show_picture(mode, "rogueviz/nil/penrose-triangle.png");
       add_stat(mode, [] {
-        gamescreen(2);
+        cmode |= sm::DARKEN;
+        gamescreen();
         dialog::init();
         dialog::addBreak(400);
         dialog::addTitle("playing with impossibility", dialog::dialogcolor, 150);
@@ -499,7 +624,7 @@ slide dmv_slides[] = {
   {"Euclidean plane", 999, LEGAL::NONE | QUICKGEO, 
     "The sum of angles of a triangle is 180 degrees.\n\n",
     [] (presmode mode) {
-      if(mode == pmStartAll) firstland = specialland = laCanvas;
+      if(mode == pmStartAll) enable_canvas();
       setCanvas(mode, 'F');
       if(mode == pmStart) {
         stop_game();
@@ -522,8 +647,8 @@ slide dmv_slides[] = {
         shiftmatrix T = ggmatrix(currentmap->gamestart());
         vid.linewidth *= 4;
         shiftpoint h1 = T * xspinpush0(0, 2);
-        shiftpoint h2 = T * xspinpush0(120*degree, 2);
-        shiftpoint h3 = T * xspinpush0(240*degree, 2);
+        shiftpoint h2 = T * xspinpush0(120._deg, 2);
+        shiftpoint h3 = T * xspinpush0(240._deg, 2);
         queueline(h1, h2, 0xFF0000FF, 4);
         queueline(h2, h3, 0xFF0000FF, 4);
         queueline(h3, h1, 0xFF0000FF, 4);
@@ -540,24 +665,25 @@ slide dmv_slides[] = {
     [] (presmode mode) {
       setCanvas(mode, '0');
       if(mode == pmStart) {
+        tour::slide_backup(mapeditor::drawplayer, false);
         enable_earth();
       
         View = Id;
-        View = spin(3 * M_PI / 5) * View;
-        View = spin(90*degree) * View;
-        View = cspin(2, 0, 45 * degree) * View;
-        View = cspin(1, 2, 30 * degree) * View;
+        View = spin(108._deg) * View;
+        View = spin(90._deg) * View;
+        View = cspin(2, 0, 45._deg) * View;
+        View = cspin(1, 2, 30._deg) * View;
         playermoved = false;
         tour::slide_backup(vid.axes, 0);
         tour::slide_backup(vid.drawmousecircle, false);
         tour::slide_backup(draw_centerover, false);
         }
       add_temporary_hook(mode, hooks_frame, 200, [] {
-        shiftmatrix T = ggmatrix(currentmap->gamestart()) * spin(-3 * M_PI / 5);
+        shiftmatrix T = ggmatrix(currentmap->gamestart()) * spin(-108._deg);
         vid.linewidth *= 4;
         shiftpoint h1 = T * C0;
-        shiftpoint h2 = T * xpush0(M_PI/2);
-        shiftpoint h3 = T * ypush0(M_PI/2);
+        shiftpoint h2 = T * xpush0(90._deg);
+        shiftpoint h3 = T * ypush0(90._deg);
         queueline(h1, h2, 0xFF0000FF, 3);
         queueline(h2, h3, 0xFF0000FF, 3);
         queueline(h3, h1, 0xFF0000FF, 3);
@@ -573,7 +699,7 @@ slide dmv_slides[] = {
     "Hyperbolic geometry works the opposite way to spherical geometry."
     "In hyperbolic geometry, the sum of angles of a triangle is less than 180 degrees.\n\n",
     [] (presmode mode) {
-      if(mode == pmStartAll) firstland = specialland = laCanvas;
+      if(mode == pmStartAll) enable_canvas();
       setCanvas(mode, 'F');
       if(mode == pmStart) {
         stop_game();
@@ -608,8 +734,8 @@ slide dmv_slides[] = {
         shiftmatrix T = ggmatrix(currentmap->gamestart());
         vid.linewidth *= 16;
         shiftpoint h1 = T * xspinpush0(0, 2);
-        shiftpoint h2 = T * xspinpush0(120*degree, 2);
-        shiftpoint h3 = T * xspinpush0(240*degree, 2);
+        shiftpoint h2 = T * xspinpush0(120._deg, 2);
+        shiftpoint h3 = T * xspinpush0(240._deg, 2);
         queueline(h1, h2, 0xFF0000FF, 4);
         queueline(h2, h3, 0xFF0000FF, 4);
         queueline(h3, h1, 0xFF0000FF, 4);
@@ -653,6 +779,7 @@ slide dmv_slides[] = {
         set_geometry(gFieldQuotient);
         */
         start_game();
+        tour::slide_backup(mapeditor::drawplayer, false);
         pentaroll::create_pentaroll(true);
         tour::slide_backup(anims::period, 30000.);
         tour::slide_backup(sightranges[geometry], 4);
@@ -692,7 +819,6 @@ slide dmv_slides[] = {
       ply_slide(mode, gCubeTiling, mdPerspective, false);
       if(!ply::staircase.available()) return;
       if(mode == pmStart) {
-        tour::slide_backup(smooth_scrolling, true);
         tour::slide_backup(sightranges[geometry], 200);
         tour::slide_backup(vid.cells_drawn_limit, 200);
         tour::slide_backup(camera_speed, 5);
@@ -704,6 +830,7 @@ slide dmv_slides[] = {
 
         // tour::slide_backup(vid.fov, 120);
         }
+      non_game_slide_scroll(mode);
       if(mode == pmKey) {
         println(hlog, ggmatrix(currentmap->gamestart()));
         println(hlog, View);
@@ -759,31 +886,53 @@ slide dmv_slides[] = {
         color_t d = dialog::dialogcolor;
 
         dialog::addTitle("Euclidean geometry", 0xC00000, 200);
-        dialog::addTitle("lines stay parallel", d, 150);
+        dialog::addTitle("parallel lines stay in the same distance", d, 150);
         
         dialog::addBreak(100);
 
         dialog::addTitle("spherical geometry", 0xC00000, 200);
-        dialog::addTitle("lines converge", d, 150);
+        dialog::addTitle("no parallel lines -- they converge", d, 150);
 
         dialog::addBreak(100);
 
         dialog::addTitle("hyperbolic geometry", 0xC00000, 200);
-        dialog::addTitle("lines diverge", d, 150);
+        dialog::addTitle("parallel lines diverge", d, 150);
 
         dialog::display();
         return true;
         });
-      no_other_hud(mode);
+      non_game_slide_scroll(mode);
       }
     },
 
-  {"a Puzzle about a Bear", 123, LEGAL::ANY, 
+  {"Compasses in Nil", 123, LEGAL::ANY | QUICKGEO,
     "However, it turns out that there actually exists a non-Euclidean geometry, "
     "known as the Nil geometry, where constructions such as Penrose staircases and "
     "triangles naturally appear!\n\n"
     "Nil is a three-dimensional geometry, which gives new possibilities -- "
-    "Lines 'diverge in the third dimension' there. "
+    "lines 'diverge in the third dimension' there. "
+    "Every point has "
+    "well-defined North, East, South, West, Up and Down direction.\n\n"
+    "(press Home/End and arrow keys to move)",
+
+    [] (presmode mode) {
+      setCanvas(mode, '0');
+      slidecommand = "highlight dimensions";
+      if(mode == pmStart) {
+        tour::slide_backup(pmodel, mdGeodesic);
+        set_geometry(gNil);
+        start_game();
+        rogueviz::rv_hook(hooks_drawcell, 100, rogueviz::nilcompass::draw_compass);
+        View = Id;
+        shift_view(ztangent(.5));
+        }
+      non_game_slide_scroll(mode);
+      if(mode == pmStart || mode == pmKey)
+        rogueviz::nilcompass::zeroticks = ticks;
+      }
+    },
+
+  {"a Puzzle about a Bear", 123, LEGAL::ANY,
     "To explain Nil geometry, we will start with a well-known puzzle.",
   
     [] (presmode mode) {
@@ -803,7 +952,7 @@ slide dmv_slides[] = {
       }
     },
 
-  {"Cartesian coordinates", 999, LEGAL::NONE, 
+  {"Cartesian coordinates", 999, LEGAL::NONE | QUICKGEO, 
     "The puzzle shows an important fact: every point on Earth has defined directions "
     "(North, East, South, West), and in most life situations, we can assume that these "
     "directions work the same as in the Cartesian system of coordinates."
@@ -814,7 +963,7 @@ slide dmv_slides[] = {
       no_other_hud(mode);
       }
     },
-  {"Nil coordinates", 999, LEGAL::NONE, 
+  {"Nil coordinates", 999, LEGAL::NONE | QUICKGEO,
     "However, because Earth is curved (non-Euclidean), these directions actually "
     "work different! If you are closer to the pole, moving East or West changes "
     "your longitude much more quickly.\n\n"
@@ -832,18 +981,26 @@ slide dmv_slides[] = {
       no_other_hud(mode);
       }
     },
-  {"Nil coordinates (area)", 999, LEGAL::NONE, 
+  {"Nil coordinates (area)", 999, LEGAL::NONE | QUICKGEO,
     "The formulas look strange at a first glance, but the idea is actually simple: "
     "the change in the 'z' coordinate is the area of a triangle, as shown in the picture. "
     "The change is positive if we go counterclockwise, and negative if we go clockwise.\n\n"
-    "If we make a tour in Nil moving only in the directions N, E, S, W, such that "
+    ,
+    [] (presmode mode) {
+      empty_screen(mode);
+      nil_screen(mode, 2);
+      no_other_hud(mode);
+      }
+    },
+  {"Nil coordinates (loop)", 999, LEGAL::NONE | QUICKGEO,
+    "If we make a tour in Nil moving only in the directions N, W, S, E, such that "
     "the analogous tour in Euclidean space would return us to the starting point, "
     "then the tour in Nil would return us directly above or below the starting point, "
     "with the difference in the z-coordinate proportional to the area of the loop."
     ,
     [] (presmode mode) {
       empty_screen(mode);
-      nil_screen(mode, 2);
+      nil_screen(mode, 3);
       no_other_hud(mode);
       }
     },
@@ -854,6 +1011,7 @@ slide dmv_slides[] = {
     ,
     [] (presmode mode) {
       brick_slide(0, mode, gCubeTiling, mdHorocyclic, 0);
+      non_game_slide_scroll(mode);
       }
     },
   {"Simple Penrose stairs in Nil", 999, LEGAL::NONE | QUICKGEO, 
@@ -865,6 +1023,7 @@ slide dmv_slides[] = {
     [] (presmode mode) {
       brick_slide(0, mode, gNil, mdHorocyclic, 0);
       if(mode == pmKey) bricks::animation = !bricks::animation;
+      non_game_slide_scroll(mode);
       }
     },
   {"Simple Penrose stairs in Nil (FPP)", 999, LEGAL::NONE | QUICKGEO, 
@@ -978,6 +1137,7 @@ slide dmv_slides[] = {
           }
         return false;
         });
+      non_game_slide_scroll(mode);
       // pmodel = (pmodel == mdGeodesic ? mdPerspective : mdGeodesic);
       }
     },
@@ -988,6 +1148,7 @@ slide dmv_slides[] = {
       brick_slide(1, mode, gNil, mdHorocyclic, 1);
       // if(mode == pmKey) DRAW 
       // pmodel = (pmodel == mdGeodesic ? mdPerspective : mdGeodesic);
+      non_game_slide_scroll(mode);
       }
     },
   {"Penrose triangle (FPP)", 999, LEGAL::NONE | QUICKGEO, 
@@ -1007,10 +1168,19 @@ slide dmv_slides[] = {
     "(the animation is not included with RogueViz)"
     ,
     [] (presmode mode) {
+      static bool pic_exists, video_exists;
+      if(mode == pmStartAll || mode == pmStart) {
+        pic_exists = file_exists("rogueviz/nil/emty-ring.png");
+        video_exists = file_exists("rogueviz/nil/emty-ring.mp4");
+        }
       slide_url(mode, 'i', "Instagram link", "https://www.instagram.com/p/B756GCynErw/");
       empty_screen(mode);
-      // show_picture(mode, "rogueviz/nil/emty-ring.png");
-      // show_animation(mode, "rogueviz/nil/emty-ring.mp4", 720, 900, 300, 30);
+      if(video_exists)
+        show_animation(mode, "rogueviz/nil/emty-ring.mp4", 720, 900, 300, 30);
+      else if(pic_exists)
+        show_picture(mode, "rogueviz/nil/emty-ring.png");
+      else
+        slide_error(mode, "(image not available)");
       no_other_hud(mode);
       }
     },
@@ -1021,6 +1191,7 @@ slide dmv_slides[] = {
     ,
     [] (presmode mode) {
       impossible_ring_slide(mode);
+      non_game_slide_scroll(mode);
       }
     },
   {"impossible ring in Nil", 18, LEGAL::NONE | QUICKGEO, 
@@ -1037,15 +1208,13 @@ slide dmv_slides[] = {
     if(mode == pmStart) {
       stop_game();
       set_geometry(gNil);
-      tour::slide_backup(mapeditor::drawplayer, false);
       rogueviz::cylon::enable();
-      tour::slide_backup(smooth_scrolling, true);
       tour::on_restore(nilv::set_flags);
       tour::slide_backup(nilv::nilperiod, make_array(3, 3, 3));
       nilv::set_flags();
       start_game();
-      playermoved = false;
       }
+    non_game_slide_scroll(mode);
     }},
 
   {"3D model (geodesic)", 999, LEGAL::NONE | QUICKGEO, 
@@ -1070,6 +1239,7 @@ slide dmv_slides[] = {
     ,
     [] (presmode mode) {
       brick_slide(2, mode, gCubeTiling, mdHorocyclic, 0);
+      non_game_slide_scroll(mode);
       }
     },
   {"two Penrose triangles (Nil)", 999, LEGAL::NONE | QUICKGEO, 
@@ -1080,6 +1250,7 @@ slide dmv_slides[] = {
     "triangles with two different orientations.",
     [] (presmode mode) {
       brick_slide(2, mode, gNil, mdHorocyclic, 0);
+      non_game_slide_scroll(mode);
       }
     },
 
@@ -1088,21 +1259,20 @@ slide dmv_slides[] = {
     ,
     [] (presmode mode) {
       slide_url(mode, 'y', "YouTube link", "https://www.youtube.com/watch?v=mxvUAcgN3go");
+      slide_url(mode, 'n', "Nil Rider", "https://zenorogue.itch.io/nil-rider");
       setCanvas(mode, '0');
       if(mode == pmStart) {
         stop_game();
         set_geometry(gNil);
         check_cgi();
         cgi.require_shapes();
-        tour::slide_backup(mapeditor::drawplayer, false);
-        tour::slide_backup(smooth_scrolling, true);
         start_game();
         rogueviz::balls::initialize(1);
         rogueviz::balls::balls.resize(3);
         pmodel = mdEquidistant;
-        playermoved = false;
-        View = cspin(1, 2, M_PI/2);
+        View = cspin90(1, 2);
         }
+      non_game_slide_scroll(mode);
       }
     },
 
@@ -1132,7 +1302,7 @@ slide dmv_slides[] = {
 int phooks = 
   0 +
   addHook_slideshows(100, [] (tour::ss::slideshow_callback cb) {
-    cb(XLAT("Playing with Impossibility"), &dmv_slides[0], 'p');
+    cb(XLAT("Playing with Impossibility"), &dmv_slides[0], 'i');
     });
  
 }

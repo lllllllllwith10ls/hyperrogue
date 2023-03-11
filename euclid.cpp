@@ -137,10 +137,10 @@ EX namespace euc {
     map<gp::loc, struct cdata> eucdata;
     
     void compute_tmatrix() {
+      cgi.prepare_basics();
       shifttable = get_shifttable();
       tmatrix.resize(S7);
-      for(int i=0; i<S7; i++) 
-        tmatrix[i] = eumove(shifttable[i]);
+      for(int i=0; i<S7; i++) tmatrix[i] = eumove(shifttable[i]);
       }
     
     void on_dim_change() override {
@@ -149,7 +149,7 @@ EX namespace euc {
 
     vector<cell*> toruscells;  
     vector<cell*>& allcells() override { 
-      if(bounded) {
+      if(closed_manifold && !disksize) {
         if(isize(toruscells) == 0) {
           celllister cl(getOrigin()->c7, 1000, 1000000, NULL);
           toruscells = cl.lst;
@@ -236,6 +236,7 @@ EX namespace euc {
       }
 
     transmatrix adj(cell *c, int i) override {
+      if(dont_inverse()) return adj(c->master, i);
       if(WDIM == 3) return adj(c->master, i);
       else return hrmap_standard::adj(c, i);
       }
@@ -634,7 +635,7 @@ EX namespace euc {
       }
     
     set_flag(ginf[g].flags, qANYQ, eu.infinite_dims < dim);
-    set_flag(ginf[g].flags, qBOUNDED, eu.infinite_dims == 0);
+    set_flag(ginf[g].flags, qCLOSED, eu.infinite_dims == 0);
     set_flag(ginf[g].flags, qSMALL, eu.infinite_dims == 0 && eu.det <= 4096);
     bool nonori = false;
     if(eu.twisted&1) nonori = !nonori;
@@ -882,7 +883,7 @@ EX namespace euc {
     auto& T_edit = eu_edit.user_axes;
     auto& twisted_edit = eu_edit.twisted;
     cmode = sm::SIDE | sm::MAYDARK | sm::TORUSCONFIG;
-    gamescreen(1);  
+    gamescreen();
     dialog::init(XLAT("Euclidean quotient spaces"));
     
     for(int y=0; y<dim+1; y++)
@@ -1200,13 +1201,14 @@ EX transmatrix eumove(coord co) {
     }
   transmatrix Mat = Id;
   if(a4) {
-    Mat[0][LDIM] += co[0] * cgi.tessf;
-    Mat[1][LDIM] += co[1] * cgi.tessf;
+    Mat[0][2] += co[0] * cgi.tessf;
+    Mat[1][2] += co[1] * cgi.tessf;
     }
   else {
-    Mat[0][LDIM] += (co[0] + co[1] * .5) * cgi.tessf;
-    Mat[1][LDIM] += co[1] * q3 /2 * cgi.tessf;
+    Mat[0][2] += (co[0] + co[1] * .5) * cgi.tessf;
+    Mat[1][2] += co[1] * q3 /2 * cgi.tessf;
     }
+  if(embedded_plane) Mat = cgi.emb->base_to_actual(Mat);
   return Mat;
   }
 
@@ -1356,7 +1358,8 @@ EX void generate() {
  */
 EX bool in() { 
   if(fake::in()) return FPIU(in()); 
-  return euclid && standard_tiling(); 
+  if(geometry == gCubeTiling && (reg3::cubes_reg3 || !PURE)) return false;
+  return meuclid && standard_tiling();
   }
 
 EX bool in(int dim) { return in() && WDIM == dim; }

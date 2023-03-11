@@ -4,6 +4,8 @@ namespace rogueviz {
 
 namespace magic { void magic(int i); }
 
+namespace crystal_sokoban { void run_sb(); }
+
 namespace colorpicker {
 
 int current_step;
@@ -71,7 +73,7 @@ void run_cpick() {
   stop_game();
   crystal::set_crystal(6);
   set_variation(eVariation::pure);
-  firstland = specialland = laCanvas;
+  enable_canvas();
   patterns::whichCanvas = 'g';
   patterns::canvasback = 0;
   check_cgi();
@@ -122,7 +124,7 @@ void create_sokowalls(cell *c) {
     hyperpoint h0 = get_corner_position(c, b);
     hyperpoint h1 = get_corner_position(c, b+1);
     hyperpoint h2 = normalize(h0 * (qfr-fr) + h1 * fr);
-    return mscale(h2, 1 / (1 - a / 6.1));
+    return orthogonal_move_fol(h2, 1 / (1 - a / 6.1));
     };
   
   for(int a=0; a<9; a++) 
@@ -205,7 +207,7 @@ void run_sb() {
   stop_game();
   crystal::set_crystal(6);
   set_variation(eVariation::pure);
-  firstland = specialland = laCanvas;
+  enable_canvas();
   patterns::whichCanvas = 'g';
   patterns::canvasback = 0;
   check_cgi();
@@ -240,7 +242,7 @@ void sync(int mode, flagtype flags) {
   if(mode == pmStart) {
     crystal::compass_probability = 0;
     crystal::crystal_period = 0;
-    firstland = specialland = laCanvas;
+    enable_canvas();
     mapeditor::drawplayer = (flags & PLAYER);
     vid.smart_range_detail = 1;
     vid.use_smart_range = 2;
@@ -404,7 +406,7 @@ auto explore_structure(int _shapeid) {
       tour::slide_backup(smooth_scrolling, true);
       stop_game();
       set_geometry(geometry == gCrystal534 ? gCrystal534 : gCrystal344);
-      firstland = specialland = laCanvas;
+      enable_canvas();
       patterns::whichCanvas = ' ';
       shapeid = _shapeid;
       enable();
@@ -441,7 +443,7 @@ void house(int sides, int shape = 10) {
   else
     crystal::set_crystal(sides);
   set_variation(eVariation::pure);
-  firstland = specialland = laCanvas;
+  enable_canvas();
   patterns::whichCanvas = ' ';
   shapeid = shape;
   check_cgi();
@@ -638,6 +640,19 @@ tour::slide *gen_high_demo() {
         sync(mode, 0);
         if(mode == pmStart) {
           magic::magic(-1);
+          }
+        }
+      });
+
+  v.emplace_back(
+    slide{"3D Sokoban", 999, LEGAL::NONE,
+      "A three-dimensional Sokoban puzzle visualized using H2.\n\n"
+      "The puzzle is designed so that all three dimensions matter.\n\n"
+      "Press 'r' or Backspace to undo moves.",
+      [] (presmode mode) {
+        sync(mode, 0);
+        if(mode == pmStart) {
+          crystal_sokoban::run_sb();
           }
         }
       });

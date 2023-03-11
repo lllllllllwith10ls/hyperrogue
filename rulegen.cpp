@@ -17,9 +17,10 @@ EX int max_tcellcount = 1000000;
 EX int max_adv_steps = 100;
 EX int max_examine_branch = 5040;
 EX int max_bdata = 1000;
-
-/* other parameters */
-EX int dlbonus = 0;
+EX int max_getside = 10000;
+EX int rulegen_timeout = 60;
+EX int max_shortcut_length = 1200;
+EX int first_restart_on = 512;
 
 #if HDR
 /** exception thrown by this algoritm in case of any problems */
@@ -38,7 +39,7 @@ struct rulegen_surrender : rulegen_failure {
   };
 
 const int MYSTERY = 31999;
-const int MYSTERY_DIST = 31998;
+const int MYSTERY_LARGE = 31999999;
 #endif
 
 /* === tcell === */
@@ -47,6 +48,60 @@ const int MYSTERY_DIST = 31998;
 EX int tcellcount = 0;
 /** number of tcells united into other tcells */
 EX int tunified = 0;
+/** hard cases for get_parent_dir */
+EX int hard_parents = 0;
+/** the number of roots with single live branches */
+EX int single_live_branches = 0;
+/** the number of roots with double live branches */
+EX int double_live_branches = 0;
+/** the number of treestates pre-minimization */
+EX int states_premini = 0;
+
+#if HDR
+/** change some flags -- they usually make it worse */
+static const flagtype w_numerical = Flag(1); /*< build trees numerically */
+static const flagtype w_near_solid = Flag(2); /*< solid's pre-parent is also solid */
+static const flagtype w_no_shortcut = Flag(3); /*< generate no shortcuts */
+static const flagtype w_no_restart = Flag(4); /*< do not restart at powers of two */
+static const flagtype w_no_sidecache = Flag(5); /*< do not cache get_side */
+static const flagtype w_no_relative_distance = Flag(6); /*< do not build relative distances into codes */
+static const flagtype w_examine_once = Flag(7); /*< restart after first conflict found in analysis */
+static const flagtype w_examine_all = Flag(8); /*< focus on all conflicts found in analysis even if we know them */
+static const flagtype w_conflict_all = Flag(9); /*< full extension in case of conflicts */
+static const flagtype w_parent_always = Flag(10); /*< always consider the full parent rule */
+static const flagtype w_parent_reverse = Flag(11); /*< reverse paths in parent_dir */
+static const flagtype w_parent_side = Flag(12); /*< allow side paths in parent_dir */
+static const flagtype w_parent_never = Flag(13); /*< never consider the full parent rule */
+static const flagtype w_always_clean = Flag(14); /*< restart following phases after any distance errors */
+static const flagtype w_single_origin = Flag(15); /*< consider only one origin */
+static const flagtype w_slow_side = Flag(16); /*< do not try get_side optimization */
+static const flagtype w_bfs = Flag(17); /*< compute distances using BFS */
+static const flagtype w_numerical_fix = Flag(18); /*< when doing numerical, find out filled vertices */
+static const flagtype w_known_structure = Flag(19); /*< do flagless first, then use the known distances from there (handled in ruletest) */
+static const flagtype w_known_distances = Flag(20); /*< with, use the actual distances */
+static const flagtype w_no_smart_shortcuts = Flag(21); /*< disable the 'smart shortcut' optimization */
+static const flagtype w_less_smart_retrace = Flag(22); /*< stop early when examining smart shortcut retraction */
+static const flagtype w_less_smart_advance = Flag(23); /*< stop early when examining smart shortcut advancement */
+static const flagtype w_no_queued_extensions = Flag(24); /*< consider extensions one by one */
+static const flagtype w_no_branch_skipping = Flag(24); /*< do not skip branches */
+
+/* for 3D honeycombs */
+static const flagtype w_skip_transducers = Flag(32); /*< skip the transducer test */
+static const flagtype w_skip_transducer_loops = Flag(33); /*< skip loops during the transducer test */
+static const flagtype w_skip_transducer_terminate = Flag(34); /*< skip termination during the transducer test */
+static const flagtype w_r3_all_errors = Flag(35); /*< consider all errors for R3 */
+static const flagtype w_r3_no_road_shortcuts = Flag(36); /*< consider all errors for R3 */
+static const flagtype w_ignore_transducer_dist = Flag(37); /*< ignore distance errors while testing the transducers */
+#endif
+
+/** these control the output */
+EX flagtype rdebug_flags;
+
+EX flagtype flags = 0;
+
+EX int64_t movecount;
+
+EX int current_getside, current_examine_branch;
 
 #if HDR
 struct tcell* tmove(tcell *c, int d);
@@ -62,20 +117,28 @@ struct tcell {
   /** distance from the root */
   short dist;
   /** cached code */
-  short code;
+  int code;
   /** direction to the parent in the tree */
   short parent_dir;
+  /** direction to the OLD parent in the tree */
+  short old_parent_dir;
+  /** direction to anyone closer */
+  short any_nearer;
   /** can we assume that dist is correct? if we assumed that the dist is correct but then find out it was wrong, throw an error */
   bool is_solid;
   bool distance_fixed;
+  /** is side info cached? */
+  unsigned long long known_sides;
+  /** which side is it */
+  unsigned long long which_side;
   /** sometimes we find out that multiple tcells represent the same actual cell -- in this case we unify them; unified_to is used for the union-find algorithm */
   walker<tcell> unified_to;
   int degree() { return type; }
-  connection_table<tcell> c;                           
-  tcell*& move(int d) { return c.move(d); }
-  tcell*& modmove(int d) { return c.modmove(d); }
-  tcell* cmove(int d) { return tmove(this, d); }
-  tcell* cmodmove(int d) { return tmove(this, c.fix(d)); }
+  connection_table<tcell> c;
+  tcell*& move(int d) { movecount++; return c.move(d); }
+  tcell*& modmove(int d) { movecount++; return c.modmove(d); }
+  tcell* cmove(int d) { movecount++; return tmove(this, d); }
+  tcell* cmodmove(int d) { movecount++; return tmove(this, c.fix(d)); }
   tcell() { }
   };
 
@@ -84,12 +147,22 @@ inline void print(hstream& hs, tcell* h) { print(hs, "P", index_pointer(h)); }
 using twalker = walker<tcell>;
 #endif
 
+EX hookset<void(int, twalker)> hooks_gen_tcell;
+
 queue<reaction_t> fix_queue;
 
-bool in_fixing = false;
+void push_unify(twalker a, twalker b) {
+  if(WDIM == 3 && a != b) {
+    println(hlog, "pushing unify of ", tie(a, b));
+    throw hr_exception("bad unify");
+    }
+  if(a.at->id != b.at->id) {
+    throw hr_exception("queued bad unify");
+    }
+  fix_queue.push([=] { unify(a, b); });
+  }
 
-void unify_distances(tcell *c1, tcell *c2);
-void handle_distance_errors();
+bool in_fixing = false;
 
 void process_fix_queue() {
   if(in_fixing) return;
@@ -101,7 +174,7 @@ void process_fix_queue() {
   in_fixing = false;
   }
 
-void ufind(twalker& p) {
+EX void ufind(twalker& p) {
   if(p.at->unified_to.at == p.at) return;
   twalker p1 = p.at->unified_to;
   ufind(p1);
@@ -109,17 +182,47 @@ void ufind(twalker& p) {
   p = p1 + p.spin;
   }
 
-void ufindc(tcell*& c) {
+EX void ufindc(tcell*& c) {
   twalker cw = c; ufind(cw); c = cw.at;
   }
 
 EX tcell *first_tcell = nullptr;
 
-void connect_and_check(twalker p1, twalker p2);
-void unify(twalker pw1, twalker pw2);
+// sometimes the standard x+wstep returns nullptr because of unification
+twalker addstep(twalker x) {
+  x.cpeek();
+  ufind(x);
+  return x + wstep;
+  }
+
+EX int less_states;
+
+EX int number_of_types() {
+  if(arb::in() || WDIM == 2) return isize(arb::current.shapes);
+  if(WDIM == 3) return gcd(reg3::quotient_count_sub(), less_states);
+  throw hr_exception("unknown number_of_types");
+  }
+
+EX int get_id(cell *c) {
+  if(arb::in() || WDIM == 2) return shvid(c);
+  if(WDIM == 3) return zgmod(reg3::get_aid(c), less_states);
+  throw hr_exception("unknown get_id");
+  }
+
+int shape_size(int id) {
+  if(arb::in() || WDIM == 2) return isize(arb::current.shapes[id].connections);
+  if(WDIM == 3) return reg3::get_size_of_aid(id);
+  throw hr_exception("unknown shape_size");
+  }
+
+int cycle_size(int id) {
+  if(arb::in() || WDIM == 2) return arb::current.shapes[id].cycle_length;
+  if(WDIM == 3) return reg3::get_size_of_aid(id);
+  throw hr_exception("unknown shape size");
+  }
 
 tcell *gen_tcell(int id) {
-  int d = isize(arb::current.shapes[id].connections);
+  int d = shape_size(id);
   auto c = tailored_alloc<tcell> (d);
   c->id = id;
   c->next = first_tcell;
@@ -127,26 +230,131 @@ tcell *gen_tcell(int id) {
   c->is_solid = false;
   c->distance_fixed = false;
   c->dist = MYSTERY;
-  c->code = MYSTERY;
+  c->code = MYSTERY_LARGE;
   c->parent_dir = MYSTERY;
+  c->old_parent_dir = MYSTERY;
+  c->known_sides = 0;
+  c->which_side = 0;
   first_tcell = c;
   // println(hlog, c, " is a new tcell of id ", id);
   tcellcount++;
   return c;
   }
 
+EX map<cell*, tcell*> cell_to_tcell;
+EX map<tcell*, cell*> tcell_to_cell;
+
+void numerical_fix(twalker pw) {
+  auto& shs = arb::current.shapes;
+  int id = pw.at->id;
+  int valence = shs[id].vertex_valence[pw.spin];
+    
+  int steps = 0;
+  twalker pwf = pw;
+  twalker pwb = pw;
+  vector<twalker> deb = {pwb};
+  while(true) {
+    if(!pwb.peek()) break;
+    pwb = pwb + wstep - 1;
+    deb.push_back(pwb);
+    steps++;
+    if(pwb == pwf) {
+      if(steps == valence) return; /* that's great, we already know this loop */
+      else {
+        debuglist = deb;
+        println(hlog, "deb = ", deb);
+        throw rulegen_failure("vertex valence too small");
+        }
+      }
+    if(steps == valence) {
+      println(hlog, "steps = ", steps, " valence = ", valence, " (D)");
+      debuglist = deb;
+      println(hlog, "deb = ", deb);
+      throw rulegen_failure("incorrect looping");
+      }
+    }
+  
+  while(true) {
+    pwf++;
+    if(!pwf.peek()) break;
+    pwf += wstep;
+    steps++;
+    if(pwb == pwf) {
+      if(steps == valence) return; /* that's great, we already know this loop */
+      else throw rulegen_failure("vertex valence too small");
+      }
+    if(steps == valence) {
+      println(hlog, "steps = ", steps, " valence = ", valence, " (C)");
+      debuglist = deb;
+      println(hlog, "deb = ", deb);
+      throw rulegen_failure("incorrect looping");
+      }
+    }
+  
+  if(steps == valence - 1) {
+    pwb.at->c.connect(pwb.spin, pwf.at, pwf.spin, false);
+    fix_distances(pwb.at);
+    }
+  }
+
 tcell* tmove(tcell *c, int d) {
-  if(c->move(d)) return c->move(d);
-  auto& co = arb::current.shapes[c->id].connections[d];
+  if(d<0 || d >= c->type) throw hr_exception("wrong d");
+  if(c->c.move(d)) return c->c.move(d);
+  if(flags & (w_numerical | w_known_structure)) {
+    indenter ind(2);
+    if(flags & w_known_structure) swap_treestates();
+    cell *oc = tcell_to_cell[c];
+    int d1 = d;
+
+    if(flags & w_known_structure) {
+      d1 = gmod(d1 - treestates[oc->master->fieldval].parent_dir, oc->type);
+      }
+
+    cell *oc1 = oc->cmove(d1);
+    auto& c1 = cell_to_tcell[oc1];
+    if(!c1) {
+      c1 = gen_tcell(get_id(oc1));
+      tcell_to_cell[c1] = oc1;
+      if(flags & w_known_distances)
+        c1->dist = oc1->master->distance;
+      }
+
+    int d2 = oc->c.spin(d1);
+    if(flags & w_known_structure) {
+      d2 = gmod(d2 + treestates[oc1->master->fieldval].parent_dir, oc1->type);
+      }
+
+    c->c.connect(d, cell_to_tcell[oc1], d2, false);
+    /* if(arb::current.shapes[c->id].connections[d].eid != d2)
+      throw hr_exception("Wrong type!"); */
+
+    if(flags & w_known_structure)
+      swap_treestates();
+
+    if(!(flags & w_known_distances))
+      fix_distances(c);
+
+    ensure_shorter(c1);
+
+    if(flags & w_numerical_fix) {
+      numerical_fix(twalker(c, d));
+      numerical_fix(twalker(c, d) + wstep);
+      }
+    return c1;
+    }
   auto cd = twalker(c, d);
   ufind(cd);
+  auto& co = arb::current.shapes[c->id].connections[cd.spin];
   tcell *c1 = gen_tcell(co.sid);
+  c1->c.connect(co.eid, cd.at, cd.spin, false);
+  callhooks(hooks_gen_tcell, 1, twalker(c1, co.eid));
   connect_and_check(cd, twalker(c1, co.eid));
   return c1;
   }
 
 /** check whether we have completed the vertex to the right of edge d of c */
 void check_loops(twalker pw) {
+  if(GDIM == 3) throw hr_exception("check_loops called");
   ufind(pw);
   auto& shs = arb::current.shapes;
   int id = pw.at->id;
@@ -164,7 +372,7 @@ void check_loops(twalker pw) {
       else throw hr_exception("vertex valence too small");
       }
     if(steps == valence) {
-      fix_queue.push([=] { unify(pwf, pwb); });
+      push_unify(pwf, pwb);
       return;
       }
     }
@@ -179,26 +387,34 @@ void check_loops(twalker pw) {
       else throw hr_exception("vertex valence too small");
       }
     if(steps == valence) {
-      fix_queue.push([=] { unify(pwf, pwb); });
+      push_unify(pwf, pwb);
       return;
       }
     }
   
   if(steps == valence - 1) {
+    callhooks(hooks_gen_tcell, 2, pwb);
     connect_and_check(pwb, pwf);
+    fix_distances(pwb.at);
     }
   }
 
-void connect_and_check(twalker p1, twalker p2) {
+EX void connect_and_check(twalker p1, twalker p2) {
+  if(GDIM == 3) throw hr_exception("connect_and_check called");
+  ufind(p1); ufind(p2);
   p1.at->c.connect(p1.spin, p2.at, p2.spin, false);
   fix_queue.push([=] { check_loops(p1); });
   fix_queue.push([=] { check_loops(p2); });
   process_fix_queue();
   }
 
-void unify(twalker pw1, twalker pw2) {
+EX void unify(twalker pw1, twalker pw2) {
   ufind(pw1);
   ufind(pw2);
+  if(pw1 == pw2) return;
+  if(GDIM == 3) throw hr_exception("unify called");
+  callhooks(hooks_gen_tcell, 3, pw1);
+  callhooks(hooks_gen_tcell, 4, pw2);
   if(pw1.at->unified_to.at != pw1.at)
     throw hr_exception("not unified to itself");
   if(pw2.at->unified_to.at != pw2.at)
@@ -212,9 +428,12 @@ void unify(twalker pw1, twalker pw2) {
   if(pw1.at->id != pw2.at->id)
     throw hr_exception("unifying two cells of different id's");
 
-  auto& shs = arb::current.shapes;
-  int id = pw1.at->id;
-  for(int i=0; i<shs[id].size(); i++) {
+  if((pw1.spin - pw2.spin) % cycle_size(pw1.at->id))
+    throw hr_exception("unification spin disagrees with cycle_length");
+
+  unify_distances(pw1.at, pw2.at, pw2.spin - pw1.spin);
+
+  for(int i=0; i<pw1.at->type; i++) {
     if(!pw2.peek()) {
       /* no need to reconnect */
       }
@@ -222,7 +441,7 @@ void unify(twalker pw1, twalker pw2) {
       connect_and_check(pw1, pw2+wstep);
       }
     else {
-      fix_queue.push([=] { unify(pw1+wstep, pw2+wstep); });
+      push_unify(pw1+wstep, pw2+wstep);
       auto ss = pw1+wstep;
       connect_and_check(pw1, pw2+wstep);
       connect_and_check(pw1, ss);
@@ -232,12 +451,13 @@ void unify(twalker pw1, twalker pw2) {
     }
   pw2.at->unified_to = pw1 - pw2.spin;
   tunified++;
-  unify_distances(pw1.at, pw2.at);
+  fix_distances(pw1.at);
   }
 
-EX vector<tcell*> t_origin;
+EX vector<twalker> t_origin;
 
-void delete_tmap() {
+EX void delete_tmap() {
+  clean_analyzers();
   while(first_tcell) {
     auto second = first_tcell->next;
     tailored_delete(first_tcell);
@@ -251,6 +471,8 @@ void delete_tmap() {
 /* used in the debugger */
 EX vector<twalker> debuglist;
 
+EX vector<twalker> solid_errors_list;
+
 /* === distances === */
 
 bool no_errors = false;
@@ -259,176 +481,290 @@ struct hr_solid_error : rulegen_retry {
   hr_solid_error() : rulegen_retry("solid error") {}
   };
 
-int solid_errors;
+/** since the last restart */
+EX int solid_errors;
 
-int get_parent_dir(tcell *c);
+/** total solid errors */
+EX int all_solid_errors;
 
+/** the next distance to warn about */
+EX int next_distance_warning;
+
+/** current distance warnings */
+EX int distance_warnings;
+
+#if HDR
 struct shortcut {
   vector<int> pre;
   vector<int> post;
   tcell *sample;
   int delta;
+  int last_dir;
   };
+#endif
 
-map<int, vector<shortcut> > shortcuts;
+EX vector<vector<unique_ptr<shortcut>> > shortcuts;
 
-vector<int> root_path(twalker cw) {
+vector<reaction_t> skipped_branches;
+using branch_check = tuple<int, int, int>;
+set<branch_check> checks_to_skip;
+
+vector<int> root_path(twalker& cw) {
   cw += wstep;
   vector<int> res;
   while(true) {
-    int i = cw.at->dist == 0 ? 0 : get_parent_dir(cw.at);
-    int j = cw.to_spin(i);
-    res.push_back(j);
-    if(cw.at->dist == 0) return res;
-    cw += j;
-    cw += wstep;
+    if(cw.at->dist == 0) {
+      int j = cw.to_spin(0);
+      res.push_back(j);
+      return res;
+      }
+    else {
+      auto cwd = get_parent_dir(cw);
+      int j = cw.to_spin(cwd.spin);
+      res.push_back(j);
+      cw = cwd + wstep;
+      }
     }
   }
 
-void check_solid(tcell *c, int d) {
+EX void calc_distances(tcell *c);
+
+EX void shortcut_found(tcell *c, tcell *alt, vector<twalker> &walkers, vector<twalker> &walkers2, const vector<int>& walkerdir, const vector<int>& walkerdir2, int wpos) {
+
+  vector<int> pre;
+  for(int i=wpos; i>=1; i--) pre.push_back(walkerdir[i]);
+  reverse(pre.begin(), pre.end());
+
+  vector<int> post;
+  for(int i=isize(walkers2)-1; i>=1; i--) post.push_back(walkerdir2[i]);
+  reverse(post.begin(), post.end());
+
+  int delta = walkers[wpos].to_spin(walkers2.back().spin);
+
+  for(auto& s: shortcuts[c->id]) if(s->pre == pre && s->post == post) {
+    if(rdebug_flags & 16)
+      println(hlog, "already knew that ", pre, " ~ ", post);
+    return;
+    }
+
+  if(debugflags & DF_GEOM)
+    println(hlog, "new shortcut found, pre =  ", pre, " post = ", post, " pre reaches ", walkers[wpos], " post reaches ", walkers2.back(), " of type ", walkers[wpos].at->id, " sample = ", c);
+
+  if(isize(pre) > max_shortcut_length) {
+    debuglist = { c };
+    throw rulegen_failure("shortcut too long");
+    }
+
+  shortcuts[c->id].emplace_back(unique_ptr<shortcut> (new shortcut));
+  auto& sh = shortcuts[c->id].back();
+  sh->pre = pre;
+  sh->post = post;
+  sh->sample = c;
+  sh->delta = delta;
+  sh->last_dir = c->any_nearer;
+  auto& sh1 = *sh;
+
+  if(debugflags & DF_GEOM) println(hlog, "exhaustive search:");
+  indenter ind(2);
+  tcell* c1 = first_tcell;
+  while(c1) {
+    if(c1->id == c->id) look_for_shortcuts(c1, sh1);
+    c1 = c1->next;
+    }
+  }
+
+EX void find_new_shortcuts(tcell *c, int d, tcell *alt, int newdir, int delta) {
+
+  if(!solid_errors) debuglist = {};
+  solid_errors_list.push_back(c);
+  solid_errors++;
+  all_solid_errors++;
+  check_timeout(); /* may freeze no this */
+  if(flags & w_no_shortcut) return;
+  if(flags & w_known_distances) return;
+
   ufindc(c);
   if(debugflags & DF_GEOM)
-    println(hlog, "solid ", c, " changes ", c->dist, " to ", d);
-  if(c->dist == MYSTERY_DIST) exit(2);
-  set<tcell*> seen;
+    println(hlog, "solid ", c, " changes ", c->dist, " to ", d, " alt=", alt);
+
+  if(newdir == c->any_nearer) {
+    if(debugflags & DF_GEOM)
+      println(hlog, "same direction");
+    return;
+    }
+  /* {
+    throw rulegen_failure("direction did not change");
+    } */
+
+  if(c->dist == MYSTERY)
+    throw rulegen_failure("find_new_shortcuts with MYSTERY distance");
+
+  map<tcell*, int> seen;
   vector<twalker> walkers;
   vector<int> walkerdir = {-1};
-  seen.insert(c);
+  seen[c] = 0;
   walkers.push_back(c);
-
+  
   for(int j=0; j<isize(walkers); j++) {
     auto w = walkers[j];
+    if(w.at->dist == 0) break;
     for(int s=0; s<w.at->type; s++) {
       twalker w1 = w + s;
-      if(w1.peek() && w1.peek()->dist == w.at->dist - 1 && !seen.count(w1.peek())) {
-        seen.insert(w1.peek());
+       if(w1.peek() && w1.spin == w.at->any_nearer && !seen.count(w1.peek())) {
+        seen[w1.peek()] = isize(walkers);
         walkers.push_back(w1 + wstep);
         walkerdir.push_back(s);
         }
       }
     }
 
+  set<tcell*> seen2; /* prevent loops */
   c->dist = d;
-  set<tcell*> seen2;
+  c->any_nearer = gmod(newdir, c->type);
+  fix_distances(c);
   vector<twalker> walkers2;
   vector<int> walkerdir2 = {-1};
-  walkers2.push_back(c);
+  walkers2.push_back(twalker(alt, delta));
   for(int j=0; j<isize(walkers2); j++) {
     auto w = walkers2[j];
+    if(w.at->dist == 0) break;
     for(int s=0; s<w.at->type; s++) {
       twalker w1 = w + s;
+      ufind(w1);
+      if(w1.spin != w.at->any_nearer) continue;
       if(!w1.peek()) continue;
-      if(w1.peek()->dist == w.at->dist - 1 && !seen2.count(w1.peek())) {
-        seen2.insert(w1.peek());
+      if(seen2.count(w1.peek())) break;
+      seen2.insert(w1.peek());
+      if(true) {
         walkers2.push_back(w1 + wstep);
         walkerdir2.push_back(s);
-        if(seen.count(w1.peek()))  goto found;
+        if(seen.count(w1.peek())) {
+          shortcut_found(c, alt, walkers, walkers2, walkerdir, walkerdir2, seen[w1.peek()]);
+          return;
+          }
         }
       }
     }
+  }
 
-  return;
-
-  found:
-
-  auto at0 = walkers2.back().at;
-
-  tcell* at = at0;
-
-  twalker at1;
-  for(int i=isize(walkers)-1; i>=1; i--) if(at == walkers[i].at) at1 = walkers[i];
-
-  vector<int> pre;
-  for(int i=isize(walkers)-1; i>=1; i--) if(at == walkers[i].at) {
-    pre.push_back(walkerdir[i]); at = walkers[i].peek();
+EX void remove_parentdir(tcell *c) {
+  if(c->parent_dir != MYSTERY) {
+    clear_sidecache_and_codes();
+    c->old_parent_dir = c->parent_dir;
     }
-  if(at != c) return;
-
-  at = at0;
-  vector<int> post;
-  for(int i=isize(walkers2)-1; i>=1; i--) if(at == walkers2[i].at) {
-    post.push_back(walkerdir2[i]); at = walkers2[i].peek();
-    }
-  if(at != c) return;
-  reverse(pre.begin(), pre.end());
-  reverse(post.begin(), post.end());
-
-  int delta = at1.to_spin(walkers2.back().spin);
-
-  for(auto s: shortcuts[c->id]) if(s.pre == pre && s.post == post) return;
-
-  if(debugflags & DF_GEOM)
-    println(hlog, "new shortcut found, pre =  ", pre, " post = ", post, " pre reaches ", at1, " post reaches ", walkers2.back(), " of type ", at1.at->id, " sample = ", c);
-
-  shortcuts[c->id].emplace_back(shortcut{pre, post, c, delta});
-
-  if(debugflags & DF_GEOM) println(hlog, "exhaustive search:");
-  indenter ind(2);
-  tcell* c1 = first_tcell;
-  while(c1) {
-    if(c1->id == c->id) look_for_shortcuts(c1);
-    c1 = c1->next;
+  c->parent_dir = MYSTERY;
+  c->code = MYSTERY_LARGE;
+  for(int i=0; i<c->type; i++) if(c->move(i)) {
+    if(c->move(i)->parent_dir) c->move(i)->old_parent_dir = c->move(i)->parent_dir;
+    c->move(i)->parent_dir = MYSTERY;
+    c->move(i)->code = MYSTERY_LARGE;
     }
   }
 
-void fix_distances(tcell *c) {
+queue<tcell*> bfs_queue;
+
+EX void fix_distances(tcell *c) {
+  if(flags & w_bfs) while(true) {
+    if(in_fixing) return;
+    ufindc(c);
+    if(c->dist != MYSTERY) return;
+    if(tcellcount >= max_tcellcount) throw rulegen_surrender("max_tcellcount exceeded");
+    if(bfs_queue.empty()) throw rulegen_failure("empty bfs queue");
+    auto c1 = bfs_queue.front();
+    ufindc(c1);
+    bfs_queue.pop();
+    for(int i=0; i<c1->type; i++) {
+      tcell *c2 = c1->cmove(i);
+      if(c2->dist == MYSTERY) {
+        c2->dist = c1->dist + 1;
+        bfs_queue.push(c2);
+        }
+      }
+    }
   c->distance_fixed = true;
+  if(flags & w_known_distances) return;
   vector<tcell*> q = {c};
   
   for(int qi=0; qi<isize(q); qi++) {
     c = q[qi];
-    auto& d = c->dist;
     restart:
     for(int i=0; i<c->type; i++) {
-      tcell *c1 = c->cmove(i);
+      if(!c->move(i)) continue;
       ufindc(c);
-      c1 = c->cmove(i);
-      if(c1->dist == MYSTERY) continue;
-      auto& d1 = c1->dist;
-      if(d > d1+1) { d = d1+1; goto restart; }
-      if(d1 > d+1) {
-        if(c1->is_solid) {
-          check_solid(c1, d+1);
-          solid_errors++;
+
+      auto process_edge = [&] (twalker tgtw, twalker srcw) {
+        tcell *tgt = tgtw.at;
+        tcell *src = srcw.at;
+        auto& tgt_d = tgt->dist;
+        int new_d = src->dist + 1;
+        if(tgt_d > new_d) {
+          if(tgt->is_solid)
+            find_new_shortcuts(tgt, new_d, tgt, tgtw.spin, 0);
+          ufind(tgtw); tgt = tgtw.at;
+          remove_parentdir(tgt);
+          tgt_d = new_d;
+          tgt->any_nearer = tgtw.spin;
+          if(new_d >= next_distance_warning) {
+            if(new_d >= MYSTERY-1) throw rulegen_failure("distance limit exceeded");
+            if(next_distance_warning < 10000) next_distance_warning *= 2;
+            else if(next_distance_warning < 20000) next_distance_warning = 20000;
+            else next_distance_warning = new_d; distance_warnings++;
+            }
+          return true;
           }
-        d1 = d+1; 
-        q.push_back(c1);
-        }
+        return false;
+        };
+
+      twalker ci1(c->cmove(i), c->c.spin(i));
+      twalker ci(c, i);
+
+      if(process_edge(ci, ci1)) goto restart;
+      if(process_edge(ci1, ci)) q.push_back(ci1.at);
       }
     }
   }
 
 void calc_distances(tcell *c) {
   if(c->dist != MYSTERY) return;
-  c->dist = MYSTERY_DIST;
   fix_distances(c);
   }
 
-void unify_distances(tcell *c1, tcell *c2) {
+EX void unify_distances(tcell *c1, tcell *c2, int delta) {
   int d1 = c1->dist;
   int d2 = c2->dist;
   int d = min(d1, d2);
+  if(c1->is_solid && d != d1) { solid_errors++; find_new_shortcuts(c1, d, c2, c2->any_nearer - delta, +delta); remove_parentdir(c1); }
+  if(d != d1) fix_distances(c1);
   c1->dist = d;
+  if(c2->is_solid && d != d2) { solid_errors++; find_new_shortcuts(c2, d, c1, c1->any_nearer + delta, -delta); remove_parentdir(c2); }
+  if(d != d2) fix_distances(c2);
   c2->dist = d;
-  if(c1->is_solid && d != d1) solid_errors++;
-  if(c2->is_solid && d != d2) solid_errors++;
-  c1->distance_fixed = c1->distance_fixed || c2->distance_fixed;
-  c1->is_solid = c1->is_solid || c2->is_solid;
-  if(c1->dist < MYSTERY) 
-    fix_distances(c1);
+  c1->distance_fixed = c2->distance_fixed = c1->distance_fixed || c2->distance_fixed;
+  c1->is_solid = c2->is_solid = c1->is_solid || c2->is_solid;
   }
 
-void handle_distance_errors() {
+EX void handle_distance_errors() {
   bool b = solid_errors;
   solid_errors = 0;
   if(b && !no_errors) {
-    analyzers.clear();
+    clear_sidecache_and_codes();
+    if(flags & w_always_clean) clean_data();
+    debuglist = solid_errors_list;
+    solid_errors_list = {};
+    checks_to_skip.clear();
     throw hr_solid_error();
+    }
+  b = distance_warnings;
+  distance_warnings = 0;
+  if(b && !no_errors) {
+    clean_parents();
+    checks_to_skip.clear();
+    throw rulegen_retry("distance exceeded");
     }
   }
 
 /** make sure that we know c->dist */
-void be_solid(tcell *c) {
+EX void be_solid(tcell *c) {
   if(c->is_solid) return;
   if(tcellcount >= max_tcellcount) 
     throw rulegen_surrender("max_tcellcount exceeded");
@@ -437,101 +773,258 @@ void be_solid(tcell *c) {
   ufindc(c);
   look_for_shortcuts(c);
   ufindc(c);
-  if(c->dist == MYSTERY_DIST) {
-    println(hlog, "set solid but no dist ", c);
-    exit(3);
+  if(c->dist == MYSTERY) {
+    if(debugflags & DF_GEOM)
+      println(hlog, "set solid but no dist ", c);
+    debuglist = { c };
+    throw rulegen_failure("set solid but no dist");
     }
   c->is_solid = true;
+  if(c->dist > 0 && !(flags & w_near_solid) && c->any_nearer >= 0 && c->any_nearer < c->type) {
+    tcell *c1 = c->move(c->any_nearer);
+    if(c1) be_solid(c1);
+    }
+  }
+
+EX void look_for_shortcuts(tcell *c, shortcut& sh) {
+  if(c->dist <= 0) return;
+
+  if(!(flags & w_no_smart_shortcuts)) {
+    twalker tw0(c, 0);
+    twalker tw(c, 0);
+    ufind(tw);
+    ufind(tw0);
+
+    for(auto& v: sh.pre) {
+      tw += v;
+      if(!tw.peek() && !(flags & w_less_smart_retrace)) return;
+      ufind(tw);
+      tw += wstep;
+      calc_distances(tw.at);
+      }
+
+    int more_steps = isize(sh.post);
+    int d = cycle_size(c->id);
+    if(sh.last_dir % d < c->any_nearer % d) more_steps--;
+
+    tw += sh.delta;
+
+    for(auto it = sh.post.rbegin(); it != sh.post.rend(); it++) {
+      auto& v = *it;
+      ufind(tw);
+      if(!tw.peek() && tw.at->dist + more_steps > c->dist && !(flags & w_less_smart_advance)) return;
+      tw += wstep;
+      calc_distances(tw.at);
+      more_steps--;
+      tw -= v;
+      }
+
+    process_fix_queue();
+    if(tw.at->dist < c->dist) {
+      if(debugflags & DF_GEOM)
+        println(hlog, "smart shortcut updated ", c->dist, " to ", tw.at->dist);
+      }
+    push_unify(tw, tw0);
+
+    process_fix_queue();
+    }
+
+  else {
+    twalker tw0(c, 0);
+    twalker tw(c, 0);
+    ufind(tw);
+    ufind(tw0);
+
+    vector<tcell*> opath;
+
+    for(auto& v: sh.pre) {
+      opath.push_back(tw.at);
+      tw += v;
+      if(!tw.peek()) return;
+      if(tw.peek()->dist != tw.at->dist-1) return;
+      ufind(tw);
+      tw += wstep;
+      }
+    opath.push_back(tw.at);
+
+    ufind(tw0);
+    vector<tcell*> npath;
+    for(auto& v: sh.post) {
+      npath.push_back(tw0.at);
+      tw0 += v;
+      ufind(tw0);
+      tw0 += wstep;
+      calc_distances(tw0.at);
+      }
+    npath.push_back(tw0.at);
+    int d = sh.delta;
+    auto tw1 = tw + d;
+    if(tw1.at->id != tw0.at->id)
+      println(hlog, "ERROR: improper shortcut");
+    else
+      push_unify(tw1, tw0);
+    process_fix_queue();
+    for(auto t: npath) {
+      ufindc(t);
+      fix_distances(t);
+      }
+
+    ufindc(c);
+    }
   }
 
 EX void look_for_shortcuts(tcell *c) {
-  if(c->dist > 0) for(int i=0; i<isize(shortcuts[c->id]); i++) {
-    auto sh = shortcuts[c->id][i];
-    if(1) {
-      twalker tw0(c, 0);
-      twalker tw(c, 0);
-      ufind(tw);
-      ufind(tw0);
+  if(c->dist > 0)
+  for(int i=0; i<isize(shortcuts[c->id]); i++)
+    look_for_shortcuts(c, *shortcuts[c->id][i]);
+  }
 
-      vector<tcell*> opath;
-
-      for(auto& v: sh.pre) {
-        opath.push_back(tw.at);
-        tw += v;
-        if(!tw.peek()) goto next_shortcut;
-        if(tw.peek()->dist != tw.at->dist-1) goto next_shortcut;
-        ufind(tw);
-        tw += wstep;
-        }
-      opath.push_back(tw.at);
-
-      ufind(tw0);
-      vector<tcell*> npath;
-      for(auto& v: sh.post) {
-        npath.push_back(tw0.at);
-        tw0 += v;
-        ufind(tw0);
-        tw0 += wstep;
-        calc_distances(tw0.at);
-        }
-      npath.push_back(tw0.at);
-      int d = sh.delta;
-      auto tw1 = tw + d;
-      fix_queue.push([=] { unify(tw1, tw0); });
-      process_fix_queue();
-      for(auto t: npath) {
-        ufindc(t);
-        fix_distances(t);
-        }
-
-      ufindc(c);
-      }
-
-    next_shortcut: ;
+EX void ensure_shorter(twalker cw) {
+  /* if cw.peek() has shorter dist, ensure it exists */
+  /* only with w_known_distances */
+  if(flags & w_known_distances) {
+    swap_treestates();
+    int d1 = cw.spin;
+    auto oc = tcell_to_cell[cw.at];
+    d1 = gmod(d1 - treestates[oc->master->fieldval].parent_dir, oc->type);
+    cell *c1 = oc->cmove(d1);
+    // println(hlog, "cw=", cw, " oc=", oc, " c1=", c1, " d=", oc->master->distance, "=", cw.at->dist, " vs ", c1->master->distance);
+    bool ok = c1->master->distance < cw.at->dist;
+    swap_treestates();
+    if(ok)
+      cw.at->cmove(cw.spin);
     }
   }
 
+void trace_root_path(vector<int>& rp, twalker cw) {
+  auto d = cw.peek()->dist;
+  cw += wstep; auto scw = cw;
+
+  bool side = (flags & w_parent_side);
+
+  next:
+  if(d > 0) {
+    ufind(cw);
+    handle_distance_errors();
+    auto cwd = get_parent_dir(cw);
+    for(int i=0; i<cw.at->type; i++) {
+      if((!side) && (cw+i) != cwd) continue;
+      tcell *c1 = cwd.peek();
+      if(!c1) continue;
+      be_solid(c1);
+      handle_distance_errors();
+      if(c1->dist < d) {
+        rp.push_back(i);
+        cw += i;
+        cw += wstep;
+        d--;
+        goto next;
+        }
+      }
+    }
+  if(d > 0) {
+    debuglist = {scw};
+    throw rulegen_failure("should not happen [trace]");
+    }
+  rp.push_back(cw.to_spin(0));
+  if(flags & w_parent_reverse) reverse(rp.begin(), rp.end());
+  }
+
+EX int parent_updates;
+
 /** which neighbor will become the parent of c */
 
-int get_parent_dir(tcell *c) {
-  if(c->parent_dir != MYSTERY) return c->parent_dir;
+EX twalker get_parent_dir(twalker& cw) {
+  tcell*& c = cw.at;
+  if(c->parent_dir != MYSTERY) return twalker(c, c->parent_dir);
   int bestd = -1;
   vector<int> bestrootpath;
   
-  look_for_shortcuts(c);
   be_solid(c);
 
+  auto oc = c;
+
   if(c->dist > 0) {
-    auto& sh = arb::current.shapes[c->id];
-    int n = sh.size();
-    int k = sh.cycle_length;
-    vector<int> olen;
-    for(int i=0; i<k; i++) {
-      vector<int> nearer;
-      for(int j=0; j<n/k; j++) {
-        tcell *c1 = c->cmove(i+j*k);
-        be_solid(c1);
-        olen.push_back(c1->dist);
-        if(c1->dist < c->dist) {
-          nearer.push_back(j);
-          }
-        }
-      if(nearer.size() == 1) {bestd = i+nearer[0]*k; break; }
-      if(nearer.size() == 2 && nearer[1] == nearer[0] + 1) {
-        bestd = i + nearer[0] * k;
-        break;
-        }
-      if(nearer.size() == 2 && nearer[0] == 0 && nearer[1] == n/k-1) {
-        bestd = i + nearer[1] * k;
-        break;
-        }
-      if(nearer.size() > 1) throw rulegen_failure("still confused");
+    int n = c->type;
+    int k = cycle_size(c->id);
+
+    vector<int> nearer;
+
+    auto beats = [&] (int i, int old) {
+      if(old == -1) return true;
+      if(i%k != old%k) return i%k < old%k;
+      return true;
+      /* if(old < i) old += n;
+      return old <= i+n/2; */
+      };
+
+    int d = c->dist;
+
+    for(int i=0; i<n; i++) {
+      ensure_shorter(cw+i);
+      tcell *c1 = c->cmove(i);
+      be_solid(c1);
+      if(rdebug_flags & 16) println(hlog, "direction = ", i, " is ", c1, " distance = ", c1->dist);
+      if(c1->dist < d) nearer.push_back(i);
+      ufind(cw); if(d != cw.at->dist || oc != cw.at) return get_parent_dir(cw);
       }
-    if(bestd == -1) throw rulegen_failure("should not happen");
+
+    if(rdebug_flags & 16) println(hlog, "nearer = ", nearer, " n=", n, " k=", k);
+
+    bool failed = false;
+    if(flags & w_parent_always) {failed = true; goto resolve; }
+
+    // celebrity identification problem
+
+    for(auto ne: nearer)
+      if(beats(ne, bestd))
+        bestd = ne;
+
+    if(rdebug_flags & 16) for(auto ne: nearer) println(hlog, "beats", tie(ne, bestd), " = ", beats(ne, bestd));
+
+    for(auto ne: nearer)
+      if(ne != bestd && beats(ne, bestd))
+        failed = true;
+
+    if(failed) {
+
+      if(flags & w_parent_never) {
+        debuglist = { c };
+        throw rulegen_failure("still confused");
+        }
+
+      resolve:
+      hard_parents++;
+      vector<int> best;
+      int bestfor = nearer[0];
+      trace_root_path(best, twalker(c, nearer[0]));
+
+      for(auto ne1: nearer) {
+        vector<int> other;
+        trace_root_path(other, twalker(c, ne1));
+        if(other < best) best = other, bestfor = ne1;
+        }
+
+      bestd = bestfor;
+      }
+
+    if(bestd == -1) {
+      debuglist = { c };
+      throw rulegen_failure("should not happen");
+      }
     }
     
+  if(rdebug_flags & 16) println(hlog, "set parent_dir to ", bestd);
   c->parent_dir = bestd;
-  return bestd;
+
+  if(c->old_parent_dir != MYSTERY && c->old_parent_dir != bestd && c == oc) {
+    c->any_nearer = c->old_parent_dir;
+    find_new_shortcuts(c, c->dist, c, bestd, 0);
+    }
+
+  parent_updates++;
+
+  return twalker(c, bestd);
   }
 
 /** determine states for tcells */
@@ -539,98 +1032,110 @@ int get_parent_dir(tcell *c) {
 #if HDR
 using aid_t = pair<int, int>;
 
-struct analyzer {
-  vector<twalker> spread;
-  vector<int> parent_id;
-  vector<int> spin;
-  void add_step(int pid, int s);
+/* for leaves, id equals MYSTERY and dir equals treestate ID for this code */
+
+struct analyzer_state {
+  int analyzer_id;
+  int id, dir;
+  map<int, analyzer_state*> substates;
+  analyzer_state() { id = MYSTERY; dir = MYSTERY_LARGE; } // for(int i=0; i<10; i++) substates[i] = nullptr; }
+  vector<twalker> inhabitants;
   };
+
 #endif
 
-void analyzer::add_step(int pid, int s) {
-  twalker cw = spread[pid];
-  cw = cw + s;
-  cw.peek();
-  ufind(cw);
-  cw = cw + wstep;
-  spread.push_back(cw);
-  parent_id.push_back(pid);
-  spin.push_back(s);
-  }
+int next_analyzer_id;
 
-EX map<aid_t, analyzer> analyzers;
+EX vector<vector<analyzer_state*>> analyzers;
+EX vector<analyzer_state*> all_analyzers;
+
+analyzer_state *alloc_analyzer() {
+  auto a = new analyzer_state;
+  a->analyzer_id = next_analyzer_id++;
+  all_analyzers.push_back(a);
+  return a;
+  }
 
 EX aid_t get_aid(twalker cw) {
   ufind(cw);
   auto ide = cw.at->id;
-  return {ide, gmod(cw.to_spin(0), arb::current.shapes[ide].cycle_length)};
+  return {ide, gmod(cw.to_spin(0), cycle_size(ide))};
   }
 
-EX analyzer& get_analyzer(twalker cw) {
-  auto aid = get_aid(cw);
-  auto& a = analyzers[aid];
-  if(a.spread.empty()) {
-    a.spread.push_back(cw);
-    a.parent_id.push_back(-1);
-    a.spin.push_back(-1);
-    for(int i=0; i<cw.at->type; i++)
-      a.add_step(0, i);
-    }
-  return a;
-  }
+vector<int> gen_rule(twalker cwmain, int id);
 
-EX vector<twalker> spread(analyzer& a, twalker cw) {
-  vector<twalker> res;
-  int N = isize(a.spread);
-  res.reserve(N);  
-  res.push_back(cw);
-  for(int i=1; i<N; i++) {
-    auto& r = res[a.parent_id[i]];
-    ufind(r);
-    auto r1 = r + a.spin[i];
-    r1.peek(); ufind(r1);
-    res.push_back(r1 + wstep);
-    }
-  return res;
-  }
+void extend_analyzer(twalker cwmain, int z, twalker giver) {
+  ufind(giver);
+  ufind(cwmain);
 
-void extend_analyzer(twalker cw_target, int dir, int id, int mism, twalker rg) {
-  if(debugflags & DF_GEOM)
-    println(hlog, "extend called, cw_target = ", cw_target);
-  twalker cw_conflict = cw_target + dir + wstep;
-  auto &a_target = get_analyzer(cw_target);
-  auto &a_conflict = get_analyzer(cw_conflict);
-  // twalker model = a_target.spread[0] + dir + wstep;
-  // auto res = spread(a_conflict, model);
-  vector<int> ids_to_add;
-  int k = id;
-  while(k) {
-    ids_to_add.emplace_back(a_conflict.spin[k]);
-    k = a_conflict.parent_id[k];
-    }
-  int gid = 1 + dir;
-  bool added = false;
-  while(!ids_to_add.empty()) {
-    int spin = ids_to_add.back();
-    ids_to_add.pop_back();
-    int next_gid = -1;
-    for(int i=0; i<isize(a_target.parent_id); i++)
-      if(a_target.parent_id[i] == gid && a_target.spin[i] == spin) {
-        next_gid = i;
-        }
-    if(next_gid == -1) {
-      next_gid = isize(a_target.parent_id);
-      a_target.add_step(gid, spin);
-      added = true;
+  vector<twalker> giver_sprawl, main_sprawl, sub_sprawl;
+  vector<analyzer_state*> giver_states, main_states, sub_states;
+  
+  id_at_spin(cwmain, main_sprawl, main_states);
+
+  id_at_spin((cwmain+z)+wstep, sub_sprawl, sub_states);
+
+  id_at_spin((giver+z)+wstep, giver_sprawl, giver_states);
+
+  int currently_at = 1+z;
+
+  vector<int> idlist;
+
+  for(int i=0;; i++) {
+    if(i == isize(sub_states) || i == isize(giver_states)) {
+      /* may happen if something changed but not updated */
+
+      cwmain.at->code = MYSTERY_LARGE;
+      giver.at->code = MYSTERY_LARGE;
+      (cwmain+z+wstep).at->code = MYSTERY_LARGE;
+      (giver+z+wstep).at->code = MYSTERY_LARGE;
+
+      throw rulegen_retry("reached the end");
       }
-    gid = next_gid;
+    if(giver_states[i] != sub_states[i]) {
+      i--;
+      while(i != 0) {
+        idlist.push_back(i);
+        i = giver_states[i]->id;
+        }
+      break;
+      }
     }
-  if(mism == 0 && !added) 
-    throw rulegen_failure("no extension");
+
+  reverse(idlist.begin(), idlist.end());
+
+  auto v = main_states.back();
+  auto v1 = v;
+  int new_id = isize(main_states)-1;
+
+  for(auto l: idlist) {
+
+    /* check if already tested */
+    for(int u=1; u<isize(main_states); u++)
+      if(main_states[u]->id == currently_at && main_states[u]->dir == sub_states[l]->dir) {
+        currently_at = u;
+        goto next_l;
+        }
+
+    v->id = currently_at;
+    v->dir = sub_states[l]->dir;
+
+    for(auto p: sub_states[l]->substates) {
+      int i = p.first;
+      if(sub_states[l]->substates[i] == sub_states[l+1]) {
+        v = v->substates[i] = alloc_analyzer();
+        currently_at = new_id++;
+        goto next_l;
+        }
+      }
+
+    next_l: ;
+    }
+
+  update_all_codes(v1);
   }
 
 #if HDR
-using code_t = pair<aid_t, vector<int> >;
 
 struct treestate {
   int id;
@@ -639,8 +1144,8 @@ struct treestate {
   twalker giver;
   int sid;
   int parent_dir;
-  tcell* where_seen;
-  code_t code;
+  int astate;
+  twalker where_seen;
   bool is_live;
   bool is_possible_parent;
   bool is_root;
@@ -657,98 +1162,225 @@ static const int C_PARENT = 8;
 
 EX vector<treestate> treestates;
 
-set<twalker> sideswap;
+EX set<tcell*> single_live_branch_close_to_root;
 
 /** is what on the left side, or the right side, of to_what? */
 
-int get_side(tcell *what, tcell *to_what) {
-  twalker w(what, -1);
-  twalker tw(to_what, -1);
-  auto adv = [] (twalker& cw) {
-    int d = get_parent_dir(cw.at);
-    cw.spin = d;
-    cw += wstep;
-    };
-  while(w.at != tw.at) {
-    ufind(w); ufind(tw);
-    if(w.at->dist > tw.at->dist)
-      adv(w);
-    else if(w.at->dist < tw.at->dist)
-      adv(tw);
-    else {
-      adv(w); adv(tw);
-      }
+void treewalk(twalker& cw, int delta) {
+  auto cwd = get_parent_dir(cw);
+  if(cw == cwd) cw = addstep(cw);
+  else {
+    auto cw1 = addstep(cw);
+    auto cwd = get_parent_dir(cw1);
+    if(cwd == cw1) cw = cw1;
     }
-  if(w.spin == -1 || tw.spin == -1) return 0;
-  int d = get_parent_dir(w.at);
-  
-  if(d >= 0) {
-    twalker last(w.at, d);
-    return last.to_spin(w.spin) - last.to_spin(tw.spin);
+  cw+=delta;
+  }
+
+EX vector<tcell*> sidecaches_to_clear;
+
+void clear_sidecache() {
+  if(sidecaches_to_clear.size()) {
+    for(auto c: sidecaches_to_clear)
+      c->which_side = c->known_sides = 0;
+    sidecaches_to_clear.clear();
+    }
+  }
+
+void set_sidecache(twalker what, int side) {
+  auto c = what.at;
+  if(c->known_sides == 0) sidecaches_to_clear.push_back(c);
+  unsigned long long bit = 1ll<<what.spin;
+  c->known_sides |= bit;
+  if(side > 0)
+    c->which_side |= bit;
+  }
+
+int get_sidecache(twalker what) {
+  auto c = what.at;
+  unsigned long long bit = 1ll<<what.spin;
+  if(c->known_sides & bit)
+    return (c->which_side & bit) ? 1 : -1;
+  return 0;
+  }
+
+int get_side(twalker what) {
+  if(WDIM == 3) throw hr_exception("called get_side");
+
+  bool side = !(flags & w_no_sidecache);
+  bool fast = (flags & w_slow_side);
+
+  if(side) {
+    auto w = get_sidecache(what);
+    if(w) return w;
+    }
+
+  int res = 99;
+  int steps = 0;
+
+  if(fast) {
+    twalker w = what;
+    twalker tw = what + wstep;
+    auto adv = [] (twalker& cw) {
+      cw = get_parent_dir(cw);
+      if(cw.peek()->dist >= cw.at->dist) {
+        handle_distance_errors();
+        if(debugflags & DF_GEOM)
+          println(hlog, "get_parent_dir error at ", cw, " and ", cw.at->move(cw.spin), ": ", cw.at->dist, "::", cw.at->move(cw.spin)->dist);
+        throw rulegen_failure("get_parent_dir error");
+        }
+      cw += wstep;
+      };
+    while(w.at != tw.at) {
+      steps++; if(steps > max_getside) {
+        debuglist = {what, w, tw};
+        throw rulegen_failure("qsidefreeze");
+        }
+      ufind(w); ufind(tw);
+      if(w.at->dist > tw.at->dist)
+        adv(w);
+      else if(w.at->dist < tw.at->dist)
+        adv(tw);
+      else {
+        adv(w); adv(tw);
+        }
+      }
+
+    if(w.at->dist && !single_live_branch_close_to_root.count(w.at)) {
+      twalker wd = get_parent_dir(w);
+      ufind(tw);
+      res = wd.to_spin(w.spin) - wd.to_spin(tw.spin);
+      }
     }
 
   // failed to solve this in the simple way (ended at the root) -- go around the tree
-  twalker wl(what, get_parent_dir(what));
+  twalker wl = what;
   twalker wr = wl;
-  auto go = [&] (twalker& cw, int delta) {
-    int d = get_parent_dir(cw.at);
-    if(cw.spin == d || get_parent_dir(cw.cpeek()) == (cw+wstep).spin)
-      cw += wstep;
-    cw+=delta;
-    };
-  while(true) {
-    go(wl, -1);
-    go(wr, +1);
-    if(wl.at == to_what) return +1;
-    if(wr.at == to_what) return -1;
-    }
-  }
+  auto to_what = what + wstep;
+  auto ws = what; treewalk(ws, 0); if(ws == to_what) res = 0;
 
-code_t id_at_spin(twalker cw) {
-  code_t res;
-  ufind(cw);
-  res.first = get_aid(cw);
-  auto& a = get_analyzer(cw);
-  vector<twalker> sprawl = spread(a, cw);
-  int id = 0;
-  for(auto cs: sprawl) {
-    be_solid(cs.at);
-    be_solid(cw.at);
-    ufind(cw);
-    ufind(cs);
-    int x;
-    int pid = a.parent_id[id];
-    if(pid > -1 && (res.second[pid] != C_CHILD)) {
-      x = C_IGNORE;
-      }
-    else {
-      int p = get_parent_dir(cs.at);
-      if(p >= 0 && get_parent_dir(cs.at) == cs.spin)
-        x = C_CHILD;
+  static vector<twalker> lstack = {nullptr}, rstack = {nullptr};
+  lstack.resize(1); rstack.resize(1);
+  while(res == 99) {
+    handle_distance_errors();
+    steps++; if(steps > current_getside) {
+      debuglist = {what, to_what, wl, wr};
+      checks_to_skip.clear();
+      if(parent_updates) throw rulegen_retry("xsidefreeze");
+      else if(steps > max_getside) {
+        throw rulegen_failure("xsidefreeze");
+        }
       else {
-        auto cs2 = cs + wstep;
-        ufind(cs); ufind(cs2); be_solid(cs2.at);
-        fix_distances(cs.at);
-        int y = cs.at->dist - cs.peek()->dist;
-        if(y == 1) x = C_NEPHEW;
-        else if(y == 0) x = C_EQUAL;
-        else if(y == -1) x = C_UNCLE;
-        else throw rulegen_failure("distance problem y=" + its(y) + lalign(0, " cs=", cs, " cs2=", cs2, " peek=", cs.peek(), " dist=", cs.at->dist, " dist2=", cs2.at->dist));
-        auto gs = get_side(cs.at, cs.peek());
-        if(gs == 0 && x == C_UNCLE) x = C_PARENT;
-        if(gs > 0) x++;
+        current_getside *= 2;
+        throw rulegen_retry("xsidefreeze double");
         }
       }
-    res.second.push_back(x);
-    id++;
+    bool gl = wl.at->dist <= wr.at->dist;
+    bool gr = wl.at->dist >= wr.at->dist;
+    if(gl) {
+      if(side && get_sidecache(wl) == 1) wl += wstep;
+      treewalk(wl, -1);
+      if(wl == to_what) { res = 1; }
+      if(!side) ;
+      else if(lstack.back() == wl+wstep) {
+        set_sidecache(lstack.back(), 1);
+        set_sidecache(wl, -1);
+        lstack.pop_back();
+        }
+      else if(wl.at->parent_dir != wl.spin && (wl+wstep).at->parent_dir != (wl+wstep).spin) lstack.push_back(wl);
+      }
+    if(gr) {
+      if(side && get_sidecache(wr) == -1) wr += wstep;
+      treewalk(wr, +1);
+      if(wr == to_what) {res = -1; }
+      if(!side) ;
+      else if(rstack.back() == wr+wstep) {
+        set_sidecache(rstack.back(), -1);
+        set_sidecache(wr, +1);
+        rstack.pop_back();
+        }
+      else if(wr.at->parent_dir != wr.spin && (wr+wstep).at->parent_dir != (wr+wstep).spin) rstack.push_back(wr);
+      }
     }
+
+  if(side && res)
+    set_sidecache(what, res), set_sidecache(what + wstep, -res);
   return res;
   }
 
-map<code_t, int> code_to_id;
-  
-EX pair<int, int> get_code(tcell *c) {
-  if(c->code != MYSTERY) {
+EX int move_code(twalker cs) {
+   bool child = false;
+   if(cs.at->dist) {
+     auto csd = get_parent_dir(cs);
+     child = cs == csd;
+     }
+   if(child)
+     return C_CHILD;
+   else {
+     auto cs2 = cs + wstep;
+     be_solid(cs.at); ufind(cs); ufind(cs2); be_solid(cs2.at);
+     fix_distances(cs.at);
+
+     if(WDIM == 3) {
+       if(cs2.at->parent_dir == cs2.spin) return C_PARENT;
+       else return get_roadsign(cs+wstep);
+       }
+
+     int y = cs.at->dist - cs.peek()->dist;
+     int x;
+
+     if(!(flags & w_no_relative_distance)) x = C_EQUAL;
+     else if(y == 1) x = C_NEPHEW;
+     else if(y == 0) x = C_EQUAL;
+     else if(y == -1) x = C_UNCLE;
+     else throw rulegen_failure("distance problem y=" + its(y) + lalign(0, " cs=", cs, " cs2=", cs2, " peek=", cs.peek(), " dist=", cs.at->dist, " dist2=", cs2.at->dist));
+     auto gs = get_side(cs);
+     if(gs == 0 && x == C_UNCLE) x = C_PARENT;
+     if(gs > 0) x++;
+     return x;
+     }
+  }
+
+EX void id_at_spin(twalker cw, vector<twalker>& sprawl, vector<analyzer_state*>& states) {
+  ufind(cw);
+  auto aid = get_aid(cw);
+  auto a_ptr = &(analyzers[aid.first][aid.second]);
+  sprawl = { cw };
+  states = { nullptr };
+
+  indenter ind(2);
+  while(true) {    
+    auto& a = *a_ptr;
+    if(!a) {
+      a = alloc_analyzer();
+      }
+    states.push_back(a);
+    if(isize(sprawl) <= cw.at->type) {
+      a->id = 0, a->dir = isize(sprawl)-1;
+      // println(hlog, "need to go in direction ", a->dir);
+      }
+    if(a->id == MYSTERY) {
+      return;
+      }
+    if(a->id >= isize(sprawl)) {
+      println(hlog, sprawl);
+      println(hlog, "id = ", a->id);
+      throw hr_exception("sprawl error");
+      }
+    auto t = sprawl[a->id];
+    twalker tw = t + a->dir;
+    ufind(tw);
+    tw.cpeek();
+    ufind(tw);
+    int mc = move_code(tw + wstep);
+    sprawl.push_back(tw + wstep);
+    a_ptr = &(a->substates[mc]);
+    }
+  }
+
+EX pair<int, int> get_code(twalker& cw) {
+  tcell *c = cw.at;
+  if(c->code != MYSTERY_LARGE && c->parent_dir != MYSTERY) {
     int bestd = c->parent_dir;
     if(bestd == -1) bestd = 0;
     return {bestd, c->code};
@@ -756,91 +1388,103 @@ EX pair<int, int> get_code(tcell *c) {
 
   be_solid(c);
 
-  int bestd = get_parent_dir(c);
-  if(bestd == -1) bestd = 0;
+  twalker cd = c->dist == 0 ? twalker(c, 0) : get_parent_dir(cw);
+  if(cd.at != c) ufind(cw);
+  
   indenter ind(2);
 
-  code_t v = id_at_spin(twalker(c, bestd));
+  static vector<twalker> sprawl;
+  static vector<analyzer_state*> states;
+  id_at_spin(cd, sprawl, states);
+  auto v = states.back();
   
-  if(code_to_id.count(v)) {
-    c->code = code_to_id[v];
-    return {bestd, code_to_id[v]};
-    }
+  v->inhabitants.push_back(cw);
   
-  int id = isize(treestates);
-  code_to_id[v] = id;
-  if(c->code != MYSTERY && (c->code != id || c->parent_dir != bestd)) exit(1);
-  c->code = id;
+  cd.at->code = v->analyzer_id;
+  return {cd.spin, v->analyzer_id};
+  }
 
-  treestates.emplace_back();
-  auto& nts = treestates.back();
-  
-  nts.id = id;
-  nts.code = v;
-  nts.where_seen = c;
-  nts.known = false;
-  nts.is_live = true;
-  
-  return {bestd, id};
+EX pair<int, int> get_treestate_id(twalker& cw) {
+  auto co = get_code(cw);
+  auto v = all_analyzers[co.second];
+  if(v->dir == MYSTERY_LARGE) {
+    int id = isize(treestates);
+    v->dir = id;
+    treestates.emplace_back();
+    auto& nts = treestates.back();
+    nts.id = id;
+    nts.where_seen = cw;
+    nts.known = false;
+    nts.is_live = true;
+    nts.astate = co.second;
+    }
+  co.second = v->dir;
+  return co;
   }
 
 /* == rule generation == */
-
-struct mismatch_error : rulegen_retry {
-  mismatch_error() : rulegen_retry("mismatch error") {}
-  };
-
-struct double_edges: rulegen_surrender {
-  double_edges() : rulegen_surrender("double edges detected") {}
-  };
 
 EX int rule_root;
 
 vector<int> gen_rule(twalker cwmain);
 
 EX int try_count;
-vector<tcell*> important;
+EX vector<twalker> important;
 
-vector<tcell*> cq;
+vector<twalker> cq;
 
 #if HDR
 /* special codes */
 static const int DIR_UNKNOWN = -1;
-static const int DIR_MULTI_GO_LEFT = -2;
-static const int DIR_MULTI_GO_RIGHT = -3;
 static const int DIR_LEFT = -4;
 static const int DIR_RIGHT = -5;
 static const int DIR_PARENT = -6;
 #endif
 
-vector<int> gen_rule(twalker cwmain) {
+vector<int> gen_rule(twalker cwmain, int id) {
   vector<int> cids;
   for(int a=0; a<cwmain.at->type; a++) {
     auto front = cwmain+a;
-    tcell *c1 = front.cpeek();
-    be_solid(c1);
+    twalker c1 = front + wstep;
+    be_solid(c1.at);
     if(a == 0 && cwmain.at->dist) { cids.push_back(DIR_PARENT); continue; }
-    if(c1->dist <= cwmain.at->dist) { cids.push_back(DIR_UNKNOWN); continue; }
-    auto co = get_code(c1);
+    if(c1.at->dist <= cwmain.at->dist) { cids.push_back(DIR_UNKNOWN); continue; }
+    auto co = get_treestate_id(c1);
     auto& d1 = co.first;
     auto& id1 = co.second;
-    if(c1->cmove(d1) != cwmain.at || c1->c.spin(d1) != front.spin) {
+    if(c1.at->cmove(d1) != cwmain.at || c1.at->c.spin(d1) != front.spin) {
       cids.push_back(DIR_UNKNOWN); continue;
       }
     cids.push_back(id1);
     }
+
+  if(WDIM != 3) for(int i=0; i<isize(cids); i++) if(cids[i] == DIR_UNKNOWN)
+    cids[i] = get_side(cwmain+i) < 0 ? DIR_RIGHT : DIR_LEFT;
+
+  if(WDIM == 3) for(int i=0; i<isize(cids); i++) if(cids[i] == DIR_UNKNOWN)
+    cids[i] = get_roadsign(cwmain+i);
+
   return cids;
   }
 
-void rules_iteration_for(tcell *c) {
+vector<reaction_t> queued_extensions;
+
+void handle_queued_extensions() {
+  if(queued_extensions.empty()) return;
+  for(auto& r: queued_extensions) r();
+  throw rulegen_retry("mismatch error");
+  }
+
+EX void rules_iteration_for(twalker& cw) {
   indenter ri(2);
-  auto co = get_code(c);
+  ufind(cw);
+  auto co = get_treestate_id(cw);
   auto& d = co.first;
   auto& id = co.second;
-  twalker cwmain(c,d);
+  twalker cwmain(cw.at, d);
   ufind(cwmain);
 
-  vector<int> cids = gen_rule(cwmain);
+  vector<int> cids = gen_rule(cwmain, id);
   auto& ts = treestates[id];
 
   if(!ts.known) {
@@ -849,60 +1493,53 @@ void rules_iteration_for(tcell *c) {
     ts.giver = cwmain;
     ts.sid = cwmain.at->id;
     ts.parent_dir = cwmain.spin;
-    ts.is_root = c->dist == 0;
-    for(int d=0; d<c->type; d++)
-      cq.push_back(c->cmove(d));
+    ts.is_root = cw.at->dist == 0;
     }
   else if(ts.rules != cids) {
     handle_distance_errors();
     auto& r = ts.rules;
     if(debugflags & DF_GEOM) {
       println(hlog, "merging ", ts.rules, " vs ", cids);
-      println(hlog, "C ", treestates[id].code, " [", id, "]");
       }
     int mismatches = 0;
     for(int z=0; z<isize(cids); z++) {
       if(r[z] == cids[z]) continue;
-      if(r[z] < 0 || cids[z] < 0) 
-        throw rulegen_failure("neg rule mismatch");
-
-      auto& c1 = treestates[r[z]].code.second;
-      auto& c2 = treestates[cids[z]].code.second;
-      if(debugflags & DF_GEOM) {
-        println(hlog, "direction ", z, ":");
-        println(hlog, "A ", treestates[r[z]].code, " [", r[z], "]");
-        println(hlog, "B ", treestates[cids[z]].code, " [", cids[z], "]");
+      if(r[z] < 0 || cids[z] < 0) {
+        debuglist = { cwmain, ts.giver };
+        cwmain.at->code = MYSTERY_LARGE;
+        ts.giver.at->code = MYSTERY_LARGE;
+        throw rulegen_retry("neg rule mismatch");
         }
+
+      auto tg = ts.giver;
       
-      if(isize(c1) != isize(c2)) {
-        throw rulegen_failure("length mismatch");
+      if(!(flags & w_no_queued_extensions)) {
+        queued_extensions.push_back([cwmain, z, tg] {
+          extend_analyzer(cwmain, z, tg);
+          });
+        return;
         }
-      for(int k=0; k<isize(c1); k++) {
-        if(c1[k] == C_IGNORE || c2[k] == C_IGNORE) continue;
-        if(c1[k] != c2[k]) {
-          if(debugflags & DF_GEOM) {
-            println(hlog, "code mismatch (", c1[k], " vs ", c2[k], " at position ", k, " out of ", isize(c1), ")");
-            println(hlog, "rulegiver = ", treestates[id].giver, " c = ", cwmain);
-            println(hlog, "gshvid = ", c->id);
-            println(hlog, "cellcount = ", tcellcount, "-", tunified, " codes discovered = ", isize(treestates));
-            }
 
-          extend_analyzer(cwmain, z, k, mismatches, treestates[id].giver);
-          mismatches++;
-          }
-        }
+      extend_analyzer(cwmain, z, tg);
+      mismatches++;
+
+      debuglist = { cwmain, ts.giver };
+
+      if(!(flags & w_conflict_all))
+        throw rulegen_retry("mismatch error");
       }
 
     debuglist = { cwmain, ts.giver };
     
     if(mismatches)
-      throw mismatch_error();
+      throw rulegen_retry("mismatch error");
     
     throw rulegen_failure("no mismatches?!");
     }
   }
 
 void minimize_rules() {
+  states_premini = isize(treestates);
   if(debugflags & DF_GEOM)
     println(hlog, "minimizing rules...");
   int next_id = isize(treestates);
@@ -960,8 +1597,6 @@ void minimize_rules() {
       for(auto& r: ts.rules)
         if(r >= 0) r = new_id[r];
       }
-    
-    for(auto& p: code_to_id) p.second = new_id[p.second];
     }
   }
 
@@ -1000,264 +1635,303 @@ void find_possible_parents() {
 
 /* == branch testing == */
 
-struct bad_tree : rulegen_retry {
-  bad_tree() : rulegen_retry("bad tree") {}
-  };
+using tsinfo = pair<int, int>;
 
-bool equiv(twalker w1, twalker w2);
-
-inline bool IS_DIR_MULTI(int d) { return among(d, DIR_MULTI_GO_LEFT, DIR_MULTI_GO_RIGHT); }
-struct branchdata {
-  int id;
-  int dir;
-  twalker at;
-  int temporary;
-  void step() { 
-    if(treestates[id].rules[dir] < 0)
-      throw rulegen_failure("invalid step");
-    id = treestates[id].rules[dir]; dir = 0; at += wstep;
-    auto co = get_code(at.at);
-    auto& d1 = co.first;
-    auto& id1 = co.second;
-    if(id != id1 || d1 != at.spin) {
-      important.push_back(at.at);
-      if(debugflags & DF_GEOM)
-        println(hlog, "expected ", id, " found ", id1, " at ", at);
-      important.push_back(at.at->cmove(get_parent_dir(at.at)));
-      throw bad_tree();
-      }
-    }
-  void spin(int i) {
-    at += i;
-    dir += i;
-    dir = gmod(dir, isize(treestates[id].rules));
-    }
-  void spin_full(int i) {
-    spin(i);
-    while(IS_DIR_MULTI(treestates[id].rules[dir]))
-      spin(i);
-    }
-  };
-
-inline void print(hstream& hs, const branchdata& bd) { print(hs, "[", bd.id,":",bd.dir, " ", bd.at, ":", bd.temporary, "]"); }
-
-/* we need to be careful with multiple edges */
-
-bool paired(twalker w1, twalker w2) {
-  if(w1 + wstep == w2) return true;
-  if(w1.cpeek() == w2.at && w2.cpeek() == w1.at) {
-    return true;
-    }
-  return false;
+tsinfo get_tsinfo(twalker& tw) {
+  auto co = get_treestate_id(tw);
+  int spin;
+  if(co.first == -1) spin = tw.spin;
+  else spin = gmod(tw.spin - co.first, tw.at->type);
+  return {co.second, spin};
   }
 
-bool equiv(twalker w1, twalker w2) {
-  if(w1 == w2) return true;
-  if(w1.at == w2.at && w1.cpeek() == w2.cpeek()) {
-    return true;
+int get_rule(const twalker tw, tsinfo s) {
+
+  auto& r = treestates[s.first].rules;
+  if(r.empty()) {
+    important.push_back(tw.at);
+    throw rulegen_retry("unknown rule in get_rule");
     }
-  return false;
+
+  return r[s.second];
   }
 
-void advance(vector<branchdata>& bdata, branchdata at, int dir, bool start_forward, bool stack, int distlimit) {
-  if(start_forward) {
-    at.step();
-    at.spin_full(dir);
-    }
-  else {
-    at.spin_full(dir);
-    }
-  vector<branchdata> b;
-  int steps = 0;
+set<vector<tsinfo> > verified_branches;
+
+void push_deadstack(vector<tsinfo>& hash, twalker w, tsinfo tsi, int dir) {
+
+  hash.push_back(tsi);
+
   while(true) {
-    steps++; if(steps == max_adv_steps) 
-      throw rulegen_failure("max_adv_steps exceeded");
-    auto& ts = treestates[at.id];
-    auto r = ts.rules[at.dir];
-    if(r < 0) {
-      at.temporary = 0;
-      b.push_back(at);
-      break;
-      }
-    else if(!treestates[r].is_live) {
-      advance(b, at, dir, true, false, distlimit);
-      if(b.back().dir == 0)
-        b.pop_back();
-      else
-        advance(b, at, -dir, true, true, distlimit);
-      at.spin_full(dir);
+    ufind(w);
+    if(isize(hash) > 10000) throw rulegen_failure("deadstack overflow");
+    tsi.second += dir; w += dir;
+    auto& ts = treestates[tsi.first];
+    if(ts.is_root) return;
+    if(tsi.second == 0 || tsi.second == isize(ts.rules)) {
+      w += wstep;
+      tsi = get_tsinfo(w);
+      hash.push_back(tsi);
       }
     else {
-      at.step();
-      if(at.at.at->dist < distlimit || !ts.is_live) at.spin_full(dir);
-      else {
-        at.temporary = dir;
-        b.push_back(at);
-        break;
-        }
+      if(ts.rules.empty()) throw rulegen_retry("empty rule");
+      int r = ts.rules[tsi.second];
+      if(r > 0 && treestates[r].is_live) return;
       }
-    }
-  if(stack) {
-    while(b.size()) { bdata.push_back(b.back()); b.pop_back(); }
-    }
-  else {
-    for(auto& bd: b) bdata.push_back(bd);
     }
   }
 
-map<int, branchdata> split;
+struct verify_advance_failed : hr_exception {};
 
-void assign_lr(branchdata bd, int dir) {
-  if(dir) { bd.spin_full(dir); if(bd.dir == 0) bd.dir = bd.at.at->type; }
-  auto& r = treestates[bd.id].rules;
-  for(int i=0; i<isize(r); i++) {
-    if(!among(r[i], DIR_UNKNOWN, DIR_LEFT, DIR_RIGHT)) continue;
-    int val = i < bd.dir ? DIR_LEFT : DIR_RIGHT;
-    if(r[i] == DIR_UNKNOWN)
-      r[i] = val;
-    else if(r[i] != val) {
-      if(debugflags & DF_GEOM) {
-        println(hlog, "state ", bd.id, " index ", i, ":", bd.dir, "/", bd.at.at->type, " was ", split[bd.id]);
-        println(hlog, important);
+using conflict_id_type = pair<pair<int, int>, pair<int, int>>;
+
+set<conflict_id_type> branch_conflicts_seen;
+
+void verified_treewalk(twalker& tw, int id, int dir) {
+  if(id >= 0) {
+    auto tw1 = tw + wstep;
+    auto co = get_treestate_id(tw1);
+    if(co.second != id || co.first != tw1.spin) {
+      handle_distance_errors();
+
+      conflict_id_type conflict_id = make_pair(make_pair((tw+wstep).spin,id), co);
+
+      if((flags & w_examine_all) || !branch_conflicts_seen.count(conflict_id)) {
+        branch_conflicts_seen.insert(conflict_id);
+        important.push_back(tw.at);
+        if(debugflags & DF_GEOM)
+          println(hlog, "branch conflict ", conflict_id, " found");
         }
-      important.push_back(bd.at.at);
-      important.push_back(split[bd.id].at.at);
-      throw mismatch_error();
+      else if(debugflags & DF_GEOM)
+        println(hlog, "branch conflict ", conflict_id, " found again");
+      debuglist = {tw, tw+wstep};
+      throw verify_advance_failed();
       }
     }
-  split[bd.id] = bd;
+  treewalk(tw, dir);
   }
 
-set<vector<int> > branch_hashes;
-
-void examine_branch(int id, int left, int right) {
+bool examine_branch(int id, int left, int right) {
+  if(WDIM == 3) return true;
   auto rg = treestates[id].giver;
+
   if(debugflags & DF_GEOM)
-    println(hlog, "need to examine branches ", tie(left, right), " of ", id, " starting from ", rg);
-  vector<branchdata> bdata;
-  int dist_at = rg.at->dist;
-  while(left != right) {
-    /* can be false in case of multi-edges */
-    if(treestates[id].rules[left] >= 0) {      
+    println(hlog, "need to examine branches ", tie(left, right), " of ", id, " starting from ", rg, " step = ", rg+left+wstep, " vs ", rg+right+wstep);
 
-      if(bdata.size() && bdata.back().dir == 0)
-        bdata.pop_back();
-      else {
-        auto bl = branchdata{id, left, rg+left, dist_at+dlbonus};
-        advance(bdata, bl, -1, true, true, dist_at+5);
-        }
-      }
-    left++;
-    if(left == rg.at->type) left = 0;
-    if(treestates[id].rules[left] >= 0) {
-      auto br = branchdata{id, left, rg+left, dist_at+dlbonus};
-      advance(bdata, br, +1, true, false, dist_at+5);
-      }
-    }
+  indenter ind(2);
+
+  auto wl = rg+left;
+  auto wr = rg+left+1;
+
+  vector<twalker> lstack, rstack;
+
   int steps = 0;
+  try {
   while(true) {
+    handle_distance_errors();
     steps++;
-    if(steps == max_examine_branch)
-      throw rulegen_failure("max_examine_branch exceeded");
-    
-    if(isize(bdata) > max_bdata)
-      throw rulegen_failure("max_bdata exceeded");
-
-    /* advance both */
-    vector<branchdata> bdata2;
-    int advcount = 0, eatcount = 0;
-    for(int i=0; i<isize(bdata); i+=2) {
-      if(!bdata[i].temporary && !bdata[i+1].temporary && paired(bdata[i].at, bdata[i+1].at) && min(bdata[i].at.at->dist, bdata[i+1].at.at->dist) <= dist_at) {
-        advcount++;
-        if(bdata2.size() && !bdata2.back().temporary && equiv(bdata2.back().at, bdata[i].at)) { 
-          assign_lr(bdata[i], 0);
-          eatcount++; bdata2.pop_back(); 
-          }
-        else
-          advance(bdata2, bdata[i], -1, false, true, dist_at+dlbonus);
-        if(i+2 < isize(bdata) && !bdata[i+1].temporary && !bdata[i+2].temporary && equiv(bdata[i+1].at, bdata[i+2].at)) { 
-          assign_lr(bdata[i+1], +1);
-          eatcount++; i += 2; bdata2.push_back(bdata[i+1]); 
-          }
-        else
-          advance(bdata2, bdata[i+1], +1, false, false, dist_at+dlbonus);
+    if(steps > current_examine_branch) {
+      debuglist = { rg+left, wl, wr };
+      if(skipped_branches.size()) {
+        checks_to_skip.clear();
+        throw rulegen_retry("max_examine_branch exceeded after a skipped check");
         }
+      else if(branch_conflicts_seen.size())
+        /* may be not a real problem, but caused by incorrect detection of live branches */
+        throw rulegen_retry("max_examine_branch exceeded after a conflict");
+      else if(steps > max_examine_branch)
+        throw rulegen_failure("max_examine_branch exceeded");
       else {
-        if(bdata[i].temporary && bdata[i].at.at->dist <= dist_at+dlbonus-2) {
-           advcount++;
-           advance(bdata2, bdata[i], bdata[i].temporary, false, bdata[i].temporary < 0, dist_at+dlbonus);
-           }
-        else bdata2.push_back(bdata[i]);
+        current_examine_branch *= 2;
+        throw rulegen_retry("max_examine_branch exceeded, doubling");
+        }
+      }
+    
+    auto tsl = get_tsinfo(wl);
+    auto tsr = get_tsinfo(wr);
 
-        if(bdata[i+1].temporary && bdata[i+1].at.at->dist <= dist_at+3) {
-           advcount++;
-           advance(bdata2, bdata[i+1], bdata[i+1].temporary, false, bdata[i+1].temporary < 0, dist_at+dlbonus);
-           }
-        else bdata2.push_back(bdata[i+1]);
+    auto rl = get_rule(wl, tsl);
+    auto rr = get_rule(wr, tsr);
+
+    if(rdebug_flags & 32)
+      println(hlog, "wl = ", wl, " -> ", wl+wstep, " R", rl, " wr = ", wr, " -> ", wr+wstep, " R", rr, " lstack = ", lstack, " rstack = ", rstack);
+
+    if(rl == DIR_RIGHT && rr == DIR_LEFT && lstack.empty() && rstack.empty()) {
+      vector<tsinfo> hash;
+      push_deadstack(hash, wl, tsl, -1);
+      hash.emplace_back(-1, wl.at->dist - wr.at->dist);
+      push_deadstack(hash, wr, tsr, +1);
+      if(rdebug_flags & 32)
+        println(hlog, "got hash: ", hash);
+      if(verified_branches.count(hash)) {
+        return true;
         }
+      verified_branches.insert(hash);
+
+      verified_treewalk(wl, rl, -1);
+      verified_treewalk(wr, rr, +1);
       }
-    bdata = bdata2;
-    if(!advcount) dist_at++;  
-    if(advcount) {
-      vector<int> hash;
-      for(int i=0; i<isize(bdata); i++) {
-        hash.push_back(bdata[i].id);
-        hash.push_back(bdata[i].dir);
-        hash.push_back(bdata[i].temporary);
-        hash.push_back(bdata[i].at.at->dist - dist_at);
-        }
-      if(branch_hashes.count(hash)) {
-        return;
-        }
-      branch_hashes.insert(hash);
+
+    else if(rl == DIR_RIGHT && !lstack.empty() && lstack.back() == wl+wstep) {
+      lstack.pop_back();
+      verified_treewalk(wl, rl, -1);
       }
+
+    else if(rr == DIR_LEFT && !rstack.empty() && rstack.back() == wr+wstep) {
+      rstack.pop_back();
+      verified_treewalk(wr, rr, +1);
+      }
+
+    else if(rl == DIR_LEFT) {
+      lstack.push_back(wl);
+      verified_treewalk(wl, rl, -1);
+      }
+
+    else if(rr == DIR_RIGHT) {
+      rstack.push_back(wr);
+      verified_treewalk(wr, rr, +1);
+      }
+
+    else if(rl != DIR_RIGHT)
+      verified_treewalk(wl, rl, -1);
+
+    else if(rr != DIR_RIGHT)
+      verified_treewalk(wr, rr, +1);
+
+    else throw rulegen_failure("cannot advance while examining");
+    }
+    }
+  catch(verify_advance_failed&) {
+    if(flags & w_examine_once) throw rulegen_retry("advance failed");
+    return false;
     }
   }
 
 /* == main algorithm == */
 
-void clear_codes() {
-  treestates.clear();
-  code_to_id.clear();
-  auto c = first_tcell;
-  while(c) {
-    c->code = MYSTERY;
-    c = c->next;
+bool need_clear_codes;
+
+EX void clear_codes() {
+  need_clear_codes = false;
+  for(auto a: all_analyzers) {
+    for(auto tw: a->inhabitants) tw.at->code = MYSTERY_LARGE;
+    a->inhabitants.clear();
     }
   }
 
-void rules_iteration() {
-  clear_codes();
+void find_single_live_branch(twalker& at) {
+  handle_distance_errors();
+  rules_iteration_for(at);
+  handle_queued_extensions();
+  int id = get_treestate_id(at).second;
+  int t = at.at->type;
+  auto r = treestates[id].rules; /* no & because may move */
+  int q = 0;
+  if(r.empty()) { important.push_back(at.at); throw rulegen_retry("no giver in find_single_live_branch"); }
+  for(int i=0; i<t; i++) if(r[i] >= 0) {
+    if(treestates[r[i]].is_live) q++;
+    }
+  for(int i=0; i<t; i++) if(r[i] >= 0) {
+    single_live_branch_close_to_root.insert(at.at);
+    if(!treestates[r[i]].is_live || q == 1) {
+      auto at1 = at + i + wstep;
+      find_single_live_branch(at1);
+      }
+    }
+  }
+
+EX void clean_analyzers() {
+  for(auto a: all_analyzers) for(auto tw: a->inhabitants) tw.at->code = MYSTERY_LARGE;
+  for(auto a: all_analyzers) delete a;
+  for(auto& av: analyzers) for(auto& a: av) a = nullptr;
+  all_analyzers.clear();
+  next_analyzer_id = 0;
+  }
+
+EX void clean_data() {
+  clean_analyzers();
+  checks_to_skip.clear();
+  important = t_origin;
+  }
+
+EX void clear_sidecache_and_codes() {
+  clear_sidecache();
+  need_clear_codes = true;
+  }
+
+EX void update_all_codes(analyzer_state *a) {
+  vector<twalker> old;
+  swap(old, a->inhabitants);
+  for(auto tw: old) {
+    ufind(tw);
+    if(tw.at->code == a->analyzer_id)
+      tw.at->code = MYSTERY_LARGE;
+    }
+  }
+
+EX void clean_parents() {
+  clear_sidecache_and_codes();
+  clean_data();
+  auto c = first_tcell;
+  while(c) { c->parent_dir = MYSTERY; c = c->next; }
+  }
+
+int qshortcuts() {
+  int res = 0;
+  for(auto& sh: shortcuts) res += isize(sh);
+  return res;
+  }
+
+void clear_treestates() {
+  treestates.clear();
+  for(auto a: all_analyzers)
+    if(a->id == MYSTERY) a->dir = MYSTERY_LARGE;
+  }
+
+EX void rules_iteration() {
+  try_count++;
+  debuglist = {};
+
+  queued_extensions.clear();
+
+  if((try_count & (try_count-1)) == 0) if(!(flags & w_no_restart)) {
+    clean_data();
+    clean_parents();
+    }
+
+  if(rdebug_flags & 1) println(hlog, "attempt: ", try_count, " important = ", isize(important), " cells = ", tcellcount, " shortcuts = ", qshortcuts());
+
+  parent_updates = 0;
+  clear_treestates();
+  if(need_clear_codes) clear_codes();
   
   cq = important;
   
-  if(debugflags & DF_GEOM)
+  if(rdebug_flags & 2)
     println(hlog, "important = ", cq);
 
   for(int i=0; i<isize(cq); i++) {
     rules_iteration_for(cq[i]);
     }
-
+  
   handle_distance_errors();
   if(debugflags & DF_GEOM)
     println(hlog, "number of treestates = ", isize(treestates));
-  rule_root = get_code(t_origin[0]).second;
+  rule_root = get_treestate_id(t_origin[0]).second;
   if(debugflags & DF_GEOM)
     println(hlog, "rule_root = ", rule_root);
 
-  int N = isize(important);
-  
   for(int id=0; id<isize(treestates); id++) {
     if(!treestates[id].known) {
-      important.push_back(treestates[id].where_seen);
-      if(debugflags & DF_GEOM)
-        println(hlog, "no rule found for ", id);
+      auto ws = treestates[id].where_seen;
+      rules_iteration_for(ws);
       continue;
       }
     }
 
-  if(isize(important) != N) 
-    throw mismatch_error();
+  handle_queued_extensions();
+
+  int N = isize(important);
 
   int new_deadends = -1;
   
@@ -1275,66 +1949,111 @@ void rules_iteration() {
         treestates[id].is_live = false, new_deadends++;
       }
     
-    if(debugflags & DF_GEOM)
+    if(rdebug_flags & 4)
       println(hlog, "deadend states found: ", new_deadends);
     }
   
-  for(int id=0; id<isize(treestates); id++) {
-    auto& rg = treestates[id].giver;
-    auto& r = treestates[id].rules;
+  handle_distance_errors();
+  verified_branches.clear();
 
-    for(int p=0; p<2; p++)
-    for(int it=0; it<isize(r); it++) {
-      for(int i=0; i<isize(r); i++) {
-        int i1 = gmod(i+1, isize(r));
-        if((rg+i).peek() == (rg+i1).peek()) {
-          if(r[i1] == DIR_UNKNOWN && (r[i] >= (p?DIR_UNKNOWN:0) || r[i] == DIR_PARENT || r[i] == DIR_MULTI_GO_LEFT))
-            r[i1] = DIR_MULTI_GO_LEFT;
-          if(r[i] == DIR_UNKNOWN && (r[i1] >= 0 || r[i1] == DIR_PARENT || r[i+1] == DIR_MULTI_GO_RIGHT))
-            r[i] = DIR_MULTI_GO_RIGHT;
-          }
-        }
+  int q = isize(single_live_branch_close_to_root);
+  
+  single_live_branches = 0;
+  double_live_branches = 0;
+
+  branch_conflicts_seen.clear();
+
+  // handle dead roots -- some of their branches MUST live
+  if(WDIM == 2) for(int id=0; id<isize(treestates); id++) if(treestates[id].is_root && !treestates[id].is_live) {
+    auto r = treestates[id].rules;
+    for(int i=0; i<isize(r); i++) if(r[i] >= 0) {
+      examine_branch(id, i, i);
+      break;
       }
     }
 
-  // print_rules();
-  
-  handle_distance_errors();
-  branch_hashes.clear();
+  handle_queued_extensions();
 
-  for(int id=0; id<isize(treestates); id++) if(treestates[id].is_live) {
-    auto& r = treestates[id].rules;
+  skipped_branches.clear();
+
+  auto examine_or_skip_branch = [&] (int id, int fb, int sb) {
+    if(flags & w_no_branch_skipping) {
+      examine_branch(id, fb, sb);
+      return;
+      }
+    auto b = branch_check{treestates[id].astate, fb, sb};
+    if(checks_to_skip.count(b)) {
+      skipped_branches.emplace_back([id, fb, sb] { examine_branch(id, fb, sb); });
+      return;
+      }
+    if(examine_branch(id, fb, sb)) checks_to_skip.insert(b);
+    };
+
+  if(WDIM == 2) for(int id=0; id<isize(treestates); id++) if(treestates[id].is_live) {
+    auto r = treestates[id].rules; /* no & because treestates might have moved */
+    if(r.empty()) continue;
     int last_live_branch = -1;
     int first_live_branch = -1;
+    int qbranches = 0;
     for(int i=0; i<isize(r); i++)
       if(r[i] >= 0 && treestates[r[i]].is_live) {
         if(first_live_branch == -1) first_live_branch = i;
         if(last_live_branch >= 0)
-          examine_branch(id, last_live_branch, i);
-        else for(int a=0; a<i; a++) 
-          if(r[a] == DIR_UNKNOWN) r[a] = DIR_LEFT;      
+          examine_or_skip_branch(id, last_live_branch, i);
         last_live_branch = i;
+        qbranches++;
         }
-    if(treestates[id].is_root) examine_branch(id, last_live_branch, first_live_branch);
-    for(int a=last_live_branch; a<isize(r); a++)
-      if(r[a] == DIR_UNKNOWN) r[a] = DIR_RIGHT;
+    if(qbranches == 2) double_live_branches++;
+    if((flags & w_slow_side) && first_live_branch == last_live_branch && treestates[id].is_root) {
+      if(debugflags & DF_GEOM)
+        println(hlog, "for id ", id, " we have a single live branch");
+      single_live_branches++;
+      indenter ind(2);
+      debuglist = { treestates[id].giver };
+      find_single_live_branch(treestates[id].giver);
+      }
+    if(isize(single_live_branch_close_to_root) != q) {
+      vector<tcell*> v;
+      for(auto c: single_live_branch_close_to_root) v.push_back(c);
+      if(debugflags & DF_GEOM) 
+        println(hlog, "changed single_live_branch_close_to_root from ", q, " to ", v);
+      debuglist = { treestates[id].giver };
+      clear_sidecache_and_codes();
+      throw rulegen_retry("single live branch");
+      }
+    if(treestates[id].is_root)
+      examine_or_skip_branch(id, last_live_branch, first_live_branch);
+    }
+
+  after_branches:
+  for(int id=0; id<isize(treestates); id++) if(!treestates[id].giver.at) {
+    important.push_back(treestates[id].where_seen);
     }
   
   handle_distance_errors();
-  if(isize(important) != N) 
-    throw mismatch_error();
+  handle_queued_extensions();
+  if(isize(important) != N)
+    throw rulegen_retry("need more rules after examine");
 
-  minimize_rules();
-  find_possible_parents();
-  
-  for(int id=0; id<isize(treestates); id++) {
-    auto& ts = treestates[id];
-    for(auto& r: ts.rules) if(r == DIR_UNKNOWN)
-      throw rulegen_failure("UNKNOWN remaining");
+  if(WDIM == 3) {
+    check_road_shortcuts();
+    optimize();
+    N = isize(important);
+    check_validity_3d();
     }
 
-  if(isize(important) != N) 
-    throw mismatch_error();
+  if(skipped_branches.size()) {
+    checks_to_skip.clear();
+    for(auto sb: skipped_branches) sb();
+    skipped_branches.clear();
+    goto after_branches;
+    }
+
+  if(WDIM == 2) minimize_rules();
+  find_possible_parents();
+  
+  if(isize(important) != N)
+    throw rulegen_retry("need more rules after minimize");
   handle_distance_errors();
   }
 
@@ -1344,52 +2063,53 @@ void clear_tcell_data() {
     c->is_solid = false;
     // c->dist = MYSTERY;
     c->parent_dir = MYSTERY;
-    c->code = MYSTERY;
+    c->code = MYSTERY_LARGE;
     c->distance_fixed = false;
     c = c->next;
     }
-  for(auto& c: t_origin) c->dist = 0;
+  in_fixing = false; fix_queue = std::queue<reaction_t>{};
   }
 
-void cleanup() {
+EX void cleanup() {
   clear_tcell_data();
-  analyzers.clear();
-  code_to_id.clear();
-  split.clear();
+  clean_analyzers();
   important.clear();
   shortcuts.clear();
+  single_live_branch_close_to_root.clear();
+  cleanup3();
   }
 
-void clear_all() {  
+EX void clear_all() {  
   treestates.clear();
   cleanup();
   }
 
-bool double_edges_check(cell *c, set<int>& visited) {
-  int i = shvid(c);
-  if(visited.count(i)) return false;
-  visited.insert(i);
-  for(int j=0; j<c->type; j++) {
-    cellwalker cw(c, j);
-    bool on = true;
-    if(double_edges_check(cw.cpeek(), visited)) return true;
-    int qty = 0;
-    for(int k=0; k<=c->type; k++) {
-      bool on2 = (cw+k).cpeek() == cw.cpeek();
-      if(on != on2) qty++;
-      on = on2;
-      }
-    if(qty > 2) return true;
-    }
-  return false;
+EX int origin_id;
+
+EX unsigned start_time;
+
+EX void check_timeout() {
+  if(SDL_GetTicks() > start_time + 1000 * rulegen_timeout)
+    throw rulegen_surrender("timeout");
   }
 
 EX void generate_rules() {
 
+  start_time = SDL_GetTicks();
   delete_tmap();
 
-  if(!arb::in()) try {
+  if(WDIM == 3 && reg3::in_hrmap_rule_or_subrule()) {
+    stop_game();
+    reg3::consider_rules = 0;
+    flags |= w_numerical;
+    start_game();
+    }
+  else if(WDIM == 3) {
+    flags |= w_numerical;
+    }
+  else if(!arb::in()) try {
     arb::convert::convert();
+    if(flags & w_numerical) arb::convert::activate();
     }
   catch(hr_exception& e) {
     throw rulegen_surrender("conversion failure");
@@ -1398,41 +2118,79 @@ EX void generate_rules() {
   clear_all();
 
   analyzers.clear();
-  split.clear();
+  important.clear();
+  treestates.clear();
+  hard_parents = single_live_branches = double_live_branches = all_solid_errors = solid_errors = 0;
+
+  next_distance_warning = first_restart_on;
+  current_getside = first_restart_on;
+  current_examine_branch = first_restart_on;
+
+  int NS = number_of_types();
+  shortcuts.resize(NS);
+  analyzers.resize(NS);
+  for(int i=0; i<NS; i++) analyzers[i].resize(cycle_size(i));
 
   t_origin.clear();
-  for(auto& ts: arb::current.shapes) {
+  cell_to_tcell.clear();
+  tcell_to_cell.clear();
+  branch_conflicts_seen.clear();
+  sidecaches_to_clear.clear();
+  clear_sidecache_and_codes();
+  fix_queue = queue<reaction_t>();; in_fixing = false;
+
+  if(flags & (w_numerical | w_known_structure)) {
+    if(flags & w_known_structure) swap_treestates();
+    stop_game();
+    start_game();
+    cell *s = currentmap->gamestart();
+    tcell *c = gen_tcell(get_id(s));
+    cell_to_tcell[s] = c;
+    tcell_to_cell[c] = s;
+    c->dist = 0;
+    t_origin.push_back(twalker(c, 0));
+
+    if(!(flags & w_single_origin))
+      add_other_origins(NS);
+
+    if(flags & w_known_structure) swap_treestates();
+    }
+  else if(flags & w_single_origin) {
+    tcell *c = gen_tcell(origin_id);
+    c->dist = 0;
+    t_origin.push_back(twalker(c, 0));
+    }
+  else for(auto& ts: arb::current.shapes) {
     tcell *c = gen_tcell(ts.id);
     c->dist = 0;
-    t_origin.push_back(c);
+    t_origin.push_back(twalker(c, 0));
     }
+
+  if(GDIM == 3) build_cycle_data();
+
+  bfs_queue = queue<tcell*>();
+  if(flags & w_bfs) for(auto c: t_origin) bfs_queue.push(c.at);
   
-  set<int> visited;
-  if(double_edges_check(currentmap->gamestart(), visited))
-    throw double_edges();
-   
   try_count = 0;
   
   important = t_origin;
   
-  retry:  
-  try {
-    rules_iteration();
+  rule_iterations();
   }
-  catch(rulegen_retry& e) {
-    try_count++;
-    if(try_count >= max_retries)
-      throw;
-    if(debugflags & DF_GEOM) println(hlog, "attempt: ", try_count);
-    auto c = first_tcell;
-    while(c) {
-      c->is_solid = false;
-      c->parent_dir = MYSTERY;
-      c->code = MYSTERY;
-      c = c->next;
+
+EX void rule_iterations() {
+  while(true) {
+    check_timeout();
+    try {
+      rules_iteration();
+      break;
       }
-    goto retry;
-    }  
+    catch(rulegen_retry& e) { 
+      if(rdebug_flags & 8)
+        println(hlog, "result ", try_count, ": ", e.what());
+      if(try_count >= max_retries) throw;
+      }
+    }
   }
 
 int reclevel;
@@ -1444,6 +2202,7 @@ void build_test();
 struct hrmap_rulegen : hrmap {
   hrmap *base;
   heptagon *origin;
+  vector<heptagon*> extra_origins;
 
   heptagon* gen(int s, int d, bool c7) {
     int t = arb::current.shapes[treestates[s].sid].size();
@@ -1455,9 +2214,17 @@ struct hrmap_rulegen : hrmap {
     h->s = hsA;
     return h;
     }
+
+  cell* gen_extra_origin(int fv) override {
+    heptagon *extra_origin = gen(fv, 0, true);
+    extra_origin->s = hsOrigin;
+    extra_origins.push_back(extra_origin);
+    return extra_origin->c7;
+    }
   
   ~hrmap_rulegen() { 
-    clearfrom(origin);   
+    clearfrom(origin);
+    for(auto eo: extra_origins) clearfrom(eo);
     }
 
   hrmap_rulegen() {
@@ -1482,28 +2249,6 @@ struct hrmap_rulegen : hrmap {
     a.at->c.connect(a.spin, b.at, b.spin, false);
     }
 
-  void group_connect(heptspin a, heptspin b) {
-    /* go leftmost with a */
-    while(get_rule(a) == DIR_MULTI_GO_LEFT || get_rule(a-1) == DIR_MULTI_GO_RIGHT)
-      a--;
-    /* go rightmost with b */
-    while(get_rule(b) == DIR_MULTI_GO_RIGHT || get_rule(b+1) == DIR_MULTI_GO_LEFT)
-      b++;
-    int gr = 0;
-    // verify_connection(a, b);
-    while(true) {
-      hsconnect(a, b); gr++;
-      bool can_a = get_rule(a) == DIR_MULTI_GO_RIGHT || get_rule(a+1) == DIR_MULTI_GO_LEFT;
-      if(can_a) a++;
-      bool can_b = get_rule(b) == DIR_MULTI_GO_LEFT || get_rule(b-1) == DIR_MULTI_GO_RIGHT;
-      if(can_b) b--;
-      if(can_a && can_b) continue;
-      if(can_a || can_b) 
-        throw rulegen_failure("multi disagreement");
-      break;
-      }      
-    }
-  
   heptagon *create_step(heptagon *h, int d) override {
     heptspin hs(h, d);
     int r = get_rule(hs);
@@ -1527,38 +2272,19 @@ struct hrmap_rulegen : hrmap {
       hsconnect(hs, hs1);
       return h1;
       }
-    else if(r == DIR_UNKNOWN)
-      throw rulegen_failure("UNKNOWN rule remained");
-    else if(r == DIR_MULTI_GO_LEFT) {
-      // hs = (hs - 1) + wstep;
-      hsconnect(hs, hs - 1 + wstep - 1);
-      return h->move(d);
-      }
-    else if(r == DIR_MULTI_GO_RIGHT) {
-      // hs = (hs + 1) + wstep;
-      hsconnect(hs, hs + 1 + wstep + 1);
-      return h->move(d);
-      }
     else if(r == DIR_LEFT || r == DIR_RIGHT) {
       heptspin hs1 = hs;
       int delta = r == DIR_LEFT ? -1 : 1;
       int rev = (DIR_LEFT ^ DIR_RIGHT ^ r);
-      while(IS_DIR_MULTI(get_rule(hs1))) hs1 += delta;
       hs1 += delta;
       while(true) {
         int r1 = get_rule(hs1);
         if(r1 == rev) {
-          group_connect(hs, hs1);
+          hsconnect(hs, hs1);
           return hs1.at;
-          }
-        else if(IS_DIR_MULTI(r1)) {
-          hs1 += delta;
           }
         else if(r1 == r || r1 == DIR_PARENT || r1 >= 0) {
           hs1 += wstep;
-          while(get_rule(hs1) == (r == DIR_RIGHT ? DIR_MULTI_GO_RIGHT : DIR_MULTI_GO_LEFT)) {
-            hs1 += delta;
-            }
           hs1 += delta;
           }
         else throw rulegen_failure("bad R1");
@@ -1576,7 +2302,7 @@ struct hrmap_rulegen : hrmap {
   
   transmatrix adj(heptagon *h, int dir) override {
     if(h->fieldval == -1)
-      return arb::get_adj(arb::current_or_slided(), h->zebraval, dir, -1, -1);
+      return arb::get_adj(arb::current_or_slided(), h->zebraval, dir);
 
     int s = h->fieldval;
     int dir0 = get_arb_dir(s, dir);
@@ -1590,7 +2316,7 @@ struct hrmap_rulegen : hrmap {
       sid1 = treestates[s1].sid;
       }
 
-    return arb::get_adj(arb::current_or_slided(), treestates[s].sid, dir0, sid1, dir1);
+    return arb::get_adj(arb::current_or_slided(), treestates[s].sid, dir0, sid1, dir1, false);
     }
 
   int shvid(cell *c) override {
@@ -1640,7 +2366,7 @@ struct hrmap_rulegen : hrmap {
 
     int odir = hts.parent_dir + dir;
     
-    int cl = arb::current.shapes[psid].cycle_length;
+    int cl = cycle_size(psid);
 
     vector<int> choices;
     for(auto& ts: treestates)
@@ -1654,6 +2380,25 @@ struct hrmap_rulegen : hrmap {
     return true;
     }
   };
+
+EX vector<treestate> alt_treestates;
+
+EX void swap_treestates() {
+  swap(treestates, alt_treestates);
+  }
+
+EX void add_other_origins(int qty) {
+  for(int i=1; i<qty; i++) {
+    cell *s = currentmap->gen_extra_origin(i);
+    tcell *c = gen_tcell(get_id(s));
+    cell_to_tcell[s] = c;
+    tcell_to_cell[c] = s;
+    c->dist = 0;
+    t_origin.push_back(twalker(c, 0));
+    }
+
+  println(hlog, "t_origin size = ", isize(t_origin));
+  }
 
 EX int get_arb_dir(cell *c, int dir) {
   return ((hrmap_rulegen*)currentmap)->get_arb_dir(c->master->fieldval, dir);
@@ -1669,7 +2414,7 @@ EX int get_state(cell *c) {
   return c->master->fieldval;
   }
 
-string rules_known_for = "unknown";
+EX string rules_known_for = "unknown";
 string rule_status;
 
 EX bool known() {
@@ -1699,6 +2444,7 @@ EX bool prepare_rules() {
   return false;
   }
 
+#if CAP_COMMANDLINE
 int args() {
   using namespace arg;
            
@@ -1725,16 +2471,25 @@ int args() {
   return 0;
   }
 
-auto hooks = 
-    addHook(hooks_args, 100, args)
-  + addHook(hooks_configfile, 100, [] {
+auto hooks_arg = 
+    addHook(hooks_args, 100, args);
+#endif
+
+auto hooks = addHook(hooks_configfile, 100, [] {
       param_i(max_retries, "max_retries");
       param_i(max_tcellcount, "max_tcellcount")
       ->editable(0, 16000000, 100000, "maximum cellcount", "controls the max memory usage of conversion algorithm -- the algorithm fails if exceeded", 'c');
       param_i(max_adv_steps, "max_adv_steps");
       param_i(max_examine_branch, "max_examine_branch");
+      param_i(max_getside, "max_getside");
       param_i(max_bdata, "max_bdata");
-      param_i(dlbonus, "dlbonus");
+      param_i(max_shortcut_length, "max_shortcut_length");
+      param_i(rulegen_timeout, "rulegen_timeout");
+      param_i(first_restart_on, "first_restart_on");
+      param_i(max_ignore_level_pre, "max_ignore_level_pre");
+      param_i(max_ignore_level_post, "max_ignore_level_post");
+      param_i(max_ignore_time_pre, "max_ignore_time_pre");
+      param_i(max_ignore_time_post, "max_ignore_time_post");
     });
 
 EX void parse_treestate(arb::arbi_tiling& c, exp_parser& ep) {
@@ -1759,8 +2514,6 @@ EX void parse_treestate(arb::arbi_tiling& c, exp_parser& ep) {
     if(ep.eat("PARENT")) ts.rules.push_back(DIR_PARENT);
     else if(ep.eat("LEFT")) ts.rules.push_back(DIR_LEFT);
     else if(ep.eat("RIGHT")) ts.rules.push_back(DIR_RIGHT);
-    else if(ep.eat("MLEFT")) ts.rules.push_back(DIR_MULTI_GO_LEFT);
-    else if(ep.eat("MRIGHT")) ts.rules.push_back(DIR_MULTI_GO_RIGHT);
     else { int i = ep.iparse(); ts.rules.push_back(i); }
     }
   for(int i=0; i<N; i++) {
@@ -1770,29 +2523,29 @@ EX void parse_treestate(arb::arbi_tiling& c, exp_parser& ep) {
   if(qparent > 1) throw hr_parse_exception("multiple parent at " + ep.where());
   if(qparent == 1) {
     ts.parent_dir = sumparent;
-    println(hlog, "before: ", ts.rules);
+    if(debugflags & DF_GEOM) println(hlog, "before: ", ts.rules);
     std::rotate(ts.rules.begin(), ts.rules.begin() + sumparent, ts.rules.end());
-    println(hlog, "after : ", ts.rules);
+    if(debugflags & DF_GEOM) println(hlog, "after : ", ts.rules);
     }
   ep.force_eat(")");
   }
 
-EX void verify_parsed_treestates() {
+EX void verify_parsed_treestates(arb::arbi_tiling& c) {
   if(rule_root < 0 || rule_root >= isize(treestates))
     throw hr_parse_exception("undefined treestate as root");
   for(auto& ts: treestates) for(auto& r: ts.rules) {
-    if(r < 0 && !among(r, DIR_PARENT, DIR_LEFT, DIR_RIGHT, DIR_MULTI_GO_LEFT, DIR_MULTI_GO_RIGHT))
+    if(r < 0 && !among(r, DIR_PARENT, DIR_LEFT, DIR_RIGHT))
       throw hr_parse_exception("negative number in treestates");
     if(r > isize(treestates))
       throw hr_parse_exception("undefined treestate");
     }
-  for(auto& sh: arb::current.shapes) sh.cycle_length = sh.size();
+  for(auto& sh: c.shapes) sh.cycle_length = sh.size();
   find_possible_parents();
   }
 
 EX void show() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(1);
+  gamescreen();
   dialog::init(XLAT("strict tree maps"));
 
   dialog::addHelp(XLAT(
@@ -1831,6 +2584,29 @@ EX void show() {
       }
     });
 
+  dialog::addBoolItem(XLAT("extended football colorability"), arb::extended_football, 'f');
+  dialog::add_action([] {
+    arb::extended_football = !arb::extended_football;
+    rules_known_for = "unknown";
+    rule_status = "manually disabled";
+    if(arb::convert::in()) {
+      stop_game();
+      arb::convert::convert();
+      arb::convert::activate();
+      start_game();
+      }
+    else if(arb::in()) {
+      stop_game();
+      try {
+        arb::load(arb::tes);
+        }
+      catch(hr_parse_exception& ex) {
+        println(hlog, "failed: ", ex.s);
+        }
+      start_game();
+      }
+    });
+  add_edit(arb::convert::minimize_on_convert);
   dialog::addBoolItem(XLAT("strict tree based"), currentmap->strict_tree_rules(), 's');
   dialog::add_action([] {
     if(!currentmap->strict_tree_rules()) {
@@ -1864,6 +2640,29 @@ EX void show() {
   dialog::addBack();
   dialog::display();
   }
+
+#if CAP_COMMANDLINE
+int readRuleArgs() {
+  using namespace arg;
+
+  if(0) ;
+
+  else if(argis("-ruleflag")) {
+    shift();
+    rulegen::flags ^= Flag(argi());
+    }
+
+  else if(argis("-ruledflags")) {
+    shift();
+    rulegen::rdebug_flags = argi();
+    }
+
+  else return 1;
+  return 0;
+  }
+
+auto hook = addHook(hooks_args, 100, readRuleArgs);
+#endif
 
 EX }
 }

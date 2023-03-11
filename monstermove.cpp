@@ -24,6 +24,7 @@ grow_vector<vector<cell*>> movesofgood;
 EX vector<pair<cell*, int> > butterflies;
 
 EX void addButterfly(cell *c) {
+  if(shmup::on) return;
   for(int i=0; i<isize(butterflies); i++)
     if(butterflies[i].first == c) {
       butterflies[i].second = 0;
@@ -107,6 +108,22 @@ EX void moveEffect(const movei& mi, eMonster m) {
   if(isDie(m) && mi.proper())
     dice::roll(mi);
   #endif
+  }
+
+EX void check_beauty(cell *ct, cell *cf, eMonster m) {
+  bool adj = false;
+  if(ct->cpdist == 1 && (items[itOrb37] || !nonAdjacent(cf,ct)) && markOrb(itOrbBeauty) && !isFriendly(ct))
+    adj = true;
+
+  if(!adj && items[itOrbEmpathy] && items[itOrbBeauty] && !isFriendly(ct)) {
+    for(int i=0; i<ct->type; i++) if(ct->move(i) && isFriendly(ct->move(i)))
+      adj = true, markOrb(itOrbEmpathy), markOrb(itOrbBeauty);
+    }
+
+  if(adj && ct->stuntime == 0 && !isMimic(m)) {
+    ct->stuntime = 2;
+    checkStunKill(ct);
+    }
   }
 
 EX void moveMonster(const movei& mi) {
@@ -258,20 +275,8 @@ EX void moveMonster(const movei& mi) {
   if(m == moWitchFire) makeflame(cf, 10, false);
   if(m == moFireElemental) { makeflame(cf, 20, false); if(cf->wparam < 20) cf->wparam = 20; }
   
-  bool adj = false;  
-  if(ct->cpdist == 1 && (items[itOrb37] || !nonAdjacent(cf,ct)) && markOrb(itOrbBeauty) && !isFriendly(ct))
-    adj = true;
-    
-  if(!adj && items[itOrbEmpathy] && items[itOrbBeauty] && !isFriendly(ct)) {
-    for(int i=0; i<ct->type; i++) if(ct->move(i) && isFriendly(ct->move(i)))
-      adj = true, markOrb(itOrbEmpathy), markOrb(itOrbBeauty);
-    }
+  check_beauty(ct, cf, m);
   
-  if(adj && ct->stuntime == 0 && !isMimic(m)) {
-    ct->stuntime = 2;
-    checkStunKill(ct);
-    }
-
   if(!cellEdgeUnstable(ct)) {
     if(isMetalBeast(m)) ct->stuntime += 2;
     if(m == moTortoise) ct->stuntime += 3;
@@ -829,6 +834,7 @@ EX void moveWorm(cell *c) {
     while(c2->mondir != NODIR) {
       allcells.push_back(c2);
       c2 = c2->move(c2->mondir);
+      if(!c2) { allcells.pop_back(); break; }
       }
     allcells.push_back(c2);
     for(int i=isize(allcells)-2; i>=0; i--) {
@@ -877,7 +883,7 @@ EX void moveWorm(cell *c) {
       }
     eItem loc = treasureType(c->land);
     bool spiceSeen = false;
-    while(c->monst == moWorm || c->monst == moWormtail || c->monst == moTentacle || c->monst == moTentacletail) {
+    while(c && (c->monst == moWorm || c->monst == moWormtail || c->monst == moTentacle || c->monst == moTentacletail)) {
       // if(!id) 
       explodeAround(c);
       drawParticles(c, minf[c->monst].color, 16);
@@ -993,7 +999,7 @@ EX void removeIvy(cell *c) {
   c->monst = moNone; // NEWYEARFIX
   for(int i=0; i<c->type; i++)
   // note that semi-vines don't count
-    if(c->move(i)->wall == waVinePlant) {
+    if(c->move(i) && c->move(i)->wall == waVinePlant) {
       destroyHalfvine(c);
       if (!do_not_touch_this_wall(c))
         c->wall = waVinePlant;
@@ -1146,7 +1152,7 @@ EX void groupmove2(const movei& mi, eMonster movtype, flagtype mf) {
     if((mf & MF_ONLYEAGLE) && bird_disruption(c) && markOrb(itOrbGravity)) return;
     // in the gravity lands, eagles cannot ascend in their second move
     if((mf & MF_ONLYEAGLE) && gravityLevelDiff(c, from) < 0) {
-      onpath(c, 0);
+      onpath_mark(c);
       return;
       }
     if((mf & MF_NOFRIEND) && isFriendly(c)) return;
@@ -1161,12 +1167,12 @@ EX void groupmove2(const movei& mi, eMonster movtype, flagtype mf) {
       if(c->move(j) && canAttack(c, c->monst, c->move(j), c->move(j)->monst, af)) {
         attackMonster(c->move(j), AF_NORMAL | AF_GETPLAYER | AF_MSG, c->monst);
         animateAttack(movei(c, j), LAYER_SMALL);
-        onpath(c, 0);
+        onpath_mark(c);
         // XLATC eagle
         return;
         }
     
-    if(from->cpdist == 0 || from->monst) { onpath(c, 0); return; }
+    if(from->cpdist == 0 || from->monst) { onpath_mark(c); return; }
     
     if(movtype == moDragonHead) {
       dragon::move(mi);
@@ -1175,16 +1181,16 @@ EX void groupmove2(const movei& mi, eMonster movtype, flagtype mf) {
     
     moveMonster(mi);
     
-    onpath(from, 0);
+    onpath_mark(from);
 
     if(isDie(mi.t->monst)) {
       /* other dice will not pathfind through the original cell */
       /* this makes it easier for the player to roll dice correctly */
-      onpath(c, 0);
+      onpath_mark(c);
       return;
       }
     }
-  onpath(c, 0);
+  onpath_mark(c);
   // MAXGCELL
   if(isize(gendfs) < 1000 || c->cpdist <= 6) gendfs.push_back(c);
   }
@@ -1243,7 +1249,7 @@ EX void groupmove(eMonster movtype, flagtype mf) {
     if((mf & MF_ONLYEAGLE) && c->monst != moEagle && c->monst != moBat) return;
     if(movegroup(c->monst) == movtype && c->pathdist != 0) {
       cell *c2 = moveNormal(c, mf);
-      if(c2) onpath(c2, 0);
+      if(c2) onpath_mark(c2);
       }
     }
   }
@@ -1334,7 +1340,7 @@ EX void hexvisit(cell *c, cell *from, int d, bool mounted, int colorpair) {
     moveHexSnake(movei(from, d).rev(), mounted);
     }
 
-  onpath(c, 0);
+  onpath_mark(c);
 
   // MAXGCELL
   if(isize(hexdfs) < 2000 || c->cpdist <= 6) 
@@ -1348,12 +1354,12 @@ EX void movehex(bool mounted, int colorpair) {
   if(mounted) { 
     if(dragon::target && dragon::target->monst != moHexSnake) {
       hexdfs.push_back(dragon::target); 
-      onpath(dragon::target, 0);
+      onpath_mark(dragon::target);
       }
     }
   else for(cell *c: targets) {
     hexdfs.push_back(c);
-    onpath(c, 0);
+    onpath_mark(c);
     }
   //hexdfs.push_back(cwt.at);
   
@@ -1371,6 +1377,7 @@ EX void movehex(bool mounted, int colorpair) {
   }
 
 EX void movehex_rest(bool mounted) {
+  pathdata pd(4);
   for(int i=0; i<isize(hexsnakes); i++) {
     cell *c = hexsnakes[i];
     int colorpair;
@@ -1404,7 +1411,7 @@ EX void movehex_rest(bool mounted) {
 EX void movemutant() {
   manual_celllister mcells;
   for(cell *c: currentmap->allcells()) mcells.add(c);
-  if(!bounded) 
+  if(!closed_or_bounded)
     for(int i=0; i<isize(mcells.lst); i++) {
       cell *c = mcells.lst[i];
       if(c->land == laClearing && c->monst != moMutant && !pseudohept(c))
@@ -1438,7 +1445,7 @@ EX void movemutant() {
       if(isPlayerOn(c2)) continue;
 
       if((c2->land == laOvergrown || !pseudohept(c2)) && passable(c2, c, 0)) {
-        if(c2->land == laClearing && !bounded && c2->mpdist > 7) continue;
+        if(c2->land == laClearing && !closed_or_bounded && c2->mpdist > 7) continue;
         c2->monst = moMutant;
         c2->mondir = c->c.spin(j);
         c2->stuntime = mutantphase;
@@ -1502,6 +1509,8 @@ EX void moveshadow() {
       where->stuntime = 0;
       // the Shadow sets off the mines and stuff
       moveEffect(movei(where, where, NODIR), moShadow);
+      // Beauty kills the Shadow
+      check_beauty(where, where, moShadow);
       }
     }
   }
@@ -1537,7 +1546,7 @@ EX void moveghosts() {
       
       vector<int> mdir;
 
-      for(int j=0; j<c->type; j++) 
+      for(int p: {0, 1}) for(int j=0; j<c->type; j++) if(p == 1 || (c->move(j) && isPlayerOn(c->move(j))))
         if(c->move(j) && canAttack(c, c->monst, c->move(j), c->move(j)->monst, AF_GETPLAYER | AF_ONLY_FBUG)) {
           // XLATC ghost/greater shark
           
@@ -1694,8 +1703,7 @@ EX void movegolems(flagtype flags) {
       if(m == moGolem) qg++;
       if(m == moFriendlyGhost) markOrb(itOrbUndeath);
 
-      bool recorduse[ittypes];
-      for(int i=0; i<ittypes; i++) recorduse[i] = orbused[i];
+      auto recorduse = orbused;
 
       DEBB(DF_TURN, ("stayval"));
       int bestv = stayvalue(m, c);
@@ -1719,7 +1727,7 @@ EX void movegolems(flagtype flags) {
           }
         }
 
-      for(int i=0; i<ittypes; i++) orbused[i] = recorduse[i];
+      orbused = recorduse;
       
 //    printf("stayvalue = %d, result = %d, bq = %d\n", stayvalue(m,c), bestv, bq);
         
@@ -2288,7 +2296,7 @@ EX void movemonsters() {
   DEBB(DF_TURN, ("leader"));
   if(havewhat & HF_LEADER) groupmove(moPirate, 0);
   DEBB(DF_TURN, ("mutant"));
-  if((havewhat & HF_MUTANT) || (bounded && among(specialland, laOvergrown, laClearing))) movemutant();
+  if((havewhat & HF_MUTANT) || (closed_or_bounded && among(specialland, laOvergrown, laClearing))) movemutant();
   DEBB(DF_TURN, ("bugs"));
   if(havewhat & HF_BUG) hive::movebugs();
   DEBB(DF_TURN, ("whirlpool"));

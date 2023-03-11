@@ -248,7 +248,7 @@ S("You feel that you have enough treasure to access new lands!", "Masz wystarcza
 S("Collect more treasures, there are still more lands waiting...", "Zbieraj skarby, nowe krainy czekają...")
 S("You feel that the stars are right, and you can access R'Lyeh!", "Gwiazdy są na miejscu, R'Lyeh czeka!")
 S("Kill monsters and collect treasures, and you may get access to Hell...", "Zabijaj potwory, zdobywaj skarby, może trafisz do Piekła...")
-S("To access Hell, collect %1 treasures each of 9 kinds...", "By dostać się do Piekła, znajdź po %1 skarbów każdego z 9 rodzajów...")
+S("To access Hell, collect %1 treasures each of %2 kinds...", "By dostać się do Piekła, znajdź po %1 skarbów każdego z %2 rodzajów...")
 S("Abandon all hope, the gates of Hell are opened!", "Porzuć wszelką nadzieję, bramy Piekła są otwarte!")
 S("And the Orbs of Yendor await!", "I sfery Yendoru czekają!")
 S("You switch places with %the1.", "Zamieniasz się miejscami z %abl1.")
@@ -3352,9 +3352,9 @@ Orb("Beauty", "Piękna")
 N("Thornless Rose", GEN_F, "Róża bez Kolców", "Róże bez Kolców", "Różę bez Kolców", "Różą bez Kolców")
 
 S("Don't be fooled by this red-haired girl, or you will be stabbed if you come too close!",
-  "Nie daj się zwieść tej rudowłosej, bo jak się za bardzo zbliżysz, możesz zostać ugodzon%ya1 nożem!")
+  "Nie daj się zwieść tej rudowłosej, bo jak się za bardzo zbliżysz, możesz zostać ugodzon%ya0 nożem!")
 S("Don't be fooled by this red-haired boy, or you will be stabbed if you come too close!",
-  "Nie daj się zwieść temu rudowłosemu, bo jak się za bardzo zbliżysz, możesz zostać ugodzon%ya1 nożem!")
+  "Nie daj się zwieść temu rudowłosemu, bo jak się za bardzo zbliżysz, możesz zostać ugodzon%ya0 nożem!")
 S("This false princess is immune to the alluring scent of roses.",
   "Ta fałszywa księżniczka jest niewrażliwa na zapach róż.")
 S("This false prince is immune to the alluring scent of roses.",
@@ -4360,7 +4360,7 @@ S("and not in a chaos without norms.\"",
 S("You have enough treasure now to revive %the1!",
   "Masz dość skarbów, by przywrócić %a1 do życia!")
 
-S("Killed %1 can be revived with Orb of the Love, after you collect 20 more $$$.",
+S("Killed %1 can be revived with an Orb of Love, after you collect 20 more $$$.",
   "Zabit%ya1 %1 może zostać przywrócona do życia Sferą Miłości, "
   "po zdobyciu 20 dodatkowych $$$."
   )
@@ -6030,7 +6030,7 @@ S("would be destroyed in %the1", "by%ł1by zniszczon%y1 %abl1")
 S(" to go cold", " by ostygnąć")
 S("%The1 is destroyed by lava!", "%The1 jest zniszczon%y1 przez lawę!")
 S("%The1 is killed by lava!", "%The1 jest zabit%y1 przez lawę!")
-S("Run away from the magma!", "Uciekaj od lawy!")
+S("Run away from the lava!", "Uciekaj od lawy!")
 
 // Terracotta Army
 //-----------------
@@ -6163,7 +6163,7 @@ S(" This tour will not advance on its own -- you have to press Enter (not while 
   " Ta wycieczka nie idzie do przodu sama z siebie -- musisz nacisnąć Enter (nie podczas czytania tekstu pomocy)."
   )
 
-S("Hint: hold Alt to highlights enemies and other important features.",
+S("Hint: hold Alt to highlight enemies and other important features.",
   "Wskazówka: trzymaj Alt by podświetlać przeciwników i inne istotne elementy.")
 
 // Crystal World

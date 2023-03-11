@@ -15,7 +15,7 @@ EX namespace ray {
 #if CAP_RAY
 
 /** texture IDs */
-GLuint txConnections = 0, txWallcolor = 0, txTextureMap = 0, txVolumetric = 0, txM = 0, txWall = 0;
+GLuint txConnections = 0, txWallcolor = 0, txTextureMap = 0, txVolumetric = 0, txM = 0, txWall = 0, txPortalConnections = 0;
 
 EX bool in_use;
 EX bool comparison_mode;
@@ -41,6 +41,7 @@ EX int gms_array_size = 16;
 EX ld maxstep_sol = .05;
 EX ld maxstep_nil = .1;
 EX ld maxstep_pro = .5;
+EX ld maxstep_intra = .05;
 EX ld minstep = .001;
 
 EX ld reflect_val = 0;
@@ -49,6 +50,7 @@ static const int NO_LIMIT = 999999;
 
 EX ld hard_limit = NO_LIMIT;
 
+EX int max_iter_intra = 600;
 EX int max_iter_sol = 600;
 EX int max_iter_iso = 60;
 EX int max_iter_eyes = 200;
@@ -57,11 +59,13 @@ EX int max_cells = 2048;
 EX bool rays_generate = true;
 
 EX ld& exp_decay_current() {
+  if(intra::in) return exp_decay_exp;
   if(fake::in()) return *FPIU(&exp_decay_current());
   return (sn::in() || hyperbolic || sl2) ? exp_decay_exp : exp_decay_poly;
   }
 
 EX int& max_iter_current() {
+  if(intra::in) return max_iter_intra;
   if(nonisotropic || stretch::in()) return max_iter_sol;
   else if(is_eyes()) return max_iter_eyes;
   else return max_iter_iso;
@@ -79,7 +83,12 @@ EX bool is_stepbased() {
   return nonisotropic || stretch::in() || is_eyes();
   }
 
+EX bool horos() {
+  return (hyperbolic || in_h2xe()) && bt::in();
+  }
+
 ld& maxstep_current() {
+  if(intra::in) return maxstep_intra;
   if(sn::in() || stretch::in()) return maxstep_sol;
   #if CAP_VR
   if(vrhr::active() && vrhr::eyes == vrhr::eEyes::equidistant)
@@ -92,8 +101,13 @@ ld& maxstep_current() {
 
 eGeometry last_geometry;
 
+vector<pair<int, cell*>> used_sample_list() {
+  if(intra::in) return intra::full_sample_list;
+  return hybrid::gen_sample_list();
+  }
+
 bool need_many_cell_types() {
-  return isize(hybrid::gen_sample_list()) > 2;
+  return isize(used_sample_list()) > 2;
   }
 
 /** is the raycaster available? */
@@ -111,7 +125,7 @@ EX bool available() {
   if(WDIM == 2 && (kite::in() || bt::in())) return false;
   #ifdef GLES_ONLY
   if(need_many_cell_types()) return false;
-  if(!euclid && !prod && !nil) return false;
+  if(!euclid && !gproduct && !nil) return false;
   #endif
   if(hyperbolic && pmodel == mdPerspective && !kite::in())
     return true;
@@ -123,7 +137,7 @@ EX bool available() {
     return true;
   if(euclid && pmodel == mdPerspective && !bt::in())
     return true;
-  if(prod)
+  if(gproduct)
     return true;
   if(pmodel == mdPerspective && stretch::in())
     return true;
@@ -134,6 +148,7 @@ EX bool available() {
 EX bool requested() {
   if(cgflags & qRAYONLY) return true;
   if(!want_use) return false;
+  if(intra::in) return true;
   if(stretch::in() && sphere) return true;
   #if CAP_TEXTURE
   if(texture::config.tstate == texture::tsActive) return false;
@@ -141,6 +156,7 @@ EX bool requested() {
   if(!available()) return false;
   if(want_use == 2) return true;
   if(rotspace) return false; // not very good
+  if(WDIM == 2) return false; // not very good
   return racing::on || quotient || fake::in();
   }
 
@@ -162,6 +178,7 @@ struct raycaster : glhr::GLprogram {
   GLint tM, uInvLengthM;
   GLint tWall, uInvLengthWall;
   
+  GLint tPortalConnections;
   raycaster(string vsh, string fsh);
   };
 #endif
@@ -212,6 +229,8 @@ raycaster::raycaster(string vsh, string fsh) : GLprogram(vsh, fsh) {
     tTextureMap = glGetUniformLocation(_program, "tTextureMap");
     tVolumetric = glGetUniformLocation(_program, "tVolumetric");
 
+    tPortalConnections = glGetUniformLocation(_program, "tPortalConnections");
+
     tM = glGetUniformLocation(_program, "tM");
     uInvLengthM = glGetUniformLocation(_program, "uInvLengthM");
     
@@ -231,8 +250,6 @@ raycaster::raycaster(string vsh, string fsh) : GLprogram(vsh, fsh) {
     }
 
 shared_ptr<raycaster> our_raycaster;
-
-int deg, irays;
 
 #ifdef GLES_ONLY
 void add(string& tgt, string type, string name, int min_index, int max_index) {
@@ -275,7 +292,7 @@ tuple<
     vrhr::state, 
     vrhr::eyes,
     #endif
-    cgi_string()
+    intra::in ? "INTRA" : cgi_string()
     );
   }
 
@@ -285,6 +302,1208 @@ ld ray_scale = 8;
 int max_wall_offset = 512;
 int max_celltype = 64;
 
+struct raygen {
+  string fsh, vsh, fmain;
+
+  void add_if(const string& seek, const string& function);
+
+  int deg, irays;
+  bool asonov;
+  bool use_reflect;
+  bool many_cell_types;
+  bool eyes;
+
+  string getM(string s) {
+    if(m_via_texture)
+      return "getM(" + s + ")";
+    else
+      return "uM[" + s + "]";
+    };
+
+  string getWall(string s, int coord) {
+    if(wall_via_texture)
+      return "getWall(" + s + "," + its(coord) + ")";
+    else
+      return "uWall" + string(coord?"Y" : "X") + "[" + s + "]";
+    };
+
+  string getWallstart(string s) {
+    if(wall_via_texture)
+      return "getWallstart(" + s + ")";
+    else
+      return "uWallstart[" + s + "]";
+    };
+  
+  void compute_which_and_dist(int flat1, int flat2);
+  void apply_reflect(int flat1, int flat2);
+  void move_forward();
+  void emit_intra_portal(int gid1, int gid2);
+  void emit_iterate(int gid1);
+  void emit_raystarter();
+  void create();
+
+  string f_xpush() { return hyperbolic ? "xpush_h3" : "xpush_s3"; }
+  string f_len() { return hyperbolic ? "len_h3" : (sphere && rotspace) ? "len_sr" : sl2 ? "len_sl2" : sphere ? "len_s3" : "len_x"; }
+  string f_len_prod() { return in_h2xe() ? "len_h2" : in_s2xe() ? "len_s2" : "len_e2"; }
+  void add_functions();
+  };
+
+raygen our_raygen;
+
+void raygen::add_if(const string& seek, const string& function) {
+  if(fsh.find(seek) != string::npos || fmain.find(seek) != string::npos)
+    fsh = function + fsh;
+  }
+
+void raygen::compute_which_and_dist(int flat1, int flat2) {
+  using glhr::to_glsl;
+
+  if(!is_stepbased()) {
+
+    fmain +=
+      "  if(which == -1) {\n";
+
+    if(in_h2xe() && hybrid::underlying == gBinary4)
+      fmain += "for(int i=2; i<=4; i+=2) {";
+    else if(in_h2xe() && hybrid::underlying == gTernary)
+      fmain += "for(int i=3; i<=5; i+=2) {";
+    else if(in_h2xe() && hybrid::underlying == gBinaryTiling)
+      fmain += "for(int i=0; i<=4; i++) if(i == 0 || i == 4) {";
+    else
+      fmain += "for(int i="+its(flat1)+"; i<"+(gproduct ? "sides-2" : ((WDIM == 2 || is_subcube_based(variation) || intra::in) && !bt::in()) ? "sides" : its(flat2))+"; i++) {\n";
+
+    fmain += "    mediump mat4 m = " + getM("walloffset+i") + ";\n";
+
+    if(in_h2xe()) fmain +=
+        "    mediump float v = ((position - m * position)[2] / (m * tangent - tangent)[2]);\n"
+        "    if(v > 1. || v < -1.) continue;\n"
+        "    mediump float d = atanh(v);\n"
+        "    mediump vec4 next_tangent = position * sinh(d) + tangent * cosh(d);\n"
+        "    if(next_tangent[2] < (m * next_tangent)[2]) continue;\n"
+        "    d /= xspeed;\n";
+    else if(in_s2xe()) fmain +=
+        "    mediump float v = ((position - m * position)[2] / (m * tangent - tangent)[2]);\n"
+        "    mediump float d = atan(v);\n"
+        "    mediump vec4 next_tangent = tangent * cos(d) - position * sin(d);\n"
+        "    if(next_tangent[2] > (m * next_tangent)[2]) continue;\n"
+        "    d /= xspeed;\n";
+    else if(in_e2xe()) fmain +=
+        "    mediump float deno = dot(position, tangent) - dot(m*position, m*tangent);\n"
+        "    if(deno < 1e-6  && deno > -1e-6) continue;\n"
+        "    mediump float d = (dot(m*position, m*position) - dot(position, position)) / 2. / deno;\n"
+        "    if(d < 0.) continue;\n"
+        "    mediump vec4 next_position = position + d * tangent;\n"
+        "    if(dot(next_position, tangent) < dot(m*next_position, m*tangent)) continue;\n"
+        "    d /= xspeed;\n";
+    else if(cgi.emb->is_sph_in_low() && hyperbolic) fmain +=
+        "    mediump float v = ((zpush_h3(-1.) * (position - m * position))[3] / (zpush_h3(-1.) * (m * tangent - tangent))[3]);\n"
+        "    if(v > 1. || v < -1.) continue;\n"
+        "    mediump float d = atanh(v);\n"
+        "    mediump vec4 next_tangent = position * sinh(d) + tangent * cosh(d);\n"
+        "    if((zpush_h3(-1.) * next_tangent)[3] < (zpush_h3(-1.) * (m * next_tangent))[3]) continue;\n";
+    else if(hyperbolic) fmain +=
+        "    mediump float v = ((position - m * position)[3] / (m * tangent - tangent)[3]);\n"
+        "    if(v > 1. || v < -1.) continue;\n"
+        "    mediump float d = atanh(v);\n"
+        "    mediump vec4 next_tangent = position * sinh(d) + tangent * cosh(d);\n"
+        "    if(next_tangent[3] < (m * next_tangent)[3]) continue;\n";
+    else if(sphere) fmain +=
+        "    mediump float v = ((position - m * position)[3] / (m * tangent - tangent)[3]);\n"
+        "    mediump float d = atan(v);\n"
+        "    mediump vec4 next_tangent = -position * sin(d) + tangent * cos(d);\n"
+        "    if(next_tangent[3] > (m * next_tangent)[3]) continue;\n";
+    else if(cgi.emb->is_sph_in_low() && euclid) fmain +=
+        "    vec4 tctr = vec4(0, 0, 1, 0);\n"
+        "    mediump float deno = dot(position-tctr, tangent) - dot(m*position-tctr, m*tangent);\n"
+        "    if(deno < 1e-6  && deno > -1e-6) continue;\n"
+        "    mediump float d = (dot(m*position-tctr, m*position-tctr) - dot(position-tctr, position-tctr)) / 2. / deno;\n"
+        "    if(d < 0.) continue;\n"
+        "    mediump vec4 next_position = position + d * tangent;\n"
+        "    if(dot(next_position - tctr, tangent) < dot(m*next_position - tctr, m*tangent)) continue;\n";
+    else fmain +=
+        "    mediump float deno = dot(position, tangent) - dot(m*position, m*tangent);\n"
+        "    if(deno < 1e-6  && deno > -1e-6) continue;\n"
+        "    mediump float d = (dot(m*position, m*position) - dot(position, position)) / 2. / deno;\n"
+        "    if(d < 0.) continue;\n"
+        "    mediump vec4 next_position = position + d * tangent;\n"
+        "    if(dot(next_position, tangent) < dot(m*next_position, m*tangent)) continue;\n";
+
+    fmain +=
+        "  if(d < dist) { dist = d; which = i; }\n"
+          "}\n";
+
+    if(hyperbolic && reg3::ultra_mirror_in()) {
+      fmain += "for(int i="+its(S7*2)+"; i<"+its(S7*2+isize(cgi.heptshape->vertices_only))+"; i++) {\n";
+      fmain += "mat4 uMi = " + getM("i") + ";";
+      fmain +=
+        "    mediump float v = ((position - uMi * position)[3] / (uMi * tangent - tangent)[3]);\n"
+        "    if(v > 1. || v < -1.) continue;\n"
+        "    mediump float d = atanh(v);\n"
+        "    mediump vec4 next_tangent = position * sinh(d) + tangent * cosh(d);\n"
+        "    if(next_tangent[3] < (uMi * next_tangent)[3]) continue;\n"
+        "    if(d < dist) { dist = d; which = i; }\n"
+          "}\n";
+      }
+
+    // 20: get to horosphere +uBLevel (take smaller root)
+    // 21: get to horosphere -uBLevel (take larger root)
+
+    if(horos()) {
+      string push = hyperbolic ? "xpush_h3" : "xpush_h2";
+      string w = hyperbolic ? "w" : "z";
+      fmain +=
+        "for(int i=20; i<22; i++) {\n"
+          "mediump float sgn = i == 20 ? -1. : 1.;\n"
+          "mediump vec4 zpos = "+push+"(uBLevel*sgn) * position;\n"
+          "mediump vec4 ztan = "+push+"(uBLevel*sgn) * tangent;\n"
+          "mediump float Mp = zpos."+w+" - zpos.x;\n"
+          "mediump float Mt = ztan."+w+" - ztan.x;\n"
+          "mediump float a = (Mp*Mp-Mt*Mt);\n"
+          "mediump float b = Mp/a;\n"
+          "mediump float c = (1.+Mt*Mt) / a;\n"
+          "if(b*b < c) continue;\n"
+          "if(sgn < 0. && Mt > 0.) continue;\n"
+          "mediump float zsgn = (Mt > 0. ? -sgn : sgn);\n"
+          "mediump float u = sqrt(b*b-c)*zsgn + b;\n"
+          "mediump float v = -(Mp*u-1.) / Mt;\n"
+          "if(a < 1e-5) v = (1.-Mp*Mp) / (2. * Mt);\n"
+          "mediump float d = asinh(v);\n";
+      if(gproduct) fmain += "d /= xspeed;\n";
+      fmain +=
+          "if(d < 0. && abs(log(position."+w+"*position."+w+"-position.x*position.x)) < uBLevel) continue;\n"
+          "if(d < dist) { dist = d; which = i; }\n"
+          "}\n";
+      }
+
+    if(gproduct) fmain +=
+      "if(zspeed > 0.) { mediump float d = (uPLevel - zpos) / zspeed; if(d < dist) { dist = d; which = sides-1; }}\n"
+      "if(zspeed < 0.) { mediump float d = (-uPLevel - zpos) / zspeed; if(d < dist) { dist = d; which = sides-2; }}\n";
+
+    fmain += "}\n";
+
+    fmain +=
+      "  if(dist < 0.) { dist = 0.; }\n";
+
+    fmain +=
+      "  if(which == -1 && dist == 0.) return;\n";
+    }
+  }
+
+void raygen::move_forward() {
+  using glhr::to_glsl;
+  if(in_h2xe() && !is_stepbased()) fmain +=
+    "  mediump float ch = cosh(dist*xspeed); mediump float sh = sinh(dist*xspeed);\n"
+    "  mediump vec4 v = position * ch + tangent * sh;\n"
+    "  tangent = tangent * ch + position * sh;\n"
+    "  position = v;\n"
+    "  zpos += dist * zspeed;\n";
+  else if(in_s2xe() && !is_stepbased()) fmain +=
+    "  mediump float ch = cos(dist*xspeed); mediump float sh = sin(dist*xspeed);\n"
+    "  mediump vec4 v = position * ch + tangent * sh;\n"
+    "  tangent = tangent * ch - position * sh;\n"
+    "  position = v;\n"
+    "  zpos += dist * zspeed;\n";
+  else if(in_e2xe() && !is_stepbased()) fmain +=
+    "  position = position + tangent * dist * xspeed;\n"
+    "  zpos += dist * zspeed;\n";
+  else if(hyperbolic && !is_stepbased()) fmain +=
+    "  mediump float ch = cosh(dist); mediump float sh = sinh(dist);\n"
+    "  mediump vec4 v = position * ch + tangent * sh;\n"
+    "  tangent = tangent * ch + position * sh;\n"
+    "  position = v;\n";
+  else if(sphere && !is_stepbased()) fmain +=
+    "  mediump float ch = cos(dist); mediump float sh = sin(dist);\n"
+    "  mediump vec4 v = position * ch + tangent * sh;\n"
+    "  tangent = tangent * ch - position * sh;\n"
+    "  position = v;\n";
+  else if(is_stepbased()) {
+
+    bool use_christoffel = true;
+
+    if(sol && nih) fsh +=
+      "mediump vec4 christoffel(mediump vec4 pos, mediump vec4 vel, mediump vec4 tra) {\n"
+      "  return vec4(-(vel.z*tra.x + vel.x*tra.z)*log(2.), (vel.z*tra.y + vel.y * tra.z)*log(3.), vel.x*tra.x * exp(2.*log(2.)*pos.z)*log(2.) - vel.y * tra.y * exp(-2.*log(3.)*pos.z)*log(3.), 0.);\n"
+      "  }\n";
+    else if(nih) fsh +=
+      "mediump vec4 christoffel(mediump vec4 pos, mediump vec4 vel, mediump vec4 tra) {\n"
+      "  return vec4((vel.z*tra.x + vel.x*tra.z)*log(2.), (vel.z*tra.y + vel.y * tra.z)*log(3.), -vel.x*tra.x * exp(-2.*log(2.)*pos.z)*log(2.) - vel.y * tra.y * exp(-2.*log(3.)*pos.z)*log(3.), 0.);\n"
+      "  }\n";
+    else if(sol) fsh +=
+      "mediump vec4 christoffel(mediump vec4 pos, mediump vec4 vel, mediump vec4 tra) {\n"
+      "  return vec4(-vel.z*tra.x - vel.x*tra.z, vel.z*tra.y + vel.y * tra.z, vel.x*tra.x * exp(2.*pos.z) - vel.y * tra.y * exp(-2.*pos.z), 0.);\n"
+      "  }\n";
+    else if(nil) {
+      fsh +=
+      "mediump vec4 christoffel(mediump vec4 pos, mediump vec4 vel, mediump vec4 tra) {\n"
+      "  mediump float x = pos.x;\n"
+      "  const float mu = " + to_glsl((1-nilv::model_used)/2) + ";\n"
+      "  pos[2] += pos[0] * pos[1] * mu;\n"
+      "  vel[2] += (pos[0] * vel[1] + pos[1] * vel[0]) * mu;\n"
+      "  tra[2] += (pos[0] * tra[1] + pos[1] * tra[0]) * mu;\n"
+      "  vec4 res = vec4(x*vel.y*tra.y - 0.5*dot(vel.yz,tra.zy), -.5*x*dot(vel.yx,tra.xy) + .5 * dot(vel.zx,tra.xz), -.5*(x*x-1.)*dot(vel.yx,tra.xy)+.5*x*dot(vel.zx,tra.xz), 0.);\n"
+      "  res[2] -= (pos[0] * res[1] + vel[0] * vel[1] + pos[2] * res[0]) * mu;\n"
+      "  return res;\n"
+      "  }\n";
+      use_christoffel = false;
+      }
+    else if(sl2 || stretch::in()) {
+      if(sl2) {
+        fsh += "mediump mat4 s_translate(vec4 h) {\n"
+          "return mat4(h.w,h.z,h.y,h.x,-h.z,h.w,-h.x,h.y,h.y,-h.x,h.w,-h.z,h.x,h.y,h.z,h.w);\n"
+          "}\n";
+        }
+      else {
+        fsh += "mediump mat4 s_translate(vec4 h) {\n"
+          "return mat4(h.w,h.z,-h.y,-h.x,-h.z,h.w,h.x,-h.y,h.y,-h.x,h.w,-h.z,h.x,h.y,h.z,h.w);\n"
+          "}\n";
+        }
+      fsh += "mediump mat4 s_itranslate(vec4 h) {\n"
+        "h.xyz = -h.xyz; return s_translate(h);\n"
+        "}\n";
+      if(stretch::mstretch) {
+        fsh += "mediump vec4 christoffel(mediump vec4 pos, mediump vec4 vel, mediump vec4 tra) {\n"
+          "vel = s_itranslate(toOrig * pos) * toOrig * vel;\n"
+          "tra = s_itranslate(toOrig * pos) * toOrig * tra;\n"
+          "return fromOrig * s_translate(toOrig * pos) * vec4(\n";
+
+        for(int i=0; i<3; i++) {
+          auto &c = stretch::ms_christoffel;
+          fsh += "  0.";
+          for(int j=0; j<3; j++)
+          for(int k=0; k<3; k++)
+            if(c[i][j][k])
+              fsh += "  + vel["+its(j)+"]*tra["+its(k)+"]*" + to_glsl(c[i][j][k]);
+          fsh += "  ,\n";
+          }
+        fsh += "  0);\n"
+          "}\n";
+        }
+      else
+        use_christoffel = false;
+      }
+    else use_christoffel = false;
+
+    if(use_christoffel) fsh += "mediump vec4 get_acc(mediump vec4 pos, mediump vec4 vel) {\n"
+      "  return christoffel(pos, vel, vel);\n"
+      "  }\n";
+
+    if(sn::in() && !asonov) fsh += "uniform mediump float uBinaryWidth;\n";
+
+    fmain +=
+      "  dist = next < minstep ? 2.*next : next;\n";
+
+    if(nil && !use_christoffel) fsh +=
+      "mediump vec4 translate(mediump vec4 a, mediump vec4 b) {\n"
+        "return vec4(a[0] + b[0], a[1] + b[1], a[2] + b[2] + a[0] * b[1], b[3]);\n"
+        "}\n"
+      "mediump vec4 translatev(mediump vec4 a, mediump vec4 t) {\n"
+        "return vec4(t[0], t[1], t[2] + a[0] * t[1], 0.);\n"
+        "}\n"
+      "mediump vec4 itranslate(mediump vec4 a, mediump vec4 b) {\n"
+        "return vec4(-a[0] + b[0], -a[1] + b[1], -a[2] + b[2] - a[0] * (b[1]-a[1]), b[3]);\n"
+        "}\n"
+      "mediump vec4 itranslatev(mediump vec4 a, mediump vec4 t) {\n"
+        "return vec4(t[0], t[1], t[2] - a[0] * t[1], 0.);\n"
+        "}\n";
+
+    // if(nil) fmain += "tangent = translate(position, itranslate(position, tangent));\n";
+
+    if(use_christoffel) fmain +=
+      "mediump vec4 vel = tangent * dist;\n"
+      "mediump vec4 acc1 = get_acc(position, vel);\n"
+      "mediump vec4 acc2 = get_acc(position + vel / 2., vel + acc1/2.);\n"
+      "mediump vec4 acc3 = get_acc(position + vel / 2. + acc1/4., vel + acc2/2.);\n"
+      "mediump vec4 acc4 = get_acc(position + vel + acc2/2., vel + acc3/2.);\n"
+      "mediump vec4 nposition = position + vel + (acc1+acc2+acc3)/6.;\n";
+
+    if((sl2 || stretch::in()) && use_christoffel) {
+      if(sl2) fmain +=
+        "nposition = nposition / sqrt(dot(position.zw, position.zw) - dot(nposition.xy, nposition.xy));\n";
+
+      else if(stretch::in()) fmain +=
+        "nposition = nposition / sqrt(dot(nposition, nposition));\n";
+      }
+
+    if((sl2 || stretch::in()) && !use_christoffel) {
+      ld SV = stretch::not_squared();
+      ld mul = (sphere?1:-1)-1/SV/SV;
+      fmain +=
+        "vec4 vel = s_itranslate(position) * tangent * dist;\n"
+        "vec4 vel1 = vel; vel1.z *= " + to_glsl(stretch::not_squared()) + ";\n"
+        "mediump float vlen = length(vel1.xyz);\n"
+        "if(vel.z<0.) vlen=-vlen;\n"
+        "float z_part = vel1.z/vlen;\n"
+        "float x_part = sqrt(1.-z_part*z_part);\n"
+        "const float SV = " + to_glsl(SV) + ";\n"
+        "float rparam = x_part / z_part / SV;\n"
+        "float beta = atan2(vel.y,vel.x);\n"
+        "if(vlen<0.) beta += PI;\n"
+        "mediump vec4 nposition, ntangent;\n";
+
+      if(sl2) fmain +=
+        "if(rparam > 1.) {\n"
+          "float cr = 1./sqrt(rparam*rparam-1.);\n"
+          "float sr = rparam*cr;\n"
+          "float z = cr * " + to_glsl(mul) + ";\n"
+          "float a = vlen / length(vec2(sr, cr/SV));\n"
+          "float k = -a;\n"
+          "float u = z*a;\n"
+          "float xy = sr * sinh(k);\n"
+          "float zw = cr * sinh(k);\n"
+          "nposition = vec4("
+            "-xy*cos(u+beta),"
+            "-xy*sin(u+beta),"
+            "zw*cos(u)-cosh(k)*sin(u),"
+            "zw*sin(u)+cosh(k)*cos(u)"
+            ");\n"
+
+          "ntangent = vec4("
+            "-sr*cosh(k)*k*cos(u+beta) + u*xy*sin(u+beta),"
+            "-sr*cosh(k)*k*sin(u+beta) - u*xy*cos(u+beta),"
+            "k*cr*cosh(k)*cos(u)-zw*sin(u)*u-k*sinh(k)*sin(u)-u*cosh(k)*cos(u),"
+            "k*cr*cosh(k)*sin(u)+u*zw*cos(u)+k*sinh(k)*cos(u)-u*cosh(k)*sin(u)"
+            ");\n"
+          "}\n"
+        "else {\n"
+          "float r = atanh(rparam);\n"
+          "float cr = cosh(r);\n"
+          "float sr = sinh(r);\n"
+          "float z = cr * "+to_glsl(mul)+";\n"
+          "float a = vlen / length(vec2(sr, cr/SV));\n"
+          "float k = -a;\n"
+          "float u = z*a;\n"
+          "float xy = sr * sin(k);\n"
+          "float zw = cr * sin(k);\n"
+          "ntangent = vec4("
+             "-sr*cos(k)*k*cos(u+beta) + u*xy*sin(u+beta),"
+             "-sr*cos(k)*k*sin(u+beta) - u*xy*cos(u+beta),"
+             "k*cr*cos(k)*cos(u)-zw*sin(u)*u+k*sin(k)*sin(u)-u*cos(k)*cos(u),"
+             "k*cr*cos(k)*sin(u)+zw*cos(u)*u-k*sin(k)*cos(u)-u*cos(k)*sin(u)"
+             ");\n"
+          "nposition = vec4("
+             "-xy * cos(u+beta),"
+             "-xy * sin(u+beta),"
+             "zw * cos(u) - cos(k) * sin(u),"
+             "zw * sin(u) + cos(k)*cos(u)"
+             ");\n"
+          "}\n";
+
+      else fmain +=
+        "if(true) {\n"
+          "float r = atan(rparam);\n"
+          "float cr = cos(r);\n"
+          "float sr = sin(r);\n"
+          "float z = cr * "+to_glsl(mul)+";\n"
+          "float a = vlen / length(vec2(sr, cr/SV));\n"
+          "float k = a;\n"
+          "float u = z*a;\n"
+          "float xy = sr * sin(k);\n"
+          "float zw = cr * sin(k);\n"
+          "ntangent = vec4("
+             "sr*cos(k)*k*cos(u+beta) - u*xy*sin(u+beta),"
+             "sr*cos(k)*k*sin(u+beta) + u*xy*cos(u+beta),"
+             "k*cr*cos(k)*cos(u)-zw*sin(u)*u+k*sin(k)*sin(u)-u*cos(k)*cos(u),"
+             "k*cr*cos(k)*sin(u)+zw*cos(u)*u-k*sin(k)*cos(u)-u*cos(k)*sin(u)"
+             ");\n"
+          "nposition = vec4("
+             "xy * cos(u+beta),"
+             "xy * sin(u+beta),"
+             "zw * cos(u) - cos(k) * sin(u),"
+             "zw * sin(u) + cos(k)*cos(u)"
+             ");\n"
+          "}\n";
+
+      fmain +=
+        "ntangent = ntangent / dist;\n"
+        "ntangent = s_translate(position) * ntangent;\n"
+        "nposition = s_translate(position) * nposition;\n";
+      }
+
+    if(nil && !use_christoffel && !eyes) {
+      fmain +=
+        "mediump vec4 xp, xt;\n"
+        "mediump vec4 back = itranslatev(position, tangent);\n"
+        "if(back.x == 0. && back.y == 0.) {\n"
+        "  xp = vec4(0., 0., back.z*dist, 1.);\n"
+        "  xt = back;\n"
+        "  }\n"
+        "else if(abs(back.z) == 0.) {\n"
+        "  xp = vec4(back.x*dist, back.y*dist, back.x*back.y*dist*dist/2., 1.);\n"
+        "  xt = vec4(back.x, back.y, dist*back.x*back.y, 0.);\n"
+        "  }\n"
+        "else if(abs(back.z) < 1e-1) {\n"
+// we use the midpoint method here, because the formulas below cause glitches due to mediump float precision
+        "  mediump vec4 acc = christoffel(vec4(0,0,0,1), back, back);\n"
+        "  mediump vec4 pos2 = back * dist / 2.;\n"
+        "  mediump vec4 tan2 = back + acc * dist / 2.;\n"
+        "  mediump vec4 acc2 = christoffel(pos2, tan2, tan2);\n"
+        "  xp = vec4(0,0,0,1) + back * dist + acc2 / 2. * dist * dist;\n"
+        "  xt = back + acc * dist;\n"
+        "  }\n"
+        "else {\n"
+        "  mediump float alpha = atan2(back.y, back.x);\n"
+        "  mediump float w = back.z * dist;\n"
+        "  mediump float c = length(back.xy) / back.z;\n"
+        "  xp = vec4(2.*c*sin(w/2.) * cos(w/2.+alpha), 2.*c*sin(w/2.)*sin(w/2.+alpha), w*(1.+(c*c/2.)*((1.-sin(w)/w)+(1.-cos(w))/w * sin(w+2.*alpha))), 1.);\n"
+        "  xt = back.z * vec4("
+             "c*cos(alpha+w),"
+             "c*sin(alpha+w),"
+             "1. + c*c*2.*sin(w/2.)*sin(alpha+w)*cos(alpha+w/2.),"
+             "0.);\n"
+        "  }\n"
+        "mediump vec4 nposition = translate(position, xp);\n";
+      }
+
+    if(asonov) {
+      fsh += "uniform mediump mat4 uStraighten;\n";
+      fmain += "mediump vec4 sp = uStraighten * nposition;\n";
+      }
+
+    if(eyes) {
+      fmain +=
+      "  mediump float t = go + dist;\n";
+      fmain += gproduct ?
+      "  mediump vec4 v = at1 * t;\n" :
+      "  mediump vec4 v = at0 * t;\n";
+      fmain +=
+      "  v[3] = 1.;\n"
+      "  mediump vec4 azeq = uEyeShift * v;\n";
+      if(nil) fmain +=
+        "  mediump float alpha = atan2(azeq.y, azeq.x);\n"
+        "  mediump float w = azeq.z;\n"
+        "  mediump float c = length(azeq.xy) / azeq.z;\n"
+        "  mediump vec4 xp = vec4(2.*c*sin(w/2.) * cos(w/2.+alpha), 2.*c*sin(w/2.)*sin(w/2.+alpha), w*(1.+(c*c/2.)*((1.-sin(w)/w)+(1.-cos(w))/w * sin(w+2.*alpha))), 1.);\n"
+        "  mediump vec4 orig_position = vw * vec4(0., 0., 0., 1.);\n"
+        "  mediump vec4 nposition = translate(orig_position, xp);\n";
+      else if(gproduct) {
+        fmain +=
+          "  mediump float alen_xy = length(azeq.xy);\n";
+        fmain += "  mediump float nzpos = zpos + azeq.z;\n";
+        if(in_h2xe()) {
+          fmain += "  azeq.xy *= sinh(alen_xy) / alen_xy;\n";
+          fmain += "  azeq.z = cosh(alen_xy);\n";
+          }
+        else if(in_s2xe()) {
+          fmain += "  azeq.xy *= sin (alen_xy) / alen_xy;\n";
+          fmain += "  azeq.z = cos(alen_xy);\n";
+          }
+        else {
+          /* euclid */
+          fmain += "  azeq.z = 1.;\n";
+          }
+        fmain += "azeq.w = 0.;\n";
+        fmain +=
+        "  mediump vec4 nposition = vw * azeq;\n";
+        }
+      else {
+        fmain +=
+          "  mediump float alen = length(azeq.xyz);\n";
+        if(hyperbolic) fmain +=
+          "  azeq *= sinh(alen) / alen;\n"
+          "  azeq[3] = cosh(alen);\n";
+        else if(sphere) fmain +=
+          "  azeq *= sin(alen) / alen;\n"
+          "  azeq[3] = cos(alen);\n";
+        else /* euclid */ fmain +=
+          "  azeq[3] = 1;\n";
+        fmain +=
+        "  mediump vec4 nposition = vw * azeq;\n";
+        }
+      }
+
+    else if(hyperbolic) {
+      fmain +=
+      "  mediump float ch = cosh(dist); mediump float sh = sinh(dist);\n"
+      "  mediump vec4 v = position * ch + tangent * sh;\n"
+      "  mediump vec4 ntangent = tangent * ch + position * sh;\n"
+      "  mediump vec4 nposition = v;\n";
+      }
+
+    else if(sphere && !stretch::in()) {
+      fmain +=
+      "  mediump float ch = cos(dist); mediump float sh = sin(dist);\n"
+      "  mediump vec4 v = position * ch + tangent * sh;\n"
+      "  mediump vec4 ntangent = tangent * ch - position * sh;\n"
+      "  mediump vec4 nposition = v;\n";
+      }
+
+    bool reg = hyperbolic || sphere || euclid || sl2 || gproduct;
+
+    if(reg) {
+      string s = (rotspace || gproduct) ? "-2" : "";
+      fmain +=
+    "    mediump float best = "+f_len()+"(nposition);\n"
+    "    for(int i=0; i<sides"+s+"; i++) {\n"
+    "      mediump float cand = "+f_len()+"(" + getM("walloffset+i") + " * nposition);\n"
+    "      if(cand < best) { best = cand; which = i; }\n"
+    "      }\n";
+      if(rotspace) fmain +=
+    "   if(which == -1) {\n"
+    "     best = len_rotspace(nposition);\n"
+    "     mediump float cand1 = len_rotspace(" + getM("walloffset+sides-2") + "*nposition);\n"
+    "     if(cand1 < best) { best = cand1; which = sides-2; }\n"
+    "     mediump float cand2 = len_rotspace(" + getM("walloffset+sides-1") + "*nposition);\n"
+    "     if(cand2 < best) { best = cand2; which = sides-1; }\n"
+    "     }\n";
+      if(gproduct) {
+        fmain +=
+        "if(nzpos > uPLevel) which = sides-1;\n"
+        "if(nzpos <-uPLevel) which = sides-2;\n";
+        }
+      }
+
+    if(nil) fmain +=
+      "mediump float rz = (abs(nposition.x) > abs(nposition.y) ?  -nposition.x*nposition.y : 0.) + nposition.z;\n";
+
+    fmain +=
+      "if(next >= minstep) {\n";
+
+    string hnilw = to_glsl(nilv::nilwidth / 2);
+    string hnilw2 = to_glsl(nilv::nilwidth * nilv::nilwidth / 2);
+
+    if(reg) fmain += "if(which != -1) {\n";
+    else if(asonov) fmain +=
+        "if(abs(sp.x) > 1. || abs(sp.y) > 1. || abs(sp.z) > 1.) {\n";
+    else if(nih) fmain +=
+        "if(abs(nposition.x) > uBinaryWidth || abs(nposition.y) > uBinaryWidth || abs(nposition.z) > .5) {\n";
+    else if(sol) fmain +=
+        "if(abs(nposition.x) > uBinaryWidth || abs(nposition.y) > uBinaryWidth || abs(nposition.z) > log(2.)/2.) {\n";
+    else fmain +=
+        "if(abs(nposition.x) > "+hnilw+" || abs(nposition.y) > "+hnilw+" || abs(rz) > "+hnilw2+") {\n";
+
+    fmain +=
+          "next = dist / 2.; continue;\n"
+          "}\n"
+        "if(next < maxstep) next = next / 2.;\n"
+        "}\n"
+      "else {\n";
+
+    if(sn::in()) {
+      if(asonov) fmain +=
+        "if(sp.x > 1.) which = 4;\n"
+        "if(sp.y > 1.) which = 5;\n"
+        "if(sp.x <-1.) which = 10;\n"
+        "if(sp.y <-1.) which = 11;\n"
+        "if(sp.z > 1.) {\n"
+          "mediump float best = 999.;\n"
+          "for(int i=0; i<4; i++) {\n"
+            "mediump float cand = "+f_len()+"(uStraighten * " + getM("i") + " * position);\n"
+            "if(cand < best) { best = cand; which = i;}\n"
+            "}\n"
+          "}\n"
+        "if(sp.z < -1.) {\n"
+          "mediump float best = 999.;\n"
+          "for(int i=6; i<10; i++) {\n"
+            "mediump float cand = "+f_len()+"(uStraighten * " + getM("i") + " * position);\n"
+            "if(cand < best) { best = cand; which = i;}\n"
+            "}\n"
+          "}\n";
+      else if(sol && !nih) fmain +=
+        "if(nposition.x > uBinaryWidth) which = 0;\n"
+        "if(nposition.x <-uBinaryWidth) which = 4;\n"
+        "if(nposition.y > uBinaryWidth) which = 1;\n"
+        "if(nposition.y <-uBinaryWidth) which = 5;\n";
+      if(nih) fmain +=
+        "if(nposition.x > uBinaryWidth) which = 0;\n"
+        "if(nposition.x <-uBinaryWidth) which = 2;\n"
+        "if(nposition.y > uBinaryWidth) which = 1;\n"
+        "if(nposition.y <-uBinaryWidth) which = 3;\n";
+      if(sol && nih) fmain +=
+        "if(nposition.z > .5) which = nposition.x > 0. ? 5 : 4;\n"
+        "if(nposition.z <-.5) which = nposition.y > uBinaryWidth/3. ? 8 : nposition.y < -uBinaryWidth/3. ? 6 : 7;\n";
+      if(nih && !sol) fmain +=
+        "if(nposition.z > .5) which = 4;\n"
+        "if(nposition.z < -.5) which = (nposition.y > uBinaryWidth/3. ? 9 : nposition.y < -uBinaryWidth/3. ? 5 : 7) + (nposition.x>0.?1:0);\n";
+      if(sol && !nih && !asonov) fmain +=
+        "if(nposition.z > log(2.)/2.) which = nposition.x > 0. ? 3 : 2;\n"
+        "if(nposition.z <-log(2.)/2.) which = nposition.y > 0. ? 7 : 6;\n";
+      }
+    else if(nil) fmain +=
+        "if(nposition.x > "+hnilw+") which = 3;\n"
+        "if(nposition.x <-"+hnilw+") which = 0;\n"
+        "if(nposition.y > "+hnilw+") which = 4;\n"
+        "if(nposition.y <-"+hnilw+") which = 1;\n"
+        "if(rz > "+hnilw2+") which = 5;\n"
+        "if(rz <-"+hnilw2+") which = 2;\n";
+
+    fmain +=
+        "next = maxstep;\n"
+        "}\n";
+
+    if(use_christoffel) fmain +=
+      "tangent = tangent + (acc1+2.*acc2+2.*acc3+acc4)/(6.*dist);\n";
+    else if(nil && !eyes) fmain +=
+      "tangent = translatev(position, xt);\n";
+    else if(!eyes)
+      fmain +=
+      "tangent = ntangent;\n";
+
+    if(!eyes) fmain +=
+      "position = nposition;\n";
+    else fmain += "vec4 position = nposition;\n";
+
+    if((stretch::in() || sl2) && use_christoffel) {
+      fmain +=
+        "tangent = s_itranslate(toOrig * position) * toOrig * tangent;\n"
+        "tangent[3] = 0.;\n";
+      if(stretch::mstretch)
+        fmain +=
+          "float nvelsquared = dot(tangent.xyz, (uATOI * tangent).xyz);\n";
+      else
+        fmain +=
+          "float nvelsquared = tangent.x * tangent.x + tangent.y * tangent.y + "
+            + to_glsl(stretch::squared()) + " * tangent.z * tangent.z;\n";
+      fmain +=
+        "tangent /= sqrt(nvelsquared);\n"
+        "tangent = fromOrig * s_translate(toOrig * position) * tangent;\n";
+      }
+    }
+  else fmain +=
+    "position = position + tangent * dist;\n";
+  }
+
+void raygen::apply_reflect(int flat1, int flat2) {
+  if(gproduct) fmain += "if(reflect && which >= sides-2) { zspeed = -zspeed; continue; }\n";
+  if(horos()) {
+    fmain +=
+    "if(reflect && (which < "+its(flat1)+" || which >= "+its(flat2)+")) {\n";
+    if(hyperbolic) fmain +=
+    "  mediump float x = -log(position.w - position.x);\n"
+    "  mediump vec4 xtan = xpush_h3(-x) * tangent;\n"
+    "  mediump float diag = (position.y*position.y+position.z*position.z)/2.;\n"
+    "  mediump vec4 normal = vec4(1.-diag, -position.y, -position.z, -diag);\n"
+    "  mediump float mdot = dot(xtan.xyz, normal.xyz) - xtan.w * normal.w;\n";
+    else fmain +=
+    "  mediump float x = -log(position.z - position.x);\n"
+    "  mediump vec4 xtan = xpush_h2(-x) * tangent;\n"
+    "  mediump float diag = position.y*position.y/2.;\n"
+    "  mediump vec4 normal = vec4(1.-diag, -position.y, -diag, 0.);\n"
+    "  mediump float mdot = dot(xtan.xy, normal.xy) - xtan.w * normal.w;\n";
+    fmain +=
+    "  xtan = xtan - normal * mdot * 2.;\n"
+    "  tangent = xpush_h(x) * xtan;\n"
+    "  continue;\n"
+    "  }\n";
+    }
+  if(asonov) {
+    fmain +=
+      "  if(reflect) {\n"
+      "    if(which == 4 || which == 10) tangent = refl(tangent, position.z, uReflectX);\n"
+      "    else if(which == 5 || which == 11) tangent = refl(tangent, position.z, uReflectY);\n"
+      "    else tangent.z = -tangent.z;\n"
+      "    }\n";
+    fsh +=
+      "uniform mediump vec4 uReflectX, uReflectY;\n"
+      "mediump vec4 refl(mediump vec4 t, float z, mediump vec4 r) {\n"
+        "t.x *= exp(z); t.y /= exp(z);\n"
+        "t -= dot(t, r) * r;\n"
+        "t.x /= exp(z); t.y *= exp(z);\n"
+        "return t;\n"
+        "}\n";
+    }
+  else if(sol && !nih && !asonov) fmain +=
+    "  if(reflect) {\n"
+    "    if(which == 0 || which == 4) tangent.x = -tangent.x;\n"
+    "    else if(which == 1 || which == 5) tangent.y = -tangent.y;\n"
+    "    else tangent.z = -tangent.z;\n"
+    "    continue;\n"
+    "    }\n";
+  else if(nih) fmain +=
+    "  if(reflect) {\n"
+    "    if(which == 0 || which == 2) tangent.x = -tangent.x;\n"
+    "    else if(which == 1 || which == 3) tangent.y = -tangent.y;\n"
+    "    else tangent.z = -tangent.z;\n"
+    "    continue;\n"
+    "    }\n";
+  else {
+    fmain +=
+    "  if(reflect) {\n"
+    "    tangent = " + getM("uMirrorShift+walloffset+which") + " * tangent;\n"
+    "    continue;\n"
+    "    }\n";
+    if(fsh.find("uMirrorShift") == string::npos)
+      fsh += "uniform int uMirrorShift;\n";
+    }
+  }
+
+void raygen::emit_intra_portal(int gid1, int gid2) {
+
+  if(1) {
+    intra::resetter ir;
+    intra::switch_to(gid2);
+    }
+
+  if(gproduct) {
+    fmain += "mediump vec4 nposition;\n";
+    fmain += "if(pconnection.x != .5) {\n"; // kind != 0
+    if(1) {
+      string fn = bt::in() ? "to_poco_h2xr_b" : in_h2xe() ? "to_poco_h2xr_h" : "to_poco_s2xr_s";
+      string tmul = "";
+      if(!bt::in()) {
+        fmain +=
+        "    mediump mat4 tkt = " + getM("mid+1") + ";\n";
+        tmul = "tkt*";
+        }
+      fmain +=
+        "    nposition = position + tangent * xspeed * 1e-3;\n"
+        "    position = "+fn+"("+tmul+"position);\n"
+        "    position.z = 0.;\n" // zpos - uPLevel;\n"
+        "    nposition = "+fn+"("+tmul+"nposition);\n"
+        "    nposition.z = zspeed * 1e-3;\n"
+        "    if(pconnection.y < .5) { nposition.z = -nposition.z; nposition.x = -nposition.x; position.x = -position.x; }\n";
+      }
+    fmain += "  } else {\n";
+    if(1) {
+      string fn = in_h2xe() ? "to_poco_h2xr_e" : "to_poco_s2xr_e";
+      fmain +=
+        "    nposition = position + tangent * xspeed * 1e-3;\n"
+        "    mediump mat4 tkt = " + getM("mid+1") + ";\n"
+        "    position = "+fn+"(tkt * position);\n"
+        "    position.y = zpos;\n"
+        "    nposition = "+fn+"(tkt * nposition);\n"
+        "    nposition.y = zpos + zspeed * 1e-3;\n";
+      }
+    fmain += "  }\n";
+    }
+  else if(hyperbolic && bt::in()) {
+    fmain +=
+      "    mediump vec4 nposition = position + tangent * 1e-3;\n"
+      "    mediump mat4 tkt = " + getM("mid+1") + ";\n"
+      "    position = deparabolici13(position);\n"
+      "    nposition = deparabolici13(nposition);\n"
+      "    position = tkt * position;\n"
+      "    nposition = tkt * nposition;\n"
+      "    position.z *= exp(position.y);\n"
+      "    nposition.z *= exp(nposition.y);\n";
+    }
+  else if(sol) {
+    fmain +=
+      "    mediump vec4 nposition = position + tangent * 1e-3;\n"
+      "    mediump mat4 tkt = " + getM("mid+1") + ";\n"
+      "    position = tkt * position;\n"
+      "    nposition = tkt * nposition;\n"
+      "    position.z *= exp(-position.y);\n"
+      "    nposition.z *= exp(-nposition.y);\n";
+    }
+  else {
+    fmain +=
+      "    mediump vec4 nposition = position + tangent * 1e-3;\n"
+      "    mediump mat4 tkt = " + getM("mid+1") + ";\n";
+    if(hyperbolic) fmain +=
+      "    position = to_poco_h3(tkt * position);\n"
+      "    nposition = to_poco_h3(tkt * nposition);\n";
+    else if(sphere) fmain +=
+      "    position = to_poco_s3(tkt * position);\n"
+      "    nposition = to_poco_s3(tkt * nposition);\n";
+    else fmain +=
+      "    position = tkt * position;\n"
+      "    nposition = tkt * nposition;\n";
+    }
+
+  fmain +=
+    "    mediump mat4 m = " + getM("mid") + ";\n"
+    "    position = m * position;\n"
+    "    nposition = m * nposition;\n";
+
+  intra::resetter ir;
+  intra::switch_to(gid2);
+
+  if(gproduct) {
+    fmain += "if(pconnection.z != .5) {\n"; // kind != 0
+    if(1) {
+      string sgn = in_h2xe() ? "-" : "+";
+      string fn = bt::in() ? "from_poco_h2xr_b" : in_h2xe() ? "itkt*from_poco_h2xr_h" : "itkt*from_poco_s2xr_s";
+
+      fmain +=
+      "    if(pconnection.w < .5) { position.z = -position.z; nposition.z = -nposition.z; nposition.x = -nposition.x; position.x = -position.x; }\n"
+      "    zspeed = (nposition.z - position.z) * 1e3;\n"
+      "    zpos = position.z + (pconnection.w - .5) * 16.;\n"
+      "    mediump mat4 itkt = " + getM("mid+2") + ";\n"
+      "    position = "+fn+"(position);\n"
+      "    nposition = "+fn+"(nposition);\n"
+      "    tangent = (nposition - position) * 1e3;\n"
+      "    mediump float pnorm = tangent.z * position.z "+sgn+" tangent.x * position.x "+sgn+" tangent.y * position.y;\n"
+      "    tangent -= position * pnorm;\n"
+      "    xspeed = sqrt(tangent.x * tangent.x + tangent.y * tangent.y "+sgn+" tangent.z * tangent.z);\n"
+      "    tangent /= xspeed;\n";
+      }
+    fmain += "  } else {\n";
+    if(1) {
+      string sgn = in_h2xe() ? "-" : "+";
+      string fn = in_h2xe() ? "from_poco_h2xr_e" : "from_poco_s2xr_e";
+      fmain +=
+      "    mediump mat4 itkt = " + getM("mid+2") + ";\n";
+      fmain +=
+      "    zpos = position.y;\n"
+      "    zspeed = (nposition.y - zpos) * 1e3;\n"
+      "    position = itkt * "+fn+"(position);\n"
+      "    nposition = itkt * "+fn+"(nposition);\n"
+      "    tangent = (nposition - position) * 1e3;\n"
+      "    mediump float pnorm = tangent.z * position.z "+sgn+" dot(position.xy, tangent.xy);\n"
+      "    tangent -= position * pnorm;\n"
+      "    xspeed = sqrt(dot(tangent.xy, tangent.xy) "+sgn+" tangent.z * tangent.z);\n"
+      "    tangent /= xspeed;\n"
+      "    mediump float l = xspeed*xspeed+zspeed*zspeed;\n"
+      "    xspeed /= sqrt(l); zspeed /= sqrt(l);\n";
+      }
+    fmain += "}\n";
+    }
+  else if(sol) {
+    fmain +=
+   "    mediump mat4 itkt = " + getM("mid+2") + ";\n";
+    fmain +=
+   "    position.z *= exp(position.y);\n"
+   "    nposition.z *= exp(nposition.y);\n"
+   "    position = itkt * position;\n"
+   "    nposition = itkt * nposition;\n"
+   "    tangent = (nposition - position) * 1e3;\n"
+   "    float next = maxstep;\n";
+    }
+  else {
+    fmain +=
+    "    mediump mat4 itkt = " + getM("mid+2") + ";\n";
+
+    if(hyperbolic || sphere) {
+      string sgn = hyperbolic ? "-" : "+";
+      if(hyperbolic && bt::in()) {
+        fmain +=
+       "    position.z *= exp(-position.y);\n"
+       "    nposition.z *= exp(-nposition.y);\n"
+       "    position = itkt * position;\n"
+       "    nposition = itkt * nposition;\n"
+       "    position = enparabolici13(position);\n"
+       "    nposition = enparabolici13(nposition);\n";
+         }
+      else {
+        string he = hyperbolic ? "from_poco_h3" : "from_poco_s3";
+        fmain +=
+    "    position = itkt * "+he+"(position);\n"
+    "    nposition = itkt * "+he+"(nposition);\n";
+        }
+      fmain +=
+    "    tangent = (nposition - position) * 1e3;\n"
+    "    mediump float pnorm = position.w * position.w "+sgn+" dot(position.xyz, position.xyz);\n"
+    "    position /= sqrt(pnorm);\n"
+    "    pnorm = tangent.w * position.w "+sgn+" dot(position.xyz, tangent.xyz);\n"
+    "    tangent -= position * pnorm;\n"
+    "    mediump float xspeed = sqrt(dot(tangent.xyz, tangent.xyz) "+sgn+" tangent.w * tangent.w);\n"
+    "    tangent /= xspeed;\n";
+      }
+
+    else fmain +=
+    "    position = itkt * position;\n"
+    "    nposition = itkt * nposition;\n"
+    "    tangent = (nposition - position) * 1e3;\n"
+    "    tangent /= dot(tangent.xyz, tangent.xyz);\n";
+    }
+  }
+
+void raygen::emit_iterate(int gid1) {
+  using glhr::to_glsl;
+
+  if(intra::in && gproduct)
+    fmain += "  const mediump float uPLevel = " + to_glsl(cgi.plevel/2) + ";\n";
+
+  int flat1 = 0, flat2 = deg;
+  if(gproduct || rotspace) flat2 -= 2;
+
+#if CAP_BT
+  if(horos()) {
+    if(intra::in)
+      fmain += "mediump float uBLevel = " + to_glsl(log(bt::expansion()) / 2) + ";\n";
+    else
+      fsh += "uniform mediump float uBLevel;\n";
+    flat1 = bt::dirs_outer();
+    flat2 -= bt::dirs_inner();
+    }
+#endif
+
+  fmain +=
+    "  mediump float dist = 100.;\n";
+
+  fmain +=
+    "  int which = -1;\n";
+
+  if(intra::in) {
+    if(hyperbolic) fmain += "iter += 44;\n";
+    else if(!sol) fmain += "iter += 4;\n";
+    }
+
+  if(in_e2xe() && !eyes) fmain += "tangent.w = position.w = 0.;\n";
+
+  if(IN_ODS) fmain +=
+    "  if(go == 0.) {\n"
+    "    mediump float best = "+f_len()+"(position);\n"
+    "    for(int i=0; i<sides; i++) {\n"
+    "      mediump float cand = "+f_len()+"(" + getM("i") + " * position);\n"
+    "      if(cand < best - .001) { dist = 0.; best = cand; which = i; }\n"
+    "      }\n"
+    "    }\n";
+
+  compute_which_and_dist(flat1, flat2);
+
+  vid.fixed_yz = false;
+
+  // shift d units
+  if(use_reflect) fmain +=
+    "bool reflect = false;\n";
+
+  move_forward();
+
+  if(!eyes) {
+    if(hyperbolic) fmain +=
+      "position /= sqrt(position.w*position.w - dot(position.xyz, position.xyz));\n"
+      "tangent -= dot(vec4(-position.xyz, position.w), tangent) * position;\n"
+      "tangent /= sqrt(dot(tangent.xyz, tangent.xyz) - tangent.w*tangent.w);\n";
+
+    if(in_h2xe()) fmain +=
+      "position /= sqrt(position.z*position.z - dot(position.xy, position.xy));\n"
+      "tangent -= dot(vec3(-position.xy, position.z), tangent.xyz) * position;\n"
+      "tangent /= sqrt(dot(tangent.xy, tangent.xy) - tangent.z*tangent.z);\n";
+    }
+
+  if(horos()) {
+    string w20, w21;
+    if(in_h2xe() && hybrid::underlying == gBinary4) {
+      w21 = "  for(int i=0; i<2; i++) {\n";
+      w20 = "int i=3; {\n";
+      }
+    else if(in_h2xe() && hybrid::underlying == gTernary) {
+      w21 = "  for(int i=0; i<3; i++) {\n";
+      w20 = "int i=4; {\n";
+      }
+    else if(in_h2xe() && hybrid::underlying == gBinaryTiling) {
+      w20 = "int i = sides == 8 ? 5 : position.y < 0. ? 5 : 6; {\n";
+      w21 = "for(int i=1; i<4; i++) {\n";
+      }
+    else {
+      w20 = "  for(int i="+its(flat2)+"; i<"+its(S7)+"; i++) {\n";
+      w21 = "for(int i=0; i<"+its(flat1)+"; i++) {\n";
+      }
+    fmain +=
+      "if(which == 20) {\n"
+      "  mediump float best = 999.;\n"
+      +w20+
+        "  mediump float cand = "+f_len_prod()+"(" + getM("walloffset+i") + " * position);\n"
+        "  if(cand < best) { best = cand; which = i; }\n"
+        "  }\n"
+        "}\n"
+      "if(which == 21) {\n"
+        "mediump float best = 999.;\n"
+        +w21+
+        "  mediump float cand = "+f_len_prod()+"(" + getM("walloffset+i") + " * position);\n"
+        "  if(cand < best) { best = cand; which = i; }\n"
+        "  }\n"
+        "}\n";
+    }
+
+  if(volumetric::on) fmain +=
+    "if(dist > 0. && go < " + to_glsl(hard_limit) + ") {\n"
+    "   if(dist > "+to_glsl(hard_limit)+" - go) dist = "+to_glsl(hard_limit)+" - go;\n"
+    "   mediump vec4 col = texture2D(tVolumetric, cid);\n"
+    "   mediump float factor = col.w; col.w = 1.;\n"
+    "   mediump float frac = exp(-(factor + 1. / uExpDecay) * dist);\n"
+    "   gl_FragColor += left * (1.-frac) * col;\n"
+    "   left *= frac;\n"
+    "   }\n;";
+
+  fmain += "  go = go + dist;\n";
+
+  fmain += "if(which == -1) continue;\n";
+
+  if(gproduct && eyes) fmain += "position.w = -nzpos;\n";
+  else if(gproduct) fmain += "position.w = -zpos;\n";
+
+  if(reg3::ultra_mirror_in()) fmain +=
+    "if(which >= " + its(S7) + ") {"
+    "  tangent = " + getM("which") + " * tangent;\n"
+    "  continue;\n"
+    "  }\n";
+
+  // apply wall color
+  fmain +=
+    "  mediump vec2 u = cid + vec2(float(which) / float(uLength), 0);\n"
+    "  mediump vec4 col = texture2D(tWallcolor, u);\n"
+    "  if(col[3] > 0.0) {\n";
+
+  if(eyes)
+    fmain += "    mediump float gou = go / uAbsUnit;\n";
+  else
+    fmain += "    mediump float gou = go;\n";
+
+  if(hard_limit < NO_LIMIT)
+    fmain += "    if(gou > " + to_glsl(hard_limit) + ") { gl_FragDepth = 1.; return; }\n";
+
+  if(!(levellines && disable_texture)) {
+    fmain += "  mediump vec4 pos = position;\n";
+    if(nil) fmain += "if(which == 2 || which == 5) pos.z = 0.;\n";
+    else if(hyperbolic && bt::in()) fmain +=
+        "pos = deparabolici13(pos);\n"
+        "pos.xyz = pos.zxy;\n";
+    else if(hyperbolic || sphere) fmain +=
+        "pos /= pos.w;\n";
+    else if(gproduct && bt::in()) fmain +=
+        "pos.xy = deparabolic12(pos).xy;\n"
+        "pos.z = -pos.w; pos.w = 0.;\n"
+;
+    else if(gproduct) fmain +=
+      "pos = vec4(pos.x/pos.z, pos.y/pos.z, -pos.w, 0);\n";
+    fmain +=
+    "    mediump vec2 inface = map_texture(pos, which+walloffset);\n"
+    "    mediump vec3 tmap = texture2D(tTextureMap, u).rgb;\n"
+    "    if(tmap.z == 0.) col.xyz *= min(1., (1.-inface.x)/ tmap.x);\n"
+    "    else {\n"
+    "      mediump vec2 inface2 = tmap.xy + tmap.z * inface;\n"
+    "      col.xyz *= texture2D(tTexture, inface2).rgb;\n"
+    "      }\n";
+    }
+
+  if(volumetric::on)
+    fmain += "    mediump float d = uExpStart * exp(-gou / uExpDecay);\n";
+
+  else
+    fmain +=
+    "    mediump float d = max(1. - gou / uLinearSightRange, uExpStart * exp(-gou / uExpDecay));\n";
+
+  if(!volumetric::on) fmain +=
+    "    col.xyz = col.xyz * d + uFogColor.xyz * (1.-d);\n";
+
+  if(nil) fmain +=
+    "    if(abs(abs(position.x)-abs(position.y)) < .005) col.xyz /= 2.;\n";
+
+  if(use_reflect) fmain +=
+    "  if(col.w == 1.) {\n"
+    "    col.w = " + to_glsl(1-reflect_val)+";\n"
+    "    reflect = true;\n"
+    "    }\n";
+
+  ld vnear = glhr::vnear_default;
+  ld vfar = glhr::vfar_default;
+
+  fmain +=
+    "    gl_FragColor.xyz += left * col.xyz * col.w;\n";
+
+  if(use_reflect) fmain +=
+    "    if(reflect && depthtoset) {\n";
+  else fmain +=
+    "    if(col.w == 1.) {\n";
+
+  if(hyperbolic && !eyes && !intra::in) {
+    fmain +=
+    "      mediump vec4 t = at0 * tanh(go);\n"
+    "      t.w = 1.;\n";
+    fmain += "gl_FragColor.xyz *= 0.9999 + 0.0001 * t.z;\n";
+    fmain += "gl_FragColor.xyz /= 0.9999 + 0.0001 * t.z;\n";
+    }
+  else {
+    fmain +=
+    "      mediump vec4 t = at0 * go;\n"
+    "      t.w = 1.;\n";
+    }
+
+  if(levellines) {
+    if(hyperbolic && !eyes && !intra::in)
+      fmain += "gl_FragColor.xyz *= 0.5 + 0.5 * cos(t.z * uLevelLines * 2. * PI);\n";
+    else
+      fmain += "gl_FragColor.xyz *= 0.5 + 0.5 * cos(go * uLevelLines * 2. * PI);\n";
+    if(fsh.find("uLevelLines") == string::npos)
+      fsh += "uniform mediump float uLevelLines;\n";
+    }
+
+  if(panini_alpha)
+    fmain += panini_shader();
+
+  else if(stereo_alpha)
+    fmain += stereo_shader();
+
+  #ifndef GLES_ONLY
+  fmain +=
+    "      gl_FragDepth = (" + to_glsl(-vnear-vfar)+"+t.w*" + to_glsl(2*vnear*vfar)+"/t.z)/" + to_glsl(vnear-vfar)+";\n"
+    "      gl_FragDepth = (gl_FragDepth + 1.) / 2.;\n";
+  #endif
+
+  if(!use_reflect) fmain +=
+    "      return;\n";
+  else fmain +=
+    "      depthtoset = false;\n";
+
+  fmain +=
+    "      }\n"
+    "    left *= (1. - col.w);\n"
+    "    }\n";
+
+  if(use_reflect)
+    apply_reflect(flat1, flat2);
+
+  // next cell
+  fmain +=
+    "  mediump vec4 connection = texture2D(tConnections, u);\n"
+    "  cid = connection.xy;\n";
+
+  if(many_cell_types)
+    fmain += "int nwalloffset = int(connection.w * " + to_glsl(max_wall_offset) + ");\n";
+
+  fmain += "  int mid = int(connection.z * 1024.);\n";
+
+  string no_intra_portal = "";
+
+  no_intra_portal +=
+    "  mediump mat4 m = " + getM("mid") + " * " + getM("walloffset+which") + ";\n";
+
+  if(eyes)
+    no_intra_portal += "  vw = m * vw;\n";
+
+  else no_intra_portal +=
+    "  position = m * position;\n"
+    "  tangent = m * tangent;\n";
+
+  if(gproduct) no_intra_portal =
+    "  if(which == sides-2) { zpos += uPLevel+uPLevel; }\n"
+    "  else if(which == sides-1) { zpos -= uPLevel+uPLevel; }\n"
+    "  else {\n" + no_intra_portal + "}\n";
+
+  if(stretch::mstretch) no_intra_portal +=
+    "  m = s_itranslate(m*vec4(0,0,0,1)) * m;"
+    "  fromOrig = m * fromOrig;\n"
+    "  m[0][1] = -m[0][1]; m[1][0] = -m[1][0];\n" // inverse
+    "  toOrig = toOrig * m;\n";
+
+  if(!intra::in) fmain += no_intra_portal;
+  else {
+
+    if(intra::in) {
+      int q = isize(intra::data);
+      fmain +="  mediump vec4 pconnection = texture2D(tPortalConnections, u);\n";
+      fmain += "if(pconnection.x == 0.) {\n";
+      fmain += no_intra_portal;
+      fmain += "  } else\n";
+
+      for(int gid2=0; gid2<q; gid2++) {
+        if(gid2 == q-1)
+          fmain += "  {\n";
+        else  {
+          fmain += "  if(nwalloffset < " + its(intra::data[gid2+1].wallindex) + ") {\n";
+          }
+        emit_intra_portal(gid1, gid2);
+        if(gid2 == q-1)
+          fmain += "  }\n";
+        else
+          fmain += "  } else\n";
+        }
+      }
+    else
+      fmain += no_intra_portal;
+    }
+
+  if(many_cell_types) {
+    fmain +=
+      "walloffset = nwalloffset;\n"
+      "sides = int(connection.w * " + to_glsl(max_wall_offset * max_celltype) + ") - " + its(max_celltype) + " * walloffset;\n";
+
+    // fmain += "if(sides != 8) { gl_FragColor = vec4(.5,float(sides)/8.,.5,1); return; }";
+    }
+  }
+
 void enable_raycaster() {
   using glhr::to_glsl;
   auto state = raycaster_state();
@@ -293,54 +1512,323 @@ void enable_raycaster() {
     saved_state = state;
     }
 
-  auto getM = [] (string s) {
-    if(m_via_texture)
-      return "getM(" + s + ")";
-    else
-      return "uM[" + s + "]";
-    };
+  last_geometry = geometry;
 
-  auto getWall = [] (string s, int coord) {
-    if(wall_via_texture)
-      return "getWall(" + s + "," + its(coord) + ")";
-    else
-      return "uWall" + string(coord?"Y" : "X") + "[" + s + "]";
-    };
+  if(!our_raycaster) {
+    auto& g = our_raygen;
+    g.create();
 
-  auto getWallstart = [] (string s) {
-    if(wall_via_texture)
-      return "getWallstart(" + s + ")";
-    else
-      return "uWallstart[" + s + "]";
-    };
-  
+    g.fsh += g.fmain;
+    callhooks(hooks_rayshader, g.vsh, g.fsh);
+    our_raycaster = make_shared<raycaster> (g.vsh, g.fsh);
+    }
+  full_enable(our_raycaster);
+  }
+
+void raygen::add_functions() {
+
+  add_if("xpush_h3",
+
+    "mediump mat4 xpush_h3(float x) { return mat4("
+         "cosh(x), 0., 0., sinh(x),\n"
+         "0., 1., 0., 0.,\n"
+         "0., 0., 1., 0.,\n"
+         "sinh(x), 0., 0., cosh(x)"
+         ");}\n");
+
+  add_if("zpush_h3",
+
+    "mediump mat4 zpush_h3(float x) { return mat4("
+         "1., 0., 0., 0.,\n"
+         "0., 1., 0., 0.,\n"
+         "0., 0., cosh(x), sinh(x),\n"
+         "0., 0., sinh(x), cosh(x)"
+         ");}\n");
+
+  add_if("xpush_h2",
+
+    "mediump mat4 xpush_h2(float x) { return mat4("
+         "cosh(x), 0., sinh(x), 0.,\n"
+         "0., 1., 0., 0.,\n"
+         "sinh(x), 0., cosh(x), 0.,\n"
+         "0., 0., 0., 1."
+         ");}\n");
+
+  add_if("xpush_s",
+
+    "mediump mat4 xpush_s(float x) { return mat4("
+         "cos(x), 0., 0., sin(x),\n"
+         "0., 1., 0., 0.,\n"
+         "0., 0., 1., 0.,\n"
+         "-sin(x), 0., 0., cos(x)"
+         ");}\n"
+    );
+
+  add_if("xzspin",
+
+    "mediump mat4 xzspin(float x) { return mat4("
+         "cos(x), 0., sin(x), 0.,\n"
+         "0., 1., 0., 0.,\n"
+         "-sin(x), 0., cos(x), 0.,\n"
+         "0., 0., 0., 1."
+         ");}\n");
+
+  add_if("yzspin",
+
+    "mediump mat4 yzspin(float x) { return mat4("
+         "1., 0., 0., 0.,\n"
+         "0., cos(x), sin(x), 0.,\n"
+         "0., -sin(x), cos(x), 0.,\n"
+         "0., 0., 0., 1."
+         ");}\n"
+     );
+
+  /* note: this is called deparabolici13 because it orders the coordinates differently from deparabolic13 */
+  add_if("deparabolici13",
+        "mediump vec4 deparabolici13(mediump vec4 h) {\n"
+        "  h /= (1. + h[3]);\n"
+        "  h[0] -= 1.;\n"
+        "  h /= h.x*h.x + h.y*h.y + h.z * h.z;\n"
+        "  h[0] += .5;\n"
+        "  mediump vec4 res;\n"
+        "  res.x = h.y * 2.;\n"
+        "  res.y = h.z * 2.;\n"
+        "  res.z = (log(2.) + log(-h.x));\n"
+        "  res.w = 1.;\n"
+        "  return res;\n"
+        "  }\n\n");
+
+  /* note: this is called eeparabolici13 because it orders the coordinates differently from enparabolic13 */
+  add_if("enparabolici13",
+        "mediump vec4 enparabolici13(mediump vec4 h) {\n"
+        "  mediump vec4 res;\n"
+        "  float diag = (h.x*h.x + h.y*h.y)/2.;\n"
+        "  res.x = sinh(h.z) + diag * exp(-h.z);\n"
+        "  res.y = h.x * exp(-h.z);\n"
+        "  res.z = h.y * exp(-h.z);\n"
+        "  res.w = cosh(h.z) + diag * exp(-h.z);\n"
+        "  return res;\n"
+        "  }\n\n");
+
+  add_if("to_poco_h3",
+        "mediump vec4 to_poco_h3(mediump vec4 pos) {\n"
+        "  pos = pos / pos[3];\n"
+        "  pos[2] /= sqrt(1.-pos.x*pos.x-pos.y*pos.y);\n"
+        "  return pos;\n"
+        "  }\n\n");
+
+  add_if("from_poco_h3",
+        "mediump vec4 from_poco_h3(mediump vec4 pos) {\n"
+        "  pos[2] *= sqrt(1.-pos.x*pos.x-pos.y*pos.y);\n"
+        "  float s = 1. - dot(pos.xyz, pos.xyz);\n"
+        "  return pos / sqrt(s);\n"
+        "  }\n\n");
+
+  add_if("to_poco_s3",
+        "mediump vec4 to_poco_s3(mediump vec4 pos) {\n"
+        "  pos = pos / pos[3];\n"
+        "  pos[2] /= sqrt(1.+pos.x*pos.x+pos.y*pos.y);\n"
+        "  return pos;\n"
+        "  }\n\n");
+
+  add_if("from_poco_s3",
+        "mediump vec4 from_poco_s3(mediump vec4 pos) {\n"
+        "  pos[2] *= sqrt(1.+pos.x*pos.x+pos.y*pos.y);\n"
+        "  float s = 1. + dot(pos.xyz, pos.xyz);\n"
+        "  return pos / sqrt(s);\n"
+        "  }\n\n");
+
+  add_if("from_poco_h2xr_h",
+          "mediump vec4 from_poco_h2xr_h(mediump vec4 pos) {\n"
+          "  float s = 1. - pos.x*pos.x - pos.y * pos.y;\n"
+          "  pos.z = 1.;\n"
+          "  return pos / sqrt(s);\n"
+          "  }\n\n");
+
+  add_if("to_poco_h2xr_h",
+          "mediump vec4 to_poco_h2xr_h(mediump vec4 pos) {\n"
+          "  pos /= pos[2];\n"
+          "  pos.w = 1.;\n"
+          "  return pos;\n"
+          "  }\n\n");
+
+  add_if("from_poco_h2xr_b",
+          "mediump vec4 from_poco_h2xr_b(mediump vec4 pos) {\n"
+          "  return enparabolic12(pos);\n"
+          "  }\n\n");
+
+  add_if("to_poco_h2xr_b",
+          "mediump vec4 to_poco_h2xr_b(mediump vec4 pos) {\n"
+          "  pos /= sqrt(pos.z*pos.z-pos.x*pos.x-pos.y*pos.y);\n"
+          "  pos = deparabolic12(pos);\n"
+          "  return pos;\n"
+          "  }\n\n");
+
+  add_if("from_poco_h2xr_e",
+          "mediump vec4 from_poco_h2xr_e(mediump vec4 pos) {\n"
+            "  return vec4(sinh(pos[2]), sinh(pos[0]) * cosh(pos[2]), cosh(pos[0]) * cosh(pos[2]), 0);\n"
+          "  }\n\n");
+
+  add_if("to_poco_h2xr_e",
+          "mediump vec4 to_poco_h2xr_e(mediump vec4 pos) {\n"
+          "  mediump float x = asinh(pos[0]);\n"
+          "  return vec4(asinh(pos[1] / cosh(x)), 0, x, 1);\n"
+          "  }\n\n");
+
+  add_if("from_poco_s2xr_s",
+          "mediump vec4 from_poco_s2xr_s(mediump vec4 pos) {\n"
+          "  float s = 1. + pos.x*pos.x + pos.y * pos.y;\n"
+          "  pos.z = 1.;\n"
+          "  return pos / sqrt(s);\n"
+          "  }\n\n");
+
+  add_if("to_poco_s2xr_s",
+          "mediump vec4 to_poco_s2xr_s(mediump vec4 pos) {\n"
+          "  pos /= pos[2];\n"
+          "  pos.w = 1.;\n"
+          "  return pos;\n"
+          "  }\n\n");
+
+  add_if("from_poco_s2xr_e",
+          "mediump vec4 from_poco_s2xr_e(mediump vec4 pos) {\n"
+          "  return vec4(sin(pos[2]), sin(pos[0]) * cos(pos[2]), cos(pos[0]) * cos(pos[2]), 0);\n"
+          "  }\n\n");
+
+  add_if("to_poco_s2xr_e",
+          "mediump vec4 to_poco_s2xr_e(mediump vec4 pos) {\n"
+          "  mediump float x = asin_clamp(pos[0]);\n"
+          "  return vec4(asin_clamp(pos[1] / cos(x)), 0, x, 1);\n"
+          "  }\n\n");
+
+  add_if("deparabolic12",
+        "mediump vec4 deparabolic12(mediump vec4 h) {\n"
+        "  h /= (1. + h.z);\n"
+        "  h[0] -= 1.;\n"
+        "  h /= h.x*h.x + h.y*h.y;\n"
+        "  h[0] += .5;\n"
+        "  mediump vec4 res;\n"
+        "  res.x = (log(2.) + log(-h.x));\n"
+        "  res.y = h.y * 2.;\n"
+        "  res.w = 1.;\n"
+        "  return res;\n"
+        "  }\n\n");
+
+  add_if("enparabolic12",
+        "mediump vec4 enparabolic12(mediump vec4 h) {\n"
+        "  mediump vec4 res;\n"
+        "  float diag = h.y*h.y /2.;\n"
+        "  res.x = sinh(h.x) + diag * exp(-h.x);\n"
+        "  res.y = h.y * exp(-h.x);\n"
+        "  res.z = cosh(h.x) + diag * exp(-h.x);\n"
+        "  return res;\n"
+        "  }\n\n");
+
+  add_if("len_rotspace", "mediump float len_rotspace(vec4 h) { return 1. - h[3]; }\n");
+
+  add_if("len_h3",  "  mediump float len_h3(mediump vec4 x) { return x[3]; }\n");
+  add_if("len_sr", "  mediump float len_sr(mediump vec4 x) { return 1.+x.x*x.x+x.y*x.y-x.z*x.z-x.w*x.w; }\n");
+  add_if("len_sl2","  mediump float len_sl2(mediump vec4 x) { return 1.+x.x*x.x+x.y*x.y; }\n");
+  add_if("len_s3",  "  mediump float len_s3(mediump vec4 x) { return 1.-x[3]; }\n");
+  add_if("len_x",  "  mediump float len_x(mediump vec4 x) { return length(x.xyz); }\n");
+  add_if("len_h2",  "  mediump float len_h2(mediump vec4 x) { return x[2]; }\n");
+  add_if("len_s2",  "  mediump float len_s2(mediump vec4 x) { return 1.-x[2]; }\n");
+  add_if("len_e2",  "  mediump float len_e2(mediump vec4 x) { return length(x.xy); }\n");
+  }
+
+void raygen::emit_raystarter() {
+  if(gproduct) {
+    string sgn=in_h2xe() ? "-" : "+";
+    fmain +=
+    "  position = vw * vec4(0., 0., 1., 0.);\n"
+    "  mediump vec4 at1 = uLP * at0;\n";
+    if(in_e2xe()) fmain +=
+    "  zpos = log(position.z);\n";
+    else fmain +=
+    "  zpos = log(position.z*position.z"+sgn+"position.x*position.x"+sgn+"position.y*position.y)/2.;\n";
+    if(eyes) fmain +=
+    "  vw *= exp(-zpos);\n";
+    else fmain +=
+    "  position *= exp(-zpos);\n"
+    "  zspeed = at1.z;\n"
+    "  xspeed = length(at1.xy);\n"
+    "  tangent = vw * exp(-zpos) * vec4(at1.xy, 0, 0) / xspeed;\n";
+    }
+  else if(!eyes) {
+    fmain +=
+      "  position = vw * vec4(0., 0., 0., 1.);\n"
+      "  tangent = vw * at0;\n";
+    }
+
+  if(eyes) {
+    fsh += "mediump uniform mat4 uEyeShift;\n";
+    fsh += "mediump uniform float uAbsUnit;\n";
+    }
+
+  if(stretch::in()) {
+    if(stretch::mstretch) {
+      fsh += "mediump uniform mat4 uITOA;\n";
+      fsh += "mediump uniform mat4 uATOI;\n";
+      fsh += "mediump uniform mat4 uToOrig;\n";
+      fsh += "mediump uniform mat4 uFromOrig;\n";
+      fsh += "mediump mat4 toOrig;\n";
+      fsh += "mediump mat4 fromOrig;\n";
+      fmain +=
+        "toOrig = uToOrig;\n"
+        "fromOrig = uFromOrig;\n";
+      fmain +=
+        "tangent = s_itranslate(toOrig * position) * toOrig * tangent;\n";
+      fmain +=
+        "tangent = uITOA * tangent;\n";
+      fmain +=
+        "tangent = fromOrig * s_translate(toOrig * position) * tangent;\n";
+      }
+    else {
+      fmain +=
+        "tangent = s_itranslate(position) * tangent;\n";
+      fmain +=
+        "tangent[2] /= " + glhr::to_glsl(stretch::not_squared()) + ";\n";
+      fmain +=
+        "tangent = s_translate(position) * tangent;\n";
+      }
+    }
+  }
+
+void raygen::create() {
+  using glhr::to_glsl;
   currentmap->wall_offset(centerover); /* so raywall is not empty and deg is not zero */
 
   deg = 0;
 
-  auto samples = hybrid::gen_sample_list();
+  auto samples = used_sample_list();
   for(int i=0; i<isize(samples)-1; i++)
     deg = max(deg, samples[i+1].first - samples[i].first);
-  
-  last_geometry = geometry;
-  if(!our_raycaster) { 
-    bool asonov = hr::asonov::in();
-    bool use_reflect = reflect_val && !nil && !levellines;
-    
-    bool many_cell_types = need_many_cell_types();
-    
-    string vsh = 
+
+  if(true) {
+    asonov = hr::asonov::in();
+    use_reflect = reflect_val && !nil && !levellines;
+
+    many_cell_types = need_many_cell_types();
+
+    vsh =
       "attribute mediump vec4 aPosition;\n"
       "uniform mediump mat4 uProjection;\n"
       "varying mediump vec4 at;\n"
       "void main() { \n"
       "  gl_Position = aPosition; at = uProjection * aPosition; \n"
       "  }\n";
-  
-    irays = isize(cgi.raywall);
+
+    if(intra::in) {
+      irays = 0;
+      intra::resetter ir;
+      for(int i=0; i<isize(intra::data); i++) {
+        intra::switch_to(i);
+        irays += isize(cgi.raywall);
+        }
+      }
+    else irays = isize(cgi.raywall);
     string rays = its(irays);
-  
-    string fsh = 
+
+    fsh =
     "varying mediump vec4 at;\n"
     "uniform mediump int uLength;\n"
     "uniform mediump float uIPD;\n"
@@ -353,6 +1841,9 @@ void enable_raycaster() {
     "uniform mediump sampler2D tTextureMap;\n"
     "uniform mediump vec4 uFogColor;\n"
     "uniform mediump float uLinearSightRange, uExpStart, uExpDecay;\n";
+
+    if(intra::in) fsh +=
+      "uniform mediump sampler2D tPortalConnections;\n";
 
     if(wall_via_texture) {
       fsh +=
@@ -399,59 +1890,16 @@ void enable_raycaster() {
     if(!m_via_texture)
       fsh += build_getter("mediump mat4", "uM", gms_limit);
     #endif
-    
-    if(prod) fsh += 
-      "uniform mediump float uPLevel;\n"
+
+    if(gproduct || intra::in) fsh +=
       "uniform mediump mat4 uLP;\n";
-    
-    if(many_cell_types) fsh += 
+
+    if(gproduct || intra::in) fsh +=
+      "uniform mediump float uPLevel;\n";
+
+    if(many_cell_types) fsh +=
       "uniform int uWallOffset, uSides;\n";
-    
-    int flat1 = 0, flat2 = deg;
-    if(prod || rotspace) flat2 -= 2;
 
-#if CAP_BT
-    if(hyperbolic && bt::in()) {
-      fsh += "uniform mediump float uBLevel;\n";
-      flat1 = bt::dirs_outer();
-      flat2 -= bt::dirs_inner();
-      }
-#endif
-    
-    if(hyperbolic) fsh += 
-
-    "mediump mat4 xpush(float x) { return mat4("
-         "cosh(x), 0., 0., sinh(x),\n"
-         "0., 1., 0., 0.,\n"
-         "0., 0., 1., 0.,\n"
-         "sinh(x), 0., 0., cosh(x)"
-         ");}\n";
-
-    if(sphere) fsh += 
-
-    "mediump mat4 xpush(float x) { return mat4("
-         "cos(x), 0., 0., sin(x),\n"
-         "0., 1., 0., 0.,\n"
-         "0., 0., 1., 0.,\n"
-         "-sin(x), 0., 0., cos(x)"
-         ");}\n";
-        
-    if(IN_ODS) fsh += 
-
-    "mediump mat4 xzspin(float x) { return mat4("
-         "cos(x), 0., sin(x), 0.,\n"
-         "0., 1., 0., 0.,\n"
-         "-sin(x), 0., cos(x), 0.,\n"
-         "0., 0., 0., 1."
-         ");}\n"
-      
-    "mediump mat4 yzspin(float x) { return mat4("
-         "1., 0., 0., 0.,\n"
-         "0., cos(x), sin(x), 0.,\n"
-         "0., -sin(x), cos(x), 0.,\n"
-         "0., 0., 0., 1."
-         ");}\n";    
-    
    if(many_cell_types) {
      fsh += "int walloffset, sides;\n";
      }
@@ -459,20 +1907,11 @@ void enable_raycaster() {
      fsh += "const int walloffset = 0;\n"
        "const int sides = " + its(centerover->type+(WDIM == 2 ? 2 : 0)) + ";\n";
      }
-     
-    
-   fsh += 
+
+   fsh +=
      "mediump vec2 map_texture(mediump vec4 pos, int which) {\n";
-   if(nil) fsh += "if(which == 2 || which == 5) pos.z = 0.;\n";
-   else if(hyperbolic && bt::in()) fsh += 
-       "pos = vec4(-log(pos.w-pos.x), pos.y, pos.z, 1);\n"
-       "pos.yz *= exp(pos.x);\n";
-   else if(hyperbolic || sphere) fsh += 
-       "pos /= pos.w;\n";
-   else if(prod) fsh +=
-     "pos = vec4(pos.x/pos.z, pos.y/pos.z, pos.w, 0);\n";
-   
-   fsh += 
+
+   fsh +=
        "int s = " + getWallstart("which") + ";\n"
        "int e = " + getWallstart("which+1") + ";\n"
        "for(int ix=0; ix<16; ix++) {\n"
@@ -483,21 +1922,19 @@ void enable_raycaster() {
        "return vec2(1, 1);\n"
        "}\n";
 
-   bool eyes = is_eyes();
-   
-   bool stepbased = is_stepbased();
-    
-   string fmain = "void main() {\n";
-   
+   eyes = is_eyes();
+
+   fmain = "void main() {\n";
+
    if(use_reflect) fmain += "  bool depthtoset = true;\n";
-    
+
     if(IN_ODS) fmain +=
     "  mediump float lambda = at[0];\n" // -PI to PI
     "  mediump float phi;\n"
     "  mediump float eye;\n"
     "  if(at.y < 0.) { phi = at.y + PI/2.; eye = uIPD / 2.; }\n" // right
     "  else { phi = at.y - PI/2.; eye = -uIPD / 2.; }\n"
-    "  mediump mat4 vw = uStart * xzspin(-lambda) * xpush(eye) * yzspin(phi);\n"
+    "  mediump mat4 vw = uStart * xzspin(-lambda) * "+f_xpush()+"(eye) * yzspin(phi);\n"
     "  mediump vec4 at0 = vec4(0., 0., 1., 0.);\n";
     
     else {
@@ -547,914 +1984,77 @@ void enable_raycaster() {
       if(eyes) fmain += "  at0.xyz /= uAbsUnit;\n";
       }
       
-    if(hyperbolic) fsh += "  mediump float len(mediump vec4 x) { return x[3]; }\n";
-    else if(sphere && rotspace) fsh += "  mediump float len(mediump vec4 x) { return 1.+x.x*x.x+x.y*x.y-x.z*x.z-x.w*x.w; }\n";
-    else if(sl2) fsh += "  mediump float len(mediump vec4 x) { return 1.+x.x*x.x+x.y*x.y; }\n";
-    else if(sphere) fsh += "  mediump float len(mediump vec4 x) { return 1.-x[3]; }\n";
-
-    else fsh += "  mediump float len(mediump vec4 x) { return length(x.xyz); }\n";
-    
     ld s = 1;
     #if CAP_VR
     if(eyes) s *= vrhr::absolute_unit_in_meters;
     #endif
     
-    if(stepbased) fmain += 
+    if(is_stepbased() || intra::in) fmain +=
       "  const mediump float maxstep = " + fts(maxstep_current() * s) + ";\n"
       "  const mediump float minstep = " + fts(minstep * s) + ";\n"
-      "  mediump float next = maxstep;\n";          
+      "  mediump float next = maxstep;\n";
     
-    if(prod) {
-      string sgn=in_h2xe() ? "-" : "+";
-      fmain +=     
-      "  mediump vec4 position = vw * vec4(0., 0., 1., 0.);\n"
-      "  mediump vec4 at1 = uLP * at0;\n";
-      if(in_e2xe()) fmain +=
-      "  mediump float zpos = log(position.z);\n";
-      else fmain +=
-      "  mediump float zpos = log(position.z*position.z"+sgn+"position.x*position.x"+sgn+"position.y*position.y)/2.;\n";
-      if(eyes) fmain +=
-      "  vw *= exp(-zpos);\n";
-      else fmain +=
-      "  position *= exp(-zpos);\n"
-      "  mediump float zspeed = at1.z;\n"
-      "  mediump float xspeed = length(at1.xy);\n"
-      "  mediump vec4 tangent = vw * exp(-zpos) * vec4(at1.xy, 0, 0) / xspeed;\n";
+    string fmain_prod, fmain_nprod;
+
+    fmain += "  mediump vec4 position;\n";
+    fmain += "  mediump vec4 tangent;\n";
+
+    if(gproduct || intra::in) {
+      fmain += "  mediump float zspeed = 1.;\n";
+      fmain += "  mediump float xspeed = 1.;\n";
+      fmain += "  mediump float zpos = 0.;\n";
       }
-    else if(!eyes) {
-      fmain +=
-        "  mediump vec4 position = vw * vec4(0., 0., 0., 1.);\n"
-        "  mediump vec4 tangent = vw * at0;\n";
-      }
-    
-    if(eyes) {
-      fsh += "mediump uniform mat4 uEyeShift;\n";
-      fsh += "mediump uniform float uAbsUnit;\n";
-      }
-      
-    if(stretch::in()) {
-      if(stretch::mstretch) {
-        fsh += "mediump uniform mat4 uITOA;\n";
-        fsh += "mediump uniform mat4 uATOI;\n";
-        fsh += "mediump uniform mat4 uToOrig;\n";
-        fsh += "mediump uniform mat4 uFromOrig;\n";
-        fsh += "mediump mat4 toOrig;\n";
-        fsh += "mediump mat4 fromOrig;\n";
-        fmain +=
-          "toOrig = uToOrig;\n"
-          "fromOrig = uFromOrig;\n";
-        fmain += 
-          "tangent = s_itranslate(toOrig * position) * toOrig * tangent;\n";
-        fmain += 
-          "tangent = uITOA * tangent;\n";
-        fmain += 
-          "tangent = fromOrig * s_translate(toOrig * position) * tangent;\n";
-        }
-      else {
-        fmain += 
-          "tangent = s_itranslate(position) * tangent;\n";
-        fmain +=
-          "tangent[2] /= " + to_glsl(stretch::not_squared()) + ";\n";
-        fmain +=
-          "tangent = s_translate(position) * tangent;\n";
-        }
-      }
-    
+
     if(many_cell_types) fmain += "  walloffset = uWallOffset; sides = uSides;\n";
-    
-    fmain +=     
+
+    if(intra::in) {
+
+      int q = isize(intra::data);
+
+      intra::resetter ir;
+
+      for(int gid2=0; gid2<q; gid2++) {
+        if(gid2 == q-1)
+          fmain += "  {\n";
+        else  {
+          fmain += "  if(walloffset < " + its(intra::data[gid2+1].wallindex) + ") {\n";
+          }
+        intra::switch_to(gid2);
+        emit_raystarter();
+        if(gid2 == q-1)
+          fmain += "  }\n";
+        else
+          fmain += "  } else\n";
+        }
+      }
+    else emit_raystarter();
+
+    fmain +=
       "  mediump float go = 0.;\n"
       "  mediump vec2 cid = uStartid;\n"
       "  for(int iter=0; iter<" + its(max_iter_current()) + "; iter++) {\n";
-    
-    fmain +=
-      "  mediump float dist = 100.;\n";
-    
-    fmain +=
-      "  int which = -1;\n";
-    
-    if(in_e2xe() && !eyes) fmain += "tangent.w = position.w = 0.;\n";
-      
-    if(IN_ODS) fmain += 
-      "  if(go == 0.) {\n"
-      "    mediump float best = len(position);\n"
-      "    for(int i=0; i<sides; i++) {\n"
-      "      mediump float cand = len(" + getM("i") + " * position);\n"
-      "      if(cand < best - .001) { dist = 0.; best = cand; which = i; }\n"
-      "      }\n"
-      "    }\n";
-    
-    if(!stepbased) {
-    
-      fmain +=
-        "  if(which == -1) {\n";
-      
-      fmain += "for(int i="+its(flat1)+"; i<"+(prod ? "sides-2" : (WDIM == 2 || is_subcube_based(variation)) ? "sides" : its(flat2))+"; i++) {\n";
-      
-      // fmain += "int woi = walloffset+i;\n";
-      
-      if(in_h2xe()) fmain +=
-          "    mediump float v = ((position - " + getM("woi") + " * position)[2] / (" + getM("woi") + " * tangent - tangent)[2]);\n"
-          "    if(v > 1. || v < -1.) continue;\n"
-          "    mediump float d = atanh(v);\n"
-          "    mediump vec4 next_tangent = position * sinh(d) + tangent * cosh(d);\n"
-          "    if(next_tangent[2] < (" + getM("woi") + " * next_tangent)[2]) continue;\n"
-          "    d /= xspeed;\n";
-      else if(in_s2xe()) fmain +=
-          "    mediump float v = ((position - " + getM("woi") + " * position)[2] / (" + getM("woi") + " * tangent - tangent)[2]);\n"
-          "    mediump float d = atan(v);\n"
-          "    mediump vec4 next_tangent = tangent * cos(d) - position * sin(d);\n"
-          "    if(next_tangent[2] > (" + getM("woi") + " * next_tangent)[2]) continue;\n"
-          "    d /= xspeed;\n";
-      else if(in_e2xe()) fmain +=
-          "    mediump float deno = dot(position, tangent) - dot(" + getM("woi") + "*position, " + getM("woi") + "*tangent);\n"
-          "    if(deno < 1e-6  && deno > -1e-6) continue;\n"
-          "    mediump float d = (dot(" + getM("woi") + "*position, " + getM("woi") + "*position) - dot(position, position)) / 2. / deno;\n"
-          "    if(d < 0.) continue;\n"
-          "    mediump vec4 next_position = position + d * tangent;\n"
-          "    if(dot(next_position, tangent) < dot(" + getM("woi") + "*next_position, " + getM("woi") + "*tangent)) continue;\n"          
-          "    d /= xspeed;\n";
-      else if(hyperbolic) fmain +=
-          "    mediump float v = ((position - " + getM("woi") + " * position)[3] / (" + getM("woi") + " * tangent - tangent)[3]);\n"
-          "    if(v > 1. || v < -1.) continue;\n"
-          "    mediump float d = atanh(v);\n"
-          "    mediump vec4 next_tangent = position * sinh(d) + tangent * cosh(d);\n"
-          "    if(next_tangent[3] < (" + getM("woi") + " * next_tangent)[3]) continue;\n";
-      else if(sphere) fmain +=
-          "    mediump float v = ((position - " + getM("woi") + " * position)[3] / (" + getM("woi") + " * tangent - tangent)[3]);\n"
-          "    mediump float d = atan(v);\n"
-          "    mediump vec4 next_tangent = -position * sin(d) + tangent * cos(d);\n"
-          "    if(next_tangent[3] > (" + getM("woi") + " * next_tangent)[3]) continue;\n";
-      else fmain += 
-          "    mediump float deno = dot(position, tangent) - dot(" + getM("woi") + "*position, " + getM("woi") + "*tangent);\n"
-          "    if(deno < 1e-6  && deno > -1e-6) continue;\n"
-          "    mediump float d = (dot(" + getM("woi") + "*position, " + getM("woi") + "*position) - dot(position, position)) / 2. / deno;\n"
-          "    if(d < 0.) continue;\n"
-          "    mediump vec4 next_position = position + d * tangent;\n"
-          "    if(dot(next_position, tangent) < dot(" + getM("woi") + "*next_position, " + getM("woi") + "*tangent)) continue;\n";
-      
-      replace_str(fmain, "[woi]", "[walloffset+i]");
-      replace_str(fmain, "(woi)", "(walloffset+i)");
-  
-      fmain += 
-          "  if(d < dist) { dist = d; which = i; }\n"
-            "}\n";
 
-      if(hyperbolic && reg3::ultra_mirror_in()) {
-        fmain += "for(int i="+its(S7*2)+"; i<"+its(S7*2+isize(cgi.heptshape->vertices_only))+"; i++) {\n";
-        fmain += "mat4 uMi = " + getM("i") + ";";
-        fmain +=
-          "    mediump float v = ((position - uMi * position)[3] / (uMi * tangent - tangent)[3]);\n"
-          "    if(v > 1. || v < -1.) continue;\n"
-          "    mediump float d = atanh(v);\n"
-          "    mediump vec4 next_tangent = position * sinh(d) + tangent * cosh(d);\n"
-          "    if(next_tangent[3] < (uMi * next_tangent)[3]) continue;\n"
-          "    if(d < dist) { dist = d; which = i; }\n"
-            "}\n";
-        }
-      
-    
-      // 20: get to horosphere +uBLevel (take smaller root)
-      // 21: get to horosphere -uBLevel (take larger root)
-                          
-      if(hyperbolic && bt::in()) {
-        fmain += 
-          "for(int i=20; i<22; i++) {\n"
-            "mediump float sgn = i == 20 ? -1. : 1.;\n"
-            "mediump vec4 zpos = xpush(uBLevel*sgn) * position;\n"
-            "mediump vec4 ztan = xpush(uBLevel*sgn) * tangent;\n"
-            "mediump float Mp = zpos.w - zpos.x;\n"
-            "mediump float Mt = ztan.w - ztan.x;\n"
-            "mediump float a = (Mp*Mp-Mt*Mt);\n"
-            "mediump float b = Mp/a;\n"
-            "mediump float c = (1.+Mt*Mt) / a;\n"
-            "if(b*b < c) continue;\n"
-            "if(sgn < 0. && Mt > 0.) continue;\n"
-            "mediump float zsgn = (Mt > 0. ? -sgn : sgn);\n"
-            "mediump float u = sqrt(b*b-c)*zsgn + b;\n"
-            "mediump float v = -(Mp*u-1.) / Mt;\n"
-            "mediump float d = asinh(v);\n"
-            "if(d < 0. && abs(log(position.w*position.w-position.x*position.x)) < uBLevel) continue;\n"
-            "if(d < dist) { dist = d; which = i; }\n"
-            "}\n";
-        }
-          
-      if(prod) fmain += 
-        "if(zspeed > 0.) { mediump float d = (uPLevel - zpos) / zspeed; if(d < dist) { dist = d; which = sides-1; }}\n"
-        "if(zspeed < 0.) { mediump float d = (-uPLevel - zpos) / zspeed; if(d < dist) { dist = d; which = sides-2; }}\n";
-      
-      fmain += "}\n";
-
-      fmain += 
-        "  if(dist < 0.) { dist = 0.; }\n";
-      
-      fmain +=
-        "  if(which == -1 && dist == 0.) return;";    
-      }
-    
-    // shift d units
-    if(use_reflect) fmain += 
-      "bool reflect = false;\n";
-      
-    if(in_h2xe() && !stepbased) fmain +=
-      "  mediump float ch = cosh(dist*xspeed); mediump float sh = sinh(dist*xspeed);\n"
-      "  mediump vec4 v = position * ch + tangent * sh;\n"
-      "  tangent = tangent * ch + position * sh;\n"
-      "  position = v;\n"
-      "  zpos += dist * zspeed;\n";
-    else if(in_s2xe() && !stepbased) fmain +=
-      "  mediump float ch = cos(dist*xspeed); mediump float sh = sin(dist*xspeed);\n"
-      "  mediump vec4 v = position * ch + tangent * sh;\n"
-      "  tangent = tangent * ch - position * sh;\n"
-      "  position = v;\n"
-      "  zpos += dist * zspeed;\n";
-    else if(in_e2xe() && !stepbased) fmain +=
-      "  position = position + tangent * dist * xspeed;\n"
-      "  zpos += dist * zspeed;\n";
-    else if(hyperbolic && !stepbased) fmain += 
-      "  mediump float ch = cosh(dist); mediump float sh = sinh(dist);\n"
-      "  mediump vec4 v = position * ch + tangent * sh;\n"
-      "  tangent = tangent * ch + position * sh;\n"
-      "  position = v;\n";
-    else if(sphere && !stepbased) fmain += 
-      "  mediump float ch = cos(dist); mediump float sh = sin(dist);\n"
-      "  mediump vec4 v = position * ch + tangent * sh;\n"
-      "  tangent = tangent * ch - position * sh;\n"
-      "  position = v;\n";
-    else if(stepbased) {
-    
-      bool use_christoffel = true;
-    
-      if(sol && nih) fsh += 
-        "mediump vec4 christoffel(mediump vec4 pos, mediump vec4 vel, mediump vec4 tra) {\n"
-        "  return vec4(-(vel.z*tra.x + vel.x*tra.z)*log(2.), (vel.z*tra.y + vel.y * tra.z)*log(3.), vel.x*tra.x * exp(2.*log(2.)*pos.z)*log(2.) - vel.y * tra.y * exp(-2.*log(3.)*pos.z)*log(3.), 0.);\n"
-        "  }\n";
-      else if(nih) fsh += 
-        "mediump vec4 christoffel(mediump vec4 pos, mediump vec4 vel, mediump vec4 tra) {\n"
-        "  return vec4((vel.z*tra.x + vel.x*tra.z)*log(2.), (vel.z*tra.y + vel.y * tra.z)*log(3.), -vel.x*tra.x * exp(-2.*log(2.)*pos.z)*log(2.) - vel.y * tra.y * exp(-2.*log(3.)*pos.z)*log(3.), 0.);\n"
-        "  }\n";
-      else if(sol) fsh += 
-        "mediump vec4 christoffel(mediump vec4 pos, mediump vec4 vel, mediump vec4 tra) {\n"
-        "  return vec4(-vel.z*tra.x - vel.x*tra.z, vel.z*tra.y + vel.y * tra.z, vel.x*tra.x * exp(2.*pos.z) - vel.y * tra.y * exp(-2.*pos.z), 0.);\n"
-        "  }\n";
-      else if(nil) {
-        fsh +=
-        "mediump vec4 christoffel(mediump vec4 pos, mediump vec4 vel, mediump vec4 tra) {\n"
-        "  mediump float x = pos.x;\n"
-        "  return vec4(x*vel.y*tra.y - 0.5*dot(vel.yz,tra.zy), -.5*x*dot(vel.yx,tra.xy) + .5 * dot(vel.zx,tra.xz), -.5*(x*x-1.)*dot(vel.yx,tra.xy)+.5*x*dot(vel.zx,tra.xz), 0.);\n"
-//        "  return vec4(0.,0.,0.,0.);\n"
-        "  }\n";
-        use_christoffel = false;
-        }
-      else if(sl2 || stretch::in()) {
-        if(sl2) {
-          fsh += "mediump mat4 s_translate(vec4 h) {\n"
-            "return mat4(h.w,h.z,h.y,h.x,-h.z,h.w,-h.x,h.y,h.y,-h.x,h.w,-h.z,h.x,h.y,h.z,h.w);\n"
-            "}\n";
+    if(intra::in) {
+      int gi = isize(intra::data);
+      for(int i=0; i<gi; i++) {
+        if(i == gi-1)
+          fmain += "  {\n";
+        else  {
+          fmain += "  if(walloffset < " + its(intra::data[i+1].wallindex) + ") {\n";
           }
-        else {
-          fsh += "mediump mat4 s_translate(vec4 h) {\n"
-            "return mat4(h.w,h.z,-h.y,-h.x,-h.z,h.w,h.x,-h.y,h.y,-h.x,h.w,-h.z,h.x,h.y,h.z,h.w);\n"
-            "}\n";
-          }
-        fsh += "mediump mat4 s_itranslate(vec4 h) {\n"
-          "h.xyz = -h.xyz; return s_translate(h);\n"
-          "}\n";
-        if(stretch::mstretch) {
-          fsh += "mediump vec4 christoffel(mediump vec4 pos, mediump vec4 vel, mediump vec4 tra) {\n"
-            "vel = s_itranslate(toOrig * pos) * toOrig * vel;\n"
-            "tra = s_itranslate(toOrig * pos) * toOrig * tra;\n"
-            "return fromOrig * s_translate(toOrig * pos) * vec4(\n";
-          
-          for(int i=0; i<3; i++) {
-            auto &c = stretch::ms_christoffel;
-            fsh += "  0.";
-            for(int j=0; j<3; j++) 
-            for(int k=0; k<3; k++) 
-              if(c[i][j][k])
-                fsh += "  + vel["+its(j)+"]*tra["+its(k)+"]*" + to_glsl(c[i][j][k]);
-            fsh += "  ,\n";
-            }
-          fsh += "  0);\n"
-            "}\n";
-          }
+        intra::resetter ir;
+        intra::switch_to(i);
+        emit_iterate(i);
+        if(i == gi-1)
+          fmain += "  }\n";
         else
-          use_christoffel = false;
-        }
-      else use_christoffel = false;
-
-      if(use_christoffel) fsh += "mediump vec4 get_acc(mediump vec4 pos, mediump vec4 vel) {\n"
-        "  return christoffel(pos, vel, vel);\n"
-        "  }\n";
-      
-      if(sn::in() && !asonov) fsh += "uniform mediump float uBinaryWidth;\n";
-      
-      fmain += 
-        "  dist = next < minstep ? 2.*next : next;\n";
-
-      if(nil && !use_christoffel) fsh += 
-        "mediump vec4 translate(mediump vec4 a, mediump vec4 b) {\n"
-          "return vec4(a[0] + b[0], a[1] + b[1], a[2] + b[2] + a[0] * b[1], b[3]);\n"
-          "}\n"
-        "mediump vec4 translatev(mediump vec4 a, mediump vec4 t) {\n"
-          "return vec4(t[0], t[1], t[2] + a[0] * t[1], 0.);\n"
-          "}\n"
-        "mediump vec4 itranslate(mediump vec4 a, mediump vec4 b) {\n"
-          "return vec4(-a[0] + b[0], -a[1] + b[1], -a[2] + b[2] - a[0] * (b[1]-a[1]), b[3]);\n"
-          "}\n"
-        "mediump vec4 itranslatev(mediump vec4 a, mediump vec4 t) {\n"
-          "return vec4(t[0], t[1], t[2] - a[0] * t[1], 0.);\n"
-          "}\n";
-                
-      // if(nil) fmain += "tangent = translate(position, itranslate(position, tangent));\n";
-      
-      if(use_christoffel) fmain +=
-        "mediump vec4 vel = tangent * dist;\n"
-        "mediump vec4 acc1 = get_acc(position, vel);\n"
-        "mediump vec4 acc2 = get_acc(position + vel / 2., vel + acc1/2.);\n"
-        "mediump vec4 acc3 = get_acc(position + vel / 2. + acc1/4., vel + acc2/2.);\n"
-        "mediump vec4 acc4 = get_acc(position + vel + acc2/2., vel + acc3/2.);\n"
-        "mediump vec4 nposition = position + vel + (acc1+acc2+acc3)/6.;\n";
-
-      if((sl2 || stretch::in()) && use_christoffel) {
-        if(sl2) fmain += 
-          "nposition = nposition / sqrt(dot(position.zw, position.zw) - dot(nposition.xy, nposition.xy));\n";
-
-        else if(stretch::in()) fmain += 
-          "nposition = nposition / sqrt(dot(nposition, nposition));\n";
-        }
-      
-      if((sl2 || stretch::in()) && !use_christoffel) {
-        ld SV = stretch::not_squared();
-        ld mul = (sphere?1:-1)-1/SV/SV;
-        fmain += 
-          "vec4 vel = s_itranslate(position) * tangent * dist;\n"
-          "vec4 vel1 = vel; vel1.z *= " + to_glsl(stretch::not_squared()) + ";\n"
-          "mediump float vlen = length(vel1.xyz);\n"
-          "if(vel.z<0.) vlen=-vlen;\n"
-          "float z_part = vel1.z/vlen;\n"
-          "float x_part = sqrt(1.-z_part*z_part);\n"
-          "const float SV = " + to_glsl(SV) + ";\n"
-          "float rparam = x_part / z_part / SV;\n"
-          "float beta = atan2(vel.y,vel.x);\n"
-          "if(vlen<0.) beta += PI;\n"
-          "mediump vec4 nposition, ntangent;\n";
-        
-        if(sl2) fmain +=
-          "if(rparam > 1.) {\n"
-            "float cr = 1./sqrt(rparam*rparam-1.);\n"
-            "float sr = rparam*cr;\n"
-            "float z = cr * " + to_glsl(mul) + ";\n"
-            "float a = vlen / length(vec2(sr, cr/SV));\n"
-            "float k = -a;\n"
-            "float u = z*a;\n"
-            "float xy = sr * sinh(k);\n"
-            "float zw = cr * sinh(k);\n"
-            "nposition = vec4("
-              "-xy*cos(u+beta),"
-              "-xy*sin(u+beta),"
-              "zw*cos(u)-cosh(k)*sin(u),"
-              "zw*sin(u)+cosh(k)*cos(u)"
-              ");\n"
-
-            "ntangent = vec4("
-              "-sr*cosh(k)*k*cos(u+beta) + u*xy*sin(u+beta),"
-              "-sr*cosh(k)*k*sin(u+beta) - u*xy*cos(u+beta),"
-              "k*cr*cosh(k)*cos(u)-zw*sin(u)*u-k*sinh(k)*sin(u)-u*cosh(k)*cos(u),"
-              "k*cr*cosh(k)*sin(u)+u*zw*cos(u)+k*sinh(k)*cos(u)-u*cosh(k)*sin(u)"
-              ");\n"
-            "}\n"
-          "else {\n"
-            "float r = atanh(rparam);\n"
-            "float cr = cosh(r);\n"
-            "float sr = sinh(r);\n"
-            "float z = cr * "+to_glsl(mul)+";\n"
-            "float a = vlen / length(vec2(sr, cr/SV));\n"
-            "float k = -a;\n"
-            "float u = z*a;\n"
-            "float xy = sr * sin(k);\n"
-            "float zw = cr * sin(k);\n"
-            "ntangent = vec4("
-               "-sr*cos(k)*k*cos(u+beta) + u*xy*sin(u+beta),"
-               "-sr*cos(k)*k*sin(u+beta) - u*xy*cos(u+beta),"
-               "k*cr*cos(k)*cos(u)-zw*sin(u)*u+k*sin(k)*sin(u)-u*cos(k)*cos(u),"
-               "k*cr*cos(k)*sin(u)+zw*cos(u)*u-k*sin(k)*cos(u)-u*cos(k)*sin(u)"
-               ");\n"
-            "nposition = vec4("
-               "-xy * cos(u+beta),"
-               "-xy * sin(u+beta),"
-               "zw * cos(u) - cos(k) * sin(u),"
-               "zw * sin(u) + cos(k)*cos(u)"
-               ");\n"
-            "}\n";
-          
-        else fmain += 
-          "if(true) {\n"
-            "float r = atan(rparam);\n"
-            "float cr = cos(r);\n"
-            "float sr = sin(r);\n"
-            "float z = cr * "+to_glsl(mul)+";\n"
-            "float a = vlen / length(vec2(sr, cr/SV));\n"
-            "float k = a;\n"
-            "float u = z*a;\n"
-            "float xy = sr * sin(k);\n"
-            "float zw = cr * sin(k);\n"
-            "ntangent = vec4("
-               "sr*cos(k)*k*cos(u+beta) - u*xy*sin(u+beta),"
-               "sr*cos(k)*k*sin(u+beta) + u*xy*cos(u+beta),"
-               "k*cr*cos(k)*cos(u)-zw*sin(u)*u+k*sin(k)*sin(u)-u*cos(k)*cos(u),"
-               "k*cr*cos(k)*sin(u)+zw*cos(u)*u-k*sin(k)*cos(u)-u*cos(k)*sin(u)"
-               ");\n"
-            "nposition = vec4("
-               "xy * cos(u+beta),"
-               "xy * sin(u+beta),"
-               "zw * cos(u) - cos(k) * sin(u),"
-               "zw * sin(u) + cos(k)*cos(u)"
-               ");\n"
-            "}\n";          
-        
-        fmain +=    
-          "ntangent = ntangent / dist;\n"
-          "ntangent = s_translate(position) * ntangent;\n"
-          "nposition = s_translate(position) * nposition;\n";
-        }
-      
-      if(nil && !use_christoffel && !eyes) {
-        fmain +=
-          "mediump vec4 xp, xt;\n"
-          "mediump vec4 back = itranslatev(position, tangent);\n"
-          "if(back.x == 0. && back.y == 0.) {\n"
-          "  xp = vec4(0., 0., back.z*dist, 1.);\n"
-          "  xt = back;\n"
-          "  }\n"
-          "else if(abs(back.z) == 0.) {\n"
-          "  xp = vec4(back.x*dist, back.y*dist, back.x*back.y*dist*dist/2., 1.);\n"
-          "  xt = vec4(back.x, back.y, dist*back.x*back.y, 0.);\n"
-          "  }\n"
-          "else if(abs(back.z) < 1e-1) {\n"
-// we use the midpoint method here, because the formulas below cause glitches due to mediump float precision
-          "  mediump vec4 acc = christoffel(vec4(0,0,0,1), back, back);\n"
-          "  mediump vec4 pos2 = back * dist / 2.;\n"
-          "  mediump vec4 tan2 = back + acc * dist / 2.;\n"
-          "  mediump vec4 acc2 = christoffel(pos2, tan2, tan2);\n"
-          "  xp = vec4(0,0,0,1) + back * dist + acc2 / 2. * dist * dist;\n"
-          "  xt = back + acc * dist;\n"
-          "  }\n"
-          "else {\n"
-          "  mediump float alpha = atan2(back.y, back.x);\n"
-          "  mediump float w = back.z * dist;\n"
-          "  mediump float c = length(back.xy) / back.z;\n"
-          "  xp = vec4(2.*c*sin(w/2.) * cos(w/2.+alpha), 2.*c*sin(w/2.)*sin(w/2.+alpha), w*(1.+(c*c/2.)*((1.-sin(w)/w)+(1.-cos(w))/w * sin(w+2.*alpha))), 1.);\n"
-          "  xt = back.z * vec4("
-               "c*cos(alpha+w),"
-               "c*sin(alpha+w),"
-               "1. + c*c*2.*sin(w/2.)*sin(alpha+w)*cos(alpha+w/2.),"
-               "0.);\n"
-          "  }\n"
-          "mediump vec4 nposition = translate(position, xp);\n";
-        }
-      
-      if(asonov) {
-        fsh += "uniform mediump mat4 uStraighten;\n";
-        fmain += "mediump vec4 sp = uStraighten * nposition;\n";
-        }
-      
-      if(eyes) {
-        fmain +=
-        "  mediump float t = go + dist;\n";
-        fmain += prod ? 
-        "  mediump vec4 v = at1 * t;\n" :
-        "  mediump vec4 v = at0 * t;\n";
-        fmain +=
-        "  v[3] = 1.;\n"
-        "  mediump vec4 azeq = uEyeShift * v;\n";
-        if(nil) fmain +=
-          "  mediump float alpha = atan2(azeq.y, azeq.x);\n"
-          "  mediump float w = azeq.z;\n"
-          "  mediump float c = length(azeq.xy) / azeq.z;\n"
-          "  mediump vec4 xp = vec4(2.*c*sin(w/2.) * cos(w/2.+alpha), 2.*c*sin(w/2.)*sin(w/2.+alpha), w*(1.+(c*c/2.)*((1.-sin(w)/w)+(1.-cos(w))/w * sin(w+2.*alpha))), 1.);\n"
-          "  mediump vec4 orig_position = vw * vec4(0., 0., 0., 1.);\n"
-          "  mediump vec4 nposition = translate(orig_position, xp);\n";
-        else if(prod) {
-          fmain +=
-            "  mediump float alen_xy = length(azeq.xy);\n";
-          fmain += "  mediump float nzpos = zpos + azeq.z;\n";
-          if(in_h2xe()) {
-            fmain += "  azeq.xy *= sinh(alen_xy) / alen_xy;\n";
-            fmain += "  azeq.z = cosh(alen_xy);\n";
-            }
-          else if(in_s2xe()) {
-            fmain += "  azeq.xy *= sin (alen_xy) / alen_xy;\n";
-            fmain += "  azeq.z = cos(alen_xy);\n";
-            }
-          else {
-            /* euclid */
-            fmain += "  azeq.z = 1.;\n";
-            }
-          fmain += "azeq.w = 0.;\n";
-          fmain +=
-          "  mediump vec4 nposition = vw * azeq;\n";
-          }
-        else {
-          fmain +=
-            "  mediump float alen = length(azeq.xyz);\n";
-          if(hyperbolic) fmain +=         
-            "  azeq *= sinh(alen) / alen;\n"        
-            "  azeq[3] = cosh(alen);\n";
-          else if(sphere) fmain += 
-            "  azeq *= sin(alen) / alen;\n"
-            "  azeq[3] = cos(alen);\n";
-          else /* euclid */ fmain +=
-            "  azeq[3] = 1;\n";
-          fmain +=
-          "  mediump vec4 nposition = vw * azeq;\n";
-          }
-        }
-      
-      else if(hyperbolic) {
-        fmain += 
-        "  mediump float ch = cosh(dist); mediump float sh = sinh(dist);\n"
-        "  mediump vec4 v = position * ch + tangent * sh;\n"
-        "  mediump vec4 ntangent = tangent * ch + position * sh;\n"
-        "  mediump vec4 nposition = v;\n";
-        }
-
-      else if(sphere && !stretch::in()) {
-        fmain += 
-        "  mediump float ch = cos(dist); mediump float sh = sin(dist);\n"
-        "  mediump vec4 v = position * ch + tangent * sh;\n"
-        "  mediump vec4 ntangent = tangent * ch - position * sh;\n"
-        "  mediump vec4 nposition = v;\n";
-        }
-
-      bool reg = hyperbolic || sphere || euclid || sl2 || prod;
-
-      if(reg) {
-        fsh += "mediump float len_h(vec4 h) { return 1. - h[3]; }\n";
-        string s = (rotspace || prod) ? "-2" : "";
-        fmain +=
-      "    mediump float best = len(nposition);\n"
-      "    for(int i=0; i<sides"+s+"; i++) {\n"
-      "      mediump float cand = len(" + getM("walloffset+i") + " * nposition);\n"
-      "      if(cand < best) { best = cand; which = i; }\n"
-      "      }\n";
-        if(rotspace) fmain +=
-      "   if(which == -1) {\n"
-      "     best = len_h(nposition);\n"
-      "     mediump float cand1 = len_h(" + getM("walloffset+sides-2") + "*nposition);\n"
-      "     if(cand1 < best) { best = cand1; which = sides-2; }\n"
-      "     mediump float cand2 = len_h(" + getM("walloffset+sides-1") + "*nposition);\n"
-      "     if(cand2 < best) { best = cand2; which = sides-1; }\n"
-      "     }\n";
-        if(prod) {
-          fmain +=
-          "if(nzpos > uPLevel) which = sides-1;\n"
-          "if(nzpos <-uPLevel) which = sides-2;\n";
-          }
-        }
-        
-      if(nil) fmain +=
-        "mediump float rz = (abs(nposition.x) > abs(nposition.y) ?  -nposition.x*nposition.y : 0.) + nposition.z;\n";
-      
-      fmain +=
-        "if(next >= minstep) {\n";
-        
-      string hnilw = to_glsl(nilv::nilwidth / 2);
-      string hnilw2 = to_glsl(nilv::nilwidth * nilv::nilwidth / 2);
-      
-      if(reg) fmain += "if(which != -1) {\n";
-      else if(asonov) fmain +=
-          "if(abs(sp.x) > 1. || abs(sp.y) > 1. || abs(sp.z) > 1.) {\n";      
-      else if(nih) fmain +=
-          "if(abs(nposition.x) > uBinaryWidth || abs(nposition.y) > uBinaryWidth || abs(nposition.z) > .5) {\n";
-      else if(sol) fmain +=
-          "if(abs(nposition.x) > uBinaryWidth || abs(nposition.y) > uBinaryWidth || abs(nposition.z) > log(2.)/2.) {\n";
-      else fmain +=
-          "if(abs(nposition.x) > "+hnilw+" || abs(nposition.y) > "+hnilw+" || abs(rz) > "+hnilw2+") {\n";
-      
-      fmain +=
-            "next = dist / 2.; continue;\n"
-            "}\n"
-          "if(next < maxstep) next = next / 2.;\n"
-          "}\n"
-        "else {\n";
-      
-      if(sn::in()) {
-        if(asonov) fmain +=
-          "if(sp.x > 1.) which = 4;\n"
-          "if(sp.y > 1.) which = 5;\n"
-          "if(sp.x <-1.) which = 10;\n"
-          "if(sp.y <-1.) which = 11;\n"
-          "if(sp.z > 1.) {\n"
-            "mediump float best = 999.;\n"
-            "for(int i=0; i<4; i++) {\n"
-              "mediump float cand = len(uStraighten * " + getM("i") + " * position);\n"
-              "if(cand < best) { best = cand; which = i;}\n"
-              "}\n"
-            "}\n"
-          "if(sp.z < -1.) {\n"
-            "mediump float best = 999.;\n"
-            "for(int i=6; i<10; i++) {\n"
-              "mediump float cand = len(uStraighten * " + getM("i") + " * position);\n"
-              "if(cand < best) { best = cand; which = i;}\n"
-              "}\n"
-            "}\n";
-        else if(sol && !nih) fmain +=
-          "if(nposition.x > uBinaryWidth) which = 0;\n"
-          "if(nposition.x <-uBinaryWidth) which = 4;\n"
-          "if(nposition.y > uBinaryWidth) which = 1;\n"
-          "if(nposition.y <-uBinaryWidth) which = 5;\n";
-        if(nih) fmain += 
-          "if(nposition.x > uBinaryWidth) which = 0;\n"
-          "if(nposition.x <-uBinaryWidth) which = 2;\n"
-          "if(nposition.y > uBinaryWidth) which = 1;\n"
-          "if(nposition.y <-uBinaryWidth) which = 3;\n";
-        if(sol && nih) fmain += 
-          "if(nposition.z > .5) which = nposition.x > 0. ? 5 : 4;\n"
-          "if(nposition.z <-.5) which = nposition.y > uBinaryWidth/3. ? 8 : nposition.y < -uBinaryWidth/3. ? 6 : 7;\n";
-        if(nih && !sol) fmain += 
-          "if(nposition.z > .5) which = 4;\n"
-          "if(nposition.z < -.5) which = (nposition.y > uBinaryWidth/3. ? 9 : nposition.y < -uBinaryWidth/3. ? 5 : 7) + (nposition.x>0.?1:0);\n";
-        if(sol && !nih && !asonov) fmain += 
-          "if(nposition.z > log(2.)/2.) which = nposition.x > 0. ? 3 : 2;\n"
-          "if(nposition.z <-log(2.)/2.) which = nposition.y > 0. ? 7 : 6;\n";
-        }
-      else if(nil) fmain +=
-          "if(nposition.x > "+hnilw+") which = 3;\n"
-          "if(nposition.x <-"+hnilw+") which = 0;\n"
-          "if(nposition.y > "+hnilw+") which = 4;\n"
-          "if(nposition.y <-"+hnilw+") which = 1;\n"
-          "if(rz > "+hnilw2+") which = 5;\n"
-          "if(rz <-"+hnilw2+") which = 2;\n";
-      
-      fmain += 
-          "next = maxstep;\n"
-          "}\n";
-      
-      if(use_christoffel) fmain +=
-        "tangent = tangent + (acc1+2.*acc2+2.*acc3+acc4)/(6.*dist);\n";
-      else if(nil && !eyes) fmain +=
-        "tangent = translatev(position, xt);\n";
-      else if(!eyes)
-        fmain +=
-        "tangent = ntangent;\n";
-
-      if(!eyes) fmain +=
-        "position = nposition;\n";
-      else fmain += "vec4 position = nposition;\n";
-      
-      if((stretch::in() || sl2) && use_christoffel) {
-        fmain += 
-          "tangent = s_itranslate(toOrig * position) * toOrig * tangent;\n"
-          "tangent[3] = 0.;\n";
-        if(stretch::mstretch)
-          fmain +=
-            "float nvelsquared = dot(tangent.xyz, (uATOI * tangent).xyz);\n";
-        else
-          fmain +=
-            "float nvelsquared = tangent.x * tangent.x + tangent.y * tangent.y + "
-              + to_glsl(stretch::squared()) + " * tangent.z * tangent.z;\n";
-        fmain +=      
-          "tangent /= sqrt(nvelsquared);\n"
-          "tangent = fromOrig * s_translate(toOrig * position) * tangent;\n";
+          fmain += "  } else\n";
         }
       }
-    else fmain += 
-      "position = position + tangent * dist;\n";
-    
-    if(!eyes) {
-      if(hyperbolic) fmain +=
-        "position /= sqrt(position.w*position.w - dot(position.xyz, position.xyz));\n"
-        "tangent -= dot(vec4(-position.xyz, position.w), tangent) * position;\n"
-        "tangent /= sqrt(dot(tangent.xyz, tangent.xyz) - tangent.w*tangent.w);\n";
-      
-      if(in_h2xe()) fmain +=
-        "position /= sqrt(position.z*position.z - dot(position.xy, position.xy));\n"
-        "tangent -= dot(vec3(-position.xy, position.z), tangent.xyz) * position;\n"
-        "tangent /= sqrt(dot(tangent.xy, tangent.xy) - tangent.z*tangent.z);\n";
-      }
-    
-    if(hyperbolic && bt::in()) {
-      fmain += 
-        "if(which == 20) {\n"
-        "  mediump float best = 999.;\n"
-        "  for(int i="+its(flat2)+"; i<"+its(S7)+"; i++) {\n"
-          "  mediump float cand = len(" + getM("i") + " * position);\n"
-          "  if(cand < best) { best = cand; which = i; }\n"
-          "  }\n"
-          "}\n"
-        "if(which == 21) {\n"
-          "mediump float best = 999.;\n"
-          "for(int i=0; i<"+its(flat1)+"; i++) {\n"
-          "  mediump float cand = len(" + getM("i") + " * position);\n"
-          "  if(cand < best) { best = cand; which = i; }\n"
-          "  }\n"
-//          "gl_FragColor = vec4(.5 + .5 * sin((go+dist)*100.), 1, float(which)/3., 1); return;\n"
-          "}\n";
-      }
-    
-    if(volumetric::on) fmain += 
-      "if(dist > 0. && go < " + to_glsl(hard_limit) + ") {\n"
-      "   if(dist > "+to_glsl(hard_limit)+" - go) dist = "+to_glsl(hard_limit)+" - go;\n"
-      "   mediump vec4 col = texture2D(tVolumetric, cid);\n"
-      "   mediump float factor = col.w; col.w = 1.;\n"
-      "   mediump float frac = exp(-(factor + 1. / uExpDecay) * dist);\n"
-      "   gl_FragColor += left * (1.-frac) * col;\n"
-      "   left *= frac;\n"
-      "   }\n;";
-        
-    fmain += "  go = go + dist;\n";          
-
-    fmain += "if(which == -1) continue;\n";
-
-    if(prod && eyes) fmain += "position.w = -nzpos;\n";
-    else if(prod) fmain += "position.w = -zpos;\n";
-    
-    if(reg3::ultra_mirror_in()) fmain += 
-      "if(which >= " + its(S7) + ") {"
-      "  tangent = " + getM("which") + " * tangent;\n"
-      "  continue;\n"
-      "  }\n";
-      
-    // apply wall color
-    fmain +=
-      "  mediump vec2 u = cid + vec2(float(which) / float(uLength), 0);\n"
-      "  mediump vec4 col = texture2D(tWallcolor, u);\n"
-      "  if(col[3] > 0.0) {\n";
-    
-    if(eyes)
-      fmain += "    mediump float gou = go / uAbsUnit;\n";
     else
-      fmain += "    mediump float gou = go;\n";
-    
-    if(hard_limit < NO_LIMIT)
-      fmain += "    if(gou > " + to_glsl(hard_limit) + ") { gl_FragDepth = 1.; return; }\n";
-    
-    if(!(levellines && disable_texture)) fmain +=
-      "    mediump vec2 inface = map_texture(position, which+walloffset);\n"
-      "    mediump vec3 tmap = texture2D(tTextureMap, u).rgb;\n"
-      "    if(tmap.z == 0.) col.xyz *= min(1., (1.-inface.x)/ tmap.x);\n"
-      "    else {\n"
-      "      mediump vec2 inface2 = tmap.xy + tmap.z * inface;\n"
-      "      col.xyz *= texture2D(tTexture, inface2).rgb;\n"
-      "      }\n";
-
-    if(volumetric::on)
-      fmain += "    mediump float d = uExpStart * exp(-gou / uExpDecay);\n";
-
-    else
-      fmain +=
-      "    mediump float d = max(1. - gou / uLinearSightRange, uExpStart * exp(-gou / uExpDecay));\n";
-    
-    if(!volumetric::on) fmain +=
-      "    col.xyz = col.xyz * d + uFogColor.xyz * (1.-d);\n";
-    
-    if(nil) fmain +=
-      "    if(abs(abs(position.x)-abs(position.y)) < .005) col.xyz /= 2.;\n";
-    
-    if(use_reflect) fmain +=
-      "  if(col.w == 1.) {\n"
-      "    col.w = " + to_glsl(1-reflect_val)+";\n"
-      "    reflect = true;\n"
-      "    }\n";
-    
-    ld vnear = glhr::vnear_default;
-    ld vfar = glhr::vfar_default;
+      emit_iterate(-1);
 
     fmain +=
-      "    gl_FragColor.xyz += left * col.xyz * col.w;\n";
-
-    if(use_reflect) fmain +=
-      "    if(reflect && depthtoset) {\n";
-    else fmain +=
-      "    if(col.w == 1.) {\n";
-    
-    if(hyperbolic && !eyes) fmain +=
-      "      mediump vec4 t = at0 * sinh(go);\n";
-    else fmain +=
-      "      mediump vec4 t = at0 * go;\n";
-
-    fmain += 
-      "      t.w = 1.;\n";
-
-    if(levellines) {
-      if(hyperbolic && !eyes) 
-        fmain += "gl_FragColor.xyz *= 0.5 + 0.5 * cos(z/cosh(go) * uLevelLines * 2. * PI);\n";
-      else
-        fmain += "gl_FragColor.xyz *= 0.5 + 0.5 * cos(z * uLevelLines * 2. * PI);\n";
-      fsh += "uniform mediump float uLevelLines;\n";
-      }
-    
-    if(panini_alpha) 
-      fmain += panini_shader();
-
-    else if(stereo_alpha) 
-      fmain += stereo_shader();
-
-    #ifndef GLES_ONLY
-    fmain +=    
-      "      gl_FragDepth = (" + to_glsl(-vnear-vfar)+"+t.w*" + to_glsl(2*vnear*vfar)+"/t.z)/" + to_glsl(vnear-vfar)+";\n"
-      "      gl_FragDepth = (gl_FragDepth + 1.) / 2.;\n";
-    #endif
-    
-    if(!use_reflect) fmain +=
-      "      return;\n";
-    else fmain +=
-      "      depthtoset = false;\n";
-
-    fmain +=    
-      "      }\n"
-      "    left *= (1. - col.w);\n"
-      "    }\n";
-
-    if(use_reflect) {
-      if(prod) fmain += "if(reflect && which >= sides-2) { zspeed = -zspeed; continue; }\n";
-      if(hyperbolic && bt::in()) fmain +=
-        "if(reflect && (which < "+its(flat1)+" || which >= "+its(flat2)+")) {\n"
-        "  mediump float x = -log(position.w - position.x);\n"
-        "  mediump vec4 xtan = xpush(-x) * tangent;\n"
-        "  mediump float diag = (position.y*position.y+position.z*position.z)/2.;\n"
-        "  mediump vec4 normal = vec4(1.-diag, -position.y, -position.z, -diag);\n"
-        "  mediump float mdot = dot(xtan.xyz, normal.xyz) - xtan.w * normal.w;\n"
-        "  xtan = xtan - normal * mdot * 2.;\n"
-        "  tangent = xpush(x) * xtan;\n"
-        "  continue;\n"
-        "  }\n";
-      if(asonov) {
-        fmain += 
-          "  if(reflect) {\n"
-          "    if(which == 4 || which == 10) tangent = refl(tangent, position.z, uReflectX);\n"
-          "    else if(which == 5 || which == 11) tangent = refl(tangent, position.z, uReflectY);\n"
-          "    else tangent.z = -tangent.z;\n"
-          "    }\n";
-        fsh += 
-          "uniform mediump vec4 uReflectX, uReflectY;\n"
-          "mediump vec4 refl(mediump vec4 t, float z, mediump vec4 r) {\n"
-            "t.x *= exp(z); t.y /= exp(z);\n"
-            "t -= dot(t, r) * r;\n"
-            "t.x /= exp(z); t.y *= exp(z);\n"
-            "return t;\n"
-            "}\n";           
-        }
-      else if(sol && !nih && !asonov) fmain += 
-        "  if(reflect) {\n"
-        "    if(which == 0 || which == 4) tangent.x = -tangent.x;\n"
-        "    else if(which == 1 || which == 5) tangent.y = -tangent.y;\n"
-        "    else tangent.z = -tangent.z;\n"
-        "    continue;\n"
-        "    }\n";
-      else if(nih) fmain += 
-        "  if(reflect) {\n"
-        "    if(which == 0 || which == 2) tangent.x = -tangent.x;\n"
-        "    else if(which == 1 || which == 3) tangent.y = -tangent.y;\n"
-        "    else tangent.z = -tangent.z;\n"
-        "    continue;\n"
-        "    }\n";
-      else {
-        fmain += 
-        "  if(reflect) {\n"
-        "    tangent = " + getM("uMirrorShift+walloffset+which") + " * tangent;\n"
-        "    continue;\n"
-        "    }\n";
-        fsh += "uniform int uMirrorShift;\n";
-        }
-      }
-    
-    // next cell
-    fmain += 
-      "  mediump vec4 connection = texture2D(tConnections, u);\n"
-      "  cid = connection.xy;\n";
-    
-    if(prod) fmain +=
-      "  if(which == sides-2) { zpos += uPLevel+uPLevel; }\n"
-      "  if(which == sides-1) { zpos -= uPLevel+uPLevel; }\n";
-    
-    fmain +=
-      "  int mid = int(connection.z * 1024.);\n"
-      "  mediump mat4 m = " + getM("mid") + " * " + getM("walloffset+which") + ";\n";
-    
-    if(eyes) 
-      fmain += "  vw = m * vw;\n";
-    
-    else fmain +=
-      "  position = m * position;\n"
-      "  tangent = m * tangent;\n";
-    
-    if(stretch::mstretch) fmain += 
-      "  m = s_itranslate(m*vec4(0,0,0,1)) * m;"
-      "  fromOrig = m * fromOrig;\n"
-      "  m[0][1] = -m[0][1]; m[1][0] = -m[1][0];\n" // inverse
-      "  toOrig = toOrig * m;\n";
-    
-    if(many_cell_types) {
-      fmain += 
-        "walloffset = int(connection.w * " + to_glsl(max_wall_offset) + ");\n"
-        "sides = int(connection.w * " + to_glsl(max_wall_offset * max_celltype) + ") - " + its(max_celltype) + " * walloffset;\n";
-      
-      // fmain += "if(sides != 8) { gl_FragColor = vec4(.5,float(sides)/8.,.5,1); return; }";
-      }
-
-    fmain += 
       "  }\n"
       "  gl_FragColor.xyz += left * uFogColor.xyz;\n";
 
@@ -1465,16 +2065,11 @@ void enable_raycaster() {
       "  gl_FragDepth = 1.;\n";
     #endif
 
-    fmain += 
+    fmain +=
       "  }";
-
-    fsh += fmain;    
-
-    callhooks(hooks_rayshader, vsh, fsh);
-      
-    our_raycaster = make_shared<raycaster> (vsh, fsh);
     }
-  full_enable(our_raycaster);
+
+  add_functions();
   }
 
 void bind_array(vector<array<float, 4>>& v, GLint t, GLuint& tx, int id, int length) {
@@ -1507,7 +2102,7 @@ void uniform2(GLint id, array<float, 2> fl) {
 
 color_t color_out_of_range = 0x0F0800FF;
 
-transmatrix get_ms(cell *c, int a, bool mirror) {
+EX transmatrix get_ms(cell *c, int a, bool mirror) {
   int z = a ? 1 : -1;
   
   if(c->type == 3) {
@@ -1529,57 +2124,70 @@ transmatrix get_ms(cell *c, int a, bool mirror) {
       }
     h = normalize(h);
     ld d = hdist0(h);
+    d -= cgi.emb->center_z();
     if(h[2] > 0) d = -d;
-    if(mirror) return MirrorZ * zpush(2*d);
-    return zpush(2*d);
+    if(mirror) return MirrorZ * lzpush(2*d);
+    return lzpush(2*d);
     }
   }
 
 int nesting;
 
-transmatrix mirrorize(transmatrix T) {
+EX transmatrix mirrorize(transmatrix T) {
   T = inverse(T);
   hyperpoint h = tC0(T);
   ld d = hdist0(h);
   return rspintox(h) * xpush(d/2) * MirrorX * xpush(-d/2) * spintox(h);
   }
 
+transmatrix protect_prod(transmatrix T) {
+  if(MDIM == 3)
+    for(int i=0; i<4; i++) T[i][3] = T[3][i] = i == 3;
+  return T;
+  }
+
 struct raycast_map {
 
   int saved_frameid;
+  int saved_map_version;
   
   vector<cell*> lst;
   map<cell*, int> ids;
 
   vector<transmatrix> ms;
 
-  int length, per_row, rows, mirror_shift;
+  int length, per_row, rows, mirror_shift, deg;
 
-  vector<array<float, 4>> connections, wallcolor, texturemap, volumetric;
+  vector<array<float, 4>> connections, wallcolor, texturemap, volumetric, portal_connections;
   
   void apply_shape() {
     length = 4096;
-    per_row = length / deg;  
+    deg = our_raygen.deg;
+    per_row = length / deg;
     rows = next_p2((isize(lst)+per_row-1) / per_row);  
     int q = length * rows;
     connections.resize(q);
+    portal_connections.resize(q);
     wallcolor.resize(q);
     texturemap.resize(q);
     volumetric.resize(q);
     }
 
   void generate_initial_ms(cell *cs) {
-    auto sa = hybrid::gen_sample_list();
+    auto sa = used_sample_list();
     
     ms.clear();
     ms.resize(sa.back().first, Id);
     
+    intra::resetter ir;
+
     for(auto& p: sa) {
       int id = p.first;
       cell *c = p.second;
       if(!c) continue;
+      intra::may_switch_to(c);
       for(int j=0; j<c->type; j++)
-        ms[id+j] = currentmap->ray_iadj(c, j);
+        ms[id+j] = protect_prod(currentmap->ray_iadj(c, j));
       if(WDIM == 2) for(int a: {0, 1}) {
         ms[id+c->type+a] = get_ms(c, a, false);
         }
@@ -1597,8 +2205,9 @@ struct raycast_map {
         int id = p.first;
         cell *c = p.second;
         if(!c) continue;
+        intra::may_switch_to(c);
         for(int j=0; j<c->type; j++)
-          ms[mirror_shift+id+j] = mirrorize(ms[id+j]);
+          ms[mirror_shift+id+j] = protect_prod(mirrorize(ms[id+j]));
         if(WDIM == 2) for(int a: {0, 1}) {
           ms[mirror_shift+id+c->type+a] = get_ms(c, a, true);
           }
@@ -1610,12 +2219,14 @@ struct raycast_map {
         }
       }    
 
-    if(prod) {
-      for(auto p: sa) {
-        int id =p.first;
-        if(id == 0) continue;
-        ms[id-2] = Id;
-        ms[id-1] = Id;
+    for(auto p: sa) {
+      cell *c = p.second;
+      if(!c) continue;
+      intra::may_switch_to(c);
+      int id =p.first;
+      if(gproduct) {
+        ms[id+c->type-2] = Id;
+        ms[id+c->type-1] = Id;
         }
       }
     }
@@ -1624,13 +2235,28 @@ struct raycast_map {
     manual_celllister cl;
     cl.add(cs);
     bool optimize = !isWall3(cs);
+    intra::resetter ir;
     // vector<int> legaldir = { -1 };
     for(int i=0; i<isize(cl.lst); i++) {
       cell *c = cl.lst[i];
+      intra::may_switch_to(c);
       if(racing::on && i > 0 && c->wall == waBarrier) continue;
       if(optimize && isWall3(c)) continue;
       forCellIdCM(c2, d, c) {
         // if(reflect_val == 0 && !((1<<d) & legaldir[i])) continue;
+
+        if(intra::in && !intra::intra_id.count(c2)) intra::intra_id[c2] = intra::current;
+
+        if(intra::in) {
+          cellwalker cw(c, d);
+          auto p = at_or_null(intra::connections, cw);
+          if(p) {
+            cell *c3 = p->tcw.at;
+            if(rays_generate && c3->mpdist > 7) { intra::may_switch_to(c3); setdist(c3, 7, c); intra::may_switch_to(c2); }
+            cl.add(c3);
+            }
+          }
+
         if(rays_generate) setdist(c2, 7, c);
         /* if(!cl.listed(c2))
           legaldir.push_back(legaldir[i] &~ (1<<((d+3)%6)) ); */
@@ -1652,6 +2278,7 @@ struct raycast_map {
     }
 
   void generate_connections(cell *c, int id) {
+    intra::may_switch_to(c);
     auto& vmap = volumetric::vmap;
     if(volumetric::on) {
       celldrawer dd;
@@ -1665,7 +2292,14 @@ struct raycast_map {
         vcolor = (backcolor << 8);
       volumetric[u] = glhr::acolor(vcolor);
       }
-    forCellIdEx(c1, i, c) {
+    forCellIdEx(c1_real, i, c) {
+      cell *c1 = c1_real;
+      const intra::connection_data *p = nullptr;
+      if(intra::in) {
+        cellwalker cw(c, i);
+        p = at_or_null(intra::connections, cw);
+        if(p) c1 = p->tcw.at;
+        }
       int u = (id/per_row*length) + (id%per_row * deg) + i;
       if(!ids.count(c1)) {
         wallcolor[u] = glhr::acolor(color_out_of_range | 0xFF);
@@ -1675,6 +2309,7 @@ struct raycast_map {
       auto code = enc(ids[c1], 0);
       connections[u][0] = code[0];
       connections[u][1] = code[1];
+      portal_connections[u][0] = 0;
       if(isWall3(c1)) {
         celldrawer dd;
         dd.c = c1;
@@ -1705,22 +2340,40 @@ struct raycast_map {
           }
         }
       
-      int wo = currentmap->wall_offset(c);
-      if(wo >= irays) {
-        println(hlog, "wo=", wo, " irays = ", irays);
+      int wo = intra::full_wall_offset(c);
+      if(wo >= our_raygen.irays) {
+        println(hlog, "wo=", wo, " irays = ", our_raygen.irays);
         reset_raycaster();
         return;
         }
-      transmatrix T = currentmap->iadj(c, i) * inverse(ms[wo + i]);
-      if(in_e2xe() && i >= c->type-2)
-        T = Id;
-      for(int k=0; k<=isize(ms); k++) {
-        if(k < isize(ms) && !eqmatrix(ms[k], T, 1e-5)) continue;
-        if(k == isize(ms)) ms.push_back(T);
+      if(p) {
+        int k = isize(ms);
+        auto bak = geometry;
+        ms.push_back(p->T);
+        geometry = bak;
+        ms.push_back(p->id1.T);
+        ms.push_back(p->id2.iT);
         connections[u][2] = (k+.5) / 1024.;
-        break;
+        portal_connections[u][0] = p->id1.kind / 16. + .5;
+        portal_connections[u][1] = p->id1.d / 16 + .5;
+        portal_connections[u][2] = p->id2.kind / 16. + .5;
+        portal_connections[u][3] = p->id2.d / 16 + .5;
         }
-      auto wo1 = currentmap->wall_offset(c1);
+      else {
+        transmatrix T = currentmap->iadj(c, i) * inverse(ms[wo + i]);
+        if(in_e2xe() && i >= c->type-2)
+          T = Id;
+        T = protect_prod(T);
+        for(int k=0; k<=isize(ms); k++) {
+          if(k < isize(ms) && !eqmatrix(ms[k], T, 1e-5)) continue;
+          if(k == isize(ms)) ms.push_back(T);
+          connections[u][2] = (k+.5) / 1024.;
+          break;
+          }
+        }
+      intra::resetter ir;
+      intra::may_switch_to(c1);
+      int wo1 = intra::full_wall_offset(c1);
       if(wo1 >= max_wall_offset)
         println(hlog, "error: wall_offset ", wo1, " exceeds ", max_wall_offset);
       if(c1->type >= max_celltype)
@@ -1744,6 +2397,7 @@ struct raycast_map {
   
   void generate_connections() {
     int id = 0;
+    intra::resetter ir;
     for(cell* c: lst) if(!reset_rmap)
       generate_connections(c, id++);
     }
@@ -1765,8 +2419,7 @@ struct raycast_map {
       for(int i=0; i<isize(ms); i++)
         for(int a=0; a<4; a++)
         for(int b=0; b<4; b++) {
-          if(MDIM == 3 && (a==3 || b==3)) m_map[i+a*mlength][b] = .5;
-          else m_map[i+a*mlength][b] = ms[i][a][b]/ray_scale + .5;
+          m_map[i+a*mlength][b] = ms[i][a][b]/ray_scale + .5;
           }
 
       bind_array(m_map, o->tM, txM, 7, mlength);
@@ -1782,6 +2435,8 @@ struct raycast_map {
     bind_array(connections, o->tConnections, txConnections, 3, length);
     bind_array(texturemap, o->tTextureMap, txTextureMap, 5, length);
     if(volumetric::on) bind_array(volumetric, o->tVolumetric, txVolumetric, 6, length);
+    if(o->tPortalConnections != -1)
+      bind_array(portal_connections, o->tPortalConnections, txPortalConnections, 1, length);
 
     if(o->uMirrorShift != -1) {
       glUniform1i(o->uMirrorShift, mirror_shift);
@@ -1790,6 +2445,7 @@ struct raycast_map {
   
   void create_all(cell *cs) {
     saved_frameid = frameid;
+    saved_map_version = mapeditor::map_version;
     generate_initial_ms(cs);
     generate_cell_listing(cs);
     apply_shape();
@@ -1798,12 +2454,21 @@ struct raycast_map {
   
   bool need_to_create(cell *cs) {
     if(!fixed_map && frameid != saved_frameid) return true;
+    if(saved_map_version != mapeditor::map_version) return true;
     return !ids.count(cs);
     }
   };
 
 unique_ptr<raycast_map> rmap;
 EX bool reset_rmap = false;
+
+EX cell* rmap_get_by_id(int id) {
+  return rmap->lst[id];
+  }
+
+EX int rmap_get_id_of(cell *c) {
+  return rmap->ids[c];
+  }
 
 EX void reset_raycaster() { 
   our_raycaster = nullptr; 
@@ -1815,12 +2480,26 @@ EX void reset_raycaster_map() {
   rmap = nullptr;
   }
 
+EX void load_walls(vector<glvertex>& wallx, vector<glvertex>& wally, vector<GLint>& wallstart) {
+  int q = 0;
+  if(isize(wallx)) {
+    q = isize(wallx);
+    wallstart.pop_back();
+    }
+  for(auto i: cgi.wallstart) wallstart.push_back(q + i);
+  dynamicval<eGeometry> g(geometry, gCubeTiling);
+  for(auto& m: cgi.raywall) {
+    wallx.push_back(glhr::pointtogl(m[0]));
+    wally.push_back(glhr::pointtogl(m[1]));
+    }
+  }
+
 EX void cast() {
   // may call itself recursively in case of bugs -- just in case...
   dynamicval<int> dn(nesting, nesting+1);
   if(nesting > 10) return;
   
-  if(isize(cgi.raywall) > irays) reset_raycaster();
+  if(isize(cgi.raywall) > our_raygen.irays) reset_raycaster();
     
   enable_raycaster();
 
@@ -1854,24 +2533,27 @@ EX void cast() {
   
   #if CAP_VR
   if(o->uEyeShift != -1) {
+    dynamicval<eGeometry> g(geometry, gCubeTiling);
     transmatrix T = vrhr::eyeshift;
     if(nonisotropic)
       T = inverse(NLP) * T;
-    glUniformMatrix4fv(o->uEyeShift, 1, 0, glhr::tmtogl_transpose3(T).as_array());
+    glUniformMatrix4fv(o->uEyeShift, 1, 0, glhr::tmtogl_transpose(T).as_array());
     glUniform1f(o->uAbsUnit, vrhr::absolute_unit_in_meters);
     }
   if(vrhr::rendering_eye()) {
-    glUniformMatrix4fv(o->uProjection, 1, 0, glhr::tmtogl_transpose3(vrhr::eyeproj).as_array());
+    dynamicval<eGeometry> g(geometry, gCubeTiling);
+    glUniformMatrix4fv(o->uProjection, 1, 0, glhr::tmtogl_transpose(vrhr::eyeproj).as_array());
     }
   #else
   if(0) ;
   #endif
   else {
+    dynamicval<eGeometry> g(geometry, gCubeTiling);
     transmatrix proj = Id;
     proj = eupush(-global_projection * d, 0) * proj;
     proj = euscale(cd->tanfov / (vid.stereo_mode == sLR ? 2 : 1), cd->tanfov * cd->ysize / cd->xsize) * proj;
     proj = eupush(-((cd->xcenter-cd->xtop)*2./cd->xsize - 1), -((cd->ycenter-cd->ytop)*2./cd->ysize - 1)) * proj;
-    glUniformMatrix4fv(o->uProjection, 1, 0, glhr::tmtogl_transpose3(proj).as_array());
+    glUniformMatrix4fv(o->uProjection, 1, 0, glhr::tmtogl_transpose(proj).as_array());
     }
   
   if(!callhandlers(false, hooks_rayset, o)) {
@@ -1892,9 +2574,11 @@ EX void cast() {
   
   transmatrix msm = stretch::mstretch_matrix;
 
+  hyperpoint TC0 = tile_center();
+
   back:
   for(int a=0; a<cs->type; a++)
-    if(hdist0(currentmap->ray_iadj(cs, a) * tC0(T)) < hdist0(tC0(T))) {
+    if(hdist(currentmap->ray_iadj(cs, a) * T * C0, TC0) < hdist(T * C0, TC0)) {
       T = currentmap->iadj(cs, a) * T;
       if(o->uToOrig != -1) {
         transmatrix HT = currentmap->adj(cs, a);
@@ -1909,8 +2593,7 @@ EX void cast() {
         }
       goto back;
       }
-  if(ray_fixes) println(hlog, "ray error x", ray_fixes);
-
+  if(ray_fixes) println(hlog, "ray error x", ray_fixes, " centerover = ", centerover, " -> ", cs);
   
   glUniformMatrix4fv(o->uStart, 1, 0, glhr::tmtogl_transpose3(T).as_array());
   if(o->uLP != -1) glUniformMatrix4fv(o->uLP, 1, 0, glhr::tmtogl_transpose3(inverse(NLP)).as_array());
@@ -1929,16 +2612,23 @@ EX void cast() {
     }
   
   if(o->uWallOffset != -1) {
-    glUniform1i(o->uWallOffset, currentmap->wall_offset(cs));
+    glUniform1i(o->uWallOffset, intra::full_wall_offset(cs));
     glUniform1i(o->uSides, cs->type + (WDIM == 2 ? 2 : 0));
     }
 
   vector<glvertex> wallx, wally;
-  for(auto& m: cgi.raywall) {
-    wallx.push_back(glhr::pointtogl(m[0]));
-    wally.push_back(glhr::pointtogl(m[1]));
+  vector<GLint> wallstart;
+
+  if(intra::in) {
+    intra::resetter ir;
+    for(int i=0; i<isize(intra::data); i++) {
+      intra::switch_to(i);
+      load_walls(wallx, wally, wallstart);
+      }
     }
-  
+  else
+    load_walls(wallx, wally, wallstart);
+
   if(wall_via_texture) {
     int wlength = next_p2(isize(wallx));
     vector<array<float, 4>> w_map;
@@ -1955,14 +2645,12 @@ EX void cast() {
         }
       }
     // println(hlog, "wallrange = ", tie(minval, maxval), " wallx = ", isize(wallx), " wallstart = ", isize(cgi.wallstart));
-    for(int i=0; i<isize(cgi.wallstart); i++)
-      w_map[i+2*wlength][0] = (cgi.wallstart[i]+.5) / wlength;
+    for(int i=0; i<isize(wallstart); i++)
+      w_map[i+2*wlength][0] = (wallstart[i]+.5) / wlength;
     bind_array(w_map, o->tWall, txWall, 8, wlength);
     glUniform1f(o->uInvLengthWall, 1. / wlength);
     }
   else {
-    vector<GLint> wallstart;
-    for(auto i: cgi.wallstart) wallstart.push_back(i);  
     glUniform1iv(o->uWallstart, isize(wallstart), &wallstart[0]);  
     glUniform4fv(o->uWallX, isize(wallx), &wallx[0][0]);
     glUniform4fv(o->uWallY, isize(wally), &wally[0][0]);
@@ -1977,9 +2665,9 @@ EX void cast() {
     glUniformMatrix4fv(o->uStraighten, 1, 0, glhr::tmtogl_transpose(asonov::straighten).as_array());
     }
   if(o->uReflectX != -1) {
-    auto h = glhr::pointtogl(tangent_length(spin(90*degree) * asonov::ty, 2));
+    auto h = glhr::pointtogl(tangent_length(spin90() * asonov::ty, 2));
     glUniform4fv(o->uReflectX, 1, &h[0]);
-    h = glhr::pointtogl(tangent_length(spin(90*degree) * asonov::tx, 2));
+    h = glhr::pointtogl(tangent_length(spin90() * asonov::tx, 2));
     glUniform4fv(o->uReflectY, 1, &h[0]);
     }
   #endif
@@ -2060,6 +2748,12 @@ EX void cast() {
     }
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+  if(!floor_textures) {
+    println(hlog, "make_floor_textures called");
+    make_floor_textures();
+    check_cgi();
+    }
+
   glActiveTexture(GL_TEXTURE0 + 0);
   glBindTexture(GL_TEXTURE_2D, floor_textures->renderedTexture);
 
@@ -2091,7 +2785,7 @@ EX void random_fog() {
 
 EX void menu() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("volumetric raycasting"));  
 
   if(!cheater) {
@@ -2143,7 +2837,7 @@ EX }
 
 EX void configure() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("raycasting configuration"));
   
   dialog::addBoolItem(XLAT("available in current geometry"), available(), 0);
@@ -2237,6 +2931,8 @@ EX void configure() {
         });
       };
     });
+
+  dialog::addBoolItem_action(XLAT("the map is fixed (improves performance)"), ray::fixed_map, 'F');
   
   if(gms_array_size > gms_limit && ray::in_use) {
     dialog::addBreak(100);
@@ -2276,7 +2972,7 @@ int readArgs() {
     shift_arg_formula(hard_limit);
     }
   else if(argis("-ray-out")) {
-    PHASEFROM(2); shift(); color_out_of_range = arghex();
+    PHASEFROM(2); shift(); color_out_of_range = argcolor(32);
     }
   else if(argis("-ray-comp")) {
     PHASEFROM(2);
@@ -2319,7 +3015,7 @@ int readArgs() {
   else if(argis("-ray-cursor")) {
     start_game();
     volumetric::enable();
-    shift(); volumetric::vmap[centerover] = arghex();
+    shift(); volumetric::vmap[centerover] = argcolor(32);
     }
   else return 1;
   return 0;
@@ -2342,9 +3038,11 @@ void addconfig() {
   param_f(exp_decay_poly, "ray_exp_decay_poly");
   addsaver(max_iter_iso, "ray_max_iter_iso");
   addsaver(max_iter_sol, "ray_max_iter_sol");
-  addsaver(max_cells, "ray_max_cells");
+  param_i(max_cells, "ray_max_cells");
   addsaver(rays_generate, "ray_generate");
   param_b(fixed_map, "ray_fixed_map");
+  param_i(max_wall_offset, "max_wall_offset");
+  param_i(max_celltype, "max_celltype");
   }
 auto hookc = addHook(hooks_configfile, 100, addconfig);
 #endif

@@ -28,6 +28,10 @@ struct textureinfo : basic_textureinfo {
   };
 #endif
 
+#if HDR
+string find_file(string s);
+#endif
+
 EX namespace texture {
 
 #if HDR
@@ -120,8 +124,8 @@ struct texture_config {
 
   texture_config() {
     // argh, no member initialization in some of my compilers
-    texturename = "textures/hyperrogue-texture.png";
-    configname = "textures/hyperrogue.txc";
+    texturename = find_file("textures/hyperrogue-texture.png");
+    configname = find_file("textures/hyperrogue.txc");
     itt = Id; 
     grid_color = 0;
     mesh_color = 0;
@@ -752,7 +756,7 @@ struct magic_param {
   void shuffle() {
     do_spin = hrand(2);
     spinangle = hrandf() - hrandf();
-    moveangle = hrandf() * 2 * M_PI;
+    moveangle = hrandf() * TAU;
     shift = hrandf() - hrandf();
     scale = hrandf() - hrandf();
     proj = hrandf() - hrandf();
@@ -979,7 +983,7 @@ string tes;
 
 void init_textureconfig() {
 #if CAP_CONFIG
-  texturesavers = move(savers);  
+  texturesavers = std::move(savers);  
   for(int i=0; i<3; i++)
   for(int j=0; j<3; j++)
     addsaver(config.itt[i][j], "texturematrix_" + its(i) + its(j), i==j ? 1 : 0);
@@ -1050,8 +1054,10 @@ bool texture_config::save() {
 
   if(arb::in()) tes = arb::current.filename;
   
+  csymbol = "";
+  #if CAP_ARCM
   if(arcm::in()) csymbol = arcm::current.symbol;
-  else csymbol = "";
+  #endif
   
   for(auto s: texturesavers) if(s->dosave())
     fprintf(f, "%s=%s\n", s->name.c_str(), s->save().c_str());
@@ -1080,6 +1086,7 @@ bool texture_config::load() {
 
     if(targetgeometry != geometry) {
       stop_game();
+      #if CAP_ARCM
       if(targetgeometry == gArchimedean) {
         arcm::current.symbol = csymbol;
         arcm::current.parse();
@@ -1089,6 +1096,7 @@ bool texture_config::load() {
           return false;
           }
         }
+      #endif
       if(targetgeometry == gArbitrary) {
         arb::run(tes);
         stop_game();
@@ -1127,10 +1135,10 @@ bool texture_config::load() {
   models::configure();
   drawthemap();
   config.tstate = config.tstate_max = tsActive;
-  string s = move(texture_tuner);
+  string s = std::move(texture_tuner);
   perform_mapping();
   
-  texture_tuner = move(s);
+  texture_tuner = std::move(s);
   
   if(texture_tuner != "") {
     texture_tuned = true;
@@ -1164,7 +1172,7 @@ bool texture_config::load() {
 
 void showMagicMenu() {
   cmode = sm::SIDE | sm::MAYDARK | sm::DIALOG_STRICT_X;
-  gamescreen(0);  
+  gamescreen();
 
   dialog::init(XLAT("texture auto-adjustment"));
 
@@ -1266,7 +1274,7 @@ EX void start_editor() {
 
 EX void showMenu() {
   cmode = sm::SIDE | sm::MAYDARK | sm::DIALOG_STRICT_X;
-  gamescreen(0);
+  gamescreen();
   if(config.tstate == tsAdjusting) {
     ptds.clear();
     config.mark_triangles();
@@ -1557,7 +1565,7 @@ void splitseg(const shiftmatrix& A, const array<ld, 2>& angles, const array<shif
 void fillcircle(shiftpoint h, color_t col) {
   shiftmatrix A = rgpushxto0(h);
   
-  ld step = M_PI * 2/3;
+  ld step = 120._deg;
   
   array<shiftpoint, 3> mh = make_array(A * xpush0(mapeditor::dtwidth), A * xspinpush0(step, mapeditor::dtwidth), A * xspinpush0(-step, mapeditor::dtwidth));
   auto mp = ptc(mh);
@@ -1580,9 +1588,9 @@ void actDrawPixel(cell *c, shiftpoint h, color_t col) {
     hyperpoint h1 = inverse_shift(M * applyPatterndir(c, si), h);
     auto& tinf = config.texture_map[si.id];
     for(auto& M2: tinf.matrices) for(int i = 0; i<c->type; i += si.symmetries) {
-      fillcircle(M2 * spin(2 * M_PI * i / c->type) * h1, col);
+      fillcircle(M2 * spin(TAU * i / c->type) * h1, col);
       if(texturesym)
-        fillcircle(M2 * spin(2 * M_PI * i / c->type) * Mirror * h1, col);
+        fillcircle(M2 * spin(TAU * i / c->type) * Mirror * h1, col);
       }
     }
   catch(out_of_range&) {}
@@ -1661,7 +1669,7 @@ void texture_config::true_remap() {
       if(GOLDBERG || IRREGULAR) pshift += si.dir;
       mapTexture(c, mi2, si, ggmatrix(c), pshift);
       mapTexture2(mi2);
-      mi2.tvertices = move(new_tvertices);
+      mi2.tvertices = std::move(new_tvertices);
       // printf("%08x remapping %d vertices to %d vertices\n", si.id, isize(mi.tvertices), isize(mi2.tvertices));
       }
     catch(out_of_range&) { 

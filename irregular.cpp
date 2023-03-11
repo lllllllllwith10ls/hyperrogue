@@ -148,7 +148,7 @@ void bitruncate() {
           cells[id].neid[(k+5)%6] = bitruncated_id[make_pair(i, next)];
           }
       }
-    cells[i].neid = move(newnei);
+    cells[i].neid = std::move(newnei);
     }
   make_cells_of_heptagon();
   compute_jpoints();
@@ -241,7 +241,7 @@ bool step(int delta) {
             ld val = hdist(h, relmatrices[p.owner] * p.p);
             if(val < mindist) mindist = val;
             }
-          if(mindist > bestval) bestval = mindist, s.owner = c, s.p = h, s.relmatrices = move(relmatrices);
+          if(mindist > bestval) bestval = mindist, s.owner = c, s.p = h, s.relmatrices = std::move(relmatrices);
           }
         }
       make_cells_of_heptagon();
@@ -460,7 +460,7 @@ bool step(int delta) {
         ld dist = cgi.hcrossf / 2;
         ld dists[8];
         for(int i=0; i<S7; i++) {
-          dists[i] = hdist(s.p, xspinpush0(cgi.hexshift - i * 2 * M_PI / S7, -cgi.hcrossf));
+          dists[i] = hdist(s.p, xspinpush0(cgi.hexshift - i * TAU / S7, -cgi.hcrossf));
           if(dists[i] < dist)
             d = i, dist = dists[i];
           }
@@ -868,7 +868,7 @@ bool too_small_euclidean() {
 
 void show_gridmaker() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);  
+  gamescreen();
   dialog::init(XLAT("irregular grid"));
   dialog::addSelItem(XLAT("density"), fts(density), 'd');
   dialog::add_action([] {
@@ -1045,7 +1045,7 @@ EX bool ctof(cell* c) {
   }
 
 EX bool supports(eGeometry g) {
-  if(g == gEuclid || g == gEuclidSquare) return ginf[g].flags & qBOUNDED;
+  if(g == gEuclid || g == gEuclidSquare) return ginf[g].flags & qCLOSED;
   return among(g, gNormal, gKleinQuartic, gOctagon, gBolza2, gFieldQuotient, gSphere, gSmallSphere, gTinySphere);
   }
 
@@ -1056,21 +1056,23 @@ EX array<heptagon*, 3> get_masters(cell *c) {
   return make_array(s0.at, (s0 + wstep).at, (s0 + 1 + wstep).at);
   }
 
+EX void swap_vertices() {
+  for(auto& c: cells) {
+    swappoint(c.p);
+    swapmatrix(c.pusher);
+    swapmatrix(c.rpusher);
+    for(auto& jp: c.jpoints) swappoint(jp);
+    for(auto& rm: c.relmatrices) swapmatrix(rm.second);
+    for(auto& v: c.vertices) swappoint(v);
+    }
+  }
+
 auto hook = 
 #if CAP_COMMANDLINE
   addHook(hooks_args, 100, readArgs) + 
 #endif
 #if MAXMDIM >= 4
-  addHook(hooks_swapdim, 100, [] {
-    for(auto& c: cells) {
-      swapmatrix(c.p);
-      swapmatrix(c.pusher);
-      swapmatrix(c.rpusher);
-      for(auto& jp: c.jpoints) swapmatrix(jp);
-      for(auto& rm: c.relmatrices) swapmatrix(rm.second);
-      for(auto& v: c.vertices) swapmatrix(v);
-      }
-  }) +
+  addHook(hooks_swapdim, 100, swap_vertices) +
 #endif
   addHook(hooks_drawcell, 100, draw_cell_schematics) +
   addHook(shmup::hooks_turn, 100, step);

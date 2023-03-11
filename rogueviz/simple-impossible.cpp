@@ -22,13 +22,11 @@ hyperpoint last_loc;
 transmatrix to_iso, from_iso;
 
 hyperpoint to_rot(hyperpoint h) {
-  if(nil) h[2] -= h[0] * h[1] / 2;
-  return h;
+  return nilv::checked_convert(h, nilv::model_used, nilv::nmSym);
   }
 
-hyperpoint to_heis(hyperpoint h) {
-  if(nil) h[2] += h[0] * h[1] / 2;
-  return h;
+hyperpoint from_rot(hyperpoint h) {
+  return nilv::checked_convert(h, nilv::nmSym, nilv::model_used);
   }
 
 void make_wall(hpcshape& sh, vector<hyperpoint> hs) {
@@ -53,7 +51,7 @@ void place_brick(euc::coord co, color_t col = 0xFFD500, int which = -1) {
   bri.col = col;
   bri.walls = which;
   auto rel = co - last_co;
-  bri.location = eupush(last_loc) * to_heis(to_iso * (point31(rel[0], rel[1], rel[2])));
+  bri.location = eupush(last_loc) * from_rot(to_iso * (point31(rel[0], rel[1], rel[2])));
 
   hyperpoint sloc, floc;
   
@@ -63,7 +61,7 @@ void place_brick(euc::coord co, color_t col = 0xFFD500, int which = -1) {
     for(int c=0; c<3; c++)
       h[c] = (a & (1<<c)) ? .5 : -.5;
     h = to_iso * h;
-    to_heis(h);
+    from_rot(h);
     vertices[a] = h;
     }
 
@@ -71,9 +69,9 @@ void place_brick(euc::coord co, color_t col = 0xFFD500, int which = -1) {
   hyperpoint root_loc = bri.location, next_loc = bri.location;
   for(int c=0; c<3; c++) {
     while(root[c] % 6 != 0) 
-      root[c]--, root_loc = eupush(root_loc) * to_heis(to_iso * (C0 - ctangent(c, 1)));
+      root[c]--, root_loc = eupush(root_loc) * from_rot(to_iso * (C0 - ctangent(c, 1)));
     while(next[c] % 6 != 0) 
-      next[c]++, next_loc = eupush(next_loc) * to_heis(to_iso * (C0 + ctangent(c, 1)));
+      next[c]++, next_loc = eupush(next_loc) * from_rot(to_iso * (C0 + ctangent(c, 1)));
     }
 
   array<hyperpoint, 8> mvertices = vertices;
@@ -93,8 +91,8 @@ void place_brick(euc::coord co, color_t col = 0xFFD500, int which = -1) {
           hyperpoint end   = inverse(eupush(root_loc)) * eupush(next_loc) * mvertices[b];
           end = inverse(eupush(start)) * end;
           end = to_rot(end);
-          vertices[b] = inverse(eupush(bri.location)) * eupush(root_loc) * eupush(start) * to_heis(lerp(C0, end, p0));
-          vertices[a] = inverse(eupush(bri.location)) * eupush(root_loc) * eupush(start) * to_heis(lerp(C0, end, p1));
+          vertices[b] = inverse(eupush(bri.location)) * eupush(root_loc) * eupush(start) * from_rot(lerp(C0, end, p0));
+          vertices[a] = inverse(eupush(bri.location)) * eupush(root_loc) * eupush(start) * from_rot(lerp(C0, end, p1));
 
           /*
           vertices[b] = lerp(
@@ -141,12 +139,17 @@ void place_brick(int x, int y, int z, color_t col = 0xFFD500, int which = -1) {
 bool walls_created = false;
 
 const int darkval_e6[6] = {0,4,6,0,4,6};
+
+bool spinning = false;
   
 void draw_ro() {
 
   shiftmatrix Zero = ggmatrix(currentmap->gamestart());
 
   if(true) {
+
+    transmatrix S = Id;
+    if(spinning) S = cspin(0, 1, ticks * TAU / anims::period);
 
     int bid = 0;
     for(auto& b: bricks) { bid++;
@@ -157,7 +160,7 @@ void draw_ro() {
       int d = (wcol & 0xF0F0F0) >> 4;
 
       for(int di=0; di<6; di++) if((1<<di)&which) {
-        auto &w1 = queuepoly(Zero * V, b.shRotWall[di], darkena(wcol - d * darkval_e6[di], 0, 0xFF));
+        auto &w1 = queuepoly(Zero * S * V, b.shRotWall[di], darkena(wcol - d * darkval_e6[di], 0, 0xFF));
         w1.tinf = &floor_texture_vertices[cgi.shFloor.id];
         ensure_vertex_number(*w1.tinf, w1.cnt);
         }
@@ -180,7 +183,7 @@ void draw_ro() {
 vector<hyperpoint> path;
 
 void build(bool in_pair) {
-  to_iso = cspin(1, 2, atan(1/sqrt(2))) * cspin(0, 2, M_PI/4);
+  to_iso = cspin(1, 2, atan(1/sqrt(2))) * cspin(0, 2, 45._deg);
   from_iso = inverse(to_iso);
   
   last_co = euc::coord(0, 0, 3);
@@ -242,7 +245,7 @@ void build(bool in_pair) {
   }
 
 void build_net() {
-  to_iso = cspin(1, 2, atan(1/sqrt(2))) * cspin(0, 2, M_PI/4);
+  to_iso = cspin(1, 2, atan(1/sqrt(2))) * cspin(0, 2, 45._deg);
   from_iso = inverse(to_iso);
   
   last_co = euc::coord(0, 0, 0);
@@ -315,35 +318,35 @@ void build_stair() {
           hs[3] = point31(+xx, -xx, -hei);
           }
         else if(dix == 3 || (dix == 2 && step == 0) || (dix == 1 && step > 0)) {
-          transmatrix T = spin(90*degree*diy);
+          transmatrix T = spin(90._deg*diy);
           hs[0] = T * point31(+xx, -xx, -hei);
           hs[1] = T * point31(+xx, +xx, -hei);
           hs[2] = T * point31(+xx, +xx, +hei);
           hs[3] = T * point31(+xx, -xx, +hei);
           }
         else if(dix == 0) {
-          transmatrix T = spin(90*degree*diy);
+          transmatrix T = spin(90._deg*diy);
           hs[0] = T * point31(+xx, -xx, -hei);
           hs[1] = T * point31(+xx, +xx, -hei);
-          hs[2] = to_rot(eupush(C0 + shift) * to_heis(T * point31(-xx, +xx, -hei)));
-          hs[3] = to_rot(eupush(C0 + shift) * to_heis(T * point31(-xx, -xx, -hei)));
+          hs[2] = to_rot(eupush(C0 + shift) * from_rot(T * point31(-xx, +xx, -hei)));
+          hs[3] = to_rot(eupush(C0 + shift) * from_rot(T * point31(-xx, -xx, -hei)));
           }
         else {
-          transmatrix T = spin(90*degree*diy);
-          hyperpoint lshift = step ? shift : spin(-90*degree) * shift;
-          hs[0] = to_rot(eupush(C0 - lshift) * to_heis(T * point31(-xx, +xx, hei)));
-          hs[1] = to_rot(eupush(C0 - lshift) * to_heis(T * point31(-xx, -xx, hei)));
+          transmatrix T = spin(90._deg*diy);
+          hyperpoint lshift = step ? shift : spin270() * shift;
+          hs[0] = to_rot(eupush(C0 - lshift) * from_rot(T * point31(-xx, +xx, hei)));
+          hs[1] = to_rot(eupush(C0 - lshift) * from_rot(T * point31(-xx, -xx, hei)));
           hs[2] = T * point31(+xx, -xx, hei);
           hs[3] = T * point31(+xx, +xx, hei);
           }
-        for(auto& h: hs) h = to_heis(h);
+        for(auto& h: hs) h = from_rot(h);
         make_wall(bri.shRotWall[di], hs);
         }      
       
       at = eupush(at) * (C0 + shift);
       }
     
-    shift = spin(90*degree) * shift;
+    shift = spin90() * shift;
     }
   
   println(hlog, "path = ", path);
@@ -366,7 +369,7 @@ hyperpoint interp(ld t) {
   n = to_rot(n);
   n = lerp(C0, n, t);
   
-  return eupush(prev) * to_heis(n);
+  return eupush(prev) * from_rot(n);
   }
 
 void enable() {
@@ -452,6 +455,10 @@ int args() {
     pconf.scale = .5;
     
     View = Id;
+    }
+
+  else if(argis("-bspin")) {
+    spinning = true;
     }
 
   else if(argis("-bnet")) {

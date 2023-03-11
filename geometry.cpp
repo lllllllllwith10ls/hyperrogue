@@ -35,6 +35,7 @@ struct hpcshape {
   int texture_offset;
   int shs, she;
   void clear() { s = e = shs = she = texture_offset = 0; prio = PPR::ZERO; tinf = NULL; flags = 0; }
+  hpcshape() { clear(); }
   };
 
 #define SIDE_SLEV 0
@@ -50,7 +51,7 @@ struct hpcshape {
 #define SIDE_BSHA 12
 #define SIDEPARS  13
 
-/** GOLDBERG_BITS controls the size of tables for Goldberg: 2*(x+y) should be below (1<<GOLDBERG_BITS) */
+/** GOLDBERG_BITS controls the size of tables for Goldberg. see gp::check_limits */
 
 #ifndef GOLDBERG_BITS
 #define GOLDBERG_BITS 5
@@ -107,6 +108,8 @@ struct gi_extension {
   virtual ~gi_extension() {}
   };
 
+struct expansion_analyzer;
+
 /** both for 'heptagon' 3D cells and subdivided 3D cells */
 struct subcellshape {
   /** \brief raw coordinates of vertices of all faces */
@@ -140,6 +143,10 @@ struct subcellshape {
   void compute_common();
   };
 
+enum class ePipeEnd {sharp, ball};
+
+struct embedding_method;
+
 /** basic geometry parameters */
 struct geometry_information {
 
@@ -167,6 +174,9 @@ struct geometry_information {
   /** distance from heptagon center to heptagon vertex (either hexf or hcrossf) */
   ld rhexf;
 
+  /** edge length */
+  ld edgelen;
+
   /** basic parameters for 3D geometries */
   map<int, int> close_distances;
 
@@ -184,7 +194,6 @@ struct geometry_information {
   
   vector<transmatrix> ultra_mirrors;  
 
-  vector<pair<string, string> > rels;
   int xp_order, r_order, rx_order;
 
   transmatrix full_X, full_R, full_P;
@@ -193,6 +202,8 @@ struct geometry_information {
   vector<transmatrix> heptmove, hexmove, invhexmove;
 
   int base_distlimit;
+  
+  unique_ptr<embedding_method> emb;
 
   /** size of the Sword (from Orb of the Sword), used in the shmup mode */
   ld sword_size;
@@ -225,7 +236,7 @@ struct geometry_information {
     BODY, BODY1, BODY2, BODY3,
     NECK1, NECK, NECK3, HEAD, HEAD1, HEAD2, HEAD3,
     ALEG0, ALEG, ABODY, AHEAD, BIRD, LOWSKY, SKY, HIGH, HIGH2,
-    SHALLOW;
+    HELL, STAR, SHALLOW;
   ld human_height, slev;
 
   ld eyelevel_familiar, eyelevel_human, eyelevel_dog;
@@ -248,16 +259,17 @@ hpcshape
   shTriheptaSpecial[14], 
   shCross, shGiantStar[2], shLake, shMirror,
   shHalfFloor[6], shHalfMirror[3],
-  shGem[2], shStar, shDisk, shDiskT, shDiskS, shDiskM, shDiskSq, shRing,   
+  shGem[2], shStar, shFlash, shDisk, shHalfDisk, shDiskT, shDiskS, shDiskM, shDiskSq, shEccentricDisk, shDiskSegment,
+  shHeptagon, shHeptagram,
   shTinyBird, shTinyShark,
-  shEgg,
-  shSpikedRing, shTargetRing, shSawRing, shGearRing, shPeaceRing, shHeptaRing,
-  shSpearRing, shLoveRing,
-  shFrogRing, 
-  shPowerGearRing, shProtectiveRing, shTerraRing, shMoveRing, shReserved4, shMoonDisk,
-  shDaisy, shTriangle, shNecro, shStatue, shKey, shWindArrow,
+  shEgg, shSmallEgg,
+  shRing, shSpikedRing, shTargetRing, shSawRing, shGearRing, shPeaceRing,
+  shHeptaRing, shSpearRing, shLoveRing, shFrogRing,
+  shPowerGearRing, shProtectiveRing, shTerraRing, shMoveRing,
+  shReserved4, shMoonDisk,
+  shDaisy, shSnowflake, shTriangle, shNecro, shStatue, shKey, shWindArrow,
   shGun,
-  shFigurine, shTreat,
+  shFigurine, shTreat, shSmallTreat,
   shElementalShard,
   // shBranch, 
   shIBranch, shTentacle, shTentacleX, shILeaf[3], 
@@ -271,10 +283,10 @@ hpcshape
   shWolf1, shWolf2, shWolf3,
   shRatEye1, shRatEye2, shRatEye3,
   shDogStripes,
-  shPBody, shPSword, shPKnife,
+  shPBody, shSmallPBody, shPSword, shSmallPSword, shPKnife,
   shFerocityM, shFerocityF, 
   shHumanFoot, shHumanLeg, shHumanGroin, shHumanNeck, shSkeletalFoot, shYetiFoot,
-  shMagicSword, shMagicShovel, shSeaTentacle, shKrakenHead, shKrakenEye, shKrakenEye2,
+  shMagicSword, shSmallSword, shMagicShovel, shSeaTentacle, shKrakenHead, shKrakenEye, shKrakenEye2,
   shArrow,
   shBrushHandle, shBrushBrush,
   shPalette, shPaletteCol1, shPaletteCol2, shPaletteCol3, shPaletteCol4,
@@ -283,33 +295,33 @@ hpcshape
   shSabre, shTurban1, shTurban2, shVikingHelmet, shRaiderHelmet, shRaiderArmor, shRaiderBody, shRaiderShirt,
   shWestHat1, shWestHat2, shGunInHand,
   shKnightArmor, shKnightCloak, shWightCloak,
-  shGhost, shEyes, shSlime, shJelly, shJoint, shWormHead, shTentHead, shShark, shWormSegment, shSmallWormSegment, shWormTail, shSmallWormTail,
-  shSlimeEyes, shDragonEyes, shWormEyes, shGhostEyes,
-  shMiniGhost, shMiniEyes,
-  shHedgehogBlade, shHedgehogBladePlayer,
+  shGhost, shEyes, shSlime, shJelly, shJoint, shWormHead, shSmallWormHead, shTentHead, shShark, shWormSegment, shSmallWormSegment, shWormTail, shSmallWormTail,
+  shSlimeEyes, shDragonEyes, shSmallDragonEyes, shWormEyes, shSmallWormEyes, shGhostEyes,
+  shMiniGhost, shSmallEyes, shMiniEyes,
+  shHedgehogBlade, shSmallHedgehogBlade, shHedgehogBladePlayer,
   shWolfBody, shWolfHead, shWolfLegs, shWolfEyes,
   shWolfFrontLeg, shWolfRearLeg, shWolfFrontPaw, shWolfRearPaw,
   shFemaleBody, shFemaleHair, shFemaleDress, shWitchDress,
   shWitchHair, shBeautyHair, shFlowerHair, shFlowerHand, shSuspenders, shTrophy,
   shBugBody, shBugArmor, shBugLeg, shBugAntenna,
-  shPickAxe, shPike, shFlailBall, shFlailTrunk, shFlailChain, shHammerHead,
+  shPickAxe, shSmallPickAxe, shPike, shFlailBall, shSmallFlailBall, shFlailTrunk, shSmallFlailTrunk, shFlailChain, shHammerHead, shSmallHammerHead,
   shBook, shBookCover, shGrail,
   shBoatOuter, shBoatInner, shCompass1, shCompass2, shCompass3,
   shKnife, shTongue, shFlailMissile, shTrapArrow,
-  shPirateHook, shPirateHood, shEyepatch, shPirateX,
+  shPirateHook, shSmallPirateHook, shPirateHood, shEyepatch, shPirateX,
   // shScratch, 
-  shHeptaMarker, shSnowball, shHugeDisk, shSun, shNightStar, shEuclideanSky,
+  shHeptaMarker, shSnowball, shHugeDisk, shSkyboxSun, shSun, shNightStar, shEuclideanSky,
   shSkeletonBody, shSkull, shSkullEyes, shFatBody, shWaterElemental,
   shPalaceGate, shFishTail,
   shMouse, shMouseLegs, shMouseEyes,
   shPrincessDress, shPrinceDress,
   shWizardCape1, shWizardCape2,
   shBigCarpet1, shBigCarpet2, shBigCarpet3,
-  shGoatHead, shRose, shRoseItem, shThorns,
+  shGoatHead, shRose, shRoseItem, shSmallRose, shThorns,
   shRatHead, shRatTail, shRatEyes, shRatCape1, shRatCape2,
   shWizardHat1, shWizardHat2,
   shTortoise[13][6],
-  shDragonLegs, shDragonTail, shDragonHead, shDragonSegment, shDragonNostril, 
+  shDragonLegs, shDragonTail, shDragonHead, shSmallDragonHead, shDragonSegment, shDragonNostril, shSmallDragonNostril,
   shDragonWings, 
   shSolidBranch, shWeakBranch, shBead0, shBead1,
   shBatWings, shBatBody, shBatMouth, shBatFang, shBatEye,
@@ -322,6 +334,8 @@ hpcshape
   shTrylobiteFrontLeg, shTrylobiteRearLeg, shTrylobiteFrontClaw, shTrylobiteRearClaw,
   
   shBullBody, shBullHead, shBullHorn, shBullRearHoof, shBullFrontHoof,
+  shSmallBullHead, shSmallBullHorn,
+  shTinyBullHead, shTinyBullHorn, shTinyBullBody,
   
   shButterflyBody, shButterflyWing, shGadflyBody, shGadflyWing, shGadflyEye,
 
@@ -334,9 +348,12 @@ hpcshape
   
   shPBodyOnly, shPBodyArm, shPBodyHand, shPHeadOnly,
   
-  shDodeca;
+  shDodeca, shSmallerDodeca,
+
+  shLightningBolt, shHumanoid, shHalfHumanoid, shHourglass,
+  shShield, shSmallFan, shTreeIcon, shLeafIcon;
   
-  hpcshape shFrogRearFoot, shFrogFrontFoot, shFrogRearLeg, shFrogFrontLeg, shFrogRearLeg2, shFrogBody, shFrogEye, shFrogStripe, shFrogJumpFoot, shFrogJumpLeg;
+  hpcshape shFrogRearFoot, shFrogFrontFoot, shFrogRearLeg, shFrogFrontLeg, shFrogRearLeg2, shFrogBody, shFrogEye, shFrogStripe, shFrogJumpFoot, shFrogJumpLeg, shSmallFrogRearFoot, shSmallFrogFrontFoot, shSmallFrogRearLeg, shSmallFrogFrontLeg, shSmallFrogRearLeg2, shSmallFrogBody;
 
   hpcshape_animated 
     shAnimatedEagle, shAnimatedTinyEagle, shAnimatedGadfly, shAnimatedHawk, shAnimatedButterfly, 
@@ -377,8 +394,20 @@ hpcshape
   ld dlow_table[SIDEPARS], dhi_table[SIDEPARS], dfloor_table[SIDEPARS];
 
   int prehpc;
+  /** list of points in all shapes */
   vector<hyperpoint> hpc;
+  /** what shape are we currently creating */
+  hpcshape *last;
+  /** is the current shape already started? first = not yet */
   bool first;
+  /** starting point of the current shape, can be ultraideal */
+  hyperpoint starting_point;
+  /** first ideal point of the current shape */
+  hyperpoint starting_ideal;
+  /** last added point of the current shape, can be ultraideal */
+  hyperpoint last_point;
+  /** last ideal point of the current shape */
+  hyperpoint last_ideal;
 
   bool validsidepar[SIDEPARS];
 
@@ -386,9 +415,9 @@ hpcshape
 #endif
 
   hpcshape shFullCross[2];
-  hpcshape *last;
 
   int SD3, SD6, SD7, S12, S14, S21, S28, S42, S36, S84;
+  ld S_step;
   
   vector<pair<int, cell*>> walloffsets;
   
@@ -419,6 +448,7 @@ hpcshape
   void prepare_usershapes();
 
   void hpcpush(hyperpoint h);
+  void hpc_connect_ideal(hyperpoint a, hyperpoint b);
   void hpcsquare(hyperpoint h1, hyperpoint h2, hyperpoint h3, hyperpoint h4);
   void chasmifyPoly(double fac, double fac2, int k);
   void shift(hpcshape& sh, double dx, double dy, double dz);
@@ -451,6 +481,7 @@ hpcshape
   void generate_floorshapes_for(int id, cell *c, int siid, int sidir);
   void generate_floorshapes();
   void make_floor_textures_here();
+  void finish_apeirogon(hyperpoint center);
 
   vector<hyperpoint> get_shape(hpcshape sh);
   void add_cone(ld z0, const vector<hyperpoint>& vh, ld z1);
@@ -498,23 +529,28 @@ hpcshape
     };
   shared_ptr<gpdata_t> gpdata = nullptr;
   #endif
+
+  shared_ptr<expansion_analyzer> expansion = nullptr;
   
   int state = 0;
   int usershape_state = 0;
 
   /** contains the texture point coordinates for 3D models */
   basic_textureinfo models_texture;
-  
-  geometry_information() { last = NULL; }
+
+  geometry_information() { last = NULL; use_count = 0; }
   
   void require_basics() { if(state & 1) return; state |= 1; prepare_basics(); }
   void require_shapes() { if(state & 2) return; state |= 2; prepare_shapes(); }
   void require_usershapes() { if(usershape_state == usershape_changes) return; usershape_state = usershape_changes; prepare_usershapes(); }
   int timestamp;
   
-  hpcshape& generate_pipe(ld length, ld width);
+  hpcshape& generate_pipe(ld length, ld width, ePipeEnd endtype = ePipeEnd::sharp);
   
   map<string, unique_ptr<gi_extension>> ext;
+
+  /** prevent from being destroyed */
+  int use_count;
   };
 #endif
 
@@ -554,7 +590,7 @@ void geometry_information::prepare_basics() {
   
   hexshift = 0;
 
-  ld ALPHA = 2 * M_PI / S7;
+  ld ALPHA = TAU / S7;
   
   ld fmin, fmax;  
   
@@ -562,7 +598,13 @@ void geometry_information::prepare_basics() {
   
   heptshape = nullptr;
 
-  if(arcm::in() && !prod) 
+  xp_order = 0;
+  
+  emb = make_embed();
+  bool geuclid = euclid;
+  bool ghyperbolic = hyperbolic;
+
+  if(arcm::in() && !mproduct)
     ginf[gArchimedean].cclass = gcHyperbolic;
   
   dynamicval<eVariation> gv(variation, variation);
@@ -572,9 +614,9 @@ void geometry_information::prepare_basics() {
     println(hlog, "bitruncated = ", BITRUNCATED);
     }
 
-  if(hybri) {
+  if(mhybrid) {
     auto t = this;
-    ld d = prod ? 1 : 2;
+    ld d = mproduct ? 1 : 2;
     hybrid::in_underlying_geometry([&] {
       t->rhexf = cgi.rhexf / d;
       t->hexf = cgi.hexf / d;
@@ -582,11 +624,13 @@ void geometry_information::prepare_basics() {
       t->hcrossf = cgi.crossf / d;
       t->tessf = cgi.tessf / d;
       t->hexvdist = cgi.hexvdist / d;
-      t->hexhexdist = hdist(xpush0(cgi.hcrossf), xspinpush0(M_PI*2/S7, cgi.hcrossf)) / d;
+      t->hexhexdist = hdist(xpush0(cgi.hcrossf), xspinpush0(TAU/S7, cgi.hcrossf)) / d;
       t->base_distlimit = cgi.base_distlimit-1;
       });
     goto hybrid_finish;
     }
+
+  if(embedded_plane) geom3::light_flip(true);
 
   if((sphere || hyperbolic) && WDIM == 3 && !bt::in()) {
     rhexf = hexf = 0.378077;
@@ -599,13 +643,13 @@ void geometry_information::prepare_basics() {
   s3 = S3;
   if(fake::in() && !arcm::in()) s3 = fake::around;
   
-  beta = (S3 >= OINF && !fake::in()) ? 0 : 2*M_PI/s3;
+  beta = (S3 >= OINF && !fake::in()) ? 0 : TAU/s3;
 
   tessf = euclid ? 1 : edge_of_triangle_with_angles(beta, M_PI/S7, M_PI/S7);
   
-  if(elliptic && S7 == 4 && !fake::in()) tessf = M_PI/2;
+  if(elliptic && S7 == 4 && !fake::in()) tessf = 90._deg;
   
-  hcrossf = euclid ? tessf / 2 / sin(M_PI/s3) : edge_of_triangle_with_angles(M_PI/2, M_PI/S7, beta/2);
+  hcrossf = euclid ? tessf / 2 / sin(M_PI/s3) : edge_of_triangle_with_angles(90._deg, M_PI/S7, beta/2);
   
   if(S3 >= OINF) hcrossf = 10;
 
@@ -615,15 +659,15 @@ void geometry_information::prepare_basics() {
   for(int p=0; p<100; p++) {
     ld f =  (fmin+fmax) / 2;
     hyperpoint H = xpush0(f);
-    hyperpoint H1 = spin(2*M_PI/S7) * H;
+    hyperpoint H1 = spin(TAU/S7) * H;
     hyperpoint H2 = xpush0(tessf-f);
     ld v1 = intval(H, H1), v2 = intval(H, H2);
 
     if(fake::in() && WDIM == 2) {
       hexvdist = hdist(xpush0(f), xspinpush0(ALPHA/2, hcrossf));
       v2 = hdist(
-        spin(M_PI/2/S3) * xpush0(hexvdist),
-        spin(-M_PI/2/S3) * xpush0(hexvdist)
+        spin(90._deg/S3) * xpush0(hexvdist),
+        spin(-90._deg/S3) * xpush0(hexvdist)
         );
       
       v1 = hdist(
@@ -637,29 +681,18 @@ void geometry_information::prepare_basics() {
   hexf = fmin;
   
   rhexf = BITRUNCATED ? hexf : hcrossf;
+  edgelen = hdist(xpush0(rhexf), xspinpush0(TAU/S7, rhexf));
   
   if(BITRUNCATED && !(S7&1))
     hexshift = ALPHA/2 + ALPHA * ((S7-1)/2) + M_PI;
   
   finish:
   
-  heptmove.resize(S7);
-  hexmove.resize(S7);
-  invhexmove.resize(S7);
-  
-  for(int d=0; d<S7; d++)
-    heptmove[d] = spin(-d * ALPHA) * xpush(tessf) * spin(M_PI);
-    
-  for(int d=0; d<S7; d++) 
-    hexmove[d] = spin(hexshift-d * ALPHA) * xpush(-crossf)* spin(M_PI);  
-
-  for(int d=0; d<S7; d++) invhexmove[d] = iso_inverse(hexmove[d]);
-
   hexvdist = hdist(xpush0(hexf), xspinpush0(ALPHA/2, hcrossf));
 
   hexhexdist = fake::in() ?
     2 * hdist0(mid(xspinpush0(M_PI/S6, hexvdist), xspinpush0(-M_PI/S6, hexvdist)))
-    : hdist(xpush0(crossf), xspinpush0(M_PI*2/S7, crossf));
+    : hdist(xpush0(crossf), xspinpush0(TAU/S7, crossf));
   
   DEBB(DF_GEOM | DF_POLY,
     (format("S7=%d S6=%d hexf = " LDF" hcross = " LDF" tessf = " LDF" hexshift = " LDF " hexhex = " LDF " hexv = " LDF "\n", S7, S6, hexf, hcrossf, tessf, hexshift, 
@@ -667,6 +700,8 @@ void geometry_information::prepare_basics() {
   
   base_distlimit = ginf[geometry].distlimit[!BITRUNCATED];
 
+  hybrid_finish:
+  
   #if CAP_GP
   gp::compute_geometry(inv);  
   #endif
@@ -681,15 +716,13 @@ void geometry_information::prepare_basics() {
     crossf = hcrossf7 * ac.scale();
     hexvdist = ac.scale() * .5;
     rhexf = ac.scale() * .5;
+    edgelen = ac.edgelength;
     }
   #endif
   #if CAP_BT
   if(bt::in()) hexvdist = rhexf = 1, tessf = 1, scalefactor = 1, crossf = hcrossf7;
   if(geometry == gHoroRec || kite::in() || sol || nil || nih) hexvdist = rhexf = .5, tessf = .5, scalefactor = .5, crossf = hcrossf7/2;
   if(bt::in()) scalefactor *= min<ld>(vid.binary_width, 1), crossf *= min<ld>(vid.binary_width, 1);
-  #endif
-  #if CAP_BT && MAXMDIM >= 4
-  if(bt::in()) bt::build_tmatrix();
   #endif
   #if MAXMDIM >= 4
   if(reg3::in()) reg3::generate();
@@ -702,8 +735,6 @@ void geometry_information::prepare_basics() {
   #endif
   else if(nil) nilv::create_faces();
   #endif
-  
-  hybrid_finish:
   
   scalefactor = crossf / hcrossf7;
   orbsize = crossf;
@@ -737,10 +768,19 @@ void geometry_information::prepare_basics() {
     base_distlimit = arb::current.range;
     }
   
+  #if MAXMDIM >= 4
   if(is_subcube_based(variation)) {
     scalefactor /= reg3::subcube_count;
     orbsize /= reg3::subcube_count;
     }
+  #endif
+
+  if(meuclid && ghyperbolic) {
+    scalefactor *= exp(-vid.depth);
+    }
+
+  if(msphere && geuclid) scalefactor *= (1 + vid.depth);
+  if(msphere && ghyperbolic) scalefactor *= sinh(1 + vid.depth);
 
   if(scale_used()) {
     scalefactor *= vid.creature_scale;
@@ -751,8 +791,13 @@ void geometry_information::prepare_basics() {
   if(scale_used()) zhexf *= vid.creature_scale;
   if(WDIM == 2 && GDIM == 3) zhexf *= 1.5, orbsize *= 1.2;
 
-  floorrad0 = hexvdist* (GDIM == 3 ? 1 : 0.92);
-  floorrad1 = rhexf * (GDIM == 3 ? 1 : 0.94);
+  if(cgi.emb->is_euc_in_hyp()) {
+    zhexf *= exp(-vid.depth);
+    orbsize *= exp(-vid.depth);
+    }
+
+  floorrad0 = hexvdist* (GDIM == 3 ? 1 : 1 - 0.08 * global_boundary_ratio);
+  floorrad1 = rhexf * (GDIM == 3 ? 1 : 1 - 0.06 * global_boundary_ratio);
   
   if(euc::in(2,4)) {
     if(!BITRUNCATED)
@@ -764,7 +809,7 @@ void geometry_information::prepare_basics() {
   
   plevel = vid.plevel_factor * scalefactor;
   single_step = 1;
-  if(hybri && !prod) {
+  if(mhybrid && !mproduct) {
     #if CAP_ARCM
     if(hybrid::underlying == gArchimedean) 
       arcm::current.get_step_values(psl_steps, single_step);
@@ -782,30 +827,38 @@ void geometry_information::prepare_basics() {
     plevel = M_PI * single_step / psl_steps;
     }
   
-  if(hybri) {
-    /* we do not want too short creatures, better make the scale factor smaller */
-    scalefactor = min(scalefactor, cgi.plevel * 1.8 / vid.height_width);
-    }
-  
   set_sibling_limit();
   
+  geom3::light_flip(false);
+
+  #if CAP_BT && MAXMDIM >= 4
+  if(bt::in()) bt::build_tmatrix();
+  #endif
+
   prepare_compute3();
   if(hyperbolic && &currfp != &fieldpattern::fp_invalid)
     currfp.analyze(); 
-  
+
+  heptmove.resize(S7);
+  hexmove.resize(S7);
+  invhexmove.resize(S7);
+
+  for(int d=0; d<S7; d++)
+    heptmove[d] = spin(-d * ALPHA) * lxpush(tessf) * spin(M_PI);
+
+  for(int d=0; d<S7; d++)
+    hexmove[d] = spin(hexshift-d * ALPHA) * lxpush(-crossf)* spin(M_PI);
+
+  for(int d=0; d<S7; d++) invhexmove[d] = iso_inverse(hexmove[d]);
+
+  gp::prepare_matrices(inv);
+
   #if CAP_SOLV  
   if(asonov::in()) {
     asonov::prepare();    
     asonov::prepare_walls();
     }
   #endif
-  }
-
-EX transmatrix xspinpush(ld dir, ld dist) {
-  if(euclid)
-    return eupush(cos(dir) * dist, -sin(dir) * dist);
-  else
-    return spin(dir) * xpush(dist) * spin(-dir);
   }
 
 EX purehookset hooks_swapdim;
@@ -843,15 +896,20 @@ EX namespace geom3 {
     }
   
   EX ld lev_to_factor(ld lev) { 
-    if(prod) return -lev;
+    if(mproduct) return -lev;
     if(WDIM == 3) return lev;
     if(GDIM == 3) return vid.depth - lev;
     return projection_to_factor(lev_to_projection(lev)); 
     }
   EX ld factor_to_lev(ld fac) { 
-    if(prod) return -fac;
-    if(GDIM == 3) return fac;
+    if(mproduct) return -fac;
+    if(WDIM == 3) return fac;
+    if(GDIM == 3) return vid.depth - fac;
     return vid.depth - projection_to_abslev(factor_to_projection(fac)); 
+    }
+
+  EX ld to_wh(ld val) {
+    return factor_to_lev(val / actual_wall_height());
     }
   
   EX void do_auto_eye() {
@@ -872,9 +930,10 @@ EX namespace geom3 {
     }
   
   EX string invalid;
+  EX bool changing_embedded_settings;
   
   EX ld actual_wall_height() {
-      if(hybri) return cgi.plevel;
+      if(mhybrid) return cgi.plevel;
       #if CAP_GP
       if(GOLDBERG && vid.gp_autoscale_heights) 
         return vid.wall_height * min<ld>(4 / hypot_d(2, gp::next), 1);
@@ -889,7 +948,7 @@ EX namespace geom3 {
     // tanh(depth) / tanh(camera) == pconf.alpha
     invalid = "";
     
-    if(GDIM == 3) ;
+    if(GDIM == 3 || flipped || changing_embedded_settings);
     else if(vid.tc_alpha < vid.tc_depth && vid.tc_alpha < vid.tc_camera)
       pconf.alpha = tan_auto(vid.depth) / tan_auto(vid.camera);
     else if(vid.tc_depth < vid.tc_alpha && vid.tc_depth < vid.tc_camera) {
@@ -937,16 +996,18 @@ EX namespace geom3 {
       ABODY = 1.08;
       AHEAD = 1.12;
       BIRD = 1.20;
+      SHALLOW = .95;
+      STUFF = 1;
+      LOWSKY = SKY = HIGH = HIGH2 = STAR = 1;
       }
     else {
-      INFDEEP = GDIM == 3 ? (sphere ? M_PI/2 : +5) : (euclid || sphere) ? 0.01 : lev_to_projection(0) * tanh(vid.camera);
       ld wh = actual_wall_height();
       WALL = lev_to_factor(wh);
       FLOOR = lev_to_factor(0);
       
       human_height = vid.human_wall_ratio * wh;
       if(WDIM == 3) human_height = scalefactor * vid.height_width / 2;
-      if(hybri) human_height = min(human_height, cgi.plevel * .9);
+      if(mhybrid) human_height = min(human_height, cgi.plevel * .9);
       
       ld reduce = (WDIM == 3 ? human_height / 2 : 0);
       
@@ -970,7 +1031,10 @@ EX namespace geom3 {
       
       reduce = (GDIM == 3 ? human_height * .3 : 0);
       
-      STUFF = lev_to_factor(0) - max(orbsize * 0.3, zhexf * .6);
+      int sgn = vid.wall_height > 0 ? 1 : -1;
+      ld ees = cgi.emb->is_euc_in_noniso() ? geom3::euclid_embed_scale_mean() : 1;
+
+      STUFF = lev_to_factor(0) - sgn * max(orbsize * ees * 0.3, zhexf * ees * .6);
       
       ABODY = lev_to_factor(human_height * .4 - reduce);
       ALEG0 = lev_to_factor(human_height * .0 - reduce);
@@ -983,52 +1047,75 @@ EX namespace geom3 {
       slev = vid.rock_wall_ratio * wh / 3;
       for(int s=0; s<=3; s++)
         SLEV[s] = lev_to_factor(vid.rock_wall_ratio * wh * s/3);
-      LAKE = lev_to_factor(-vid.lake_top);
-      SHALLOW = lev_to_factor(-.4);
-      HELLSPIKE = lev_to_factor(-(vid.lake_top+vid.lake_bottom)/2);
-      BOTTOM = lev_to_factor(-vid.lake_bottom);
-      LOWSKY = lev_to_factor(2 * wh);
-      HIGH = LOWSKY;
-      HIGH2 = lev_to_factor(3 * wh);
-      SKY = LOWSKY - 5;
+      LAKE = lev_to_factor(sgn * wh * -vid.lake_top);
+      SHALLOW = lev_to_factor(sgn * wh * -vid.lake_shallow);
+      HELLSPIKE = lev_to_factor(sgn * -(vid.lake_top+vid.lake_bottom)/2);
+      BOTTOM = lev_to_factor(sgn * -vid.lake_bottom);
+      LOWSKY = lev_to_factor(vid.lowsky_height * wh);
+      HIGH = lev_to_factor(vid.wall_height2 * wh);
+      HIGH2 = lev_to_factor(vid.wall_height3 * wh);
+      SKY = vid.sky_height == use_the_default_value ? cgi.emb->height_limit(-sgn) : lev_to_factor(vid.sky_height * wh);
+      STAR = vid.star_height == use_the_default_value ? lerp(FLOOR, SKY, 0.95) : lev_to_factor(vid.star_height * wh);
+      HELL = -SKY;
+      if(embedded_plane)
+        INFDEEP = vid.infdeep_height == use_the_default_value ? cgi.emb->height_limit(sgn) : lev_to_factor(vid.infdeep_height * wh);
+       else
+        INFDEEP = (euclid || sphere) ? 0.01 : lev_to_projection(0) * tanh(vid.camera);
+
+      /* in spherical/cylindrical case, make sure that the high stuff does not go through the center */
+
+      if(vid.height_limits) {
+        auto hp = cgi.emb->height_limit(1);
+        auto hn = cgi.emb->height_limit(-1);
+        auto adjust = [&] (ld& val, ld& guide, ld lerpval) {
+          if(val > hp)
+            val = lerp(guide, hp, lerpval);
+          else if(val < hn)
+            val = lerp(guide, hn, lerpval);
+          };
+        adjust(HIGH, FLOOR, 0.8);
+        adjust(HIGH2, HIGH, 0.5);
+        adjust(SKY, FLOOR, 1);
+        adjust(STAR, FLOOR, 0.9);
+        adjust(LAKE, FLOOR, 0.8);
+        adjust(SHALLOW, LAKE, 0.9);
+        adjust(BOTTOM, SHALLOW, 0.5);
+        adjust(INFDEEP, FLOOR, 1);
+        }
       }
     }    
 
 EX namespace geom3 {
-  
-EX void apply_always3() {
-    for(geometryinfo& gi: ginf) {
-      auto &g = gi.g;
-      if(vid.always3 && g.gameplay_dimension == 2 && g.graphical_dimension == 2) {
-        g.graphical_dimension++;
-        g.homogeneous_dimension++;
-        g.sig[3] = g.sig[2];
-        g.sig[2] = g.sig[1];
-        }
-      if(!vid.always3 && g.gameplay_dimension == 2 && g.graphical_dimension == 3) {
-        g.graphical_dimension--;
-        g.homogeneous_dimension--;
-        g.sig[1] = g.sig[2];
-        g.sig[2] = g.sig[3];
-        }
-      }
+
+  /** direction of swapping: +1 => from 2D to 3D; -1 => from 3D to 2D; 0 => make everything right */
+  EX int swap_direction;
+
+  EX void swapdim(int dir) {
+    swap_direction = dir;
+    decide_lpu();
+    swapmatrix_view(NLP, View);
+    swapmatrix_view(NLP, current_display->which_copy);
+    callhooks(hooks_swapdim);
+    for(auto m: allmaps) m->on_dim_change();
     }
-    
+
   #if MAXMDIM >= 4
-EX void switch_always3() {
+  EX void switch_always3() {
     if(dual::split(switch_always3)) return;
     #if CAP_GL && CAP_RUG
     if(rug::rugged) rug::close();
     #endif
+    if(vid.always3) swapdim(-1);
     vid.always3 = !vid.always3;
     apply_always3();
-    swapmatrix(View);
-    callhooks(hooks_swapdim);
+    check_cgi(); cgi.prepare_basics();
+    if(vid.always3) swapdim(+1);
     }
-#endif
+  #endif
 
   EX void switch_tpp() {
     if(dual::split(switch_fpp)) return;
+    if(rug::rugged) rug::close();
     if(pmodel == mdDisk && pconf.camera_angle) {
       vid.yshift = 0;
       pconf.camera_angle = 0;
@@ -1047,56 +1134,64 @@ EX void switch_always3() {
       vid.fixed_facing_dir = 90;
       }
     }
-    
+  
   EX void switch_fpp() {
 #if MAXMDIM >= 4
     #if CAP_GL && CAP_RUG
     if(rug::rugged) rug::close();
     #endif
     if(dual::split(switch_fpp)) return;
-    check_cgi(); cgi.require_basics();
-    View = iso_inverse(models::rotmatrix()) * View;
+
+    if(!changing_embedded_settings)
+      View = inverse(models::rotmatrix()) * View;
+
     if(!vid.always3) {
       vid.always3 = true;
       apply_always3();
-      ld ms = min<ld>(cgi.scalefactor, 1);
-      vid.wall_height = 1.5 * ms;
-      if(sphere) {
-        vid.depth = M_PI / 6;
-        vid.wall_height = M_PI / 3;
-        }
-      vid.human_wall_ratio = 0.8;
-      if(euclid && allowIncreasedSight() && vid.use_smart_range == 0) {
-        genrange_bonus = gamerange_bonus = sightrange_bonus = cgi.base_distlimit * 3/2;
-        }
-      vid.camera = 0;
-      vid.depth = ms;
-      if(pmodel == mdDisk) pmodel = mdPerspective;
-      swapmatrix(View);
-      swapmatrix(current_display->which_copy);
-      callhooks(hooks_swapdim);
-      for(auto m: allmaps) m->on_dim_change();
-      if(cgflags & qIDEAL && vid.texture_step < 32)
-        vid.texture_step = 32;
-#if CAP_RACING
-      racing::player_relative = true;
-#endif
+      auto emb = make_embed();
+      emb->auto_configure();
+      check_cgi();
+      cgi.prepare_basics();
+      swapdim(+1);
       }
     else {
+      swapdim(-1);
       vid.always3 = false;
       apply_always3();
-      vid.wall_height = .3;
-      vid.human_wall_ratio = .7;
-      vid.camera = 1;
-      vid.depth = 1;
-      if(pmodel == mdPerspective) pmodel = mdDisk;
-      swapmatrix(View);
-      swapmatrix(current_display->which_copy);
-      callhooks(hooks_swapdim);
-      for(auto m: allmaps) m->on_dim_change();
+      if(!changing_embedded_settings) {
+        vid.wall_height = .3;
+        vid.human_wall_ratio = .7;
+        vid.camera = 1;
+        vid.depth = 1;
+        }
+      if(among(pmodel, mdPerspective, mdGeodesic)) pmodel = mdDisk;
+      swapdim(0);
       }
-    View = models::rotmatrix() * View;
+
+    if(!changing_embedded_settings)
+      View = models::rotmatrix() * View;
 #endif
+    }
+
+  EX void apply_settings_full() {
+    if(vid.always3) {
+      changing_embedded_settings = true;
+      geom3::switch_fpp();
+      delete_sky();
+      // not sure why this is needed...
+      resetGL();
+      geom3::switch_fpp();
+      changing_embedded_settings = false;
+      }
+    }
+
+  EX void apply_settings_light() {
+    if(vid.always3) {
+      changing_embedded_settings = true;
+      geom3::switch_always3();
+      geom3::switch_always3();
+      changing_embedded_settings = false;
+      }
     }
 
   EX }
@@ -1120,9 +1215,11 @@ EX string cgi_string() {
   V("GEO", its(int(geometry)));
   V("VAR", its(int(variation)));
   
-  if(arb::in() && arb::using_slided) {
+  if(arb::in()) {
     for(auto& sl: arb::current.sliders)
       V("AS", fts(sl.current));
+    for(auto& sl: arb::current.intsliders)
+      V("AS", its(sl.current));
     }
   
   if(fake::in()) {
@@ -1135,25 +1232,32 @@ EX string cgi_string() {
   
   if(GOLDBERG_INV) V("GP", its(gp::param.first) + "," + its(gp::param.second));
   if(IRREGULAR) V("IRR", its(irr::irrid));
+  #if MAXMDIM >= 4
   if(is_subcube_based(variation)) V("SC", its(reg3::subcube_count));
   if(variation == eVariation::coxeter) V("COX", its(reg3::coxeter_param));
+  #endif
 
   #if CAP_ARCM
   if(arcm::in()) V("ARCM", arcm::current.symbol);
   #endif
 
   if(arb::in()) V("ARB", its(arb::current.order));
-  
+
+  if(arb::in()) V("AP", its(arb::apeirogon_simplified_display));
+
+  if(arb::in()) V("F", its(arb::extended_football));
+
+  V("BR", fts(global_boundary_ratio));
+
   if(cryst) V("CRYSTAL", its(ginf[gCrystal].sides) + its(ginf[gCrystal].vertex));
   
   if(bt::in() || GDIM == 3) V("WQ", its(vid.texture_step));
   
-  if(hybri) {
+  if(mhybrid) {
     V("U", PIU(cgi_string()));
-    // its(int(hybrid::underlying)));
     }
   
-  if(prod) V("PL", fts(vid.plevel_factor));
+  if(mproduct) V("PL", fts(vid.plevel_factor));
 
   if(geometry == gFieldQuotient) { V("S3=", its(S3)); V("S7=", its(S7)); }
   if(nil) V("NIL", its(S7));
@@ -1174,10 +1278,29 @@ EX string cgi_string() {
     V("ASH", ONOFF(vid.gp_autoscale_heights));
     V("LT", fts(vid.lake_top));
     V("LB", fts(vid.lake_bottom));
+    if(GDIM == 3 && vid.pseudohedral)
+      V("PS", fts(vid.depth_bonus));
+    V("LS", fts(vid.lake_shallow));
+    V("SSu", fts(vid.sun_size));
+    V("SSt", fts(vid.star_size));
+    V("WH2", fts(vid.wall_height2));
+    V("WH3", fts(vid.wall_height3));
+    V("WHL", fts(vid.lowsky_height));
+    if(vid.sky_height != use_the_default_value) V("SHe", fts(vid.sky_height));
+    if(vid.star_height != use_the_default_value) V("StH", fts(vid.star_height));
+    if(vid.infdeep_height != use_the_default_value) V("ID", fts(vid.infdeep_height));
     }
 
   V("3D", ONOFF(vid.always3));
   
+  if(embedded_plane) V("X:", its(geom3::ggclass()));
+
+  if(embedded_plane && meuclid) {
+    V("XS:", fts(geom3::euclid_embed_scale));
+    V("YS:", fts(geom3::euclid_embed_scale_y));
+    V("RS:", fts(geom3::euclid_embed_rotate));
+    }
+
   if(scale_used()) V("CS", fts(vid.creature_scale));
   
   if(WDIM == 3) V("HTW", fts(vid.height_width));
@@ -1189,18 +1312,28 @@ EX string cgi_string() {
   return s;
   }
 
+#if MAXMDIM >= 4 && CAP_RAY
+#define IFINTRA(x,y) x
+#else
+#define IFINTRA(x,y) y
+#endif
+
 EX void check_cgi() {
   string s = cgi_string();
   
   cgip = &cgis[s];
   cgi.timestamp = ++ntimestamp;
-  if(hybri) hybrid::underlying_cgip->timestamp = ntimestamp;
+  if(mhybrid) hybrid::underlying_cgip->timestamp = ntimestamp;
   if(fake::in()) fake::underlying_cgip->timestamp = ntimestamp;
+  #if CAP_ARCM
   if(arcm::alt_cgip) arcm::alt_cgip->timestamp = ntimestamp;
+  #endif
   
-  if(isize(cgis) > 4) {
+  int limit = 4;
+  for(auto& t: cgis) if(t.second.use_count) limit++;
+  if(isize(cgis) > limit) {
     vector<pair<int, string>> timestamps;
-    for(auto& t: cgis) timestamps.emplace_back(-t.second.timestamp, t.first);
+    for(auto& t: cgis) if(!t.second.use_count) timestamps.emplace_back(-t.second.timestamp, t.first);
     sort(timestamps.begin(), timestamps.end());
     while(isize(timestamps) > 4) {
       DEBB(DF_GEOM, ("erasing geometry ", timestamps.back().second));

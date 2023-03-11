@@ -50,7 +50,7 @@ struct setting {
   virtual bool affects(void *v) { return false; }
   virtual void add_as_saver() {}
   void show_edit_option() { show_edit_option(default_key); }
-  virtual void show_edit_option(char key) {
+  virtual void show_edit_option(int key) {
     println(hlog, "default called!"); }
   virtual string search_key() { 
     return parameter_name + "|" + config_name + "|" + menu_item_name + "|" + help_text;
@@ -100,7 +100,7 @@ struct list_setting : setting {
     default_key = key;
     return this;
     }
-  void show_edit_option(char key) override;
+  void show_edit_option(int key) override;
   };
 
 template<class T> struct enum_setting : list_setting {
@@ -135,9 +135,15 @@ struct float_setting : public setting {
   float_setting *modif(const function<void(float_setting*)>& r) { modify_me = r; return this; }
   void add_as_saver() override;
   bool affects(void *v) override { return v == value; }
-  void show_edit_option(char key) override;
+  void show_edit_option(int key) override;
   cld get_cld() override { return *value; }
   void load_from(const string& s) override;
+  };
+
+struct float_setting_dft : public float_setting {
+  void show_edit_option(int key) override;
+  function<ld()> get_hint;
+  float_setting_dft* set_hint(const function<ld()>& f) { get_hint = f; return this; }
   };
 
 struct int_setting : public setting {
@@ -149,9 +155,10 @@ struct int_setting : public setting {
   function<void(int_setting*)> modify_me;
   int_setting *modif(const function<void(int_setting*)>& r) { modify_me = r; return this; }
   bool affects(void *v) override { return v == value; }
-  void show_edit_option(char key) override;
+  void show_edit_option(int key) override;
   cld get_cld() override { return *value; }
   int_setting *editable(int min_value, int max_value, ld step, string menu_item_name, string help_text, char key) {
+    this->is_editable = true;
     this->min_value = min_value;
     this->max_value = max_value;
     this->menu_item_name = menu_item_name;
@@ -176,7 +183,7 @@ struct bool_setting : public setting {
     menu_item_name = cap; default_key = key; return this; 
     } 
   bool affects(void *v) override { return v == value; }
-  void show_edit_option(char key) override;
+  void show_edit_option(int key) override;
   cld get_cld() override { return *value ? 1 : 0; }
   void load_from(const string& s) override {
     *value = parseint(s);
@@ -187,7 +194,7 @@ struct custom_setting : public setting {
   function<void(char)> custom_viewer;
   function<cld()> custom_value;
   function<bool(void*)> custom_affect;
-  void show_edit_option(char key) override { custom_viewer(key); }
+  void show_edit_option(int key) override { custom_viewer(key); }
   cld get_cld() override { return custom_value(); }
   bool affects(void *v) override { return custom_affect(v); }
   };
@@ -312,16 +319,19 @@ void bool_setting::add_as_saver() {
   }
 
 void float_setting::load_from(const string& s) {
+  *value = parseld(s);
   anims::animate_parameter(*value, s, reaction);
+  if(reaction) reaction();
   }
 
 void non_editable() {
   dialog::addHelp("Warning: editing this value through this menu may not work correctly");
   }
 
-void float_setting::show_edit_option(char key) {
+void float_setting::show_edit_option(int key) {
   if(modify_me) modify_me(this);
   dialog::addSelItem(XLAT(menu_item_name), fts(*value) + unit, key);
+  if(*value == use_the_default_value) dialog::lastItem().value = XLAT("default");
   dialog::add_action([this] () {
     add_to_changed(this);
     dialog::editNumber(*value, min_value, max_value, step, dft, XLAT(menu_item_name), help_text); 
@@ -331,7 +341,27 @@ void float_setting::show_edit_option(char key) {
     });
   }
 
-void int_setting::show_edit_option(char key) {
+void float_setting_dft::show_edit_option(int key) {
+  if(modify_me) modify_me(this);
+  dialog::addSelItem(XLAT(menu_item_name), fts(*value) + unit, key);
+  if(*value == use_the_default_value) dialog::lastItem().value = XLAT("default: ") + fts(get_hint());
+  dialog::add_action([this] () {
+    add_to_changed(this);
+    if(*value == use_the_default_value) *value = get_hint();
+    dialog::editNumber(*value, min_value, max_value, step, dft, XLAT(menu_item_name), help_text);
+    if(sets) sets();
+    if(reaction) dialog::reaction = reaction;
+    if(!is_editable) dialog::extra_options = non_editable;
+    auto eo = dialog::extra_options;
+    dialog::extra_options = [eo, this] {
+      dialog::addSelItem(XLAT("use the default value"), "", 'D');
+      dialog::add_action([this] { *value = use_the_default_value; });
+      if(eo) eo();
+      };
+    });
+  }
+
+void int_setting::show_edit_option(int key) {
   if(modify_me) modify_me(this);
   dialog::addSelItem(XLAT(menu_item_name), its(*value), key);
   dialog::add_action([this] () {
@@ -343,7 +373,7 @@ void int_setting::show_edit_option(char key) {
     });
   }
 
-void bool_setting::show_edit_option(char key) {
+void bool_setting::show_edit_option(int key) {
   dialog::addBoolItem(XLAT(menu_item_name), *value, key);
   dialog::add_action([this] () {
     add_to_changed(this);
@@ -368,6 +398,24 @@ EX float_setting *param_f(ld& val, const string p, const string s, ld dft) {
     u->max_value = 2 * dft;
     }
   u->step = dft / 10;
+  u->dft = dft;
+  val = dft;
+  u->add_as_saver();
+  auto f = &*u;
+  params[u->parameter_name] = std::move(u);
+  return f;
+  }
+
+EX float_setting_dft *param_fd(ld& val, const string s, ld dft IS(use_the_default_value) ) {
+  unique_ptr<float_setting_dft> u ( new float_setting_dft );
+  u->parameter_name = s;
+  u->config_name = s;
+  u->menu_item_name = s;
+  u->value = &val;
+  u->last_value = dft;
+  u->min_value = -100;
+  u->max_value = +100;
+  u->step = 1;
   u->dft = dft;
   val = dft;
   u->add_as_saver();
@@ -490,6 +538,8 @@ EX const char *conffile = "hyperrogue.ini";
 
 /* extra space if more geometries are added */
 EX array<ld, gGUARD+64> sightranges;
+
+EX bool logfog;
 
 EX videopar vid;
 
@@ -643,6 +693,24 @@ EX void initConfig() {
   param_b(resizable, "resizable", true)
   -> editable("resizable window", 'r');
 
+  param_b(no_find_player, "no_find_player");
+  param_b(game_keys_scroll, "game_keys_scroll")
+  -> editable("pure exploration (game keys scroll)", 'P');
+  param_b(reg3::cubes_reg3, "cubes_reg3");
+  param_f(linepatterns::tree_starter, "tree_starter")
+  -> editable(0, 1, 0.05, "tree-drawing parameter", "How much of edges to draw for tree patterns (to show how the tree edges are oriented).", 't');
+
+  param_b(arb::apeirogon_consistent_coloring, "apeirogon_consistent_coloring", true)
+  -> editable("apeirogon_consistent_coloring", 'c');
+  param_b(arb::apeirogon_hide_grid_edges, "apeirogon_hide_grid_edges", true)
+  -> editable("apeirogon_hide_grid_edges", 'h');
+  param_b(arb::apeirogon_simplified_display, "apeirogon_simplified_display", false)
+  -> editable("simplified display of apeirogons", 'f');
+  param_b(arb::convert::minimize_on_convert, "tes_minimize_on_convert", false)
+  -> editable("consider all symmetries when converting", 'm');
+  param_b(arb::convert::reverse_order, "tes_reverse_order", false)
+  -> editable("tes reverse order on convert", 'r');
+
   param_b(display_yasc_codes, "yasc", false)
   -> editable("YASC codes", 'Y')
   -> set_reaction([] { 
@@ -664,7 +732,7 @@ EX void initConfig() {
 
   param_i(vid.mobilecompasssize, "mobile compass size", 0); // ISMOBILE || ISPANDORA ? 30 : 0);
   param_i(vid.radarsize, "radarsize size", 120);
-  addsaver(vid.radarrange, "radarrange", 2.5);
+  param_f(vid.radarrange, "radarrange", 2.5);
   param_i(vid.axes, "movement help", 1);
   param_b(vid.axes3, "movement help3", true);
   param_i(vid.shifttarget, "shift-targetting", 2);
@@ -703,6 +771,21 @@ EX void initConfig() {
       {"by land", ""},
       {"by number", ""}
       }, "inventory/kill sorting", 'k');
+
+  param_enum(vid.orbmode, "orb_mode", "orb display mode", 2)
+    ->editable({
+      {"plain", ""},
+      {"types", ""},
+      {"icons", ""},
+      }, "orb display mode", 'o');
+
+  param_b(less_in_landscape, "less_in_landscape", false)
+  ->editable("less items/kills in landscape", 'L')
+  -> set_sets([] { dialog::reaction_final = [] { println(hlog, "Reset"); vid.killreduction = 0; }; });
+
+  param_b(less_in_portrait, "less_in_portrait", false)
+  ->editable("less items/kills in portrait", 'P')
+  -> set_sets([] { dialog::reaction_final = [] { println(hlog, "Reset"); vid.killreduction = 0; }; });
   
   // basic graphics
   
@@ -710,18 +793,32 @@ EX void initConfig() {
   ->editable("openGL mode", 'o');
   
   addsaver(vid.want_antialias, "antialias", AA_NOGL | AA_FONT | (ISWEB ? AA_MULTI : AA_LINES) | AA_VERSION);
-  addsaver(vid.fineline, "fineline", true);
+  param_b(vid.fineline, "fineline", true);
   param_f(vid.linewidth, "linewidth", 1);
   addsaver(precise_width, "precisewidth", .5);
-  addsaver(perfect_linewidth, "perfect_linewidth", 1);
+  param_i(perfect_linewidth, "perfect_linewidth", 1);
   param_f(linepatterns::width, "lpwidth", "pattern-linewidth", 1);
   addsaver(fat_edges, "fat-edges");
   param_f(vid.sspeed, "sspeed", "scrollingspeed", 0);
   param_f(vid.mspeed, "mspeed", "movement speed", 1);
+  param_f(vid.ispeed, "ispeed", "idle speed", 1);
   addsaver(vid.aurastr, "aura strength", ISMOBILE ? 0 : 128);
   addsaver(vid.aurasmoothen, "aura smoothen", 5);
   param_enum(vid.graphglyph, "graphglyph", "graphical items/kills", 1)
   -> editable({{"letters", ""}, {"auto", ""}, {"images", ""}}, "inventory/kill mode", 'd');
+
+  param_i(min_cells_drawn, "min_cells_drawn");
+
+  param_i(menu_darkening, "menu_darkening", 2)
+  -> editable(0, 8, 1, "menu map darkening", "A larger number means darker game map in the background. Set to 8 to disable the background.", 'd')
+  -> set_sets([] { dialog::bound_low(0); dialog::bound_up(8); dialog::dialogflags |= sm::DARKEN; });
+  param_b(centered_menus, "centered_menus", false)
+  -> editable("centered menus in widescreen", 'c');
+
+  param_b(startanims::enabled, "startanim", true)
+  -> editable("start animations", 's');
+
+  addsaver(vid.flasheffects, "flasheffects", 1);
 
   param_f(vid.binary_width, "bwidth", "binary-tiling-width", 1);
   param_custom(vid.binary_width, "binary tiling width", menuitem_binary_width, 'v');
@@ -746,30 +843,32 @@ EX void initConfig() {
   
   param_i(vid.fullscreen_x, "fullscreen_x", 1280)
   -> editable(640, 3840, 640, "fullscreen resolution to use (X)", "", 'x')
-  -> set_sets([] { dialog::bound_low(640); });
+  -> set_sets([] { dialog::bound_low(640); dialog::reaction_final = do_request_resolution_change; });
   
   param_i(vid.fullscreen_y, "fullscreen_y", 1024)
   -> editable(480, 2160, 480, "fullscreen resolution to use (Y)", "", 'x')
-  -> set_sets([] { dialog::bound_low(480); });
+  -> set_sets([] { dialog::bound_low(480); dialog::reaction_final = do_request_resolution_change; });
 
   param_i(vid.window_x, "window_x", 1280)
   -> editable(160, 3840, 160, "window resolution to use (X)", "", 'x')
-  -> set_sets([] { dialog::bound_low(160); });
+  -> set_sets([] { dialog::bound_low(160); dialog::reaction_final = do_request_resolution_change; });
 
   param_i(vid.window_y, "window_y", 1024)
   -> editable(120, 2160, 120, "window resolution to use (Y)", "", 'x')
-  -> set_sets([] { dialog::bound_low(120); });
+  -> set_sets([] { dialog::bound_low(120); dialog::reaction_final = do_request_resolution_change; });
 
   param_f(vid.window_rel_x, "window_rel_x", .9)
   -> editable(.1, 1, .1, "screen size percentage to use (X)", "", 'x')
-  -> set_sets([] { dialog::bound_low(.1); });
+  -> set_sets([] { dialog::bound_low(.1); dialog::reaction_final = do_request_resolution_change; });
 
   param_f(vid.window_rel_y, "window_rel_y", .9)
   -> editable(.1, 1, .1, "screen size percentage to use (Y)", "", 'x')
-  -> set_sets([] { dialog::bound_low(.1); });
+  -> set_sets([] { dialog::bound_low(.1); dialog::reaction_final = do_request_resolution_change; });
 
   param_b(vid.darkhepta, "mark heptagons", false);
   
+  param_b(logfog, "logfog", false);
+
   for(auto& lp: linepatterns::patterns) {
     addsaver(lp->color, "lpcolor-" + lp->lpname);
     addsaver(lp->multiplier, "lpwidth-" + lp->lpname);
@@ -782,8 +881,44 @@ EX void initConfig() {
   addsaver(vid.highlightmode, "highlightmode");
 
   addsaver(vid.always3, "3D always", false);
+
+  param_f(geom3::euclid_embed_scale, "euclid_embed_scale", "euclid_embed_scale")
+  -> editable(0, 2, 0.05, "Euclidean embedding scale", "How to scale the Euclidean map, relatively to the 3D absolute unit.", 'X')
+  -> set_sets([] { dialog::bound_low(0.05); })
+  -> set_reaction(geom3::apply_settings_full);
+
+  param_f(geom3::euclid_embed_scale_y, "euclid_embed_scale_y", "euclid_embed_scale_y")
+  -> editable(0, 2, 0.05, "Euclidean embedding scale Y/X", "This scaling factor affects only the Y coordinate.", 'Y')
+  -> set_sets([] { dialog::bound_low(0.05); })
+  -> set_reaction(geom3::apply_settings_full);
+
+  param_f(geom3::euclid_embed_rotate, "euclid_embed_rotate", "euclid_embed_rotate")
+  -> editable(0, 360, 15, "Euclidean embedding rotation", "How to rotate the Euclidean embedding, in degrees.", 'F')
+  -> set_reaction(geom3::apply_settings_full);
+
+  param_enum(embedded_shift_method_choice, "embedded_shift_method", "embedded_shift_method", smcBoth)
+  -> editable({
+    {"geodesic", "always move on geodesics"},
+    {"keep levels", "keep the vertical angle of the camera"},
+    {"mixed", "on geodesics when moving camera manually, keep level when auto-centering"}
+    }, "view shift for embedded planes", 'H');
+
+  param_b(geom3::auto_configure, "auto_configure_3d", "auto_configure_3d")
+  -> editable("set 3D settings automatically", 'A');
+
+  param_b(geom3::inverted_embedding, "inverted_3d", false)
+  -> editable("invert convex/concave", 'I')
+  -> set_reaction(geom3::apply_settings_full);
+
+  param_b(geom3::flat_embedding, "flat_3d", false)
+  -> editable("flat, not equidistant", 'F')
+  -> set_reaction(geom3::apply_settings_full);
+
+  param_enum(geom3::spatial_embedding, "spatial_embedding", "spatial_embedding", geom3::seDefault)
+  ->editable(geom3::spatial_embedding_options, "3D embedding method", 'E')
+  ->set_reaction(geom3::apply_settings_full);
   
-  addsaver(memory_saving_mode, "memory_saving_mode", (ISMOBILE || ISPANDORA || ISWEB) ? 1 : 0);
+  param_b(memory_saving_mode, "memory_saving_mode", (ISMOBILE || ISPANDORA || ISWEB) ? 1 : 0);
   param_i(reserve_limit, "memory_reserve", 128);
   addsaver(show_memory_warning, "show_memory_warning");
 
@@ -857,6 +992,8 @@ EX void initConfig() {
   
   addsaver(viewdists, "expansion mode");
   param_f(backbrightness, "back", "brightness behind sphere");
+  param_b(auto_extend, "expansion_auto_extend")
+  -> editable("extend automatically", 'E');
 
   param_f(vid.ipd, "ipd", "interpupilar-distance", 0.05);
   param_f(vid.lr_eyewidth, "lr", "eyewidth-lr", 0.5);
@@ -879,6 +1016,7 @@ EX void initConfig() {
   #endif
   
   param_b(nohud, "no-hud", false);
+  param_b(nomap, "nomap", false);
   param_b(nofps, "no-fps", false);
   
   #if CAP_IRR
@@ -919,13 +1057,27 @@ EX void initConfig() {
   param_b(vid.smart_area_based, "smart-area-based", false);
   param_i(vid.cells_drawn_limit, "limit on cells drawn", 10000);
   param_i(vid.cells_generated_limit, "limit on cells generated", 250);
+
+  param_enum(diskshape, "disk_shape", "disk_shape", dshTiles)
+    ->editable({{"distance in tiles", ""}, {"distance in vertices", ""}, {"geometric distance", ""}
+    }, "disk shape", 'S')
+  ->set_reaction([] { if(game_active) { stop_game(); start_game(); } });
+
+  param_i(req_disksize, "disk_size")
+  ->editable(10, 100000, 10, "disk size", "Play on a disk. Enables the special game rules for small bounded spaces (especially relevant for e.g. Minefield and Halloween). The number given is the number of tiles to use; it is not used exactly, actually the smallest disk above this size is used. Set to 0 to disable.", 'd')
+  ->set_sets([] { dialog::bound_low(0); })
+  ->set_reaction([] { if(game_active) { stop_game(); start_game(); } })
+  ->set_extra([] {
+    add_edit(diskshape);
+    });
   
   #if CAP_SOLV
   addsaver(sn::solrange_xy, "solrange-xy");
   addsaver(sn::solrange_z, "solrange-z");
   #endif
-  addsaver(slr::steps, "slr-steps");
-  addsaver(slr::range_xy, "slr-range-xy");
+  param_i(slr::shader_iterations, "slr-steps");
+  param_f(slr::range_xy, "slr-range-xy");
+  param_f(slr::range_z, "slr-range-z");
 
   param_f(arcm::euclidean_edge_length, "arcm-euclid-length");
   
@@ -938,7 +1090,7 @@ EX void initConfig() {
     if(ginf[i].flags & qELLIPTIC)
       sightranges[i] = M_PI;
     else if(ginf[i].cclass == gcSphere)
-      sightranges[i] = 2 * M_PI;
+      sightranges[i] = TAU;
     else if(ginf[i].cclass == gcEuclid)
       sightranges[i] = 10;
     else if(ginf[i].cclass == gcSL2)
@@ -961,21 +1113,21 @@ EX void initConfig() {
 
   addsaver(sightranges[gBinary3], "sight-binary3", 3.1 + bonus);
   addsaver(sightranges[gCubeTiling], "sight-cubes", 10);
-  addsaver(sightranges[gCell120], "sight-120cell", 2 * M_PI);
+  addsaver(sightranges[gCell120], "sight-120cell", TAU);
   addsaver(sightranges[gECell120], "sight-120cell-elliptic", M_PI);
   addsaver(sightranges[gRhombic3], "sight-rhombic", 10.5 * emul);
   addsaver(sightranges[gBitrunc3], "sight-bitrunc", 12 * emul);
   addsaver(sightranges[gSpace534], "sight-534", 4 + bonus);
   addsaver(sightranges[gSpace435], "sight-435", 3.8 + bonus);
 
-  addsaver(sightranges[gCell5], "sight-5cell", 2 * M_PI);
-  addsaver(sightranges[gCell8], "sight-8cell", 2 * M_PI);
+  addsaver(sightranges[gCell5], "sight-5cell", TAU);
+  addsaver(sightranges[gCell8], "sight-8cell", TAU);
   addsaver(sightranges[gECell8], "sight-8cell-elliptic", M_PI);
-  addsaver(sightranges[gCell16], "sight-16cell", 2 * M_PI);
+  addsaver(sightranges[gCell16], "sight-16cell", TAU);
   addsaver(sightranges[gECell16], "sight-16cell-elliptic", M_PI);
-  addsaver(sightranges[gCell24], "sight-24cell", 2 * M_PI);
+  addsaver(sightranges[gCell24], "sight-24cell", TAU);
   addsaver(sightranges[gECell24], "sight-24cell-elliptic", M_PI);
-  addsaver(sightranges[gCell600], "sight-600cell", 2 * M_PI);
+  addsaver(sightranges[gCell600], "sight-600cell", TAU);
   addsaver(sightranges[gECell600], "sight-600cell-elliptic", M_PI);
   addsaver(sightranges[gHoroTris], "sight-horotris", 2.9 + bonus);
   addsaver(sightranges[gHoroRec], "sight-hororec", 2.2 + bonus);
@@ -1007,7 +1159,12 @@ EX void initConfig() {
 
   addsaver(bounded_mine_percentage, "bounded_mine_percentage");
 
-  param_b(nisot::geodesic_movement, "solv_geodesic_movement", true);
+  param_enum(nisot::geodesic_movement, "solv_geodesic_movement", "solv_geodesic_movement", true)
+  -> editable({{"Lie group", "light, camera, and objects move in lines of constant direction, in the Lie group sense"}, {"geodesics", "light, camera, and objects always take the shortest path"}}, "straight lines", 'G')
+  -> set_reaction([] {
+    if(pmodel == mdLiePerspective && nisot::geodesic_movement) pmodel = hyperbolic ? mdPerspective : mdGeodesic;
+    if(among(pmodel, mdGeodesic, mdPerspective) && !nisot::geodesic_movement) pmodel = mdLiePerspective;
+    });
 
   addsaver(s2xe::qrings, "s2xe-rings");
   addsaver(rots::underlying_scale, "rots-underlying-scale");
@@ -1043,6 +1200,7 @@ EX void initConfig() {
   
   param_f(camera_speed, "camspd", "camera-speed", 1);
   param_f(camera_rot_speed, "camrot", "camera-rot-speed", 1);
+  param_f(third_person_rotation, "third_person_rotation", 0);
 
   param_f(panini_alpha, "panini_alpha", 0);
   param_f(stereo_alpha, "stereo_alpha", 0);
@@ -1050,7 +1208,7 @@ EX void initConfig() {
   callhooks(hooks_configfile);
   
   #if CAP_SHOT
-  addsaver(levellines, "levellines");
+  param_f(levellines, "levellines", 0);
   #endif
 
 #if CAP_CONFIG
@@ -1068,6 +1226,7 @@ EX void initConfig() {
   ->help_text = "hyperbolic|spherical|Euclidean";
   
   param_i(stamplen, "stamplen");
+  param_f(anims::period, "animperiod");
   }
 
 EX bool inSpecialMode() {
@@ -1321,7 +1480,8 @@ EX void edit_sightrange() {
   #if CAP_RUG
   USING_NATIVE_GEOMETRY_IN_RUG;
   #endif
-  gamescreen(0);
+  cmode = sm::SIDE;
+  gamescreen();
   dialog::init("sight range settings");
   add_edit(vid.use_smart_range);
   if(vid.use_smart_range)
@@ -1332,14 +1492,14 @@ EX void edit_sightrange() {
       if(GDIM == 3) {
         dialog::addSelItem(XLAT("3D sight range for the fog effect"), fts(sightranges[geometry]), 'r');
         dialog::add_action([] {
-          dialog::editNumber(sightranges[geometry], 0, 2 * M_PI, 0.5, M_PI, XLAT("fog effect"), "");
+          dialog::editNumber(sightranges[geometry], 0, TAU, 0.5, M_PI, XLAT("fog effect"), "");
           });
         }
       }
     if(WDIM == 3) {
       dialog::addSelItem(XLAT("3D sight range"), fts(sightranges[geometry]), 'r');
       dialog::add_action([] {
-      dialog::editNumber(sightranges[geometry], 0, 2 * M_PI, 0.5, M_PI, XLAT("3D sight range"),
+      dialog::editNumber(sightranges[geometry], 0, TAU, 0.5, M_PI, XLAT("3D sight range"),
         XLAT(
           "Sight range for 3D geometries is specified in the absolute units. This value also affects the fog effect.\n\n"
           "In spherical geometries, the sight range of 2π will let you see things behind you as if they were in front of you, "
@@ -1353,7 +1513,7 @@ EX void edit_sightrange() {
       }
     }
   #if CAP_SOLV
-  if(pmodel == mdGeodesic && sol) {
+  if(models::is_perspective(pmodel) && sol) {
     dialog::addSelItem(XLAT("max difference in X/Y coordinates"), fts(sn::solrange_xy), 'x');
     dialog::add_action([] {
       dialog::editNumber(sn::solrange_xy, 0.01, 200, 0.1, 50, XLAT("max difference in X/Y coordinates"), solhelp()), dialog::scaleLog();
@@ -1364,14 +1524,18 @@ EX void edit_sightrange() {
       });
     }
   #endif
-  if(pmodel == mdGeodesic && sl2) {
+  if(models::is_perspective(pmodel) && sl2) {
     dialog::addSelItem(XLAT("max difference in X/Y coordinates"), fts(slr::range_xy), 'x');
     dialog::add_action([] {
       dialog::editNumber(slr::range_xy, 0, 10, 0.5, 4, XLAT("max difference in X/Y coordinates"), "");
       });
-    dialog::addSelItem(XLAT("steps"), its(slr::steps), 'z');
+    dialog::addSelItem(XLAT("max difference in Z coordinate"), fts(slr::range_z), 'x');
     dialog::add_action([] {
-      dialog::editNumber(slr::steps, 0, 50, 1, 10, "", "");
+      dialog::editNumber(slr::range_xy, 0, 10, 0.5, 4, XLAT("max difference in Z coordinate"), "");
+      });
+    dialog::addSelItem(XLAT("shader_iterations"), its(slr::shader_iterations), 'z');
+    dialog::add_action([] {
+      dialog::editNumber(slr::shader_iterations, 0, 50, 1, 10, "", "");
       });
     }
   if(vid.use_smart_range && WDIM == 2) {
@@ -1442,7 +1606,7 @@ EX void menuitem_sightrange(char c IS('c')) {
 
 EX void sets_sfx_volume() {
 #if CAP_AUDIO
-  dialog::numberdark = dialog::DONT_SHOW;
+  dialog::dialogflags = sm::NOSCR;
   #if ISANDROID
   dialog::reaction = [] () {
     settingsChanged = true;
@@ -1455,7 +1619,7 @@ EX void sets_sfx_volume() {
 
 EX void sets_music_volume() {
 #if CAP_AUDIO
-  dialog::numberdark = dialog::DONT_SHOW;
+  dialog::dialogflags = sm::NOSCR;
   dialog::reaction = [] () {
     #if CAP_SDLAUDIO
     Mix_VolumeMusic(musicvolume);
@@ -1476,7 +1640,7 @@ EX void sets_music_volume() {
 
 EX void showSpecialEffects() {
   cmode = vid.xres > vid.yres * 1.4 ? sm::SIDE : sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("extra graphical effects"));
 
   dialog::addBoolItem_action(XLAT("particles on attack"), (vid.particles), 'p');
@@ -1492,7 +1656,7 @@ EX void showSpecialEffects() {
 
 EX void show_vector_settings() {
   cmode = vid.xres > vid.yres * 1.4 ? sm::SIDE : sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("vector settings"));
 
   dialog::addSelItem(XLAT("line width"), fts(vid.linewidth), 'w');
@@ -1541,7 +1705,7 @@ EX void show_vector_settings() {
 
 EX void showGraphConfig() {
   cmode = vid.xres > vid.yres * 1.4 ? sm::SIDE : sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
 
   dialog::init(XLAT("graphics configuration"));
   
@@ -1647,6 +1811,18 @@ EX void showGraphConfig() {
     });
     
   dialog::addSelItem(XLAT("movement animation speed"), fts(vid.mspeed), 'm');
+  
+  dialog::addSelItem(XLAT("idle animation speed"), fts(vid.ispeed), 'i');
+  dialog::add_action([] {
+    dialog::editNumber(vid.ispeed, 0, 4, 0.1, 1, 
+      XLAT("idle animation speed"),
+      "0 = disable\n\nThis affects non-movement animations such as orb effects, item rotation, and more."
+      );
+    });
+
+  dialog::addBoolItem_action(XLAT("flashing effects"), (vid.flasheffects), 'h');
+  if(getcstat == 'h') 
+    mouseovers = XLAT("Disable if you are photosensitive. Replaces flashing effects such as Orb of Storms lightning with slow, adjustable animations.");
 
   dialog::addItem(XLAT("extra graphical effects"), 'u');
 
@@ -1709,7 +1885,8 @@ EX void edit_whatever(char type, int index) {
   }
 
 EX void configureOther() {
-  gamescreen(3);
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
 
   dialog::init(XLAT("other settings"));
 
@@ -1739,6 +1916,8 @@ EX void configureOther() {
   dialog::addSelItem(XLAT("whatever"), fts(whatever[0]), 'j');
   dialog::add_action([] { edit_whatever('f', 0); });
 #endif
+
+  add_edit(savefile_selection);
   
   dialog::addBreak(50);
   dialog::addBack();
@@ -1747,7 +1926,8 @@ EX void configureOther() {
   }
 
 EX void configureInterface() {
-  gamescreen(3);
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
   dialog::init(XLAT("interface"));
 
 #if CAP_TRANS
@@ -1777,8 +1957,11 @@ EX void configureInterface() {
   
   add_edit(glyphsortorder);
   add_edit(vid.graphglyph);
+  add_edit(less_in_landscape);
+  add_edit(less_in_portrait);
 
   add_edit(display_yasc_codes);
+  add_edit(vid.orbmode);
 
   dialog::addSelItem(XLAT("draw crosshair"), crosshair_size > 0 ? fts(crosshair_size) : ONOFF(false), 'x');
   dialog::add_action([] () { 
@@ -1792,6 +1975,10 @@ EX void configureInterface() {
       dialog::add_action([] { dialog::openColorDialog(crosshair_color); });
       };
     });
+
+  add_edit(menu_darkening);
+  add_edit(centered_menus);
+  add_edit(startanims::enabled);
    
   dialog::addBreak(50);
   dialog::addBack();
@@ -1801,7 +1988,8 @@ EX void configureInterface() {
 
 #if CAP_SDLJOY
 EX void showJoyConfig() {
-  gamescreen(4);
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
 
   dialog::init(XLAT("joystick configuration"));
   
@@ -1972,7 +2160,7 @@ bool supported_ods() {
 
 EX void showStereo() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("stereo vision config"));
 
   add_edit(vid.stereo_mode);
@@ -2089,30 +2277,210 @@ EX void edit_levellines(char c) {
     });
   }
 
-EX void show3D() {
-  cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);
-  dialog::init(XLAT("3D configuration"));
+EX geom3::eSpatialEmbedding shown_spatial_embedding() {
+  if(GDIM == 2) return geom3::seNone;
+  return geom3::spatial_embedding;
+  }
 
-  if(GDIM == 2) {
-    dialog::addBoolItem(XLAT("configure TPP automatically"), pmodel == mdDisk && pconf.camera_angle, 'T');
-    dialog::add_action(geom3::switch_tpp);
+EX bool in_tpp() { return pmodel == mdDisk && pconf.camera_angle; }
+
+EX void display_embedded_errors() {
+  using namespace geom3;
+  auto eucs = [] {
+    dialog::addItem(XLAT("set square tiling"), 'A'); dialog::add_action([] { dialog::do_if_confirmed( [] { stop_game(); set_geometry(gEuclidSquare); set_variation(eVariation::pure); start_game(); });});
+    dialog::addItem(XLAT("set hex tiling"), 'B'); dialog::add_action([] { dialog::do_if_confirmed( [] { stop_game(); set_geometry(gEuclid); set_variation(eVariation::pure); start_game(); });});
+    };
+  if(among(spatial_embedding, seNil, seProductH, seProductS, seCliffordTorus, seSL2) && (!among(geometry, gEuclid, gEuclidSquare) || !PURE)) {
+    dialog::addInfo(XLAT("error: currently works only in PURE Euclidean regular square or hex tiling"), 0xC00000);
+    eucs();
+    return;
     }
-  
-#if MAXMDIM >=4
-  if(WDIM == 2) {
-    dialog::addBoolItem(XLAT("configure FPP automatically"), GDIM == 3, 'F');
-    dialog::add_action(geom3::switch_fpp);
+  if(among(spatial_embedding, seSol, seSolN, seNIH) && (!bt::in() && !among(geometry, gEuclid, gEuclidSquare))) {
+    dialog::addInfo(XLAT("error: currently works only in pure Euclidean, or binary tiling and similar"), 0xC00000);
+    eucs();
+    dialog::addItem(XLAT("set binary tiling variant"), 'C'); dialog::add_action([] { dialog::do_if_confirmed( [] { stop_game(); set_geometry(gBinaryTiling); geom3::switch_fpp(); geom3::switch_fpp(); start_game(); }); });
+    dialog::addItem(XLAT("set ternary tiling"), 'D'); dialog::add_action([] { dialog::do_if_confirmed( [] { stop_game(); set_geometry(gTernary); geom3::switch_fpp(); geom3::switch_fpp(); start_game(); }); });
+    dialog::addItem(XLAT("set binary tiling"), 'E'); dialog::add_action([] { dialog::do_if_confirmed( [] { stop_game(); set_geometry(gBinary4); geom3::switch_fpp(); geom3::switch_fpp(); start_game(); }); });
+    return;
     }
-#endif
+  if(shmup::on && cgi.emb->no_spin()) {
+    dialog::addInfo(XLAT("error: this embedding does not work in shmup"), 0xC00000);
+    return;
+    }
+  if(meuclid && spatial_embedding == seCliffordTorus) {
+    if(!clifford_torus_valid()) {
+      dialog::addInfo(XLAT("error: this method works only in rectangular torus"), 0xC00000);
+      dialog::addItem(XLAT("set 20x20 torus"), 'A'); dialog::add_action([] { dialog::do_if_confirmed( [] { stop_game();
+        auto& T0 = euc::eu_input.user_axes;
+        T0[0][0] = T0[1][1] = 20;
+        T0[0][1] = 0;
+        T0[1][0] = geometry == gEuclid ? 10 : 0;
+        euc::eu_input.twisted = false;
+        euc::build_torus3();
+        geom3::apply_settings_full(); start_game(); }); });
+      return;
+      }
+    }
+  if(meuclid && spatial_embedding == seProductS) {
+    #if CAP_RUG
+    rug::clifford_torus ct;
+    bool err = sqhypot_d(2, ct.xh) < 1e-3 && sqhypot_d(2, ct.yh) < 1e-3;
+    if(err) {
+      dialog::addInfo(XLAT("error: this method works only in cylinder"), 0xC00000);
+      dialog::addItem(XLAT("set cylinder"), 'A'); dialog::add_action([] { dialog::do_if_confirmed( [] { stop_game();
+        auto& T0 = euc::eu_input.user_axes;
+        T0[0][0] = 10;
+        T0[0][1] = T0[1][0] = T0[1][1] = 0;
+        euc::eu_input.twisted = false;
+        euc::build_torus3();
+        geom3::apply_settings_full(); start_game(); }); });
+      return;
+      }
+    #else
+    dialog::addInfo(XLAT("error: not supported"), 0xC00000);
+    #endif
+    }
+  if(msphere && !among(spatial_embedding, seNone, seDefault, seLowerCurvature, seMuchLowerCurvature, seProduct, seProductS)) {
+    dialog::addInfo(XLAT("error: this method does not work in spherical geometry"), 0xC00000);
+    return;
+    }
+  if(mhyperbolic && !among(spatial_embedding, seNone, seDefault, seLowerCurvature, seMuchLowerCurvature, seProduct, seProductH, seSol, seSolN, seNIH)) {
+    dialog::addInfo(XLAT("error: this method does not work in hyperbolic geometry"), 0xC00000);
+    return;
+    }
+  }
+
+EX void show_spatial_embedding() {
+  cmode = sm::SIDE | sm::MAYDARK | sm::CENTER | sm::PANNING | sm::SHOWCURSOR;
+  gamescreen();
+  dialog::init(XLAT("3D styles"));
+  auto emb = shown_spatial_embedding();
+  add_edit(geom3::auto_configure);
+
+  dialog::addBreak(100);
+
+  auto &seo = geom3::spatial_embedding_options;
+
+  for(int i=0; i<isize(seo); i++) {
+    auto se = geom3::eSpatialEmbedding(i);
+    dialog::addBoolItem(XLAT(seo[i].first), emb == i, 'a' + i);
+    dialog::add_action([se] { invoke_embed(se); });
+    string s = why_wrong(se);
+    if(s != "")
+      dialog::items.back().value = (emb == i ? ONOFF(true) : XLAT("needs")) + s;
+    }
+
+  dialog::addBreak(100);
+  dialog::addHelp(XLAT(seo[emb].second));
+  display_embedded_errors();
+  dialog::addBreak(100);
+
+  if(geom3::auto_configure) {
+    if(emb == geom3::seNone) {
+      dialog::addBoolItem(XLAT("third-person perspective"), in_tpp(), 'T');
+      dialog::add_action(geom3::switch_tpp);
+      #if CAP_RUG
+      dialog::addBoolItem(XLAT("Hypersian Rug"), rug::rugged, 'u');
+      dialog::add_action([] {
+        if(in_tpp()) geom3::switch_tpp();
+        if(!rug::rugged) {
+          pconf.alpha = 1, pconf.scale = 1; if(!rug::rugged) rug::init();
+          }
+        else rug::close();
+        });
+      #endif
+      dialog::addBreak(100);
+      }
+    else {
+      if(geom3::supports_flat()) add_edit(geom3::flat_embedding);
+      else dialog::addBreak(100);
+      if(geom3::supports_invert()) add_edit(geom3::inverted_embedding);
+      else dialog::addBreak(100);
+      }
+    }
+
+  dialog::addSelItem(XLAT("reset view"), embedded_plane && isize(current_display->radarpoints) == 0 ? XLAT("(fix errors)") : !cells_drawn ? XLAT("(fix errors)") : "", ' ');
+  dialog::add_action([] {
+    if(rug::rug_control())
+      rug::reset_view();
+    else
+      fullcenter();
+    });
+
+  dialog::addBreak(100);
+  dialog::addBack();
+
+  dialog::display();
+  }
+
+EX void show3D_height_details() {
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
+  dialog::init(XLAT("3D detailed settings"));
+
+  add_edit(vid.wall_height);
+
   dialog::addBreak(50);
 
-#if MAXMDIM >= 4
+  add_edit(vid.rock_wall_ratio);
+  add_edit(vid.human_wall_ratio);
+  add_edit(vid.lake_top);
+  add_edit(vid.lake_shallow);
+  add_edit(vid.lake_bottom);
+
+  dialog::addBreak(50);
+
+  if(embedded_plane) {
+    add_edit(auto_remove_roofs);
+    add_edit(vid.wall_height2);
+    add_edit(vid.wall_height3);
+    add_edit(draw_sky);
+    add_edit(vid.lowsky_height);
+    add_edit(vid.sky_height);
+    add_edit(vid.star_height);
+    add_edit(vid.infdeep_height);
+    add_edit(vid.sun_size);
+    add_edit(vid.star_size);
+    add_edit(star_prob);
+    add_edit(vid.height_limits);
+    if(euclid && msphere) add_edit(use_euclidean_infinity);
+
+    dialog::addBreak(100);
+    dialog::addHelp(lalign(0, "absolute altitudes:\n\n"
+      "depth ", cgi.INFDEEP,
+      " water ", tie(cgi.BOTTOM, cgi.SHALLOW, cgi.LAKE),
+      " floor ", cgi.FLOOR,
+      " eye ", vid.eye,
+      " walls ", tie(cgi.WALL, cgi.HIGH, cgi.HIGH2),
+      " star ", cgi.STAR,
+      " sky ", cgi.SKY,
+      "\n\n",
+      "recommended: ", cgi.emb->height_limit(-1), " to ", cgi.emb->height_limit(1)
+      ));
+    }
+  else dialog::addInfo(XLAT("more options in 3D engine"));
+
+  dialog::addBreak(100);
+
+  dialog::addBack();
+  dialog::display();
+  }
+
+EX void show3D() {
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
+  dialog::init(XLAT("3D configuration"));
+
+#if MAXMDIM >=4
   if(WDIM == 2) {
-    dialog::addBoolItem(XLAT("use the full 3D models"), vid.always3, 'U');
-    dialog::add_action(geom3::switch_always3);
+    dialog::addSelItem("3D style", geom3::spatial_embedding_options[shown_spatial_embedding()].first, 'E');
+    dialog::add_action_push(show_spatial_embedding);
+
+    display_embedded_errors();
+    dialog::addBreak(50);
     }
 #endif
+
   if(vid.use_smart_range == 0 && GDIM == 2) {
     add_edit(vid.highdetail);
     add_edit(vid.middetail);
@@ -2120,6 +2488,12 @@ EX void show3D() {
     }
   
   if(WDIM == 2) {
+    if(cgi.emb->is_euc_in_noniso()) {
+      add_edit(geom3::euclid_embed_scale);
+      add_edit(geom3::euclid_embed_scale_y);
+      add_edit(geom3::euclid_embed_rotate);
+      }
+    add_edit(embedded_shift_method_choice);
     add_edit(vid.camera);
     if(GDIM == 3)
       add_edit(vid.eye);
@@ -2135,11 +2509,9 @@ EX void show3D() {
     
     dialog::addBreak(50);
     add_edit(vid.wall_height);
+    dialog::addSelItem("height details", "", 'D');
+    dialog::add_action_push(show3D_height_details);
     
-    add_edit(vid.rock_wall_ratio);
-    add_edit(vid.human_wall_ratio);
-    add_edit(vid.lake_top);
-    add_edit(vid.lake_bottom);
     if(scale_used())
       add_edit(vid.creature_scale);
     }
@@ -2164,6 +2536,10 @@ EX void show3D() {
         XLAT("Rotate the camera. Can be used to obtain a first person perspective, "
         "or third person perspective when combined with Y shift.")
         );
+      dialog::extra_options = [] {
+        dialog::addBoolItem(XLAT("render behind the camera"), vpconf.back_and_front, 'R');
+        dialog::add_action([] { vpconf.back_and_front = !vpconf.back_and_front; });
+        };
       });
     }
   if(GDIM == 2) {
@@ -2176,14 +2552,26 @@ EX void show3D() {
       });
     }
 
-  if((WDIM == 2 && GDIM == 3) || prod)
+  if(mproduct || embedded_plane)
     dialog::addBoolItem_action(XLAT("fixed Y/Z rotation"), vid.fixed_yz, 'Z');
+
+  if(WDIM == 2 && GDIM == 3) {
+    add_edit(vid.pseudohedral);
+    // add_edit(vid.depth_bonus);
+    }
 
   if(true) {
     dialog::addBreak(50);
     dialog::addSelItem(XLAT("projection"), current_proj_name(), 'M');
     dialog::add_action_push(models::model_menu);  
     }
+  #if CAP_RUG
+  if(GDIM == 2) {
+    dialog::addItem(XLAT("configure Hypersian Rug"), 'u');
+    dialog::add_action_push(rug::show);
+    }
+  #endif
+
   #if MAXMDIM >= 4
   if(GDIM == 3) add_edit_fov('f');
   if(GDIM == 3) {
@@ -2213,7 +2601,7 @@ EX void show3D() {
   
   edit_levellines('L');
   
-  if(WDIM == 3 || (GDIM == 3 && euclid)) {
+  if(WDIM == 3 || (GDIM == 3 && meuclid)) {
     dialog::addSelItem(XLAT("radar range"), fts(vid.radarrange), 'R');
     dialog::add_action([] () {
       dialog::editNumber(vid.radarrange, 0, 10, 0.5, 2, "", XLAT(""));
@@ -2260,7 +2648,7 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
     ->editable(-5, 5, .1, "eye level", "", 'E')
     ->set_extra([] {
       dialog::dialogflags |= sm::CENTER;
-      vid.tc_depth = ticks;
+      vid.tc_camera = ticks;
     
       dialog::addHelp(XLAT("In the FPP mode, the camera will be set at this altitude (before applying shifts)."));
 
@@ -2287,7 +2675,23 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
   addsaver(vid.use_wall_radar, "wallradar", true);
   addsaver(vid.fixed_facing, "fixed facing", 0);
   addsaver(vid.fixed_facing_dir, "fixed facing dir", 90);
-  addsaver(vid.fixed_yz, "fixed YZ", true);
+  param_b(vid.fixed_yz, "fixed YZ", true);
+  param_b(frustum_culling, "frustum_culling");
+  param_b(numerical_minefield, "numerical_minefield")
+  ->editable("display mine counts numerically", 'n');
+  param_b(dont_display_minecount, "dont_display_minecount");
+  param_enum(draw_sky, "draw_sky", "draw_sky", skyAutomatic)
+  -> editable({{"NO", "do not draw sky"}, {"automatic", ""}, {"skybox", "works only in Euclidean"}, {"always", "might be glitched in some settings"}}, "sky rendering", 's');
+  param_b(use_euclidean_infinity, "use_euclidean_infinity", true)
+  -> editable("infinite sky", 'i');
+  param_f(linepatterns::parallel_count, "parallel_count")
+    ->editable(0, 24, 1, "number of parallels drawn", "", 'n');
+  param_f(linepatterns::parallel_max, "parallel_max")
+    ->editable(0, TAU, 15*degree, "last parallel drawn", "", 'n');
+  param_f(vid.depth_bonus, "depth_bonus", 0)
+    ->editable(-5, 5, .1, "depth bonus in pseudohedral", "", 'b');
+  param_b(vid.pseudohedral, "pseudohedral", false)
+    ->editable("make the tiles flat", 'p');
   param_f(vid.depth, "depth", "3D depth", 1)
     ->editable(0, 5, .1, "Ground level below the plane", "", 'd')
     ->set_extra([] {
@@ -2308,7 +2712,7 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
             "distances.)"
             );
         if(GDIM == 3 && pmodel == mdPerspective && !euclid) {
-          ld current_camera_level = hdist0(tC0(radar_transform));
+          ld current_camera_level = hdist0(tC0(current_display->radar_transform));
           help += "\n\n";
           if(abs(current_camera_level) < 1e-6)
             help += XLAT(
@@ -2321,6 +2725,13 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
               "with parameter %2.", fts(current_camera_level), fts(tan_auto(vid.depth) / tan_auto(current_camera_level)));
           }
         dialog::addHelp(help);
+        })
+    ->set_reaction([] {
+        bool b = vid.tc_alpha < vid.tc_camera;
+        if(vid.tc_alpha >= vid.tc_depth) vid.tc_alpha = vid.depth - 1;
+        if(vid.tc_camera >= vid.tc_depth) vid.tc_camera = vid.depth - 1;
+        if(vid.tc_alpha == vid.tc_camera) (b ? vid.tc_alpha : vid.tc_camera)--;
+        geom3::apply_settings_light();
         });
   param_f(vid.camera, "camera", "3D camera level", 1)
     ->editable(0, 5, .1, "", "", 'c')
@@ -2355,7 +2766,8 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
         dialog::add_action([] () {
           vid.gp_autoscale_heights = !vid.gp_autoscale_heights;
           });
-        });
+        })
+    ->set_reaction(geom3::apply_settings_light);
   param_f(vid.rock_wall_ratio, "rock_wall_ratio", "3D rock-wall ratio", .9)
     ->editable(0, 1, .1, "Rock-III to wall ratio", "", 'r')
     ->set_extra([] { dialog::addHelp(XLAT(
@@ -2375,10 +2787,46 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
         fts(cosh(vid.depth - vid.wall_height * vid.human_wall_ratio) / cosh(vid.depth)))
         );
         });
-  param_f(vid.lake_top, "lake_top", "3D lake top", .25)
-    ->editable(0, 1, .1, "Level of water surface", "", 'l');
-  param_f(vid.lake_bottom, "lake_bottom", "3D lake bottom", .9)
-    ->editable(0, 1, .1, "Level of water bottom", "", 'k');
+  string unitwarn =
+    "The unit this is value is given in is wall height. "
+    "Note that, in exponentially expanding spaces, too high values could cause rendering issues. So "
+    "if you want infinity, values of 5 or similar should be used -- there is no visible difference "
+    "from infinity and glitches are avoided.";
+  param_f(vid.lake_top, "lake_top", "3D lake top", .25 / 0.3)
+    ->editable(0, 1, .1, "Level of water surface", unitwarn, 'l');
+  param_f(vid.lake_shallow, "lake_shallow", "3D lake shallow", .4 / 0.3)
+    ->editable(0, 1, .1, "Level of shallow water", unitwarn, 's');
+  param_f(vid.lake_bottom, "lake_bottom", "3D lake bottom", .9 / 0.3)
+    ->editable(0, 1, .1, "Level of water bottom", unitwarn, 'k');
+  param_f(vid.wall_height2, "wall_height2", "wall_height2", 2)
+    ->editable(0, 5, .1, "ratio of high walls to normal walls", unitwarn, '2');
+  param_f(vid.wall_height3, "wall_height3", "wall_height3", 3)
+    ->editable(0, 5, .1, "ratio of very high walls to normal walls", unitwarn, '3');
+  param_f(vid.lowsky_height, "lowsky_height", "lowsky_height", 2)
+    ->editable(0, 5, .1, "sky fake height", "Sky is rendered at the distance computed based on "
+      "the sky height, which might be beyond the range visible in fog. To prevent this, "
+      "the intensity of the fog effect depends on the value here rather than the actual distance. "
+      "Stars are affected similarly.", '4');
+  param_fd(vid.sky_height, "sky_height")
+    ->set_hint([] { return geom3::to_wh(cgi.SKY); })
+    ->editable(0, 10, .1, "altitude of the sky", unitwarn, '5')
+    ->set_reaction(delete_sky);
+  param_fd(vid.star_height, "star_height")
+    ->set_hint([] { return geom3::to_wh(cgi.STAR); })
+    ->editable(0, 10, .1, "altitude of the stars", unitwarn, '6');
+  param_fd(vid.infdeep_height, "infdeep_height")
+    ->set_hint([] { return geom3::to_wh(cgi.INFDEEP); })
+    ->editable(0, 10, .1, "infinite depth", unitwarn, '7');
+  param_f(vid.sun_size, "sun_size", "sun_size", 8)
+    ->editable(0, 10, .1, "sun size (relative to item sizes)", "", '8');
+  param_f(vid.star_size, "star_size", "star_size", 0.75)
+    ->editable(0, 10, .1, "night star size (relative to item sizes)", "", '9');
+  param_f(star_prob, "star_prob", 0.3)
+    ->editable(0, 1, .01, "star probability", "probability of star per tile", '*');
+  param_b(vid.height_limits, "height_limits", true)
+    ->editable("prevent exceeding recommended altitudes", 'l');
+  param_b(auto_remove_roofs, "auto_remove_roofs", true)
+    ->editable("do not render higher levels if camera too high", 'r');
   addsaver(vid.tc_depth, "3D TC depth", 1);
   addsaver(vid.tc_camera, "3D TC camera", 2);
   addsaver(vid.tc_alpha, "3D TC alpha", 3);
@@ -2394,7 +2842,27 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
     ->set_reaction([] {
       if(vid.highdetail > vid.middetail) vid.highdetail = vid.middetail;
       });
+  param_i(debug_tiles, "debug_tiles")->editable(0, 2, 1, 
+    "display tile debug values",
+    "Display cell type IDs, as well as vertex and edge identifiers.\n\n"
+    "Setting 1 uses the internal shape IDs, while setting 2 in tes files uses "
+    "the original IDs in case if extra tile types were added to "
+    "separate mirror images or different football types.", 'd');
+  param_f(global_boundary_ratio, "global_boundary_ratio")
+  ->editable(0, 5, 0.1, "Width of cell boundaries",
+    "How wide should the cell boundaries be.", '0');
   addsaver(vid.gp_autoscale_heights, "3D Goldberg autoscaling", true);  
+  addsaver(scorefile, "savefile");
+  param_b(savefile_selection, "savefile_selection")
+  -> editable("select the score/save file on startup", 's')
+  -> set_reaction([] {
+    if(savefile_selection)
+      addMessage(XLAT("Save the config and restart to select another score/save file."));
+    else if(scorefile == "")
+      addMessage(XLAT("Save the config to always play without recording your progress."));
+    else
+      addMessage(XLAT("Save the config to always use %1.", scorefile));
+    });
   });
 
 EX void switchcolor(unsigned int& c, unsigned int* cs) {
@@ -2410,7 +2878,8 @@ EX void showCustomizeChar() {
   cc_footphase += hypot(mousex - lmousex, mousey - lmousey);
   lmousex = mousex; lmousey = mousey;
 
-  gamescreen(4);
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
   dialog::init(XLAT("Customize character"));
   
   if(shmup::on || multi::players) multi::cpid = multi::cpid_edit % multi::players;
@@ -2447,7 +2916,7 @@ EX void showCustomizeChar() {
   initquickqueue();
   transmatrix V = atscreenpos(vid.xres/2, firsty, scale);
   
-  double alpha = atan2(mousex - vid.xres/2, mousey - firsty) - M_PI/2;
+  double alpha = atan2(mousex - vid.xres/2, mousey - firsty) - 90._deg;
   V = V * spin(alpha);
   drawMonsterType(moPlayer, NULL, shiftless(V), 0, cc_footphase / scale, NOCOLOR);
   quickqueue();
@@ -2491,13 +2960,15 @@ EX void refresh_canvas() {
     }
   }
 
+EX color_t addalpha(color_t c) { return (c << 8) | 0xFF; }
+
 EX void edit_color_table(colortable& ct, const reaction_t& r IS(reaction_t()), bool has_bit IS(false)) {
   cmode = sm::SIDE;
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("colors & aura"));
   
   for(int i=0; i<isize(ct); i++) {
-    dialog::addColorItem(its(i), ct[i] << 8, 'a'+i);
+    dialog::addColorItem(its(i), addalpha(ct[i]), 'a'+i);
     if(WDIM == 3 && has_bit && !(ct[i] & 0x1000000)) dialog::lastItem().value = XLAT("(no wall)");
     dialog::add_action([i, &ct, r, has_bit] () { 
       if(WDIM == 3 && has_bit) {
@@ -2511,6 +2982,20 @@ EX void edit_color_table(colortable& ct, const reaction_t& r IS(reaction_t()), b
       });
     }
 
+  dialog::addItem("add a color", 'A');
+  dialog::add_action([&ct, r] {
+    ct.push_back(rand() & 0x1FFFFFF);
+    r();
+    });
+
+  if(isize(ct) > 2) {
+    dialog::addItem("delete a color", 'D');
+    dialog::add_action([&ct, r] {
+      ct.pop_back();
+      r();
+      });
+    }
+
   dialog::addBack();
   dialog::display();
   }
@@ -2518,19 +3003,19 @@ EX void edit_color_table(colortable& ct, const reaction_t& r IS(reaction_t()), b
 EX void show_color_dialog() {
   cmode = sm::SIDE | sm::DIALOG_STRICT_X;
   getcstat = '-';
-  gamescreen(0);
+  gamescreen();
   dialog::init(XLAT("colors & aura"));
 
-  dialog::addColorItem(XLAT("background"), backcolor << 8, 'b');
+  dialog::addColorItem(XLAT("background"), addalpha(backcolor), 'b');
   dialog::add_action([] () { dialog::openColorDialog(backcolor); dialog::colorAlpha = false; dialog::dialogflags |= sm::SIDE; });
   
   if(WDIM == 2 && GDIM == 3 && hyperbolic)
     dialog::addBoolItem_action(XLAT("cool fog effect"), context_fog, 'B');
 
-  dialog::addColorItem(XLAT("foreground"), forecolor << 8, 'f');
+  dialog::addColorItem(XLAT("foreground"), addalpha(forecolor), 'f');
   dialog::add_action([] () { dialog::openColorDialog(forecolor); dialog::colorAlpha = false; dialog::dialogflags |= sm::SIDE; });
 
-  dialog::addColorItem(XLAT("borders"), bordcolor << 8, 'o');
+  dialog::addColorItem(XLAT("borders"), addalpha(bordcolor), 'o');
   dialog::add_action([] () { dialog::openColorDialog(bordcolor); dialog::colorAlpha = false; dialog::dialogflags |= sm::SIDE; });
 
   dialog::addColorItem(XLAT("projection boundary"), ringcolor, 'r');
@@ -2555,13 +3040,18 @@ EX void show_color_dialog() {
   dialog::addColorItem(XLAT("projection period"), periodcolor, 'p');
   dialog::add_action([] () { dialog::openColorDialog(periodcolor); dialog::dialogflags |= sm::SIDE; });
 
-  dialog::addColorItem(XLAT("dialogs"), dialog::dialogcolor << 8, 'd');
+  dialog::addColorItem(XLAT("dialogs"), addalpha(dialog::dialogcolor), 'd');
   dialog::add_action([] () { dialog::openColorDialog(dialog::dialogcolor); dialog::colorAlpha = false; dialog::dialogflags |= sm::SIDE; });
 
   dialog::addBreak(50);
   if(specialland == laCanvas && colortables.count(patterns::whichCanvas)) {
     dialog::addItem(XLAT("pattern colors"), 'P');
     dialog::add_action_push([] { edit_color_table(colortables[patterns::whichCanvas], refresh_canvas, true); });
+
+    if(patterns::whichCanvas == 'R') {
+      dialog::addItem(XLAT("unreversed colors"), 'U');
+      dialog::add_action_push([] { edit_color_table(colortables['A'], refresh_canvas, true); });
+      }
     }
  
   if(cwt.at->land == laMinefield) {
@@ -2662,13 +3152,14 @@ EX void resetConfigMenu() {
 
 #if CAP_TRANS
 EX void selectLanguageScreen() {
-  gamescreen(4);
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
   dialog::init("select language"); // intentionally not translated
 
   int v = vid.language;  
   dynamicval<int> d(vid.language, -1);
   
-  for(int i=0; i<NUMLAN-1 || i == v; i++) {
+  for(int i=0; i<NUMLAN; i++) {
     vid.language = i;
     dialog::addSelItem(XLAT("EN"), its(100 * transcompleteness[i] / transcompleteness[0]) + "%", 'a'+i);
     }
@@ -2720,7 +3211,8 @@ EX void selectLanguageScreen() {
 #endif
 
 EX void configureMouse() {
-  gamescreen(1);
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
   dialog::init(XLAT("mouse & touchscreen"));
 
   dialog::addBoolItem_action(XLAT("reverse pointer control"), (vid.revcontrol), 'r');
@@ -2800,49 +3292,51 @@ template<class T> void add_edit(T& val) {
 #endif
 
 EX void find_setting() {
-  gamescreen(1); 
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
 
   dialog::init(XLAT("find a setting"));
   if(dialog::infix != "") mouseovers = dialog::infix;
-  
-  vector<setting*> found;
-  
+
+  dialog::start_list(900, 900, '1');
+
+  int found = 0;
+
   for(auto& p: params) {
     auto& fs = p.second;
     string key = fs->search_key();
-    if(fs->available() && dialog::hasInfix(key))
-      found.push_back(&*fs);
+    if(fs->available() && dialog::hasInfix(key)) {
+      fs->show_edit_option(dialog::list_fake_key++);
+      found++;
+      }
     }
 
-  for(int i=0; i<9; i++) {
-    if(i < isize(found)) {
-      found[i]->show_edit_option('1' + i);
-      }
-    else dialog::addBreak(100);
-    }
+  dialog::end_list();
 
   dialog::addBreak(100);
   dialog::addInfo(XLAT("press letters to search"));
-  dialog::addSelItem(XLAT("matching items"), its(isize(found)), 0);
+  dialog::addSelItem(XLAT("matching items"), its(found), 0);
   dialog::display();
-  
+
   keyhandler = [] (int sym, int uni) {
-    dialog::handleNavigation(sym, uni);    
-    if(dialog::editInfix(uni)) ;
+    dialog::handleNavigation(sym, uni);
+    if(dialog::editInfix(uni)) dialog::list_skip = 0;
     else if(doexiton(sym, uni)) popScreen();
     };
   }
 
 EX void edit_all_settings() {
-  gamescreen(1);
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
   dialog::init(XLAT("recently changed settings"));
 
   for(auto &fs: params) fs.second->check_change();
 
-  int id = 0;
+  dialog::start_list(1000, 1000, 'a');
   for(auto l: last_changed) 
-    if(l->available() && id < 10)
-    l->show_edit_option('a'+(id++));
+    if(l->available())
+      l->show_edit_option(dialog::list_fake_key++);
+  dialog::end_list();
 
   dialog::addBreak(100);
   dialog::addItem(XLAT("find a setting"), '/');
@@ -2851,32 +3345,44 @@ EX void edit_all_settings() {
   dialog::display();
   }
 
-void list_setting::show_edit_option(char key) {
+void list_setting::show_edit_option(int key) {
   string opt = options[get_value()].first;
   dialog::addSelItem(XLAT(menu_item_name), XLAT(opt), key);
   dialog::add_action_push([this] {
     add_to_changed(this);
-    gamescreen(2);
+    cmode = sm::SIDE | sm::MAYDARK;
+    gamescreen();
     dialog::init(XLAT(menu_item_name));
     dialog::addBreak(100);
     int q = isize(options);
+
+    int need_list = q > 15 ? 2 : q > 10 ? 1 : 0;
+
+    if(need_list >= 2) dialog::start_list(1500, 1500, 'a');
     for(int i=0; i<q; i++) {
-      dialog::addBoolItem(XLAT(options[i].first), get_value() == i, 'a'+i);
-      dialog::add_action([this, i] { set_value(i); popScreen(); });
-      dialog::addBreak(100);
-      if(options[i].second != "") {
+      dialog::addBoolItem(XLAT(options[i].first), get_value() == i, need_list >= 2 ? dialog::list_fake_key++ : 'a' + i);
+      dialog::add_action([this, i, need_list] { set_value(i); if(reaction) reaction(); if(need_list == 0) popScreen(); });
+      if(need_list == 0 && options[i].second != "") {
+        dialog::addBreak(100);
         dialog::addHelp(XLAT(options[i].second));
         dialog::addBreak(100);
         }
       }
+    if(need_list >= 2) dialog::end_list();
     dialog::addBreak(100);
+
+    if(need_list >= 1 && options[get_value()].second != "") {
+      dialog::addHelp(XLAT(options[get_value()].second));
+      dialog::addBreak(100);
+      }
     dialog::addBack();
     dialog::display();
     });
   }
 
 EX void showSettings() {
-  gamescreen(1);
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
   dialog::init(XLAT("settings"));
 
   dialog::addItem(XLAT("interface"), 'i');
@@ -2911,7 +3417,7 @@ EX void showSettings() {
   dialog::addBreak(100);
 
 #if CAP_CONFIG
-  dialog::addItem(XLAT("recently changed settings"), '/');
+  dialog::addItem(XLAT("find a setting"), '/');
   dialog::add_action_push(edit_all_settings);
 
   dialog::addItem(XLAT("save the current config"), 's');
@@ -2933,38 +3439,44 @@ EX int read_color_args() {
   using namespace arg;
 
   if(argis("-back")) {
-    PHASEFROM(2); shift(); backcolor = arghex();
+    PHASEFROM(2); shift(); backcolor = argcolor(24);
     }
   else if(argis("-fillmodel")) {
-    PHASEFROM(2); shift(); modelcolor = arghex();
+    PHASEFROM(2); shift(); modelcolor = argcolor(32);
+    }
+  else if(argis("-apeirocolor")) {
+    PHASEFROM(2); shift(); patterns::apeirogonal_color = argcolor(32);
     }
   else if(argis("-ring")) {
-    PHASEFROM(2); shift(); ringcolor = arghex();
+    PHASEFROM(2); shift(); ringcolor = argcolor(32);
     }
   else if(argis("-ringw")) {
     PHASEFROM(2); shift_arg_formula(vid.multiplier_ring);
     }
   else if(argis("-stdgrid")) {
-    PHASEFROM(2); shift(); stdgridcolor = arghex();
+    PHASEFROM(2); shift(); stdgridcolor = argcolor(32);
     }
   else if(argis("-gridw")) {
     PHASEFROM(2); shift_arg_formula(vid.multiplier_grid);
     }
   else if(argis("-period")) {
-    PHASEFROM(2); shift(); periodcolor = arghex();
+    PHASEFROM(2); shift(); periodcolor = argcolor(32);
     }
   else if(argis("-crosshair")) {
-    PHASEFROM(2); shift(); crosshair_color = arghex();
+    PHASEFROM(2); shift(); crosshair_color = argcolor(32);
     shift_arg_formula(crosshair_size);
     }
   else if(argis("-borders")) {
-    PHASEFROM(2); shift(); bordcolor = arghex();
+    PHASEFROM(2); shift(); bordcolor = argcolor(24);
     }
   else if(argis("-fore")) {
-    PHASEFROM(2); shift(); forecolor = arghex();
+    PHASEFROM(2); shift(); forecolor = argcolor(24);
+    }
+  else if(argis("-title")) {
+    PHASEFROM(2); shift(); titlecolor = argcolor(24);
     }
   else if(argis("-dialog")) {
-    PHASEFROM(2); shift(); dialog::dialogcolor = arghex();
+    PHASEFROM(2); shift(); dialog::dialogcolor = argcolor(24);
     }
   else if(argis("-d:color"))
     launch_dialog(show_color_dialog);
@@ -3052,11 +3564,28 @@ EX int read_config_args() {
   else if(argis("-r")) { 
     PHASEFROM(2);
     shift(); 
-    int clWidth=0, clHeight=0, clFont=0;
-    sscanf(argcs(), "%dx%dx%d", &clWidth, &clHeight, &clFont);
-    if(clWidth) vid.xres = clWidth;
-    if(clHeight) vid.yres = clHeight;
-    if(clFont) vid.abs_fsize = clFont, vid.relative_font = true;
+    if(vid.want_fullscreen) {
+      int clWidth=0, clHeight=0, clFont=0;
+      sscanf(argcs(), "%dx%dx%d", &clWidth, &clHeight, &clFont);
+      vid.change_fullscr = clWidth;
+      if(clWidth) vid.fullscreen_x = clWidth;
+      if(clHeight) vid.fullscreen_y = clHeight;
+      if(clFont) vid.abs_fsize = clFont, vid.relative_font = true;
+      }
+    else if(args().find(".") != string::npos) {
+      vid.relative_window_size = true;
+      ld dWidth=0, dHeight=0;
+      sscanf(argcs(), "%lfx%lf", &dWidth, &dHeight);
+      if(dWidth) vid.window_rel_x = dWidth;
+      if(dHeight) vid.window_rel_y = dHeight;
+      }
+    else {
+      vid.want_fullscreen = false;
+      vid.relative_window_size = false;
+      int clFont=0;
+      sscanf(argcs(), "%dx%dx%d", &vid.window_x, &vid.window_y, &clFont);
+      if(clFont) vid.abs_fsize = clFont, vid.relative_font = true;
+      }
     }    
   else if(argis("-msm")) {
     PHASEFROM(2); memory_saving_mode = true;
@@ -3158,6 +3687,9 @@ EX int read_config_args() {
     }
   else if(argis("-d:all")) {
     PHASEFROM(2); launch_dialog(edit_all_settings);
+    }
+  else if(argis("-d:find")) {
+    PHASEFROM(2); launch_dialog(find_setting);
     }
   else if(argis("-char")) {
     auto& cs = vid.cs;

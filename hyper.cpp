@@ -40,6 +40,7 @@
 #include "archimedean.cpp"
 #include "arbitrile.cpp"
 #include "rulegen.cpp"
+#include "rulegen3.cpp"
 #include "euclid.cpp"
 #include "sphere.cpp"
 #include "fake.cpp"
@@ -77,6 +78,7 @@
 #include "system.cpp"
 #include "debug.cpp"
 #include "geometry.cpp"
+#include "embeddings.cpp"
 #include "geometry2.cpp"
 #include "polygons.cpp"
 #include "3d-models.cpp"
@@ -121,8 +123,8 @@
 #include "bigstuff.cpp"
 #include "multigame.cpp"
 #include "inforder.cpp"
-#include "dpgen.cpp"
 #include "vr.cpp"
+#include "intra.cpp"
 
 #if CAP_ROGUEVIZ
 #include "rogueviz/rogueviz-all.cpp"

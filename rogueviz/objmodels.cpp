@@ -17,9 +17,11 @@ char peek(fhstream& fs) {
 bool model::available() {
   if(av_checked) return is_available;
   av_checked = true;
-  is_available = false;
+  is_available = file_exists(path + fname);
   return false;
   }
+
+string ignore_mtlname = "XXX";
 
 void model::load_obj(model_data& md) {
   md.prec_used = prec;
@@ -30,7 +32,7 @@ void model::load_obj(model_data& md) {
   if(!fs.f) 
     throw hr_exception("failed to open model file: " + path + fname);
   
-  preparer();
+  prepare();
 
   vector<hyperpoint> vertices;
   vector<hyperpoint> normals;
@@ -69,18 +71,16 @@ void model::load_obj(model_data& md) {
         if(s == "Kd") {
           ld a, b, c;
           scan(fsm, a, b, c);
-          part(nextcol, 1) = a * 319.99;
-          part(nextcol, 2) = b * 319.99;
-          part(nextcol, 3) = c * 319.99;
+          nextcol = read_color(a, b, c);
           }
         if(s == "newmtl") {
           emit_material();
           nextcol = 0xFFFFFFFF;
           texname = "";
-          mtlname = scanline(fsm);
+          mtlname = scanline_noblank(fsm);
           }
         if(s == "map_Kd") {
-          scan(fsm, texname);
+          texname = scanline_noblank(fsm);
           }
         }
       emit_material();
@@ -89,8 +89,11 @@ void model::load_obj(model_data& md) {
       next_object:
       object *co = nullptr;
       bool textured = false;
-      string oname = scanline(fs);
+      string oname = scanline_noblank(fs);
       println(hlog, "reading object: ", oname);
+      md.objindex.push_back(isize(md.objs));
+      hyperpoint ctr = Hypc;
+      int cqty = 0;
       while(true) {
         if(feof(fs.f)) {
           if(co) cgi.finishshape();
@@ -107,12 +110,13 @@ void model::load_obj(model_data& md) {
           goto next_object;
           }
         else if(s == "v") {        
-          hyperpoint h = C0;
+          hyperpoint h = C03;
           scan(fs, h[0], h[1], h[2]); // assume all
           h[0] /= 100;
           h[1] /= 100;
           h[2] /= 100;
           vertices.push_back(h);
+          ctr += h; cqty++;
           }
         else if(s == "vt") {
           ld u, v;
@@ -130,7 +134,7 @@ void model::load_obj(model_data& md) {
         else if(s == "usemtl") {
           if(co) cgi.finishshape();
           if(co) println(hlog, "vertices = ", co->sh.e-co->sh.s, " tvertices = ", isize(co->tv.tvertices));
-          string mtlname = scanline(fs);
+          string mtlname = scanline_noblank(fs);
           co = nullptr;
           if(mtlname.find("Layer_Layer0") != string::npos) continue;
           objects.push_back(make_shared<object>());
@@ -154,7 +158,8 @@ void model::load_obj(model_data& md) {
             else
               co->color = 0xFFFFFFFF;
             }
-          println(hlog, "set textured to ", textured);
+          if(mtlname.find(ignore_mtlname) != string::npos) co->color = 0;
+          println(hlog, "set textured to ", textured, " color ", co->color, " mtlname = '", mtlname, "'");
           }
         else if(s == "f") {
           struct vertexinfo { int f, t, n; };
@@ -191,48 +196,19 @@ void model::load_obj(model_data& md) {
             tot.push_back(textured ? tvertices[vis[i].t] : point3(0,0,0));
             }
           if(!co) continue;
-          
-          hyperpoint norm = (hys[1] - hys[0]) ^ (hys[2] - hys[0]);
-          norm /= hypot_d(3, norm);
-          ld y = .5 + (.2 * norm[0] + .16 * norm[1] + .14 * norm[2]);
-          glvertex shade = glhr::makevertex(0, y, 0);
-          glvertex shadecol = glhr::makevertex(y, y, y);
-          
-          auto n0 = tf(hys[0]);
-          auto n1 = tf(hys[1]);
-          auto n2 = tf(hys[2]);
-          auto mi = min(n0.first, min(n1.first, n2.first));
-          auto ma = max(n0.first, max(n1.first, n2.first));
-          if(ma - mi > 1) continue;
-          
-          int parts = sd(hys);
-          auto tri = [&] (int a, int b) {
-            cgi.hpcpush(tf(hys[0] + (hys[1] - hys[0]) * a / parts + (hys[2] - hys[0]) * b / parts).second);
-            // cgi.hpcpush(tf(tot[0] + (tot[1] - tot[0]) * a / parts + (tot[2] - tot[0]) * b / parts).second);
-            if(textured) {
-              co->tv.tvertices.push_back(glhr::pointtogl(tot[0] + (tot[1] - tot[0]) * a / parts + (tot[2] - tot[0]) * b / parts));
-              co->tv.colors.push_back(shadecol);
-              }
-            else {
-              co->tv.tvertices.push_back(shade);
-              }
-            };
-          
-          for(int a=0; a<parts; a++)
-          for(int b=0; b<parts-a; b++) {
-            tri(a, b);
-            tri(a+1, b);
-            tri(a, b+1);
-            if(a+b < parts-1) {
-              tri(a, b+1);
-              tri(a+1, b);
-              tri(a+1, b+1);
-              }
+
+          if(shift_to_ctr) {
+            hyperpoint ctr1 = ctr / cqty;
+            ctr1[3] = 0;
+            println(hlog, "ctr1 = ", ctr1, "hys = ", hys[0]);
+            for(auto& h: hys)
+              h -= ctr1;
             }
+
+          process_triangle(hys, tot, textured, co);
           
           while(among(peek(fs), ' ', '\r', '\n')) scan(fs, bar);
-          if(isdigit(peek(fs))) { vis[1] = vis[2]; println(hlog, "next triangle"); goto next_triangle; }
-          println(hlog, "last triangle");
+          if(isdigit(peek(fs))) { vis[1] = vis[2]; goto next_triangle; }
           }
         else if(s == "l") {
           int a, b;
@@ -251,7 +227,58 @@ void model::load_obj(model_data& md) {
   
   println(hlog, "reading finished");
 
-  cgi.extra_vertices();  
+  md.objindex.push_back(isize(md.objs));
+  cgi.extra_vertices();
+  }
+
+hyperpoint model::transform(hyperpoint h) { return direct_exp(h); }
+
+int model::subdivision(vector<hyperpoint>& hys) {
+  if(euclid) return 1;
+  ld maxlen = prec * max(hypot_d(3, hys[1] - hys[0]), max(hypot_d(3, hys[2] - hys[0]), hypot_d(3, hys[2] - hys[1])));
+  return int(ceil(maxlen));
+  }
+
+color_t model::read_color(ld a, ld b, ld c) {
+  color_t nextcol = 0xFFFFFFFF;
+  part(nextcol, 3) = a * 255.99;
+  part(nextcol, 2) = b * 255.99;
+  part(nextcol, 1) = c * 255.99;
+  return nextcol;
+  }
+
+void model::process_triangle(vector<hyperpoint>& hys, vector<hyperpoint>& tot, bool textured, object *co) {
+
+  hyperpoint norm = (hys[1] - hys[0]) ^ (hys[2] - hys[0]);
+  norm /= hypot_d(3, norm);
+  ld y = .5 + (.2 * norm[0] + .16 * norm[1] + .14 * norm[2]);
+  glvertex shade = glhr::makevertex(0, y, 0);
+  glvertex shadecol = glhr::makevertex(y, y, y);
+
+  int parts = subdivision(hys);
+  auto tri = [&] (int a, int b) {
+    cgi.hpcpush(transform(hys[0] + (hys[1] - hys[0]) * a / parts + (hys[2] - hys[0]) * b / parts));
+    // cgi.hpcpush(tf(tot[0] + (tot[1] - tot[0]) * a / parts + (tot[2] - tot[0]) * b / parts).second);
+    if(textured) {
+      co->tv.tvertices.push_back(glhr::pointtogl(tot[0] + (tot[1] - tot[0]) * a / parts + (tot[2] - tot[0]) * b / parts));
+      co->tv.colors.push_back(shadecol);
+      }
+    else {
+      co->tv.tvertices.push_back(shade);
+      }
+    };
+
+  for(int a=0; a<parts; a++)
+  for(int b=0; b<parts-a; b++) {
+    tri(a, b);
+    tri(a+1, b);
+    tri(a, b+1);
+    if(a+b < parts-1) {
+      tri(a, b+1);
+      tri(a+1, b);
+      tri(a+1, b+1);
+      }
+    }
   }
 
 model_data& model::get() {
@@ -273,8 +300,8 @@ model_data& model::get() {
   }
 
 void model_data::render(const shiftmatrix& V) {
-  for(auto& obj: objs) {
-    queuepoly(V, obj->sh, obj->color);  
+  for(auto& obj: objs) if(obj->color) {
+    queuepoly(V, obj->sh, obj->color);
     }
   }
 
@@ -297,8 +324,9 @@ void add_model_settings() {
 auto cf = addHook(hooks_configfile, 100, [] {
   param_f(prec, "obj_prec")
   ->editable(1, 100, 1, "3D model precision", "higher-precision models take more time to load and to render.", 'p')
-  ->set_sets([] { dialog::numberdark = dialog::DONT_SHOW; })
+  ->set_sets([] { cmode = sm::NOSCR; })
   ; 
+  param_b(shift_to_ctr, "shift_to_ctr");
   });
 
 }

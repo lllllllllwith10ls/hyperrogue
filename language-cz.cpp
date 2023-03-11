@@ -265,7 +265,7 @@ S("You feel that you have enough treasure to access new lands!", "Cítíš, že 
 S("Collect more treasures, there are still more lands waiting...", "Sbírej další poklady, další kraje stále čekají...")
 S("You feel that the stars are right, and you can access R'Lyeh!", "Cítíš, že postavení hvězd je správné, a ty můžeš vstoupit do R'Lyeh!")
 S("Kill monsters and collect treasures, and you may get access to Hell...", "Zabíjej netvory a sbírej poklady a možná najdeš cestu do Pekla...")
-S("To access Hell, collect %1 treasures each of 9 kinds...", "Aby ses dostal do Pekla, sesbírej %1 pokladů od každého z 9 různých typů...")
+S("To access Hell, collect %1 treasures each of %2 kinds...", "Aby ses dostal do Pekla, sesbírej %1 pokladů od každého z %2 různých typů...")
 S("Abandon all hope, the gates of Hell are opened!", "Zanech vší naděje, brány Pekla jsou otevřeny!")
 S("And the Orbs of Yendor await!", "A Yendorské sféry čekají!")
 S("You switch places with %the1.", "Vyměni%l0 sis místo s %abl1.")
@@ -4444,7 +4444,7 @@ S("and not in a chaos without norms.\"",
 S("You have enough treasure now to revive %the1!",
   "Nyní máš dost pokladů na to, abys mohl oživit %a1!")
 
-S("Killed %1 can be revived with Orb of the Love, after you collect 20 more $$$.",
+S("Killed %1 can be revived with an Orb of Love, after you collect 20 more $$$.",
   "Zabit%ého1 %a1 je možné oživit pomocí Sféry Lásky, "
   "ale předtím musíš získat ještě 20 $$$."
   )
@@ -6142,7 +6142,7 @@ S("would be destroyed in %the1", "by%l1by zničen%1 %abl1")
 S(" to go cold", " vychladnout")
 S("%The1 is destroyed by lava!", "Láva zničila %a1!")
 S("%The1 is killed by lava!", "Láva zabila %a1!")
-S("Run away from the magma!", "Utíkej od lávy!")
+S("Run away from the lava!", "Utíkej od lávy!")
 
 // Terracotta Army
 //-----------------
@@ -6315,7 +6315,7 @@ S(" This tour will not advance on its own -- you have to press Enter (not while 
   " Tento tutoriál nepostupuje sám od sebe -- musíš stisknout Enter (ale ne při čtení nápovědy)."
   )
 
-S("Hint: hold Alt to highlights enemies and other important features.",
+S("Hint: hold Alt to highlight enemies and other important features.",
   "Nápověda: když budeš držet Alt, zvýrazníš tím nepřátele a jiné důležité věci.")
 
 // Crystal World

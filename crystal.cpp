@@ -269,7 +269,7 @@ struct crystal_structure {
     next.resize(4, {2,3,1,0});
     next_to_prev();
     while(dir < S7) {
-      crystal_structure csx = move(*this);
+      crystal_structure csx = std::move(*this);
       add_dimension_to(csx);
       }
     if(dir > S7) remove_half_dimension();
@@ -639,6 +639,8 @@ struct hrmap_crystal : hrmap_standard {
     transmatrix res;
     ld gdist = S7 == 12 ? hdist0(tC0(cgi.adjmoves[0])) : cgi.strafedist;
 
+    h->cmove(d);
+
     for(auto& cr: cgi.cellrotations) {
 
       transmatrix U = T * cr.M;
@@ -674,7 +676,7 @@ struct hrmap_crystal : hrmap_standard {
     }
 
   transmatrix relative_matrixc(cell *h2, cell *h1, const hyperpoint& hint) override { 
-    if(!crystal3()) return hrmap_standard::relative_matrix(h2, h1, hint);
+    if(!crystal3()) return hrmap_standard::relative_matrixc(h2, h1, hint);
     if(h2 == h1) return Id;
     for(int i=0; i<S7; i++) if(h2 == h1->move(i)) return adj(h1->master, i);
     if(gmatrix0.count(h2) && gmatrix0.count(h1))
@@ -684,8 +686,8 @@ struct hrmap_crystal : hrmap_standard {
     }
 
   transmatrix relative_matrixh(heptagon *h2, heptagon *h1, const hyperpoint& hint) override { 
-    if(!crystal3()) return hrmap::relative_matrix(h2, h1, hint);
-    return relative_matrix(h2->c7, h1->c7, hint);
+    if(!crystal3()) return hrmap_standard::relative_matrixh(h2, h1, hint);
+    return relative_matrixc(h2->c7, h1->c7, hint);
     }
   #endif
   };
@@ -721,7 +723,7 @@ EX color_t colorize(cell *c, char whichCanvas) {
   if(cryst) co = m->get_coord(c), dim = m->cs.dim;
   #if MAXMDIM >= 4
   else if(geometry == gSpace344) {
-    co = told(reg3::decode_coord(c->master->fieldval)), dim = 4;
+    co = told(reg3::decode_coord(reg3::minimize_quotient_maps ? 1 : 2, c->master->fieldval)), dim = 4;
     for(int a=0; a<4; a++) if(co[a] > 4) co[a] -= 8;
     }
   else if(geometry == gSeifertCover) {
@@ -799,7 +801,7 @@ EX colortable coordcolors = {0xD04040, 0x40D040, 0x4040D0, 0xFFD500, 0xF000F0, 0
 
 EX ld compass_angle() {
   bool bitr = ginf[gCrystal].vertex == 3;
-  return (bitr ? M_PI/8 : 0) - master_to_c7_angle();
+  return (bitr ? 22.5_deg : 0) - master_to_c7_angle();
   }
       
 EX bool crystal_cell(cell *c, shiftmatrix V) {
@@ -811,7 +813,7 @@ EX bool crystal_cell(cell *c, shiftmatrix V) {
     queuestr(V, 0.3, its(d), 0xFFFFFF, 1);
     }
 
-  if(view_coordinates && WDIM == 2 && cheater) {
+  if(view_coordinates && WDIM == 2 && (cheater || tour::on)) {
     
     auto m = crystal_map();
     
@@ -820,7 +822,7 @@ EX bool crystal_cell(cell *c, shiftmatrix V) {
       ld dist = cellgfxdist(c, 0);
 
       for(int i=0; i<S7; i++)  {
-        shiftmatrix T = V * spin(compass_angle() - 2 * M_PI * i / S7) * xpush(dist*.3);
+        shiftmatrix T = V * spin(compass_angle() - TAU * i / S7) * xpush(dist*.3);
         
         auto co = m->hcoords[c->master];
         auto lw = m->makewalker(co, i);
@@ -1116,8 +1118,9 @@ EX void init_rotation() {
 
   if(ho & 1) {
     for(int i=(draw_cut ? 2 : cs.dim-1); i>=1; i--) {
-      ld c = cos(M_PI / 2 / (i+1));
-      ld s = sin(M_PI / 2 / (i+1));
+      ld alpha = 90._deg / (i+1);
+      ld c = cos(alpha);
+      ld s = sin(alpha);
       for(int j=0; j<cs.dim; j++)
         tie(crug_rotation[j][0], crug_rotation[j][i]) =
           make_pair(
@@ -1356,7 +1359,7 @@ EX void set_crystal_period_flags() {
   for(auto& g: ginf)
     if(g.flags & qCRYSTAL) {
       set_flag(ginf[gNil].flags, qSMALL, crystal_period && crystal_period <= 8);
-      set_flag(ginf[gNil].flags, qBOUNDED, crystal_period);
+      set_flag(ginf[gNil].flags, qCLOSED, crystal_period);
       }
   }
 
@@ -1404,7 +1407,7 @@ int readArgs() {
     launch_dialog(show);
   else if(argis("-cvcol")) {
     shift(); int d = argi();
-    shift(); coordcolors[d] = arghex();
+    shift(); coordcolors[d] = argcolor(24);
     }
   else return 1;
   return 0;
@@ -1441,7 +1444,8 @@ string make_help() {
   }
 
 EX void crystal_knight_help() {  
-  gamescreen(1);    
+  cmode = sm::SIDE | sm::MAYDARK;
+  gamescreen();
   dialog::init();
   
   dialog::addHelp(XLAT(
@@ -1465,7 +1469,7 @@ EX void crystal_knight_help() {
 
 EX void show() {
   cmode = sm::SIDE | sm::MAYDARK;
-  gamescreen(0);  
+  gamescreen();
   dialog::init(XLAT("dimensional crystal"));
   for(int i=5; i<=14; i++) {
     string s;
@@ -1721,8 +1725,8 @@ void transform_crystal_to_euclid () {
   
   clearAnimations();
   cwt.spin = neighborId(cwt.at, infront);
-  View = iddspin(cwt.at, cwt.spin, M_PI/2);
-  if(!flipplayer) View = cspin(0, 2, M_PI) * View;
+  View = iddspin(cwt.at, cwt.spin, 90._deg);
+  if(!flipplayer) View = cspin180(0, 2) * View;
   
   if(pmodel == mdDisk) pmodel = mdPerspective;
   }
