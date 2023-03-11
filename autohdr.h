@@ -175,6 +175,11 @@ namespace hr {
 #line 623 "classes.cpp"
   extern walltype winf[walltypes];
 #line 631 "classes.cpp"
+  enum eCanvasFloor { caflNone, caflM, caflFull, caflWarp, caflStar, caflCloud, caflCross, caflCharged,
+  caflSStar, caflOver, caflTri, caflFeather, caflBarrow, caflNew, caflTroll, caflButterfly, caflLava,
+  caflPalace, caflDemon, caflCave, caflDesert, caflPower, caflRose, caflTurtle, caflDragon, caflReptile,
+  caflHive, caflSwitch, caflTower, caflEND };
+  
   static const flagtype LF_GENERATE_ALL = Flag(0);
   static const flagtype LF_ICY = Flag(1);
   static const flagtype LF_GRAVITY = Flag(2);
@@ -208,15 +213,17 @@ namespace hr {
   };
   
   extern color_t floorcolors[landtypes];
-#line 666 "classes.cpp"
+#line 671 "classes.cpp"
+  extern const char *canvasFloorNames[caflEND];
+#line 678 "classes.cpp"
   extern const landtype linf[landtypes];
-#line 672 "classes.cpp"
+#line 684 "classes.cpp"
   struct landtacinfo { eLand l; int tries, multiplier; };
-#line 675 "classes.cpp"
+#line 687 "classes.cpp"
   extern vector<landtacinfo> land_tac;
-#line 714 "classes.cpp"
+#line 726 "classes.cpp"
   extern vector<eLand> randlands;
-#line 722 "classes.cpp"
+#line 734 "classes.cpp"
   enum eGeometry {
   gNormal, gEuclid, gSphere, gElliptic, gZebraQuotient, gFieldQuotient, gTorus, gOctagon, g45, g46, g47, gSmallSphere, gTinySphere, gEuclidSquare, gSmallElliptic, 
   gKleinQuartic, gBolza, gBolza2, gMinimal, gBinaryTiling, gArchimedean, 
@@ -237,9 +244,10 @@ namespace hr {
   gSpace535, gSpace536, gSeifertCover, gSeifertWeber, gHomologySphere,
   gInfOrderMixed, gSpace436, gFake,
   gSpace345, gSpace353, gSpace354, gSpace355,
+  gHalfBring,
   gGUARD};
   
-  enum eGeometryClass { gcHyperbolic, gcEuclid, gcSphere, gcSolNIH, gcNil, gcProduct, gcSL2 };
+  enum eGeometryClass { gcHyperbolic, gcEuclid, gcSphere, gcSol, gcNIH, gcSolN, gcNil, gcProduct, gcSL2 };
   
   enum class eVariation { bitruncated, pure, goldberg, irregular, dual, untruncated, warped, unrectified, subcubes, coxeter, dual_subcubes, bch, bch_oct };
   
@@ -272,7 +280,7 @@ namespace hr {
   eVariation default_variation;
   };
   
-  static const flagtype qBOUNDED         = 1;
+  static const flagtype qCLOSED         = 1;
   static const flagtype qANYQ            = 2;
   static const flagtype qNONORIENTABLE   = 4;
   static const flagtype qSMALL           = 8;
@@ -315,35 +323,59 @@ namespace hr {
   
   // note: dnext assumes that x&7 equals 7
   static const int SEE_ALL = 50;
-  static const int OINF = 100;
+  // note: check_football_colorability in arbitrile.cpp assumes OINF is divisible by 3
+  static const int OINF = 123;
   
   extern eGeometry geometry;
   extern eVariation variation;
 #line 841 "classes.cpp"
-  extern geometryinfo1 giEuclid2;
-#line 842 "classes.cpp"
-  extern geometryinfo1 giHyperb2;
-#line 843 "classes.cpp"
-  extern geometryinfo1 giSphere2;
-#line 845 "classes.cpp"
-  extern geometryinfo1 giEuclid3;
-#line 846 "classes.cpp"
-  extern geometryinfo1 giHyperb3;
-#line 847 "classes.cpp"
-  extern geometryinfo1 giSphere3;
-#line 849 "classes.cpp"
-  extern geometryinfo1 giSolNIH;
-#line 850 "classes.cpp"
-  extern geometryinfo1 giNil;
-#line 851 "classes.cpp"
-  extern geometryinfo1 giProduct;
-#line 852 "classes.cpp"
-  extern geometryinfo1 giSL2;
-#line 854 "classes.cpp"
-  extern modecode_t no_code;
+  static const flagtype qsNONOR           = qANYQ | qSMALL | qCLOSED | qNONORIENTABLE;
+  static const flagtype qsNONORE          = qsNONOR | qELLIPTIC;
+  static const flagtype qsBQ              = qANYQ | qSMALL | qCLOSED;
+  static const flagtype qsSMALL           = qANYQ | qSMALL | qCLOSED;
+  static const flagtype qsSMALLN          = qANYQ | qSMALL | qCLOSED | qNONORIENTABLE;
+  static const flagtype qsZEBRA           = qANYQ | qSMALL | qCLOSED | qZEBRA;
+  static const flagtype qsFIELD           = qANYQ | qFIELD | qCLOSED;
+  static const flagtype qsDOCKS           = qANYQ | qSMALL | qCLOSED | qDOCKS;
+  static const flagtype qsSMALLB          = qSMALL | qCLOSED;
+  static const flagtype qsSMALLBF         = qsSMALLB | qsFIELD | qANYQ;
+  static const flagtype qsSMALLBE         = qsSMALLB | qELLIPTIC | qANYQ;
+  static const flagtype qsBP              = qBINARY | qKITE;
+  
+  static const flagtype qsSINGLE          = qANYQ | qSMALL | qCLOSED | qSINGLE;
 #line 857 "classes.cpp"
+  extern geometryinfo1 giEuclid2;
+#line 858 "classes.cpp"
+  extern geometryinfo1 giHyperb2;
+#line 859 "classes.cpp"
+  extern geometryinfo1 giSphere2;
+#line 861 "classes.cpp"
+  extern geometryinfo1 giEuclid3;
+#line 862 "classes.cpp"
+  extern geometryinfo1 giHyperb3;
+#line 863 "classes.cpp"
+  extern geometryinfo1 giSphere3;
+#line 865 "classes.cpp"
+  extern geometryinfo1 giSol;
+#line 866 "classes.cpp"
+  extern geometryinfo1 giNIH;
+#line 867 "classes.cpp"
+  extern geometryinfo1 giSolN;
+#line 869 "classes.cpp"
+  extern geometryinfo1 giNil;
+#line 870 "classes.cpp"
+  extern geometryinfo1 giProductH;
+#line 871 "classes.cpp"
+  extern geometryinfo1 giProductS;
+#line 872 "classes.cpp"
+  extern geometryinfo1 giProduct;
+#line 873 "classes.cpp"
+  extern geometryinfo1 giSL2;
+#line 875 "classes.cpp"
+  extern modecode_t no_code;
+#line 878 "classes.cpp"
   extern vector<geometryinfo> ginf;
-#line 941 "classes.cpp"
+#line 963 "classes.cpp"
   namespace mf {
   static const flagtype azimuthal = 1;
   static const flagtype cylindrical = 2;
@@ -359,6 +391,7 @@ namespace hr {
   static const flagtype twopoint = 2048;
   static const flagtype uses_bandshift = 4096;
   static const flagtype broken = 8192; /* in spherical case, these are broken along the meridian 180 deg */
+  static const flagtype technical = 16384; /* don't display in the list */
   
   static const flagtype band = (cylindrical | pseudocylindrical | uses_bandshift);
   static const flagtype pseudoband = (pseudocylindrical | uses_bandshift);
@@ -397,14 +430,14 @@ namespace hr {
   mdHorocyclic, mdQuadrant, mdAxial, mdAntiAxial,
   // 32..38
   mdWerner, mdAitoff, mdHammer, mdLoximuthal, mdMiller, mdGallStereographic, mdWinkelTripel,
-  // 39..
-  mdPoorMan, mdPanini, mdRetroCraig, mdRetroLittrow, mdRetroHammer, mdThreePoint,
-  // 45..
+  // 39..48
+  mdPoorMan, mdPanini, mdRetroCraig, mdRetroLittrow, mdRetroHammer, mdThreePoint, mdLiePerspective, mdLieOrthogonal, mdRelPerspective, mdRelOrthogonal,
+  // 49..
   mdGUARD, mdPixel, mdHyperboloidFlat, mdPolynomial, mdManual
   };
-#line 1008 "classes.cpp"
+#line 1031 "classes.cpp"
   extern vector<modelinfo> mdinf;
-#line 1062 "classes.cpp"
+#line 1092 "classes.cpp"
   static inline bool orbProtection(eItem it) { return false; } // not implemented
   
   // these markers use lands which never appear on barrier sides
@@ -678,7 +711,7 @@ namespace hr {
   template<class U> walker operator + (U t) const { walker<T> w = *this; w += t; return w; }
   template<class U> walker operator - (U t) const { walker<T> w = *this; w += (-t); return w; }
   /** \brief what T are we facing, without creating it */
-  T*& peek() { return at->move(spin); }
+  T*& peek() const { return at->move(spin); }
   /** \brief what T are we facing, with creating it */
   T* cpeek() { return at->cmove(spin); }
   /** \brief would we create a new T if we stepped forwards? */
@@ -869,12 +902,12 @@ namespace hr {
   bool proper(cell *c, int d);
 #line 466 "locations.cpp"
   
-  constexpr int STRONGWIND = 99;
-  constexpr int FALL = 98;
-  constexpr int NO_SPACE = 97;
-  constexpr int TELEPORT = 96;
-  constexpr int JUMP = 95;
-  constexpr int STAY = 94;
+  constexpr int STRONGWIND = 199;
+  constexpr int FALL = 198;
+  constexpr int NO_SPACE = 197;
+  constexpr int TELEPORT = 196;
+  constexpr int JUMP = 195;
+  constexpr int STAY = 194;
   
   namespace whirlwind { cell *jumpDestination(cell*); }
   
@@ -893,7 +926,7 @@ namespace hr {
   movei(cell *_s, int _d) : s(_s), d(_d) {
   if(d == STRONGWIND) t = whirlwind::jumpDestination(s);
   else if(d < 0 || d >= s->type) t = s;
-  else t = s->move(d);
+  else t = s->cmove(d);
   }
   movei(cell *_s, cell *_t, int _d) : s(_s), t(_t), d(_d) {}
   movei(cellwalker cw) : s(cw.at), t(cw.cpeek()), d(cw.spin) {}
@@ -922,71 +955,86 @@ namespace hr {
   const color_t& operator [] (int i) const { i %= size(); if(i<0) i += size(); return ((vector<color_t>&)(*this)) [i]; }
   colortable(std::initializer_list<color_t> v) : vector(v) {}
   colortable() : vector({0}) {}
+  void allocate(int num) {
+  int q = size();
+  for(int i=q; i<num; i++) push_back((*this)[i % q]);
+  }
   };
-#line 40 "colors.cpp"
-  color_t darkena3(color_t c, int lev, int a);
 #line 44 "colors.cpp"
-  color_t darkena(color_t c, int lev, int a);
+  color_t darkena3(color_t c, int lev, int a);
 #line 48 "colors.cpp"
+  color_t darkena(color_t c, int lev, int a);
+#line 52 "colors.cpp"
   int darkenedby(int c, int lev);
-#line 58 "colors.cpp"
+#line 62 "colors.cpp"
   color_t darkened(color_t c);
-#line 75 "colors.cpp"
+#line 79 "colors.cpp"
   color_t gradient(color_t c0, color_t c1, ld v0, ld v, ld v1);
-#line 86 "colors.cpp"
+#line 90 "colors.cpp"
   color_t rcolor();
-#line 96 "colors.cpp"
+#line 100 "colors.cpp"
   color_t rainbow_color(ld sat, ld hue);
-#line 116 "colors.cpp"
+#line 120 "colors.cpp"
   color_t align(color_t col);
-#line 125 "colors.cpp"
-  enum class eNeon { none, neon, no_boundary, neon2, illustration};
-#line 128 "colors.cpp"
-  extern eNeon neon_mode;
 #line 129 "colors.cpp"
+  enum class eNeon { none, neon, no_boundary, neon2, illustration};
+#line 132 "colors.cpp"
+  extern eNeon neon_mode;
+#line 133 "colors.cpp"
   extern bool neon_nofill;
-#line 131 "colors.cpp"
+#line 135 "colors.cpp"
   void apply_neon(color_t& col, int& r);
-#line 149 "colors.cpp"
+#line 153 "colors.cpp"
   color_t magentize(color_t x);
-#line 161 "colors.cpp"
+#line 165 "colors.cpp"
   color_t monochromatize(color_t x);
-#line 169 "colors.cpp"
+#line 173 "colors.cpp"
   extern bool cblind;
-#line 172 "colors.cpp"
+#line 176 "colors.cpp"
   void apply_neon_color(color_t col, color_t& pcolor, color_t& poutline, flagtype flags);
-#line 230 "colors.cpp"
+#line 234 "colors.cpp"
   int cloakcolor(int rtr);
-#line 243 "colors.cpp"
-  int firegradient(double p);
 #line 247 "colors.cpp"
+  int firegradient(double p);
+#line 253 "colors.cpp"
   int firecolor(int phase IS(0), int mul IS(1));
-#line 251 "colors.cpp"
+#line 257 "colors.cpp"
   int watercolor(int phase);
-#line 255 "colors.cpp"
+#line 261 "colors.cpp"
   int aircolor(int phase);
-#line 259 "colors.cpp"
+#line 265 "colors.cpp"
   int fghostcolor(cell *c);
-#line 268 "colors.cpp"
-  int weakfirecolor(int phase);
 #line 274 "colors.cpp"
+  int weakfirecolor(int phase);
+#line 280 "colors.cpp"
+  extern vector<pair<const char*, color_t>> color_names;
+#line 307 "colors.cpp"
+  pair<const char*, color_t>* find_color_by_name(const string& s);
+#line 313 "colors.cpp"
   int sealcolor(int phase IS(0));
-#line 278 "colors.cpp"
+#line 317 "colors.cpp"
   int barriercolor(int phase IS(0));
-#line 282 "colors.cpp"
+#line 321 "colors.cpp"
   int hurricanecolor(int phase IS(0), int type IS(0));
-#line 294 "colors.cpp"
+#line 333 "colors.cpp"
   int colorfulcolor(int phase);
 
   // implemented in: hyperpoint.cpp
 
 #line 16 "hyperpoint.cpp"
-  static const ld full_circle = 2 * M_PI;
-  static const ld quarter_circle = M_PI / 2;
-  static const ld degree = M_PI / 180;
+  
+  #ifndef M_PI
+  #define M_PI 3.14159265358979
+  #endif
+  
+  static constexpr ld A_PI = M_PI;
+  static constexpr ld TAU = 2 * A_PI;
+  static constexpr ld degree = A_PI / 180;
   static const ld golden_phi = (sqrt(5)+1)/2;
   static const ld log_golden_phi = log(golden_phi);
-#line 28 "hyperpoint.cpp"
+  
+  constexpr ld operator"" _deg(long double deg) { return deg * A_PI / 180; }
+#line 35 "hyperpoint.cpp"
   /** \brief A point in our continuous space
   *
   *  Originally used for representing points in the hyperbolic plane.
@@ -1188,259 +1236,283 @@ namespace hr {
   
   /** C0 is the origin in our space */
   #define C0 (MDIM == 3 ? C02 : C03)
-#line 238 "hyperpoint.cpp"
+#line 241 "hyperpoint.cpp"
   ld squar(ld x);
-#line 240 "hyperpoint.cpp"
+#line 243 "hyperpoint.cpp"
   int sig(int z);
-#line 242 "hyperpoint.cpp"
+#line 245 "hyperpoint.cpp"
   int curvature();
-#line 252 "hyperpoint.cpp"
+#line 255 "hyperpoint.cpp"
   ld sin_auto(ld x);
-#line 263 "hyperpoint.cpp"
+#line 266 "hyperpoint.cpp"
   ld asin_auto(ld x);
-#line 274 "hyperpoint.cpp"
+#line 277 "hyperpoint.cpp"
   ld acos_auto(ld x);
-#line 285 "hyperpoint.cpp"
+#line 288 "hyperpoint.cpp"
   ld volume_auto(ld r);
-#line 295 "hyperpoint.cpp"
+#line 298 "hyperpoint.cpp"
   ld area_auto(ld r);
-#line 305 "hyperpoint.cpp"
+#line 308 "hyperpoint.cpp"
   ld wvolarea_auto(ld r);
-#line 310 "hyperpoint.cpp"
+#line 313 "hyperpoint.cpp"
   ld asin_clamp(ld x);
-#line 312 "hyperpoint.cpp"
+#line 315 "hyperpoint.cpp"
   ld acos_clamp(ld x);
-#line 314 "hyperpoint.cpp"
+#line 317 "hyperpoint.cpp"
   ld asin_auto_clamp(ld x);
-#line 324 "hyperpoint.cpp"
+#line 328 "hyperpoint.cpp"
   ld acos_auto_clamp(ld x);
-#line 334 "hyperpoint.cpp"
+#line 338 "hyperpoint.cpp"
   ld cos_auto(ld x);
-#line 345 "hyperpoint.cpp"
+#line 349 "hyperpoint.cpp"
   ld tan_auto(ld x);
-#line 356 "hyperpoint.cpp"
+#line 360 "hyperpoint.cpp"
   ld atan_auto(ld x);
-#line 367 "hyperpoint.cpp"
+#line 371 "hyperpoint.cpp"
   ld atan2_auto(ld y, ld x);
-#line 381 "hyperpoint.cpp"
-  ld edge_of_triangle_with_angles(ld alpha, ld beta, ld gamma);
 #line 385 "hyperpoint.cpp"
+  ld edge_of_triangle_with_angles(ld alpha, ld beta, ld gamma);
+#line 389 "hyperpoint.cpp"
   hyperpoint hpxy(ld x, ld y);
-#line 391 "hyperpoint.cpp"
+#line 401 "hyperpoint.cpp"
   hyperpoint hpxy3(ld x, ld y, ld z);
-#line 396 "hyperpoint.cpp"
+#line 406 "hyperpoint.cpp"
   // a point (I hope this number needs no comments ;) )
   constexpr hyperpoint Cx12 = hyperpoint(1,0,1.41421356237,0);
   constexpr hyperpoint Cx13 = hyperpoint(1,0,0,1.41421356237);
   
   #define Cx1 (GDIM==2?Cx12:Cx13)
-#line 403 "hyperpoint.cpp"
+#line 413 "hyperpoint.cpp"
   bool zero_d(int d, hyperpoint h);
-#line 414 "hyperpoint.cpp"
+#line 424 "hyperpoint.cpp"
   ld intval(const hyperpoint &h1, const hyperpoint &h2);
-#line 425 "hyperpoint.cpp"
+#line 435 "hyperpoint.cpp"
   ld quickdist(const hyperpoint &h1, const hyperpoint &h2);
-#line 431 "hyperpoint.cpp"
+#line 441 "hyperpoint.cpp"
   ld sqhypot_d(int d, const hyperpoint& h);
-#line 438 "hyperpoint.cpp"
+#line 448 "hyperpoint.cpp"
   ld hypot_d(int d, const hyperpoint& h);
-#line 445 "hyperpoint.cpp"
+#line 455 "hyperpoint.cpp"
   transmatrix to_other_side(hyperpoint h1, hyperpoint h2);
-#line 467 "hyperpoint.cpp"
+#line 487 "hyperpoint.cpp"
   ld material(const hyperpoint& h);
-#line 474 "hyperpoint.cpp"
-  ld zlevel(const hyperpoint &h);
-#line 483 "hyperpoint.cpp"
-  ld hypot_auto(ld x, ld y);
-#line 497 "hyperpoint.cpp"
-  hyperpoint normalize(hyperpoint H);
+#line 494 "hyperpoint.cpp"
+  int safe_classify_ideals(hyperpoint h);
 #line 505 "hyperpoint.cpp"
-  hyperpoint ultra_normalize(hyperpoint H);
+  extern ld ideal_limit;
+#line 506 "hyperpoint.cpp"
+  extern ld ideal_each;
+#line 508 "hyperpoint.cpp"
+  hyperpoint safe_approximation_of_ideal(hyperpoint h);
 #line 513 "hyperpoint.cpp"
-  hyperpoint normalize_flat(hyperpoint h);
-#line 520 "hyperpoint.cpp"
-  hyperpoint mid(const hyperpoint& H1, const hyperpoint& H2);
+  hyperpoint closest_to_zero(hyperpoint a, hyperpoint b);
 #line 529 "hyperpoint.cpp"
-  shiftpoint mid(const shiftpoint& H1, const shiftpoint& H2);
-#line 534 "hyperpoint.cpp"
-  hyperpoint midz(const hyperpoint& H1, const hyperpoint& H2);
-#line 550 "hyperpoint.cpp"
-  transmatrix cspin(int a, int b, ld alpha);
-#line 558 "hyperpoint.cpp"
-  transmatrix spin(ld alpha);
+  ld zlevel(const hyperpoint &h);
+#line 538 "hyperpoint.cpp"
+  ld hypot_auto(ld x, ld y);
+#line 552 "hyperpoint.cpp"
+  hyperpoint normalize(hyperpoint H);
 #line 560 "hyperpoint.cpp"
-  transmatrix random_spin3();
-#line 567 "hyperpoint.cpp"
-  transmatrix random_spin();
-#line 572 "hyperpoint.cpp"
-  transmatrix eupush(ld x, ld y);
+  hyperpoint ultra_normalize(hyperpoint H);
+#line 568 "hyperpoint.cpp"
+  hyperpoint mid(const hyperpoint& H1, const hyperpoint& H2);
 #line 579 "hyperpoint.cpp"
-  transmatrix euclidean_translate(ld x, ld y, ld z);
-#line 587 "hyperpoint.cpp"
-  transmatrix euscale(ld x, ld y);
-#line 594 "hyperpoint.cpp"
-  transmatrix euscale3(ld x, ld y, ld z);
-#line 602 "hyperpoint.cpp"
-  transmatrix eupush(hyperpoint h, ld co IS(1));
-#line 609 "hyperpoint.cpp"
-  transmatrix eupush3(ld x, ld y, ld z);
-#line 614 "hyperpoint.cpp"
-  transmatrix euscalezoom(hyperpoint h);
+  shiftpoint mid(const shiftpoint& H1, const shiftpoint& H2);
+#line 584 "hyperpoint.cpp"
+  hyperpoint midz(const hyperpoint& H1, const hyperpoint& H2);
+#line 600 "hyperpoint.cpp"
+  transmatrix cspin(int a, int b, ld alpha);
+#line 607 "hyperpoint.cpp"
+  transmatrix lorentz(int a, int b, ld v);
+#line 615 "hyperpoint.cpp"
+  transmatrix cspin90(int a, int b);
 #line 623 "hyperpoint.cpp"
-  transmatrix euaffine(hyperpoint h);
-#line 630 "hyperpoint.cpp"
-  transmatrix cpush(int cid, ld alpha);
-#line 642 "hyperpoint.cpp"
-  transmatrix cmirror(int cid);
-#line 649 "hyperpoint.cpp"
-  transmatrix xpush(ld alpha);
-#line 651 "hyperpoint.cpp"
-  bool eqmatrix(transmatrix A, transmatrix B, ld eps IS(.01));
-  #if MAXMDIM >= 4
-#line 661 "hyperpoint.cpp"
-  hyperpoint orthogonal_move(const hyperpoint& h, ld z);
-  #endif
-#line 675 "hyperpoint.cpp"
-  transmatrix ypush(ld alpha);
-#line 677 "hyperpoint.cpp"
-  transmatrix zpush(ld z);
+  transmatrix cspin180(int a, int b);
+#line 629 "hyperpoint.cpp"
+  transmatrix random_spin3();
+#line 636 "hyperpoint.cpp"
+  transmatrix random_spin();
+#line 641 "hyperpoint.cpp"
+  transmatrix eupush(ld x, ld y);
+#line 648 "hyperpoint.cpp"
+  transmatrix euclidean_translate(ld x, ld y, ld z);
+#line 656 "hyperpoint.cpp"
+  transmatrix euscale(ld x, ld y);
+#line 663 "hyperpoint.cpp"
+  transmatrix euscale3(ld x, ld y, ld z);
+#line 671 "hyperpoint.cpp"
+  transmatrix eupush(hyperpoint h, ld co IS(1));
 #line 679 "hyperpoint.cpp"
+  transmatrix eupush3(ld x, ld y, ld z);
+#line 684 "hyperpoint.cpp"
+  transmatrix euscalezoom(hyperpoint h);
+#line 693 "hyperpoint.cpp"
+  transmatrix euaffine(hyperpoint h);
+#line 700 "hyperpoint.cpp"
+  transmatrix cpush(int cid, ld alpha);
+#line 712 "hyperpoint.cpp"
+  transmatrix cmirror(int cid);
+#line 719 "hyperpoint.cpp"
+  transmatrix xpush(ld alpha);
+#line 721 "hyperpoint.cpp"
+  bool eqmatrix(transmatrix A, transmatrix B, ld eps IS(.01));
+#line 730 "hyperpoint.cpp"
+  transmatrix ypush(ld alpha);
+#line 732 "hyperpoint.cpp"
+  transmatrix zpush(ld z);
+#line 734 "hyperpoint.cpp"
   transmatrix matrix3(ld a, ld b, ld c, ld d, ld e, ld f, ld g, ld h, ld i);
-#line 690 "hyperpoint.cpp"
+#line 745 "hyperpoint.cpp"
   transmatrix matrix4(ld a, ld b, ld c, ld d, ld e, ld f, ld g, ld h, ld i, ld j, ld k, ld l, ld m, ld n, ld o, ld p);
-  #if MAXMDIM >= 4
-#line 699 "hyperpoint.cpp"
-  void swapmatrix(transmatrix& T);
-#line 710 "hyperpoint.cpp"
-  void swapmatrix(hyperpoint& h);
-  #endif
-#line 715 "hyperpoint.cpp"
+#line 753 "hyperpoint.cpp"
   transmatrix parabolic1(ld u);
-#line 728 "hyperpoint.cpp"
-  transmatrix parabolic13(ld u, ld v);
-#line 742 "hyperpoint.cpp"
-  hyperpoint parabolic10(hyperpoint h);
-#line 748 "hyperpoint.cpp"
-  hyperpoint deparabolic10(const hyperpoint h);
-#line 755 "hyperpoint.cpp"
-  transmatrix spintoc(const hyperpoint& H, int t, int f);
 #line 769 "hyperpoint.cpp"
-  transmatrix rspintoc(const hyperpoint& H, int t, int f);
-#line 782 "hyperpoint.cpp"
-  transmatrix spintox(const hyperpoint& H);
-#line 790 "hyperpoint.cpp"
-  transmatrix rspintox(const hyperpoint& H);
-#line 800 "hyperpoint.cpp"
-  transmatrix pushxto0(const hyperpoint& H);
-#line 808 "hyperpoint.cpp"
-  void set_column(transmatrix& T, int i, const hyperpoint& H);
+  transmatrix parabolic13(ld u, ld v);
+#line 792 "hyperpoint.cpp"
+  hyperpoint kleinize(hyperpoint h);
+#line 797 "hyperpoint.cpp"
+  hyperpoint deparabolic13(hyperpoint h);
 #line 813 "hyperpoint.cpp"
+  hyperpoint parabolic13(hyperpoint h);
+#line 824 "hyperpoint.cpp"
+  transmatrix parabolic13_at(hyperpoint h);
+#line 835 "hyperpoint.cpp"
+  transmatrix spintoc(const hyperpoint& H, int t, int f);
+#line 849 "hyperpoint.cpp"
+  transmatrix rspintoc(const hyperpoint& H, int t, int f);
+#line 862 "hyperpoint.cpp"
+  transmatrix spintox(const hyperpoint& H);
+#line 870 "hyperpoint.cpp"
+  transmatrix rspintox(const hyperpoint& H);
+#line 880 "hyperpoint.cpp"
+  transmatrix pushxto0(const hyperpoint& H);
+#line 888 "hyperpoint.cpp"
+  void set_column(transmatrix& T, int i, const hyperpoint& H);
+#line 893 "hyperpoint.cpp"
   hyperpoint get_column(transmatrix& T, int i);
-#line 821 "hyperpoint.cpp"
-  transmatrix build_matrix(hyperpoint h1, hyperpoint h2, hyperpoint h3, hyperpoint h4);
-#line 836 "hyperpoint.cpp"
-  transmatrix rpushxto0(const hyperpoint& H);
-#line 843 "hyperpoint.cpp"
-  transmatrix ggpushxto0(const hyperpoint& H, ld co);
-#line 866 "hyperpoint.cpp"
-  transmatrix gpushxto0(const hyperpoint& H);
-#line 871 "hyperpoint.cpp"
-  transmatrix rgpushxto0(const hyperpoint& H);
-#line 875 "hyperpoint.cpp"
-  shiftmatrix rgpushxto0(const shiftpoint& H);
-#line 886 "hyperpoint.cpp"
-  void fixmatrix(transmatrix& T);
 #line 901 "hyperpoint.cpp"
-  void fixmatrix_euclid(transmatrix& T);
-#line 914 "hyperpoint.cpp"
-  void orthonormalize(transmatrix& T);
-#line 926 "hyperpoint.cpp"
-  void fix_rotation(transmatrix& rot);
-#line 934 "hyperpoint.cpp"
-  ld det2(const transmatrix& T);
-#line 939 "hyperpoint.cpp"
-  ld det3(const transmatrix& T);
-#line 949 "hyperpoint.cpp"
-  ld det(const transmatrix& T);
+  transmatrix build_matrix(hyperpoint h1, hyperpoint h2, hyperpoint h3, hyperpoint h4);
+#line 916 "hyperpoint.cpp"
+  transmatrix rpushxto0(const hyperpoint& H);
+#line 923 "hyperpoint.cpp"
+  transmatrix ggpushxto0(const hyperpoint& H, ld co);
+#line 946 "hyperpoint.cpp"
+  transmatrix gpushxto0(const hyperpoint& H);
+#line 951 "hyperpoint.cpp"
+  transmatrix rgpushxto0(const hyperpoint& H);
+#line 955 "hyperpoint.cpp"
+  shiftmatrix rgpushxto0(const shiftpoint& H);
+#line 966 "hyperpoint.cpp"
+  void fixmatrix(transmatrix& T);
 #line 981 "hyperpoint.cpp"
+  void fixmatrix_euclid(transmatrix& T);
+#line 994 "hyperpoint.cpp"
+  void orthonormalize(transmatrix& T);
+#line 1006 "hyperpoint.cpp"
+  void fix_rotation(transmatrix& rot);
+#line 1013 "hyperpoint.cpp"
+  ld det2(const transmatrix& T);
+#line 1018 "hyperpoint.cpp"
+  ld det3(const transmatrix& T);
+#line 1028 "hyperpoint.cpp"
+  ld det(const transmatrix& T);
+#line 1060 "hyperpoint.cpp"
   transmatrix inverse3(const transmatrix& T);
-#line 996 "hyperpoint.cpp"
+#line 1075 "hyperpoint.cpp"
   transmatrix inverse(const transmatrix& T);
-#line 1036 "hyperpoint.cpp"
+#line 1115 "hyperpoint.cpp"
   transmatrix ortho_inverse(transmatrix T);
-#line 1044 "hyperpoint.cpp"
+#line 1123 "hyperpoint.cpp"
   transmatrix pseudo_ortho_inverse(transmatrix T);
-#line 1055 "hyperpoint.cpp"
+#line 1134 "hyperpoint.cpp"
   transmatrix iso_inverse(const transmatrix& T);
-#line 1081 "hyperpoint.cpp"
+#line 1160 "hyperpoint.cpp"
   transmatrix z_inverse(const transmatrix& T);
-#line 1086 "hyperpoint.cpp"
+#line 1165 "hyperpoint.cpp"
   transmatrix view_inverse(transmatrix T);
-#line 1093 "hyperpoint.cpp"
+#line 1172 "hyperpoint.cpp"
   transmatrix iview_inverse(transmatrix T);
-#line 1099 "hyperpoint.cpp"
+#line 1178 "hyperpoint.cpp"
   pair<ld, hyperpoint> product_decompose(hyperpoint h);
-#line 1105 "hyperpoint.cpp"
-  ld hdist0(const hyperpoint& mh);
-#line 1137 "hyperpoint.cpp"
-  ld hdist0(const shiftpoint& mh);
-#line 1142 "hyperpoint.cpp"
-  ld circlelength(ld r);
-#line 1156 "hyperpoint.cpp"
-  ld hdist(const hyperpoint& h1, const hyperpoint& h2);
-#line 1180 "hyperpoint.cpp"
-  ld hdist(const shiftpoint& h1, const shiftpoint& h2);
 #line 1184 "hyperpoint.cpp"
-  hyperpoint mscale(const hyperpoint& t, double fac);
-#line 1193 "hyperpoint.cpp"
-  shiftpoint mscale(const shiftpoint& t, double fac);
-#line 1197 "hyperpoint.cpp"
-  transmatrix mscale(const transmatrix& t, double fac);
-#line 1213 "hyperpoint.cpp"
-  shiftmatrix mscale(const shiftmatrix& t, double fac);
-#line 1217 "hyperpoint.cpp"
-  transmatrix xyscale(const transmatrix& t, double fac);
-#line 1228 "hyperpoint.cpp"
-  transmatrix xyzscale(const transmatrix& t, double fac, double facz);
-#line 1241 "hyperpoint.cpp"
-  shiftmatrix xyzscale(const shiftmatrix& t, double fac, double facz);
-#line 1245 "hyperpoint.cpp"
-  transmatrix mzscale(const transmatrix& t, double fac);
+  ld hdist0(const hyperpoint& mh);
+#line 1216 "hyperpoint.cpp"
+  ld hdist0(const shiftpoint& mh);
+#line 1221 "hyperpoint.cpp"
+  ld circlelength(ld r);
+#line 1235 "hyperpoint.cpp"
+  ld hdist(const hyperpoint& h1, const hyperpoint& h2);
 #line 1259 "hyperpoint.cpp"
-  shiftmatrix mzscale(const shiftmatrix& t, double fac);
-#line 1263 "hyperpoint.cpp"
-  hyperpoint mid3(hyperpoint h1, hyperpoint h2, hyperpoint h3);
-#line 1267 "hyperpoint.cpp"
-  hyperpoint mid_at(hyperpoint h1, hyperpoint h2, ld v);
-#line 1272 "hyperpoint.cpp"
-  hyperpoint mid_at_actual(hyperpoint h, ld v);
-#line 1277 "hyperpoint.cpp"
-  hyperpoint orthogonal_of_C0(hyperpoint h0, hyperpoint h1, hyperpoint h2);
-#line 1291 "hyperpoint.cpp"
-  hyperpoint zshift(hyperpoint x, ld z);
-#line 1298 "hyperpoint.cpp"
-  hyperpoint hpxd(ld d, ld x, ld y, ld z);
-#line 1304 "hyperpoint.cpp"
-  ld signum(ld x);
-#line 1306 "hyperpoint.cpp"
-  bool asign(ld y1, ld y2);
+  ld hdist(const shiftpoint& h1, const shiftpoint& h2);
+#line 1264 "hyperpoint.cpp"
+  hyperpoint orthogonal_move_fol(const hyperpoint& h, double fol);
+#line 1270 "hyperpoint.cpp"
+  transmatrix orthogonal_move_fol(const transmatrix& T, double fol);
+#line 1276 "hyperpoint.cpp"
+  shiftmatrix orthogonal_move_fol(const shiftmatrix& T, double fol);
+#line 1282 "hyperpoint.cpp"
+  transmatrix scale_matrix(const transmatrix& t, ld scale_factor);
+#line 1294 "hyperpoint.cpp"
+  shiftmatrix scale_matrix(const shiftmatrix& t, ld scale_factor);
+#line 1299 "hyperpoint.cpp"
+  hyperpoint scale_point(const hyperpoint& h, ld scale_factor);
 #line 1308 "hyperpoint.cpp"
-  ld xcross(ld x1, ld y1, ld x2, ld y2);
-#line 1310 "hyperpoint.cpp"
-  transmatrix parallel_transport(const transmatrix Position, const transmatrix& ori, const hyperpoint direction);
-#line 1319 "hyperpoint.cpp"
-  void apply_parallel_transport(transmatrix& Position, const transmatrix orientation, const hyperpoint direction);
+  transmatrix orthogonal_move(const transmatrix& t, double level);
+#line 1313 "hyperpoint.cpp"
+  shiftmatrix orthogonal_move(const shiftmatrix& t, double level);
+#line 1318 "hyperpoint.cpp"
+  transmatrix fix4(transmatrix t);
 #line 1323 "hyperpoint.cpp"
+  transmatrix xyscale(const transmatrix& t, double fac);
+#line 1334 "hyperpoint.cpp"
+  transmatrix xyzscale(const transmatrix& t, double fac, double facz);
+#line 1347 "hyperpoint.cpp"
+  shiftmatrix xyzscale(const shiftmatrix& t, double fac, double facz);
+#line 1351 "hyperpoint.cpp"
+  transmatrix mzscale(const transmatrix& t, double fac);
+#line 1365 "hyperpoint.cpp"
+  shiftmatrix mzscale(const shiftmatrix& t, double fac);
+#line 1369 "hyperpoint.cpp"
+  hyperpoint mid3(hyperpoint h1, hyperpoint h2, hyperpoint h3);
+#line 1373 "hyperpoint.cpp"
+  hyperpoint mid_at(hyperpoint h1, hyperpoint h2, ld v);
+#line 1378 "hyperpoint.cpp"
+  hyperpoint mid_at_actual(hyperpoint h, ld v);
+#line 1383 "hyperpoint.cpp"
+  hyperpoint orthogonal_of_C0(hyperpoint h0, hyperpoint h1, hyperpoint h2);
+#line 1397 "hyperpoint.cpp"
+  hyperpoint hpxd(ld d, ld x, ld y, ld z);
+#line 1403 "hyperpoint.cpp"
+  ld signum(ld x);
+#line 1405 "hyperpoint.cpp"
+  bool asign(ld y1, ld y2);
+#line 1407 "hyperpoint.cpp"
+  ld xcross(ld x1, ld y1, ld x2, ld y2);
+#line 1410 "hyperpoint.cpp"
+  enum eShiftMethod { smProduct, smIsotropic, smEmbedded, smLie, smGeodesic };
+  enum eEmbeddedShiftMethodChoice { smcNone, smcBoth, smcAuto };
+  enum eShiftMethodApplication { smaManualCamera, smaAutocenter, smaObject, smaWallRadar, smaAnimation };
+#line 1415 "hyperpoint.cpp"
+  extern eEmbeddedShiftMethodChoice embedded_shift_method_choice;
+#line 1417 "hyperpoint.cpp"
+  bool use_embedded_shift(eShiftMethodApplication sma);
+#line 1427 "hyperpoint.cpp"
+  eShiftMethod shift_method(eShiftMethodApplication sma);
+#line 1436 "hyperpoint.cpp"
+  transmatrix shift_object(transmatrix Position, const transmatrix& ori, const hyperpoint direction, eShiftMethod sm IS(shift_method(smaObject)));
+#line 1477 "hyperpoint.cpp"
+  void apply_shift_object(transmatrix& Position, const transmatrix orientation, const hyperpoint direction, eShiftMethod sm IS(shift_method(smaObject)));
+#line 1481 "hyperpoint.cpp"
   void rotate_object(transmatrix& Position, transmatrix& orientation, transmatrix R);
-#line 1328 "hyperpoint.cpp"
+#line 1487 "hyperpoint.cpp"
   transmatrix spin_towards(const transmatrix Position, transmatrix& ori, const hyperpoint goal, int dir, int back);
-#line 1352 "hyperpoint.cpp"
+#line 1511 "hyperpoint.cpp"
   shiftmatrix spin_towards(const shiftmatrix Position, transmatrix& ori, const shiftpoint goal, int dir, int back);
-#line 1356 "hyperpoint.cpp"
+#line 1515 "hyperpoint.cpp"
   ld ortho_error(transmatrix T);
-#line 1371 "hyperpoint.cpp"
+#line 1530 "hyperpoint.cpp"
   transmatrix transpose(transmatrix T);
-#line 1380 "hyperpoint.cpp"
+#line 1539 "hyperpoint.cpp"
   namespace slr { 
   hyperpoint xyz_point(ld x, ld y, ld z); 
   hyperpoint polar(ld r, ld theta, ld phi); 
@@ -1449,21 +1521,12 @@ namespace hr {
   inline hyperpoint cpush0(int c, ld x) { 
   hyperpoint h = Hypc;
   if(sl2) return slr::xyz_point(c==0?x:0, c==1?x:0, c==2?x:0);
-  if(c == 2 && prod) {
+  if(c == 2 && gproduct) {
   h[2] = exp(x);
   return h;
   }
   h[LDIM] = cos_auto(x);
   h[c] = sin_auto(x);
-  return h;
-  }
-  
-  inline hyperpoint xspinpush0(ld alpha, ld x) { 
-  if(sl2) return slr::polar(x, -alpha, 0);
-  hyperpoint h = Hypc;
-  h[LDIM] = cos_auto(x);
-  h[0] = sin_auto(x) * cos(alpha);
-  h[1] = sin_auto(x) * -sin(alpha);
   return h;
   }
   
@@ -1483,17 +1546,17 @@ namespace hr {
   inline shiftpoint tC0(const shiftmatrix &T) {
   return shiftpoint{tC0(T.T), T.shift};
   }
-#line 1425 "hyperpoint.cpp"
+#line 1575 "hyperpoint.cpp"
   hyperpoint ctangent(int c, ld x);
-#line 1428 "hyperpoint.cpp"
+#line 1578 "hyperpoint.cpp"
   hyperpoint xtangent(ld x);
-#line 1431 "hyperpoint.cpp"
+#line 1581 "hyperpoint.cpp"
   hyperpoint ztangent(ld z);
-#line 1434 "hyperpoint.cpp"
+#line 1584 "hyperpoint.cpp"
   hyperpoint tangent_length(hyperpoint dir, ld length);
-#line 1441 "hyperpoint.cpp"
+#line 1591 "hyperpoint.cpp"
   hyperpoint direct_exp(hyperpoint v);
-#line 1457 "hyperpoint.cpp"
+#line 1607 "hyperpoint.cpp"
   constexpr flagtype pfNO_INTERPOLATION = 1; /**< in tables (sol/nih geometries), do not use interpolations */
   constexpr flagtype pfNO_DISTANCE      = 2; /**< we just need the directions -- this makes it a bit faster in sol/nih geometries */
   constexpr flagtype pfLOW_BS_ITER      = 4; /**< low iterations in binary search (nil geometry, sl2 not affected currently) */
@@ -1501,46 +1564,54 @@ namespace hr {
   constexpr flagtype pQUICK     = pfNO_INTERPOLATION | pfLOW_BS_ITER;
   
   constexpr flagtype pNORMAL    = 0;
-#line 1467 "hyperpoint.cpp"
+#line 1617 "hyperpoint.cpp"
   hyperpoint inverse_exp(const shiftpoint h, flagtype prec IS(pNORMAL));
-#line 1486 "hyperpoint.cpp"
+#line 1638 "hyperpoint.cpp"
   ld geo_dist(const hyperpoint h1, const hyperpoint h2, flagtype prec IS(pNORMAL));
-#line 1491 "hyperpoint.cpp"
+#line 1643 "hyperpoint.cpp"
   ld geo_dist(const shiftpoint h1, const shiftpoint h2, flagtype prec IS(pNORMAL));
-#line 1496 "hyperpoint.cpp"
+#line 1648 "hyperpoint.cpp"
   ld geo_dist_q(const hyperpoint h1, const hyperpoint h2, flagtype prec IS(pNORMAL));
-#line 1502 "hyperpoint.cpp"
+#line 1654 "hyperpoint.cpp"
   hyperpoint lp_iapply(const hyperpoint h);
-#line 1506 "hyperpoint.cpp"
+#line 1658 "hyperpoint.cpp"
   hyperpoint lp_apply(const hyperpoint h);
-#line 1510 "hyperpoint.cpp"
+#line 1662 "hyperpoint.cpp"
   hyperpoint smalltangent();
-#line 1512 "hyperpoint.cpp"
+#line 1664 "hyperpoint.cpp"
   void cyclefix(ld& a, ld b);
-#line 1517 "hyperpoint.cpp"
+#line 1669 "hyperpoint.cpp"
   ld raddif(ld a, ld b);
-#line 1525 "hyperpoint.cpp"
+#line 1677 "hyperpoint.cpp"
   unsigned bucketer(ld x);
-#line 1529 "hyperpoint.cpp"
+#line 1681 "hyperpoint.cpp"
   unsigned bucketer(hyperpoint h);
   #if MAXMDIM >= 4
-#line 1544 "hyperpoint.cpp"
+#line 1697 "hyperpoint.cpp"
   hyperpoint project_on_triangle(hyperpoint h1, hyperpoint h2, hyperpoint h3);
   #endif
-#line 1561 "hyperpoint.cpp"
+#line 1714 "hyperpoint.cpp"
   hyperpoint lerp(hyperpoint a0, hyperpoint a1, ld x);
-#line 1565 "hyperpoint.cpp"
+#line 1718 "hyperpoint.cpp"
   hyperpoint linecross(hyperpoint a, hyperpoint b, hyperpoint c, hyperpoint d);
-#line 1587 "hyperpoint.cpp"
+#line 1740 "hyperpoint.cpp"
   ld inner2(hyperpoint h1, hyperpoint h2);
-#line 1594 "hyperpoint.cpp"
+#line 1747 "hyperpoint.cpp"
   hyperpoint circumscribe(hyperpoint a, hyperpoint b, hyperpoint c);
-#line 1643 "hyperpoint.cpp"
+#line 1796 "hyperpoint.cpp"
   ld inner3(hyperpoint h1, hyperpoint h2);
-#line 1651 "hyperpoint.cpp"
+#line 1804 "hyperpoint.cpp"
   hyperpoint circumscribe(hyperpoint a, hyperpoint b, hyperpoint c, hyperpoint d);
-#line 1680 "hyperpoint.cpp"
+#line 1834 "hyperpoint.cpp"
+  hyperpoint towards_inf(hyperpoint material, hyperpoint dir, ld dist IS(1));
+#line 1840 "hyperpoint.cpp"
   bool clockwise(hyperpoint h1, hyperpoint h2);
+#line 1844 "hyperpoint.cpp"
+  extern ld worst_precision_error;
+#line 1847 "hyperpoint.cpp"
+  struct hr_precision_error : hr_exception { hr_precision_error() : hr_exception("precision error") {} };
+#line 1851 "hyperpoint.cpp"
+  bool same_point_may_warn(hyperpoint a, hyperpoint b);
 
   // implemented in: geometry.cpp
 
@@ -1571,6 +1642,7 @@ namespace hr {
   int texture_offset;
   int shs, she;
   void clear() { s = e = shs = she = texture_offset = 0; prio = PPR::ZERO; tinf = NULL; flags = 0; }
+  hpcshape() { clear(); }
   };
   
   #define SIDE_SLEV 0
@@ -1586,7 +1658,7 @@ namespace hr {
   #define SIDE_BSHA 12
   #define SIDEPARS  13
   
-  /** GOLDBERG_BITS controls the size of tables for Goldberg: 2*(x+y) should be below (1<<GOLDBERG_BITS) */
+  /** GOLDBERG_BITS controls the size of tables for Goldberg. see gp::check_limits */
   
   #ifndef GOLDBERG_BITS
   #define GOLDBERG_BITS 5
@@ -1643,6 +1715,8 @@ namespace hr {
   virtual ~gi_extension() {}
   };
   
+  struct expansion_analyzer;
+  
   /** both for 'heptagon' 3D cells and subdivided 3D cells */
   struct subcellshape {
   /** \brief raw coordinates of vertices of all faces */
@@ -1676,6 +1750,10 @@ namespace hr {
   void compute_common();
   };
   
+  enum class ePipeEnd {sharp, ball};
+  
+  struct embedding_method;
+  
   /** basic geometry parameters */
   struct geometry_information {
   
@@ -1703,6 +1781,9 @@ namespace hr {
   /** distance from heptagon center to heptagon vertex (either hexf or hcrossf) */
   ld rhexf;
   
+  /** edge length */
+  ld edgelen;
+  
   /** basic parameters for 3D geometries */
   map<int, int> close_distances;
   
@@ -1720,7 +1801,6 @@ namespace hr {
   
   vector<transmatrix> ultra_mirrors;  
   
-  vector<pair<string, string> > rels;
   int xp_order, r_order, rx_order;
   
   transmatrix full_X, full_R, full_P;
@@ -1729,6 +1809,8 @@ namespace hr {
   vector<transmatrix> heptmove, hexmove, invhexmove;
   
   int base_distlimit;
+  
+  unique_ptr<embedding_method> emb;
   
   /** size of the Sword (from Orb of the Sword), used in the shmup mode */
   ld sword_size;
@@ -1761,7 +1843,7 @@ namespace hr {
   BODY, BODY1, BODY2, BODY3,
   NECK1, NECK, NECK3, HEAD, HEAD1, HEAD2, HEAD3,
   ALEG0, ALEG, ABODY, AHEAD, BIRD, LOWSKY, SKY, HIGH, HIGH2,
-  SHALLOW;
+  HELL, STAR, SHALLOW;
   ld human_height, slev;
   
   ld eyelevel_familiar, eyelevel_human, eyelevel_dog;
@@ -1784,16 +1866,17 @@ namespace hr {
   shTriheptaSpecial[14], 
   shCross, shGiantStar[2], shLake, shMirror,
   shHalfFloor[6], shHalfMirror[3],
-  shGem[2], shStar, shDisk, shDiskT, shDiskS, shDiskM, shDiskSq, shRing,   
+  shGem[2], shStar, shFlash, shDisk, shHalfDisk, shDiskT, shDiskS, shDiskM, shDiskSq, shEccentricDisk, shDiskSegment,
+  shHeptagon, shHeptagram,
   shTinyBird, shTinyShark,
-  shEgg,
-  shSpikedRing, shTargetRing, shSawRing, shGearRing, shPeaceRing, shHeptaRing,
-  shSpearRing, shLoveRing,
-  shFrogRing, 
-  shPowerGearRing, shProtectiveRing, shTerraRing, shMoveRing, shReserved4, shMoonDisk,
-  shDaisy, shTriangle, shNecro, shStatue, shKey, shWindArrow,
+  shEgg, shSmallEgg,
+  shRing, shSpikedRing, shTargetRing, shSawRing, shGearRing, shPeaceRing,
+  shHeptaRing, shSpearRing, shLoveRing, shFrogRing,
+  shPowerGearRing, shProtectiveRing, shTerraRing, shMoveRing,
+  shReserved4, shMoonDisk,
+  shDaisy, shSnowflake, shTriangle, shNecro, shStatue, shKey, shWindArrow,
   shGun,
-  shFigurine, shTreat,
+  shFigurine, shTreat, shSmallTreat,
   shElementalShard,
   // shBranch, 
   shIBranch, shTentacle, shTentacleX, shILeaf[3], 
@@ -1807,10 +1890,10 @@ namespace hr {
   shWolf1, shWolf2, shWolf3,
   shRatEye1, shRatEye2, shRatEye3,
   shDogStripes,
-  shPBody, shPSword, shPKnife,
+  shPBody, shSmallPBody, shPSword, shSmallPSword, shPKnife,
   shFerocityM, shFerocityF, 
   shHumanFoot, shHumanLeg, shHumanGroin, shHumanNeck, shSkeletalFoot, shYetiFoot,
-  shMagicSword, shMagicShovel, shSeaTentacle, shKrakenHead, shKrakenEye, shKrakenEye2,
+  shMagicSword, shSmallSword, shMagicShovel, shSeaTentacle, shKrakenHead, shKrakenEye, shKrakenEye2,
   shArrow,
   shBrushHandle, shBrushBrush,
   shPalette, shPaletteCol1, shPaletteCol2, shPaletteCol3, shPaletteCol4,
@@ -1819,33 +1902,33 @@ namespace hr {
   shSabre, shTurban1, shTurban2, shVikingHelmet, shRaiderHelmet, shRaiderArmor, shRaiderBody, shRaiderShirt,
   shWestHat1, shWestHat2, shGunInHand,
   shKnightArmor, shKnightCloak, shWightCloak,
-  shGhost, shEyes, shSlime, shJelly, shJoint, shWormHead, shTentHead, shShark, shWormSegment, shSmallWormSegment, shWormTail, shSmallWormTail,
-  shSlimeEyes, shDragonEyes, shWormEyes, shGhostEyes,
-  shMiniGhost, shMiniEyes,
-  shHedgehogBlade, shHedgehogBladePlayer,
+  shGhost, shEyes, shSlime, shJelly, shJoint, shWormHead, shSmallWormHead, shTentHead, shShark, shWormSegment, shSmallWormSegment, shWormTail, shSmallWormTail,
+  shSlimeEyes, shDragonEyes, shSmallDragonEyes, shWormEyes, shSmallWormEyes, shGhostEyes,
+  shMiniGhost, shSmallEyes, shMiniEyes,
+  shHedgehogBlade, shSmallHedgehogBlade, shHedgehogBladePlayer,
   shWolfBody, shWolfHead, shWolfLegs, shWolfEyes,
   shWolfFrontLeg, shWolfRearLeg, shWolfFrontPaw, shWolfRearPaw,
   shFemaleBody, shFemaleHair, shFemaleDress, shWitchDress,
   shWitchHair, shBeautyHair, shFlowerHair, shFlowerHand, shSuspenders, shTrophy,
   shBugBody, shBugArmor, shBugLeg, shBugAntenna,
-  shPickAxe, shPike, shFlailBall, shFlailTrunk, shFlailChain, shHammerHead,
+  shPickAxe, shSmallPickAxe, shPike, shFlailBall, shSmallFlailBall, shFlailTrunk, shSmallFlailTrunk, shFlailChain, shHammerHead, shSmallHammerHead,
   shBook, shBookCover, shGrail,
   shBoatOuter, shBoatInner, shCompass1, shCompass2, shCompass3,
   shKnife, shTongue, shFlailMissile, shTrapArrow,
-  shPirateHook, shPirateHood, shEyepatch, shPirateX,
+  shPirateHook, shSmallPirateHook, shPirateHood, shEyepatch, shPirateX,
   // shScratch, 
-  shHeptaMarker, shSnowball, shHugeDisk, shSun, shNightStar, shEuclideanSky,
+  shHeptaMarker, shSnowball, shHugeDisk, shSkyboxSun, shSun, shNightStar, shEuclideanSky,
   shSkeletonBody, shSkull, shSkullEyes, shFatBody, shWaterElemental,
   shPalaceGate, shFishTail,
   shMouse, shMouseLegs, shMouseEyes,
   shPrincessDress, shPrinceDress,
   shWizardCape1, shWizardCape2,
   shBigCarpet1, shBigCarpet2, shBigCarpet3,
-  shGoatHead, shRose, shRoseItem, shThorns,
+  shGoatHead, shRose, shRoseItem, shSmallRose, shThorns,
   shRatHead, shRatTail, shRatEyes, shRatCape1, shRatCape2,
   shWizardHat1, shWizardHat2,
   shTortoise[13][6],
-  shDragonLegs, shDragonTail, shDragonHead, shDragonSegment, shDragonNostril, 
+  shDragonLegs, shDragonTail, shDragonHead, shSmallDragonHead, shDragonSegment, shDragonNostril, shSmallDragonNostril,
   shDragonWings, 
   shSolidBranch, shWeakBranch, shBead0, shBead1,
   shBatWings, shBatBody, shBatMouth, shBatFang, shBatEye,
@@ -1858,6 +1941,8 @@ namespace hr {
   shTrylobiteFrontLeg, shTrylobiteRearLeg, shTrylobiteFrontClaw, shTrylobiteRearClaw,
   
   shBullBody, shBullHead, shBullHorn, shBullRearHoof, shBullFrontHoof,
+  shSmallBullHead, shSmallBullHorn,
+  shTinyBullHead, shTinyBullHorn, shTinyBullBody,
   
   shButterflyBody, shButterflyWing, shGadflyBody, shGadflyWing, shGadflyEye,
   
@@ -1870,9 +1955,12 @@ namespace hr {
   
   shPBodyOnly, shPBodyArm, shPBodyHand, shPHeadOnly,
   
-  shDodeca;
+  shDodeca, shSmallerDodeca,
   
-  hpcshape shFrogRearFoot, shFrogFrontFoot, shFrogRearLeg, shFrogFrontLeg, shFrogRearLeg2, shFrogBody, shFrogEye, shFrogStripe, shFrogJumpFoot, shFrogJumpLeg;
+  shLightningBolt, shHumanoid, shHalfHumanoid, shHourglass,
+  shShield, shSmallFan, shTreeIcon, shLeafIcon;
+  
+  hpcshape shFrogRearFoot, shFrogFrontFoot, shFrogRearLeg, shFrogFrontLeg, shFrogRearLeg2, shFrogBody, shFrogEye, shFrogStripe, shFrogJumpFoot, shFrogJumpLeg, shSmallFrogRearFoot, shSmallFrogFrontFoot, shSmallFrogRearLeg, shSmallFrogFrontLeg, shSmallFrogRearLeg2, shSmallFrogBody;
   
   hpcshape_animated 
   shAnimatedEagle, shAnimatedTinyEagle, shAnimatedGadfly, shAnimatedHawk, shAnimatedButterfly, 
@@ -1913,8 +2001,20 @@ namespace hr {
   ld dlow_table[SIDEPARS], dhi_table[SIDEPARS], dfloor_table[SIDEPARS];
   
   int prehpc;
+  /** list of points in all shapes */
   vector<hyperpoint> hpc;
+  /** what shape are we currently creating */
+  hpcshape *last;
+  /** is the current shape already started? first = not yet */
   bool first;
+  /** starting point of the current shape, can be ultraideal */
+  hyperpoint starting_point;
+  /** first ideal point of the current shape */
+  hyperpoint starting_ideal;
+  /** last added point of the current shape, can be ultraideal */
+  hyperpoint last_point;
+  /** last ideal point of the current shape */
+  hyperpoint last_ideal;
   
   bool validsidepar[SIDEPARS];
   
@@ -1922,9 +2022,9 @@ namespace hr {
   #endif
   
   hpcshape shFullCross[2];
-  hpcshape *last;
   
   int SD3, SD6, SD7, S12, S14, S21, S28, S42, S36, S84;
+  ld S_step;
   
   vector<pair<int, cell*>> walloffsets;
   
@@ -1955,6 +2055,7 @@ namespace hr {
   void prepare_usershapes();
   
   void hpcpush(hyperpoint h);
+  void hpc_connect_ideal(hyperpoint a, hyperpoint b);
   void hpcsquare(hyperpoint h1, hyperpoint h2, hyperpoint h3, hyperpoint h4);
   void chasmifyPoly(double fac, double fac2, int k);
   void shift(hpcshape& sh, double dx, double dy, double dz);
@@ -1987,6 +2088,7 @@ namespace hr {
   void generate_floorshapes_for(int id, cell *c, int siid, int sidir);
   void generate_floorshapes();
   void make_floor_textures_here();
+  void finish_apeirogon(hyperpoint center);
   
   vector<hyperpoint> get_shape(hpcshape sh);
   void add_cone(ld z0, const vector<hyperpoint>& vh, ld z1);
@@ -2035,83 +2137,293 @@ namespace hr {
   shared_ptr<gpdata_t> gpdata = nullptr;
   #endif
   
+  shared_ptr<expansion_analyzer> expansion = nullptr;
+  
   int state = 0;
   int usershape_state = 0;
   
   /** contains the texture point coordinates for 3D models */
   basic_textureinfo models_texture;
   
-  geometry_information() { last = NULL; }
+  geometry_information() { last = NULL; use_count = 0; }
   
   void require_basics() { if(state & 1) return; state |= 1; prepare_basics(); }
   void require_shapes() { if(state & 2) return; state |= 2; prepare_shapes(); }
   void require_usershapes() { if(usershape_state == usershape_changes) return; usershape_state = usershape_changes; prepare_usershapes(); }
   int timestamp;
   
-  hpcshape& generate_pipe(ld length, ld width);
+  hpcshape& generate_pipe(ld length, ld width, ePipeEnd endtype = ePipeEnd::sharp);
   
   map<string, unique_ptr<gi_extension>> ext;
+  
+  /** prevent from being destroyed */
+  int use_count;
   };
-#line 521 "geometry.cpp"
+#line 557 "geometry.cpp"
   subcellshape& get_hsh();
-#line 526 "geometry.cpp"
+#line 562 "geometry.cpp"
   void add_wall(int i, const vector<hyperpoint>& h);
-#line 538 "geometry.cpp"
+#line 574 "geometry.cpp"
   static const ld hcrossf7 = 0.620672, hexf7 = 0.378077, tessf7 = 1.090550, hexhexdist7 = 0.566256;
-#line 541 "geometry.cpp"
+#line 577 "geometry.cpp"
   bool scale_used();
-#line 543 "geometry.cpp"
+#line 579 "geometry.cpp"
   bool is_subcube_based(eVariation var);
-#line 547 "geometry.cpp"
+#line 583 "geometry.cpp"
   bool is_reg3_variation(eVariation var);
-#line 804 "geometry.cpp"
-  transmatrix xspinpush(ld dir, ld dist);
-#line 811 "geometry.cpp"
+#line 864 "geometry.cpp"
   extern purehookset hooks_swapdim;
   namespace geom3 {
-#line 822 "geometry.cpp"
+#line 875 "geometry.cpp"
     ld abslev_to_projection(ld abslev);
-#line 841 "geometry.cpp"
+#line 894 "geometry.cpp"
     ld factor_to_projection(ld fac);
-#line 845 "geometry.cpp"
+#line 898 "geometry.cpp"
     ld lev_to_factor(ld lev);
-#line 851 "geometry.cpp"
+#line 904 "geometry.cpp"
     ld factor_to_lev(ld fac);
-#line 857 "geometry.cpp"
+#line 911 "geometry.cpp"
+    ld to_wh(ld val);
+#line 915 "geometry.cpp"
     void do_auto_eye();
-#line 869 "geometry.cpp"
+#line 927 "geometry.cpp"
     ld scale_at_lev(ld lev);
-#line 874 "geometry.cpp"
+#line 932 "geometry.cpp"
     extern string invalid;
-#line 876 "geometry.cpp"
+#line 933 "geometry.cpp"
+    extern bool changing_embedded_settings;
+#line 935 "geometry.cpp"
     ld actual_wall_height();
     }
   namespace geom3 {
-#line 999 "geometry.cpp"
-    void apply_always3();
+#line 1091 "geometry.cpp"
+    extern int swap_direction;
+#line 1093 "geometry.cpp"
+    void swapdim(int dir);
     #if MAXMDIM >= 4
-#line 1018 "geometry.cpp"
+#line 1103 "geometry.cpp"
     void switch_always3();
     #endif
-#line 1030 "geometry.cpp"
+#line 1116 "geometry.cpp"
     void switch_tpp();
-#line 1051 "geometry.cpp"
+#line 1138 "geometry.cpp"
     void switch_fpp();
+#line 1176 "geometry.cpp"
+    void apply_settings_full();
+#line 1188 "geometry.cpp"
+    void apply_settings_light();
     }
-#line 1104 "geometry.cpp"
+#line 1199 "geometry.cpp"
   extern geometry_information *cgip;
-#line 1105 "geometry.cpp"
+#line 1200 "geometry.cpp"
   extern map<string, geometry_information> cgis;
-#line 1108 "geometry.cpp"
+#line 1203 "geometry.cpp"
   #define cgi (*cgip)
-#line 1111 "geometry.cpp"
+#line 1206 "geometry.cpp"
   extern int last_texture_step;
-#line 1115 "geometry.cpp"
+#line 1210 "geometry.cpp"
   extern hookset<void(string&)> hooks_cgi_string;
-#line 1117 "geometry.cpp"
+#line 1212 "geometry.cpp"
   string cgi_string();
-#line 1192 "geometry.cpp"
+#line 1321 "geometry.cpp"
   void check_cgi();
+
+  // implemented in: embeddings.cpp
+
+  namespace geom3 {
+#line 25 "embeddings.cpp"
+    enum eSpatialEmbedding {
+    seNone,
+    seDefault,
+    seLowerCurvature,
+    seMuchLowerCurvature,
+    seProduct,
+    seNil,
+    seSol,
+    seNIH,
+    seSolN,
+    seCliffordTorus,
+    seProductH,
+    seProductS,
+    seSL2,
+    seCylinderE,
+    seCylinderH,
+    seCylinderHE,
+    seCylinderNil,
+    seCylinderHoro,
+    seCylinderSL2
+    };
+#line 48 "embeddings.cpp"
+    extern vector<pair<string, string>> spatial_embedding_options;
+#line 70 "embeddings.cpp"
+    bool clifford_torus_valid();
+#line 80 "embeddings.cpp"
+    string why_wrong(eSpatialEmbedding sp);
+#line 98 "embeddings.cpp"
+    extern eSpatialEmbedding spatial_embedding;
+#line 99 "embeddings.cpp"
+    extern ld euclid_embed_scale;
+#line 100 "embeddings.cpp"
+    extern ld euclid_embed_scale_y;
+#line 101 "embeddings.cpp"
+    extern ld euclid_embed_rotate;
+#line 102 "embeddings.cpp"
+    extern bool auto_configure;
+#line 103 "embeddings.cpp"
+    extern bool flat_embedding;
+#line 104 "embeddings.cpp"
+    extern bool inverted_embedding;
+#line 106 "embeddings.cpp"
+    ld euclid_embed_scale_mean();
+#line 107 "embeddings.cpp"
+    void set_euclid_embed_scale(ld x);
+#line 109 "embeddings.cpp"
+    bool supports_flat();
+#line 110 "embeddings.cpp"
+    bool supports_invert();
+#line 112 "embeddings.cpp"
+    extern vector<geometryinfo> ginf_backup;
+#line 114 "embeddings.cpp"
+    eGeometryClass mgclass();
+#line 118 "embeddings.cpp"
+    eGeometryClass ggclass();
+#line 122 "embeddings.cpp"
+    bool any_cylinder(eSpatialEmbedding e);
+#line 126 "embeddings.cpp"
+    bool in_product();
+#line 130 "embeddings.cpp"
+    extern bool flipped;
+#line 132 "embeddings.cpp"
+    extern geometry_information* unflipped;
+#line 134 "embeddings.cpp"
+    void light_flip(bool f);
+#line 145 "embeddings.cpp"
+    template<class T> auto in_flipped(const T& f) -> decltype(f()) {
+    light_flip(true);
+    finalizer ff([] { light_flip(false); });
+    return f();
+    }
+    
+    template<class T> auto in_not_flipped(const T& f) -> decltype(f()) {
+    light_flip(false);
+    finalizer ff([] { light_flip(true); });
+    return f();
+    }
+    
+    #define IPF(x) geom3::in_flipped([&] { return (x); })
+#line 160 "embeddings.cpp"
+    void apply_always3();
+#line 204 "embeddings.cpp"
+    void configure_clifford_torus();
+#line 231 "embeddings.cpp"
+    void configure_cylinder();
+    }
+#line 249 "embeddings.cpp"
+  struct embedding_method {
+  virtual ld center_z() { return 0; }
+  virtual hyperpoint tile_center();
+  virtual transmatrix intermediate_to_actual_translation(hyperpoint i) = 0;
+  virtual hyperpoint intermediate_to_actual(hyperpoint i) { return intermediate_to_actual_translation(i) * tile_center(); }
+  virtual hyperpoint actual_to_intermediate(hyperpoint a) = 0;
+  virtual hyperpoint orthogonal_move(const hyperpoint& a, ld z);
+  virtual transmatrix map_relative_push(hyperpoint h);
+  virtual ld get_logical_z(hyperpoint a) { return (intermediate_to_logical_scaled * actual_to_intermediate(a))[2]; }
+  virtual hyperpoint logical_to_actual(hyperpoint l) { return intermediate_to_actual(logical_to_intermediate * l); }
+  virtual hyperpoint actual_to_logical(hyperpoint a) { return intermediate_to_logical * actual_to_intermediate(a); }
+  virtual hyperpoint base_to_actual(hyperpoint h) = 0;
+  virtual transmatrix base_to_actual(const transmatrix &T) = 0;
+  virtual hyperpoint actual_to_base(hyperpoint h) = 0;
+  virtual transmatrix actual_to_base(const transmatrix &T) = 0;
+  virtual hyperpoint normalize_flat(hyperpoint a) { return flatten(normalize(a)); }
+  virtual hyperpoint flatten(hyperpoint a);
+  virtual void set_radar_transform();
+  virtual transmatrix get_lsti() { return Id; }
+  virtual transmatrix get_lti() { return logical_scaled_to_intermediate; }
+  virtual hyperpoint base_to_logical(hyperpoint h) = 0;
+  virtual hyperpoint logical_to_base(hyperpoint h) = 0;
+  virtual ld anim_center_z() { return center_z(); }
+  virtual hyperpoint anim_tile_center();
+  virtual void logical_fix(transmatrix&) = 0;
+  virtual ld height_limit(ld sign);
+  
+  virtual bool is_euc_in_product() { return false; }
+  virtual bool is_product_embedding() { return false; }
+  virtual bool is_euc_in_sl2() { return false; }
+  virtual bool is_same_in_same() { return false; }
+  virtual bool is_sph_in_low() { return false; }
+  virtual bool is_hyp_in_solnih() { return false; }
+  virtual bool is_euc_in_hyp() { return false; }
+  virtual bool is_euc_in_sph() { return false; }
+  virtual bool is_euc_in_nil() { return false; }
+  virtual bool is_euc_in_noniso() { return false; }
+  virtual bool is_in_noniso() { return false; }
+  virtual bool is_cylinder() { return false; }
+  virtual bool no_spin() { return false; }
+  
+  /* convert the tangent space in logical coordinates to actual coordinates */
+  transmatrix logical_to_intermediate;
+  
+  /* convert the tangent space in actual coordinates to logical coordinates */
+  transmatrix intermediate_to_logical;
+  
+  /* convert the tangent space in logical coordinates to actual coordinates */
+  transmatrix logical_scaled_to_intermediate;
+  
+  /* convert the tangent space in actual coordinates to logical coordinates */
+  transmatrix intermediate_to_logical_scaled;
+  
+  void prepare_lta();
+  void auto_configure();
+  };
+  
+#line 308 "embeddings.cpp"
+  extern geometry_information *swapper;
+#line 967 "embeddings.cpp"
+  unique_ptr<embedding_method> make_embed();
+#line 1009 "embeddings.cpp"
+  hyperpoint orthogonal_move(hyperpoint h, ld z );
+#line 1011 "embeddings.cpp"
+  transmatrix unswap_spin(transmatrix T);
+#line 1016 "embeddings.cpp"
+  transmatrix spin(ld alpha);
+#line 1022 "embeddings.cpp"
+  transmatrix spin90();
+#line 1028 "embeddings.cpp"
+  transmatrix spin180();
+#line 1034 "embeddings.cpp"
+  transmatrix spin270();
+#line 1039 "embeddings.cpp"
+  transmatrix lzpush(ld z);
+#line 1046 "embeddings.cpp"
+  transmatrix lxpush(ld alpha);
+#line 1056 "embeddings.cpp"
+  hyperpoint lxpush0(ld x);
+#line 1058 "embeddings.cpp"
+  transmatrix lspintox(const hyperpoint& H);
+#line 1069 "embeddings.cpp"
+  transmatrix lrspintox(const hyperpoint& H);
+#line 1081 "embeddings.cpp"
+  hyperpoint lztangent(ld z);
+#line 1085 "embeddings.cpp"
+  hyperpoint tile_center();
+#line 1087 "embeddings.cpp"
+  hyperpoint lspinpush0(ld alpha, ld x);
+#line 1097 "embeddings.cpp"
+  hyperpoint xspinpush0(ld alpha, ld x);
+#line 1107 "embeddings.cpp"
+  transmatrix xspinpush(ld dir, ld dist);
+#line 1120 "embeddings.cpp"
+  const transmatrix& lmirror();
+#line 1150 "embeddings.cpp"
+  void swapmatrix(transmatrix& T);
+#line 1155 "embeddings.cpp"
+  void swappoint(hyperpoint& h);
+#line 1168 "embeddings.cpp"
+  void swapmatrix_iview(transmatrix& ori, transmatrix& V);
+#line 1200 "embeddings.cpp"
+  void swapmatrix_view(transmatrix& lp, transmatrix& V);
+#line 1294 "embeddings.cpp"
+  void invoke_embed(geom3::eSpatialEmbedding se);
 
   // implemented in: goldberg.cpp
 
@@ -2196,62 +2508,70 @@ namespace hr {
     transmatrix& get_adj(cell *c, int i);
 #line 297 "goldberg.cpp"
     void extend_map(cell *c, int d);
-#line 536 "goldberg.cpp"
+#line 599 "goldberg.cpp"
     hyperpoint loctoh_ort(loc at);
-#line 623 "goldberg.cpp"
+#line 664 "goldberg.cpp"
+    void prepare_matrices(bool inv);
+#line 703 "goldberg.cpp"
     hyperpoint get_corner_position(const local_info& li, int cid, ld cf IS(3));
-#line 633 "goldberg.cpp"
+#line 713 "goldberg.cpp"
     hyperpoint get_corner_position(cell *c, int cid, ld cf IS(3));
-#line 639 "goldberg.cpp"
+#line 719 "goldberg.cpp"
     void compute_geometry(bool inv);
-#line 686 "goldberg.cpp"
+#line 755 "goldberg.cpp"
+    bool rotate_and_check_limits(loc& v);
+#line 762 "goldberg.cpp"
+    bool check_limits(loc v);
+#line 775 "goldberg.cpp"
     loc human_representation(loc v);
-#line 693 "goldberg.cpp"
+#line 782 "goldberg.cpp"
     eVariation variation_for(loc xy);
-#line 912 "goldberg.cpp"
+#line 790 "goldberg.cpp"
+    void whirl_set(loc xy);
+#line 1003 "goldberg.cpp"
     loc univ_param();
-#line 918 "goldberg.cpp"
+#line 1009 "goldberg.cpp"
     void configure();
-#line 925 "goldberg.cpp"
+#line 1016 "goldberg.cpp"
     void be_in_triangle(local_info& li);
-#line 942 "goldberg.cpp"
+#line 1033 "goldberg.cpp"
     int solve_triangle(int dmain, int d0, int d1, loc at);
-#line 993 "goldberg.cpp"
+#line 1084 "goldberg.cpp"
     hyperpoint get_master_coordinates(cell *c);
-#line 999 "goldberg.cpp"
+#line 1090 "goldberg.cpp"
     int compute_dist(cell *c, int master_function(cell*));
-#line 1023 "goldberg.cpp"
+#line 1114 "goldberg.cpp"
     int dist_2();
-#line 1027 "goldberg.cpp"
+#line 1118 "goldberg.cpp"
     int dist_3();
-#line 1031 "goldberg.cpp"
+#line 1122 "goldberg.cpp"
     int dist_1();
-#line 1035 "goldberg.cpp"
+#line 1126 "goldberg.cpp"
     int dist_1();
-#line 1036 "goldberg.cpp"
+#line 1127 "goldberg.cpp"
     int dist_2();
-#line 1037 "goldberg.cpp"
+#line 1128 "goldberg.cpp"
     int dist_3();
     #endif
-#line 1040 "goldberg.cpp"
+#line 1131 "goldberg.cpp"
     array<heptagon*, 3> get_masters(cell *c);
-#line 1063 "goldberg.cpp"
+#line 1154 "goldberg.cpp"
     string operation_name();
-#line 1113 "goldberg.cpp"
+#line 1206 "goldberg.cpp"
     extern hrmap *pmap;
-#line 1337 "goldberg.cpp"
+#line 1432 "goldberg.cpp"
     hrmap* new_inverse();
-#line 1341 "goldberg.cpp"
+#line 1436 "goldberg.cpp"
     hrmap* get_underlying_map();
-#line 1342 "goldberg.cpp"
+#line 1437 "goldberg.cpp"
     cell* get_mapped(cell *c);
-#line 1343 "goldberg.cpp"
+#line 1438 "goldberg.cpp"
     int untruncated_shift(cell *c);
-#line 1345 "goldberg.cpp"
+#line 1440 "goldberg.cpp"
     void delete_mapped(cell *c);
-#line 1352 "goldberg.cpp"
+#line 1447 "goldberg.cpp"
     cell *inverse_move(cell *c, int d);
-#line 1355 "goldberg.cpp"
+#line 1450 "goldberg.cpp"
     template<class T> auto in_underlying_geometry(const T& f) -> decltype(f()) {
     if(!INVERSE) return f();
     dynamicval<hrmap*> gpm(pmap, currentmap);
@@ -2283,59 +2603,61 @@ namespace hr {
   extern vector<glvertex> floor_texture_map;
 #line 27 "floorshapes.cpp"
   extern struct renderbuffer *floor_textures;
-#line 130 "floorshapes.cpp"
-  hyperpoint kleinize(hyperpoint h);
-#line 135 "floorshapes.cpp"
+#line 30 "floorshapes.cpp"
+  extern int floorshapes_level;
+#line 32 "floorshapes.cpp"
+  extern ld global_boundary_ratio;
+#line 140 "floorshapes.cpp"
   hyperpoint may_kleinize(hyperpoint h);
   #if CAP_GP
   namespace gp {
-#line 845 "floorshapes.cpp"
+#line 935 "floorshapes.cpp"
     void clear_plainshapes();
-#line 870 "floorshapes.cpp"
+#line 960 "floorshapes.cpp"
     int get_plainshape_id(cell *c);
     }
   #endif
-#line 920 "floorshapes.cpp"
+#line 1010 "floorshapes.cpp"
   void set_no_floor();
-#line 927 "floorshapes.cpp"
+#line 1017 "floorshapes.cpp"
   void set_floor(floorshape& sh);
-#line 934 "floorshapes.cpp"
+#line 1024 "floorshapes.cpp"
   void set_floor(hpcshape& sh);
-#line 942 "floorshapes.cpp"
+#line 1032 "floorshapes.cpp"
   void set_floor(const transmatrix& spin, hpcshape& sh);
-#line 949 "floorshapes.cpp"
+#line 1039 "floorshapes.cpp"
   int shvid(cell *c);
-#line 997 "floorshapes.cpp"
+#line 1087 "floorshapes.cpp"
   struct dqi_poly *draw_shapevec(cell *c, const shiftmatrix& V, const vector<hpcshape> &shv, color_t col, PPR prio IS(PPR::DEFAULT));
-#line 1036 "floorshapes.cpp"
+#line 1126 "floorshapes.cpp"
   void draw_floorshape(cell *c, const shiftmatrix& V, const floorshape &fsh, color_t col, PPR prio IS(PPR::DEFAULT));
-#line 1041 "floorshapes.cpp"
+#line 1131 "floorshapes.cpp"
   void draw_qfi(cell *c, const shiftmatrix& V, color_t col, PPR prio IS(PPR::DEFAULT), vector<hpcshape> floorshape::* tab IS(&floorshape::b));
-#line 1060 "floorshapes.cpp"
+#line 1150 "floorshapes.cpp"
   extern bool floorshape_debug;
-#line 1061 "floorshapes.cpp"
+#line 1151 "floorshapes.cpp"
   void viewmat();
   #endif
   #if MAXMDIM < 4 || !CAP_GL
-#line 1092 "floorshapes.cpp"
+#line 1182 "floorshapes.cpp"
   void ensure_vertex_number(basic_textureinfo& bti, int qty);
-#line 1093 "floorshapes.cpp"
+#line 1183 "floorshapes.cpp"
   void ensure_vertex_number(hpcshape& sh);
-#line 1094 "floorshapes.cpp"
+#line 1184 "floorshapes.cpp"
   void bind_floor_texture(hpcshape& li, int id);
   #endif
   #if MAXMDIM >= 4 && CAP_GL
-#line 1099 "floorshapes.cpp"
+#line 1189 "floorshapes.cpp"
   extern ld floor_texture_square_size;
-#line 1193 "floorshapes.cpp"
+#line 1283 "floorshapes.cpp"
   void ensure_vertex_number(basic_textureinfo& bti, int qty);
-#line 1202 "floorshapes.cpp"
+#line 1292 "floorshapes.cpp"
   void ensure_vertex_number(hpcshape& sh);
-#line 1206 "floorshapes.cpp"
+#line 1296 "floorshapes.cpp"
   void bind_floor_texture(hpcshape& li, int id);
-#line 1212 "floorshapes.cpp"
+#line 1302 "floorshapes.cpp"
   const int FLOORTEXTURESIZE = 4096;
-#line 1300 "floorshapes.cpp"
+#line 1390 "floorshapes.cpp"
   void make_floor_textures();
   #endif
 
@@ -2358,7 +2680,7 @@ namespace hr {
   return create_step(h, direction);
   }
   virtual heptagon *create_step(heptagon *h, int direction);
-  private:
+  protected:
   virtual transmatrix relative_matrixh(heptagon *h2, heptagon *h1, const hyperpoint& hint);
   virtual transmatrix relative_matrixc(cell *c2, cell *c1, const hyperpoint& hint);
   public:
@@ -2382,7 +2704,7 @@ namespace hr {
   virtual transmatrix spin_to(cell *c, int d, ld bonus=0);
   virtual transmatrix spin_from(cell *c, int d, ld bonus=0);
   
-  virtual double spacedist(cell *c, int i) { return hdist0(tC0(adj(c, i))); }
+  virtual double spacedist(cell *c, int i);
   
   virtual bool strict_tree_rules() { return false; }
   
@@ -2405,6 +2727,9 @@ namespace hr {
   
   /** \brief the sequence of heptagon movement direction to get from c->master to c->move(i)->master; implemented only for reg3 */
   virtual const vector<int>& get_move_seq(cell *c, int i);
+  
+  /** generate a new map that is disconnected from what we already have, disconnected from the map we have so far */
+  virtual cell* gen_extra_origin(int fv) { throw hr_exception("gen_extra_origin not supported on this map"); }
   };
   
   /** hrmaps which are based on regular non-Euclidean 2D tilings, possibly quotient  
@@ -2444,148 +2769,172 @@ namespace hr {
   void verify() override { verifycells(origin); }
   void virtualRebase(heptagon*& base, transmatrix& at) override;
   };
-#line 200 "cell.cpp"
+#line 206 "cell.cpp"
   int dirdiff(int dd, int t);
-#line 207 "cell.cpp"
+#line 213 "cell.cpp"
   extern int cellcount;
-#line 209 "cell.cpp"
+#line 215 "cell.cpp"
   void destroy_cell(cell *c);
-#line 214 "cell.cpp"
+#line 220 "cell.cpp"
   cell *newCell(int type, heptagon *master);
-#line 226 "cell.cpp"
+#line 232 "cell.cpp"
   extern hrmap *currentmap;
-#line 227 "cell.cpp"
+#line 233 "cell.cpp"
   extern vector<hrmap*> allmaps;
-#line 229 "cell.cpp"
+#line 235 "cell.cpp"
   hrmap *newAltMap(heptagon *o);
-#line 240 "cell.cpp"
+#line 246 "cell.cpp"
   heptagon* hyperbolic_origin();
-#line 313 "cell.cpp"
-  cell *createMov(cell *c, int d);
 #line 321 "cell.cpp"
-  void eumerge(cell* c1, int s1, cell *c2, int s2, bool mirror);
+  cell *createMov(cell *c, int d);
 #line 329 "cell.cpp"
+  void eumerge(cell* c1, int s1, cell *c2, int s2, bool mirror);
+#line 337 "cell.cpp"
   extern hookset<hrmap*()> hooks_newmap;
-#line 332 "cell.cpp"
+#line 340 "cell.cpp"
+  enum eDiskShape { dshTiles, dshVertices, dshGeometric };
+#line 344 "cell.cpp"
+  extern int req_disksize;
+#line 346 "cell.cpp"
+  extern int disksize;
+#line 348 "cell.cpp"
+  extern vector<cell*> all_disk_cells;
+#line 350 "cell.cpp"
+  extern vector<cell*> all_disk_cells_sorted;
+#line 352 "cell.cpp"
+  extern eDiskShape diskshape;
+#line 354 "cell.cpp"
+  void init_disk_cells();
+#line 399 "cell.cpp"
+  bool is_in_disk(cell *c);
+#line 406 "cell.cpp"
   void initcells();
-#line 375 "cell.cpp"
+#line 455 "cell.cpp"
   void clearcell(cell *c);
-#line 392 "cell.cpp"
+#line 472 "cell.cpp"
   extern heptagon deletion_marker;
-#line 405 "cell.cpp"
+#line 485 "cell.cpp"
   void clearHexes(heptagon *at);
-#line 424 "cell.cpp"
+#line 504 "cell.cpp"
   void clear_heptagon(heptagon *at);
-#line 429 "cell.cpp"
+#line 509 "cell.cpp"
   void clearfrom(heptagon *at);
-#line 473 "cell.cpp"
+#line 553 "cell.cpp"
   void verifycell(cell *c);
-#line 487 "cell.cpp"
+#line 567 "cell.cpp"
   void verifycells(heptagon *at);
-#line 498 "cell.cpp"
+#line 578 "cell.cpp"
   int compdist(int dx[]);
-#line 515 "cell.cpp"
+#line 595 "cell.cpp"
   int celldist(cell *c);
-#line 541 "cell.cpp"
+#line 621 "cell.cpp"
   static const int ALTDIST_BOUNDARY = 99999;
   static const int ALTDIST_UNKNOWN = 99998;
   static const int ALTDIST_ERROR = 90000;
-#line 546 "cell.cpp"
+#line 626 "cell.cpp"
   int celldistAlt(cell *c);
-#line 602 "cell.cpp"
+#line 682 "cell.cpp"
   int updir(heptagon *h);
-#line 618 "cell.cpp"
+#line 698 "cell.cpp"
   int updir_alt(heptagon *h);
-#line 632 "cell.cpp"
+#line 712 "cell.cpp"
   static const int RPV_MODULO = 5;
   static const int RPV_RAND = 0;
   static const int RPV_ZEBRA = 1;
   static const int RPV_EMERALD = 2;
   static const int RPV_PALACE = 3;
   static const int RPV_CYCLE = 4;
-#line 646 "cell.cpp"
+#line 726 "cell.cpp"
   bool randpattern(cell *c, int rval);
-#line 689 "cell.cpp"
+#line 769 "cell.cpp"
   string describeRPM(eLand l);
-#line 709 "cell.cpp"
+#line 789 "cell.cpp"
   int randpatternCode(cell *c, int rval);
-#line 724 "cell.cpp"
+#line 804 "cell.cpp"
   #define RANDITER 31
-#line 729 "cell.cpp"
+#line 809 "cell.cpp"
   void clearMemoRPM();
-#line 734 "cell.cpp"
+#line 814 "cell.cpp"
   bool randpatternMajority(cell *c, int ival, int iterations);
-#line 761 "cell.cpp"
+#line 841 "cell.cpp"
   bool geometry_supports_cdata();
-#line 783 "cell.cpp"
+#line 864 "cell.cpp"
   bool dmeq(int a, int b);
   #if CAP_ARCM
-#line 1000 "cell.cpp"
+#line 1082 "cell.cpp"
   gp::loc pseudocoords(cell *c);
-#line 1005 "cell.cpp"
+#line 1087 "cell.cpp"
   cdata *arcmCdata(cell *c);
   #endif
-#line 1019 "cell.cpp"
+#line 1101 "cell.cpp"
   int getCdata(cell *c, int j);
-#line 1045 "cell.cpp"
+#line 1128 "cell.cpp"
   int getBits(cell *c);
-#line 1071 "cell.cpp"
+#line 1155 "cell.cpp"
   cell *heptatdir(cell *c, int d);
-#line 1081 "cell.cpp"
+#line 1165 "cell.cpp"
   int heptdistance(heptagon *h1, heptagon *h2);
-#line 1099 "cell.cpp"
+#line 1183 "cell.cpp"
   int heptdistance(cell *c1, cell *c2);
-#line 1109 "cell.cpp"
+#line 1193 "cell.cpp"
   extern set<cell*> keep_distances_from;
-#line 1115 "cell.cpp"
+#line 1199 "cell.cpp"
   void compute_saved_distances(cell *c1, int max_range, int climit);
-#line 1123 "cell.cpp"
+#line 1207 "cell.cpp"
   void permanent_long_distances(cell *c1);
-#line 1131 "cell.cpp"
+#line 1215 "cell.cpp"
   void erase_saved_distances();
-#line 1138 "cell.cpp"
+#line 1222 "cell.cpp"
   int max_saved_distance(cell *c);
-#line 1144 "cell.cpp"
+#line 1228 "cell.cpp"
   cell *random_in_distance(cell *c, int d);
-#line 1152 "cell.cpp"
+#line 1236 "cell.cpp"
   int bounded_celldistance(cell *c1, cell *c2);
-#line 1175 "cell.cpp"
+#line 1259 "cell.cpp"
   int clueless_celldistance(cell *c1, cell *c2);
-#line 1192 "cell.cpp"
+#line 1276 "cell.cpp"
   int celldistance(cell *c1, cell *c2);
-#line 1242 "cell.cpp"
-  vector<cell*> build_shortest_path(cell *c1, cell *c2);
-#line 1295 "cell.cpp"
-  void clearCellMemory();
-#line 1311 "cell.cpp"
-  bool isNeighbor(cell *c1, cell *c2);
-#line 1316 "cell.cpp"
-  bool isNeighborCM(cell *c1, cell *c2);
-#line 1321 "cell.cpp"
-  int neighborId(cell *ofWhat, cell *whichOne);
-#line 1326 "cell.cpp"
-  extern int mine_adjacency_rule;
-#line 1328 "cell.cpp"
-  extern map<cell*, vector<cell*>> adj_memo;
 #line 1330 "cell.cpp"
+  vector<cell*> build_shortest_path(cell *c1, cell *c2);
+#line 1383 "cell.cpp"
+  void clearCellMemory();
+#line 1405 "cell.cpp"
+  bool isNeighbor(cell *c1, cell *c2);
+#line 1410 "cell.cpp"
+  bool isNeighborCM(cell *c1, cell *c2);
+#line 1415 "cell.cpp"
+  int neighborId(cell *ofWhat, cell *whichOne);
+#line 1420 "cell.cpp"
+  extern int mine_adjacency_rule;
+#line 1423 "cell.cpp"
+  struct adj_data {
+  cell *c;
+  bool mirrored;
+  transmatrix T;
+  };
+#line 1430 "cell.cpp"
+  extern array<map<cell*, vector<adj_data>>, 2> adj_memo;
+#line 1432 "cell.cpp"
   bool geometry_has_alt_mine_rule();
-#line 1337 "cell.cpp"
+#line 1439 "cell.cpp"
+  vector<adj_data> adj_minefield_cells_full(cell *c);
+#line 1490 "cell.cpp"
   vector<cell*> adj_minefield_cells(cell *c);
-#line 1384 "cell.cpp"
+#line 1497 "cell.cpp"
   vector<int> reverse_directions(cell *c, int dir);
-#line 1393 "cell.cpp"
+#line 1506 "cell.cpp"
   vector<int> reverse_directions(heptagon *c, int dir);
-#line 1436 "cell.cpp"
+#line 1549 "cell.cpp"
   bool standard_tiling();
-#line 1440 "cell.cpp"
+#line 1553 "cell.cpp"
   int valence();
-#line 1451 "cell.cpp"
+#line 1564 "cell.cpp"
   bool is_boundary(cell *c);
-#line 1457 "cell.cpp"
+#line 1570 "cell.cpp"
   int auto_compute_range(cell *c);
-#line 1477 "cell.cpp"
+#line 1590 "cell.cpp"
   extern cell out_of_bounds;
-#line 1478 "cell.cpp"
+#line 1591 "cell.cpp"
   extern heptagon oob;
 
   // implemented in: multi.cpp
@@ -2609,62 +2958,72 @@ namespace hr {
 #line 29 "multi.cpp"
     extern charstyle scs[MAXPLAYER];
 #line 31 "multi.cpp"
-    extern int players;
+    extern bool split_screen;
 #line 32 "multi.cpp"
-    extern cellwalker player[MAXPLAYER];
+    extern bool pvp_mode;
 #line 33 "multi.cpp"
-    extern vector<int> revive_queue; // queue for revival
+    extern bool friendly_fire;
+#line 34 "multi.cpp"
+    extern bool self_hits;
 #line 35 "multi.cpp"
-    extern cell *origpos[MAXPLAYER], *origtarget[MAXPLAYER];
+    extern bool two_focus;
 #line 37 "multi.cpp"
+    extern int players;
+#line 38 "multi.cpp"
+    extern cellwalker player[MAXPLAYER];
+#line 39 "multi.cpp"
+    extern vector<int> revive_queue; // queue for revival
+#line 41 "multi.cpp"
+    extern cell *origpos[MAXPLAYER], *origtarget[MAXPLAYER];
+#line 43 "multi.cpp"
     extern bool flipped[MAXPLAYER];
-#line 40 "multi.cpp"
-    extern int treasures[MAXPLAYER], kills[MAXPLAYER], deaths[MAXPLAYER];
-#line 42 "multi.cpp"
+#line 46 "multi.cpp"
+    extern int treasures[MAXPLAYER], kills[MAXPLAYER], deaths[MAXPLAYER], pkills[MAXPLAYER], suicides[MAXPLAYER];
+#line 48 "multi.cpp"
     extern bool alwaysuse;
-#line 44 "multi.cpp"
+#line 50 "multi.cpp"
     void recall();
-#line 58 "multi.cpp"
+#line 64 "multi.cpp"
     extern shiftmatrix whereis[MAXPLAYER];
-#line 59 "multi.cpp"
-    extern shiftmatrix crosscenter[MAXPLAYER];
-#line 60 "multi.cpp"
-    extern double ccdist[MAXPLAYER];
-#line 61 "multi.cpp"
-    extern cell *ccat[MAXPLAYER];
 #line 65 "multi.cpp"
-    extern int cpid; // player id -- an extra parameter for player-related functions
+    extern shiftmatrix crosscenter[MAXPLAYER];
 #line 66 "multi.cpp"
+    extern double ccdist[MAXPLAYER];
+#line 67 "multi.cpp"
+    extern cell *ccat[MAXPLAYER];
+#line 71 "multi.cpp"
+    extern int cpid; // player id -- an extra parameter for player-related functions
+#line 72 "multi.cpp"
     extern int cpid_edit; // cpid currently being edited
-#line 68 "multi.cpp"
+#line 74 "multi.cpp"
     extern movedir whereto[MAXPLAYER]; // player's target cell  
-#line 70 "multi.cpp"
+#line 76 "multi.cpp"
     extern double mdx[MAXPLAYER], mdy[MAXPLAYER]; // movement vector for the next move
-#line 113 "multi.cpp"
+#line 119 "multi.cpp"
     #define SHMUPAXES_BASE 4
     #define SHMUPAXES ((SHMUPAXES_BASE) + 4 * (MAXPLAYER))
     #define SHMUPAXES_CUR ((SHMUPAXES_BASE) + 4 * playercfg)
-#line 118 "multi.cpp"
+#line 124 "multi.cpp"
     extern const char* axemodes[SHMUPAXES];
-#line 153 "multi.cpp"
+#line 159 "multi.cpp"
     extern const char* axemodes3[4];
-#line 160 "multi.cpp"
+#line 166 "multi.cpp"
     extern int centerplayer;
-#line 204 "multi.cpp"
-    void resetScores();
 #line 213 "multi.cpp"
+    void resetScores();
+#line 222 "multi.cpp"
     string player_count_name(int p);
-#line 302 "multi.cpp"
+#line 311 "multi.cpp"
     reaction_t get_key_configurer(int sc, vector<string>& sct, string caption);
-#line 306 "multi.cpp"
+#line 315 "multi.cpp"
     reaction_t get_key_configurer(int sc, vector<string>& sct);
-#line 381 "multi.cpp"
+#line 390 "multi.cpp"
     extern const char *axmodes[7];
-#line 492 "multi.cpp"
+#line 501 "multi.cpp"
     void configure();
-#line 496 "multi.cpp"
+#line 505 "multi.cpp"
     void showConfigureMultiplayer();
-#line 530 "multi.cpp"
+#line 562 "multi.cpp"
     #define NUMACT 128
     
     enum pcmds {
@@ -2673,29 +3032,31 @@ namespace hr {
     pcFire, pcFace, pcFaceFire,
     pcDrop, pcCenter, pcOrbPower, pcOrbKey
     };
-#line 540 "multi.cpp"
+#line 572 "multi.cpp"
     extern int actionspressed[NUMACT], axespressed[SHMUPAXES], lactionpressed[NUMACT];
-#line 547 "multi.cpp"
+#line 579 "multi.cpp"
     bool notremapped(int sym);
-#line 555 "multi.cpp"
+#line 587 "multi.cpp"
     void initConfig();
-#line 713 "multi.cpp"
+#line 755 "multi.cpp"
+    void get_actions();
+#line 795 "multi.cpp"
     void handleInput(int delta);
-#line 811 "multi.cpp"
+#line 860 "multi.cpp"
     extern int tableid[7];
-#line 813 "multi.cpp"
+#line 862 "multi.cpp"
     void leaveGame(int i);
-#line 820 "multi.cpp"
+#line 869 "multi.cpp"
     bool playerActive(int p);
-#line 825 "multi.cpp"
+#line 874 "multi.cpp"
     int activePlayers();
-#line 831 "multi.cpp"
+#line 880 "multi.cpp"
     cell *multiPlayerTarget(int i);
-#line 842 "multi.cpp"
+#line 891 "multi.cpp"
     void checklastmove();
-#line 856 "multi.cpp"
+#line 905 "multi.cpp"
     void handleMulti(int delta);
-#line 997 "multi.cpp"
+#line 1046 "multi.cpp"
     void mousemovement(cell *c);
     }
 
@@ -2714,37 +3075,41 @@ namespace hr {
 #line 37 "shmup.cpp"
     struct monster {
     eMonster type;
-    cell *base;
-    cell *torigin; 
-    // tortoises: origin
-    // butterflies: last position
-    transmatrix at;
-    shiftmatrix pat;
-    /** orientation for the product geometry */
-    transmatrix ori;
+    cell *base;      ///< on which base cell this monster currently is
+    cell *torigin;   ///< tortoises: origin, butterflies: last position
+    transmatrix at;  ///< position relative to base
+    shiftmatrix pat; ///< position relative to current projection center
+    transmatrix ori; ///< orientation for the product geometry
     eMonster stk;
     bool dead;
     bool notpushed;
     bool inBoat;
     bool no_targetting;
-    monster *parent; // who shot this missile
-    int nextshot;    // when will it be able to shot (players/flailers)
-    int pid;         // player ID
-    int hitpoints;   // hitpoints; or time elapsed in Asteroids
-    int stunoff;
-    int blowoff;
-    double swordangle; // sword angle wrt at
-    double vel;        // velocity, for flail balls
+    monster *parent; ///< who shot this missile
+    int nextshot;    ///< when will it be able to shot (players/flailers)
+    int pid;         ///< player ID
+    int hitpoints;   ///< hitpoints; or time elapsed in Asteroids
+    int stunoff;     ///< when does the stun end
+    int blowoff;     ///< when does the blow end
+    int fragoff;     ///< when does the frag end in PvP
+    double swordangle; ///< sword angle wrt at
+    double vel;        ///< velocity, for flail balls
     double footphase;
-    bool isVirtual;  // off the screen: gmatrix is unknown, and pat equals at
-    hyperpoint inertia;// for frictionless lands
+    bool isVirtual;    ///< off the screen: gmatrix is unknown, and pat equals at
+    hyperpoint inertia;///< for frictionless lands
     
-    int refs;         // +1 for every reference (parent, lists of active monsters)
+    int refs;         ///< +1 for every reference (parent, lists of active monsters)
     
-    monster() { 
-    dead = false; inBoat = false; parent = NULL; nextshot = 0; 
-    stunoff = 0; blowoff = 0; footphase = 0; no_targetting = false;
-    swordangle = 0; inertia = Hypc; ori = Id; refs = 1;
+    int split_owner;  ///< in splitscreen mode, which player handles this
+    int split_tick;   ///< in which tick was split_owner computed
+    
+    void reset();
+    
+    monster() {
+    reset();
+    refs = 1; split_tick = -1; split_owner = -1;
+    no_targetting = false;
+    dead = false; inBoat = false; parent = NULL;
     }
     
     eMonster get_parenttype() { return parent ? parent->type : moNone; }
@@ -2772,85 +3137,95 @@ namespace hr {
     }
     
     };  
-#line 106 "shmup.cpp"
+#line 117 "shmup.cpp"
     extern bool on;
-#line 107 "shmup.cpp"
+#line 118 "shmup.cpp"
     extern bool delayed_safety;
-#line 108 "shmup.cpp"
+#line 119 "shmup.cpp"
     extern eLand delayed_safety_land;
-#line 112 "shmup.cpp"
+#line 123 "shmup.cpp"
     extern multimap<cell*, monster*> monstersAt;
-#line 115 "shmup.cpp"
+#line 126 "shmup.cpp"
     typedef multimap<cell*, monster*>::iterator mit;
-#line 255 "shmup.cpp"
+#line 248 "shmup.cpp"
     extern monster *pc[MAXPLAYER], *mousetarget, *lmousetarget;
-#line 257 "shmup.cpp"
+#line 250 "shmup.cpp"
     extern int curtime, nextmove, nextdragon;
-#line 265 "shmup.cpp"
+#line 258 "shmup.cpp"
     extern hookset<bool(shmup::monster*)> hooks_kill;
-#line 292 "shmup.cpp"
+#line 291 "shmup.cpp"
     void pushmonsters();
-#line 302 "shmup.cpp"
+#line 301 "shmup.cpp"
     void popmonsters();
-#line 321 "shmup.cpp"
+#line 320 "shmup.cpp"
     void degradeDemons();
-#line 329 "shmup.cpp"
+#line 328 "shmup.cpp"
     extern double playerturn[MAXPLAYER], playergo[MAXPLAYER], playerstrafe[MAXPLAYER], playerturny[MAXPLAYER], playergoturn[MAXPLAYER], godir[MAXPLAYER];
-#line 330 "shmup.cpp"
+#line 329 "shmup.cpp"
     extern transmatrix playersmallspin[MAXPLAYER];
-#line 377 "shmup.cpp"
+#line 376 "shmup.cpp"
     void visibleFor(int t);
-#line 437 "shmup.cpp"
+#line 441 "shmup.cpp"
     void killThePlayer(eMonster m);
-#line 599 "shmup.cpp"
+#line 606 "shmup.cpp"
     extern transmatrix swordmatrix[MAXPLAYER];
-#line 642 "shmup.cpp"
+#line 649 "shmup.cpp"
     void activateArrow(cell *c);
-#line 1379 "shmup.cpp"
+#line 1391 "shmup.cpp"
     monster *getPlayer();
-#line 1402 "shmup.cpp"
+#line 1414 "shmup.cpp"
     int reflect(cell*& c2, cell*& mbase, shiftmatrix& nat);
-#line 1493 "shmup.cpp"
+#line 1506 "shmup.cpp"
     bool verifyTeleport();
-#line 1505 "shmup.cpp"
+#line 1518 "shmup.cpp"
     void teleported();
-#line 1554 "shmup.cpp"
+#line 1567 "shmup.cpp"
     eItem targetRangedOrb(orbAction a);
-#line 1638 "shmup.cpp"
+#line 1651 "shmup.cpp"
     int protect_pid(int i);
-#line 1869 "shmup.cpp"
+#line 1656 "shmup.cpp"
+    bool check_split(monster *m);
+#line 1905 "shmup.cpp"
+    monster *create_bullet(monster *m, eMonster type);
+#line 1917 "shmup.cpp"
     bool dragonbreath(cell *dragon);
-#line 2503 "shmup.cpp"
+#line 2523 "shmup.cpp"
     void fixStorage();
-#line 2515 "shmup.cpp"
+#line 2535 "shmup.cpp"
     extern hookset<bool(int)> hooks_turn;
-#line 2517 "shmup.cpp"
+#line 2538 "shmup.cpp"
+    extern int pvp_delay;
+#line 2540 "shmup.cpp"
+    extern int count_pauses;
+#line 2541 "shmup.cpp"
+    extern bool in_pause;
+#line 2543 "shmup.cpp"
     void turn(int delta);
-#line 2777 "shmup.cpp"
+#line 2822 "shmup.cpp"
     void recall();
-#line 2791 "shmup.cpp"
+#line 2836 "shmup.cpp"
     void init();
-#line 2821 "shmup.cpp"
+#line 2866 "shmup.cpp"
     bool boatAt(cell *c);
-#line 2831 "shmup.cpp"
+#line 2876 "shmup.cpp"
     extern hookset<bool(const shiftmatrix&, cell*, shmup::monster*)> hooks_draw;
-#line 2833 "shmup.cpp"
-    void clearMonsters();
-#line 2843 "shmup.cpp"
-    void clearMemory();
-#line 2873 "shmup.cpp"
-    cell *playerpos(int i);
 #line 2878 "shmup.cpp"
+    void clearMonsters();
+#line 2888 "shmup.cpp"
+    void clearMemory();
+#line 2918 "shmup.cpp"
+    cell *playerpos(int i);
+#line 2923 "shmup.cpp"
     bool playerInBoat(int i);
-#line 2883 "shmup.cpp"
+#line 2928 "shmup.cpp"
     void destroyBoats(cell *c);
-#line 2889 "shmup.cpp"
+#line 2934 "shmup.cpp"
     void virtualRebase(shmup::monster *m);
-#line 2893 "shmup.cpp"
+#line 2938 "shmup.cpp"
     extern hookset<bool(shmup::monster*, string&)> hooks_describe;
-#line 2895 "shmup.cpp"
+#line 2940 "shmup.cpp"
     void addShmupHelp(string& out);
-#line 2917 "shmup.cpp"
+#line 2962 "shmup.cpp"
     void switch_shmup();
     }
 
@@ -2976,51 +3351,55 @@ namespace hr {
 #line 1539 "pattern2.cpp"
   extern map<char, colortable> colortables;
   namespace patterns {
-#line 1588 "pattern2.cpp"
+#line 1595 "pattern2.cpp"
     extern int canvasback;
-#line 1589 "pattern2.cpp"
+#line 1596 "pattern2.cpp"
     extern int subcanvas;
-#line 1590 "pattern2.cpp"
+#line 1597 "pattern2.cpp"
     extern bool displaycodes;
-#line 1591 "pattern2.cpp"
+#line 1598 "pattern2.cpp"
     extern char whichShape;
-#line 1592 "pattern2.cpp"
+#line 1599 "pattern2.cpp"
     extern char whichCanvas;
-#line 1593 "pattern2.cpp"
+#line 1600 "pattern2.cpp"
     extern bool innerwalls;
-#line 1601 "pattern2.cpp"
+#line 1608 "pattern2.cpp"
     extern string color_formula;
-#line 1754 "pattern2.cpp"
+#line 1761 "pattern2.cpp"
+    color_t compute_cell_color(cell *c);
+#line 1773 "pattern2.cpp"
     extern hookset<int(cell*)> hooks_generate_canvas;
-#line 1756 "pattern2.cpp"
+#line 1775 "pattern2.cpp"
+    extern color_t apeirogonal_color;
+#line 1777 "pattern2.cpp"
     extern int jhole;
-#line 1757 "pattern2.cpp"
+#line 1778 "pattern2.cpp"
     extern int jblock;
-#line 1758 "pattern2.cpp"
+#line 1779 "pattern2.cpp"
     extern int rwalls;
-#line 1760 "pattern2.cpp"
+#line 1781 "pattern2.cpp"
     void edit_rwalls();
-#line 1766 "pattern2.cpp"
+#line 1787 "pattern2.cpp"
     int generateCanvas(cell *c);
-#line 2159 "pattern2.cpp"
+#line 2195 "pattern2.cpp"
     void showPrePattern();
-#line 2160 "pattern2.cpp"
+#line 2196 "pattern2.cpp"
     void showPrePatternNoninstant();
-#line 2169 "pattern2.cpp"
+#line 2205 "pattern2.cpp"
     void showPattern();
-#line 2345 "pattern2.cpp"
+#line 2381 "pattern2.cpp"
     bool compatible(cpatterntype oldp, cpatterntype newp);
-#line 2455 "pattern2.cpp"
+#line 2491 "pattern2.cpp"
     extern cpatterntype cgroup, old_cgroup;
-#line 2526 "pattern2.cpp"
+#line 2562 "pattern2.cpp"
     void computeCgroup();
-#line 2553 "pattern2.cpp"
+#line 2589 "pattern2.cpp"
     void pushChangeablePatterns();
     }
-#line 2559 "pattern2.cpp"
+#line 2595 "pattern2.cpp"
   bool is_master(cell *c);
   namespace linepatterns {
-#line 2567 "pattern2.cpp"
+#line 2603 "pattern2.cpp"
     struct linepattern {
     string lpname;
     color_t color;
@@ -3031,165 +3410,197 @@ namespace hr {
     linepattern(string _lpname, color_t _color, function<bool()> _av, function<void(linepattern*)> _rend) : 
     lpname(_lpname), color(_color), multiplier(1), is_available(_av), renderer(_rend) {}
     };
-#line 2723 "pattern2.cpp"
+#line 2735 "pattern2.cpp"
+    extern ld tree_starter;
+#line 2737 "pattern2.cpp"
+    extern linepattern patTree;
+#line 2772 "pattern2.cpp"
     extern linepattern patZebraTriangles;
-#line 2736 "pattern2.cpp"
+#line 2785 "pattern2.cpp"
     extern linepattern patZebraLines;
-#line 2789 "pattern2.cpp"
+#line 2838 "pattern2.cpp"
     extern linepattern patPalace;
-#line 2934 "pattern2.cpp"
-    extern linepattern patTriTree, patTriRings, patTriOther;
-#line 2937 "pattern2.cpp"
+#line 2893 "pattern2.cpp"
+    extern linepattern patTriRings;
+#line 2910 "pattern2.cpp"
+    extern linepattern patTriTree;
+#line 2944 "pattern2.cpp"
+    extern linepattern patMeridians;
+#line 2955 "pattern2.cpp"
+    extern ld parallel_count;
+#line 2956 "pattern2.cpp"
+    extern ld parallel_max;
+#line 2957 "pattern2.cpp"
+    extern ld parallel_length;
+#line 2994 "pattern2.cpp"
+    extern linepattern patTriTree, patTriRings, patDual;
+#line 2997 "pattern2.cpp"
     extern vector<linepattern*> patterns;
-#line 2947 "pattern2.cpp"
+#line 3007 "pattern2.cpp"
     void clearAll();
-#line 2951 "pattern2.cpp"
+#line 3011 "pattern2.cpp"
     extern ld width;
-#line 2953 "pattern2.cpp"
+#line 3013 "pattern2.cpp"
     void drawAll();
-#line 2972 "pattern2.cpp"
+#line 3032 "pattern2.cpp"
     void showMenu();
     }
 
   // implemented in: mapeditor.cpp
 
   namespace mapeditor {
-#line 13 "mapeditor.cpp"
-    extern bool drawing_tool;
 #line 14 "mapeditor.cpp"
-    extern bool intexture;
+    extern int map_version;
+#line 16 "mapeditor.cpp"
+    extern bool drawing_tool;
 #line 17 "mapeditor.cpp"
+    extern bool intexture;
+#line 18 "mapeditor.cpp"
+    extern bool snapping;
+#line 19 "mapeditor.cpp"
+    extern bool building_mode;
+#line 22 "mapeditor.cpp"
     enum eShapegroup { sgPlayer, sgMonster, sgItem, sgFloor, sgWall };
     static const int USERSHAPEGROUPS = 5;
-#line 21 "mapeditor.cpp"
+#line 26 "mapeditor.cpp"
     extern color_t dtfill;
-#line 22 "mapeditor.cpp"
+#line 27 "mapeditor.cpp"
     extern color_t dtcolor;
-#line 23 "mapeditor.cpp"
+#line 28 "mapeditor.cpp"
     extern ld dtwidth;
-#line 157 "mapeditor.cpp"
+#line 162 "mapeditor.cpp"
     void clear_dtshapes();
-#line 159 "mapeditor.cpp"
+#line 164 "mapeditor.cpp"
+    shiftpoint full_mouseh();
+#line 172 "mapeditor.cpp"
     void draw_dtshapes();
-#line 197 "mapeditor.cpp"
+#line 210 "mapeditor.cpp"
     void dt_add_line(shiftpoint h1, shiftpoint h2, int maxl);
-#line 215 "mapeditor.cpp"
+#line 228 "mapeditor.cpp"
     void dt_add_circle(shiftpoint h1, shiftpoint h2);
-#line 229 "mapeditor.cpp"
+#line 242 "mapeditor.cpp"
     void dt_add_text(shiftpoint h, ld size, string cap);
-#line 262 "mapeditor.cpp"
+#line 275 "mapeditor.cpp"
     void dt_finish();
-#line 267 "mapeditor.cpp"
+#line 280 "mapeditor.cpp"
     void dt_add_free(shiftpoint h);
-#line 285 "mapeditor.cpp"
+#line 298 "mapeditor.cpp"
     void dt_erase(shiftpoint h);
-#line 303 "mapeditor.cpp"
+#line 316 "mapeditor.cpp"
     extern shiftpoint lstart;
-#line 304 "mapeditor.cpp"
+#line 317 "mapeditor.cpp"
     extern hyperpoint lstart_rel;
-#line 312 "mapeditor.cpp"
+#line 325 "mapeditor.cpp"
     struct editwhat {
     double dist;
     int rotid, symid, pointid;
     bool side;
     cell *c;
     };
-#line 319 "mapeditor.cpp"
+#line 332 "mapeditor.cpp"
     extern editwhat ew, ewsearch;
-#line 320 "mapeditor.cpp"
+#line 333 "mapeditor.cpp"
     extern bool autochoose;
-#line 322 "mapeditor.cpp"
+#line 335 "mapeditor.cpp"
     void scaleall(ld z, bool keep_mouse);
     #if CAP_EDIT
-#line 349 "mapeditor.cpp"
+#line 362 "mapeditor.cpp"
     extern map<int, cell*> modelcell;
-#line 353 "mapeditor.cpp"
+#line 366 "mapeditor.cpp"
     void applyModelcell(cell *c);
     #endif
     }
-#line 378 "mapeditor.cpp"
+#line 391 "mapeditor.cpp"
   struct hstream;
   struct fhstream;
   namespace mapstream {
     #if CAP_EDIT
-#line 385 "mapeditor.cpp"
+#line 398 "mapeditor.cpp"
     extern std::map<cell*, int> cellids;
-#line 386 "mapeditor.cpp"
+#line 399 "mapeditor.cpp"
     extern vector<cell*> cellbyid;
-#line 387 "mapeditor.cpp"
+#line 400 "mapeditor.cpp"
     extern vector<char> relspin;
-#line 430 "mapeditor.cpp"
+#line 443 "mapeditor.cpp"
     int fixspin(int rspin, int dir, int t, int vernum);
     #endif
-#line 442 "mapeditor.cpp"
+#line 455 "mapeditor.cpp"
     void save_geometry(hstream& f);
-#line 517 "mapeditor.cpp"
+#line 546 "mapeditor.cpp"
     void load_geometry(hstream& f);
-#line 635 "mapeditor.cpp"
-    extern hookset<void(fhstream&)> hooks_savemap, hooks_loadmap_old;
-#line 636 "mapeditor.cpp"
-    extern hookset<void(fhstream&, int)> hooks_loadmap;
-#line 638 "mapeditor.cpp"
+#line 687 "mapeditor.cpp"
+    extern hookset<void(hstream&)> hooks_savemap, hooks_loadmap_old;
+#line 688 "mapeditor.cpp"
+    extern hookset<void(hstream&, int)> hooks_loadmap;
+#line 690 "mapeditor.cpp"
     cell *save_start();
     #if CAP_EDIT  
-#line 986 "mapeditor.cpp"
+#line 1146 "mapeditor.cpp"
     bool saveMap(const char *fname);
-#line 998 "mapeditor.cpp"
+#line 1153 "mapeditor.cpp"
+    void saveMap(hstream& f);
+#line 1183 "mapeditor.cpp"
     bool loadMap(const string& fname);
+#line 1189 "mapeditor.cpp"
+    bool loadMap(hstream& f);
     #endif
     }
   namespace mapeditor {
-#line 1023 "mapeditor.cpp"
+#line 1239 "mapeditor.cpp"
     extern bool drawplayer;
-#line 1025 "mapeditor.cpp"
+#line 1241 "mapeditor.cpp"
     extern cell *drawcell;
     #if CAP_EDIT
-#line 1160 "mapeditor.cpp"
+#line 1377 "mapeditor.cpp"
     extern set<cell*> affected;
-#line 1161 "mapeditor.cpp"
+#line 1378 "mapeditor.cpp"
     extern set<int> affected_id;
-#line 1163 "mapeditor.cpp"
+#line 1380 "mapeditor.cpp"
     void showMapEditor();
-#line 1206 "mapeditor.cpp"
+#line 1438 "mapeditor.cpp"
     eShapegroup drawcellShapeGroup();
-#line 1214 "mapeditor.cpp"
+#line 1446 "mapeditor.cpp"
     int drawcellShapeID();
-#line 1617 "mapeditor.cpp"
+#line 1868 "mapeditor.cpp"
     extern shiftmatrix drawtrans, drawtransnew;
-#line 1629 "mapeditor.cpp"
+#line 1880 "mapeditor.cpp"
     void drawGhosts(cell *c, const shiftmatrix& V, int ct);
-#line 1658 "mapeditor.cpp"
+#line 1909 "mapeditor.cpp"
     shiftpoint find_mouseh3();
-#line 1700 "mapeditor.cpp"
+#line 1951 "mapeditor.cpp"
     void drawGrid();
-#line 1816 "mapeditor.cpp"
+#line 2069 "mapeditor.cpp"
+    shiftpoint mouse_snap();
+#line 2090 "mapeditor.cpp"
     void showDrawEditor();
     #endif
-#line 2693 "mapeditor.cpp"
+#line 3002 "mapeditor.cpp"
     void initdraw(cell *c);
-#line 2708 "mapeditor.cpp"
+#line 3017 "mapeditor.cpp"
     void queue_hcircle(shiftmatrix Ctr, ld radius);
     #if CAP_POLY
-#line 2722 "mapeditor.cpp"
+#line 3031 "mapeditor.cpp"
     bool haveUserShape(eShapegroup group, int id);
     #endif
     #if CAP_TEXTURE      
-#line 2732 "mapeditor.cpp"
+#line 3041 "mapeditor.cpp"
     void draw_texture_ghosts(cell *c, const shiftmatrix& V);
     #endif
     #if CAP_POLY
-#line 2768 "mapeditor.cpp"
+#line 3077 "mapeditor.cpp"
     bool drawUserShape(const shiftmatrix& V, eShapegroup group, int id, color_t color, cell *c, PPR prio IS(PPR::DEFAULT));
     #endif
-#line 2911 "mapeditor.cpp"
+#line 3222 "mapeditor.cpp"
+    string canvasFloorName(int id);
+#line 3235 "mapeditor.cpp"
     void map_settings();
     }
   #if CAP_EDIT
-#line 2949 "mapeditor.cpp"
+#line 3299 "mapeditor.cpp"
   extern string levelfile;
-#line 2950 "mapeditor.cpp"
+#line 3300 "mapeditor.cpp"
   extern const char *loadlevel;
-#line 2951 "mapeditor.cpp"
+#line 3301 "mapeditor.cpp"
   extern string picfile;
   #endif
 
@@ -3225,314 +3636,368 @@ namespace hr {
   bool in_perspective_v();
 #line 40 "graph.cpp"
   bool hide_player();
-#line 66 "graph.cpp"
-  extern hookset<bool(int sym, int uni)> hooks_handleKey;
-#line 67 "graph.cpp"
-  extern hookset<bool(cell *c, const shiftmatrix& V)> hooks_drawcell;
-#line 68 "graph.cpp"
-  extern purehookset hooks_frame, hooks_markers;
-#line 70 "graph.cpp"
-  extern ld animation_factor;
+#line 48 "graph.cpp"
+  transmatrix ddspin180(cell *c, int dir);
+#line 49 "graph.cpp"
+  transmatrix iddspin180(cell *c, int dir);
+#line 52 "graph.cpp"
+  template<class T>
+  class span {
+  T *begin_ = nullptr;
+  T *end_ = nullptr;
+  
+  public:
+  explicit span() = default;
+  explicit span(T *p, int n) : begin_(p), end_(p + n) {}
+  T *begin() const { return begin_; }
+  T *end() const { return end_; }
+  };
+  
+  template<class Map, class Key>
+  hr::span<const shiftmatrix> span_at(const Map& map, const Key& key) {
+  auto it = map.find(key);
+  return (it == map.end()) ? hr::span<const shiftmatrix>() : hr::span<const shiftmatrix>(it->second.data(), it->second.size());
+  }
 #line 71 "graph.cpp"
-  extern int animation_lcm;
+  extern hookset<bool(int sym, int uni)> hooks_handleKey;
+#line 72 "graph.cpp"
+  extern hookset<bool(cell *c, const shiftmatrix& V)> hooks_drawcell;
 #line 73 "graph.cpp"
-  ld ptick(int period, ld phase IS(0));
+  extern purehookset hooks_frame, hooks_markers;
+#line 75 "graph.cpp"
+  extern ld animation_factor;
+#line 76 "graph.cpp"
+  extern int animation_lcm;
 #line 78 "graph.cpp"
+  ld ptick(int period, ld phase IS(0));
+#line 83 "graph.cpp"
   ld fractick(int period, ld phase IS(0));
-#line 85 "graph.cpp"
+#line 90 "graph.cpp"
   ld sintick(int period, ld phase IS(0));
-#line 89 "graph.cpp"
+#line 94 "graph.cpp"
   transmatrix spintick(int period, ld phase IS(0));
-#line 101 "graph.cpp"
+#line 106 "graph.cpp"
   extern bool inHighQual; // taking high quality screenshot
-#line 102 "graph.cpp"
-  extern bool auraNOGL;    // aura without GL
 #line 107 "graph.cpp"
+  extern bool auraNOGL;    // aura without GL
+#line 112 "graph.cpp"
   extern int ticks;
-#line 108 "graph.cpp"
-  extern int frameid;
-#line 110 "graph.cpp"
-  extern bool camelotcheat;
-#line 111 "graph.cpp"
-  extern bool nomap;
 #line 113 "graph.cpp"
-  extern eItem orbToTarget;
-#line 114 "graph.cpp"
-  extern eMonster monsterToSummon;
+  extern int frameid;
+#line 115 "graph.cpp"
+  extern bool camelotcheat;
 #line 116 "graph.cpp"
-  extern int sightrange_bonus;
+  extern bool nomap;
 #line 118 "graph.cpp"
+  extern eItem orbToTarget;
+#line 119 "graph.cpp"
+  extern eMonster monsterToSummon;
+#line 121 "graph.cpp"
+  extern int sightrange_bonus;
+#line 123 "graph.cpp"
   extern string mouseovers;
-#line 120 "graph.cpp"
+#line 125 "graph.cpp"
   extern int darken;
-#line 131 "graph.cpp"
+#line 136 "graph.cpp"
   bool doHighlight();
-#line 143 "graph.cpp"
+#line 148 "graph.cpp"
   int flip_dark(int f, int a0, int a1);
-#line 166 "graph.cpp"
+#line 171 "graph.cpp"
   extern int lightat, safetyat;
-#line 167 "graph.cpp"
+#line 172 "graph.cpp"
   void drawLightning();
-#line 168 "graph.cpp"
+#line 173 "graph.cpp"
   void drawSafety();
-#line 247 "graph.cpp"
+#line 175 "graph.cpp"
+  void drawShield(const shiftmatrix& V, eItem it);
+#line 252 "graph.cpp"
   ld cheilevel(ld v);
-#line 251 "graph.cpp"
+#line 256 "graph.cpp"
   transmatrix chei(const transmatrix V, int a, int b);
-#line 260 "graph.cpp"
+#line 265 "graph.cpp"
   shiftmatrix chei(const shiftmatrix V, int a, int b);
-#line 327 "graph.cpp"
-  void drawPlayerEffects(const shiftmatrix& V, cell *c, bool onplayer);
+#line 349 "graph.cpp"
+  transmatrix lpispin();
+#line 353 "graph.cpp"
+  void drawPlayerEffects(const shiftmatrix& V, const shiftmatrix& Vparam, cell *c, eMonster m);
   namespace tortoise {
-#line 496 "graph.cpp"
+#line 523 "graph.cpp"
     int getMatchColor(int bits);
     }
-#line 517 "graph.cpp"
+#line 544 "graph.cpp"
   extern bool ivoryz;
-#line 574 "graph.cpp"
+#line 547 "graph.cpp"
+  transmatrix at_smart_lof(const transmatrix& V, ld lev);
+#line 553 "graph.cpp"
+  shiftmatrix at_smart_lof(const shiftmatrix& V, ld lev);
+#line 610 "graph.cpp"
   extern bool noshadow;
   #if CAP_SHAPES
-#line 577 "graph.cpp"
+#line 613 "graph.cpp"
   void ShadowV(const shiftmatrix& V, const hpcshape& bp, PPR prio IS(PPR::MONSTER_SHADOW));
   #endif
-#line 702 "graph.cpp"
+#line 741 "graph.cpp"
   bool drawstar(cell *c);
-#line 710 "graph.cpp"
+#line 749 "graph.cpp"
   bool drawing_usershape_on(cell *c, mapeditor::eShapegroup sg);
-#line 718 "graph.cpp"
+#line 757 "graph.cpp"
   color_t kind_outline(eItem it);
-#line 728 "graph.cpp"
+#line 767 "graph.cpp"
   shiftmatrix face_the_player(const shiftmatrix V);
-#line 744 "graph.cpp"
+#line 784 "graph.cpp"
   hpcshape& orbshape(eOrbshape s);
-#line 775 "graph.cpp"
+#line 816 "graph.cpp"
   color_t orb_auxiliary_color(eItem it);
-#line 793 "graph.cpp"
+#line 839 "graph.cpp"
+  color_t orb_inner_color(eItem it);
+#line 850 "graph.cpp"
   void draw_ascii(const shiftmatrix& V, char glyph, color_t col, ld size);
-#line 803 "graph.cpp"
+#line 860 "graph.cpp"
   bool drawItemType(eItem it, cell *c, const shiftmatrix& V, color_t icol, int pticks, bool hidden);
   #if CAP_SHAPES
-#line 1057 "graph.cpp"
+#line 1265 "graph.cpp"
   void drawTerraWarrior(const shiftmatrix& V, int t, int hp, double footphase);
   #endif
-#line 1077 "graph.cpp"
+#line 1285 "graph.cpp"
   void drawPlayer(eMonster m, cell *where, const shiftmatrix& V, color_t col, double footphase, bool stop IS(false));
-#line 1259 "graph.cpp"
+#line 1467 "graph.cpp"
   int wingphase(int period, int phase IS(0));
-#line 1352 "graph.cpp"
+#line 1561 "graph.cpp"
   bool drawMonsterType(eMonster m, cell *where, const shiftmatrix& V1, color_t col, double footphase, color_t asciicol);
-#line 2436 "graph.cpp"
+#line 2645 "graph.cpp"
   extern shiftmatrix playerV;
-#line 2438 "graph.cpp"
+#line 2647 "graph.cpp"
   bool applyAnimation(cell *c, shiftmatrix& V, double& footphase, int layer);
-#line 2543 "graph.cpp"
+#line 2747 "graph.cpp"
   int cellcolor(cell *c);
-#line 2588 "graph.cpp"
+#line 2792 "graph.cpp"
   extern bool dont_face_pc;
-#line 2590 "graph.cpp"
+#line 2794 "graph.cpp"
   extern shiftmatrix die_target;
-#line 2592 "graph.cpp"
+#line 2796 "graph.cpp"
   bool drawMonster(const shiftmatrix& Vparam, int ct, cell *c, color_t col, color_t asciicol);
-#line 3058 "graph.cpp"
+#line 3279 "graph.cpp"
   int haveaura();
-#line 3072 "graph.cpp"
+#line 3293 "graph.cpp"
   void clearaura();
-#line 3092 "graph.cpp"
+#line 3313 "graph.cpp"
   void addauraspecial(shiftpoint h, color_t col, int dir);
-#line 3099 "graph.cpp"
-  void addaura(shiftpoint h, color_t col, int fd);
-#line 3132 "graph.cpp"
-  void drawaura();
-#line 3291 "graph.cpp"
-  extern colortable minecolors;
-#line 3296 "graph.cpp"
-  extern colortable distcolors;
-#line 3301 "graph.cpp"
-  extern const char* minetexts[8];
-#line 3312 "graph.cpp"
-  int countMinesAround(cell *c);
 #line 3320 "graph.cpp"
+  void addaura(shiftpoint h, color_t col, int fd);
+#line 3353 "graph.cpp"
+  void drawaura();
+#line 3512 "graph.cpp"
+  extern colortable minecolors;
+#line 3517 "graph.cpp"
+  extern colortable distcolors;
+#line 3522 "graph.cpp"
+  extern const char* minetexts[8];
+#line 3533 "graph.cpp"
+  int countMinesAround(cell *c);
+#line 3541 "graph.cpp"
   transmatrix applyPatterndir(cell *c, const patterns::patterninfo& si);
-#line 3328 "graph.cpp"
+#line 3549 "graph.cpp"
   transmatrix applyDowndir(cell *c, const cellfunction& cf);
-#line 3379 "graph.cpp"
+#line 3600 "graph.cpp"
   int celldistAltPlus(cell *c);
-#line 3385 "graph.cpp"
+#line 3606 "graph.cpp"
   color_t reptilecolor(cell *c);
-#line 3415 "graph.cpp"
+#line 3636 "graph.cpp"
   extern colortable nestcolors;
-#line 3419 "graph.cpp"
+#line 3640 "graph.cpp"
   void init_floorcolors();
-#line 3466 "graph.cpp"
+#line 3687 "graph.cpp"
   color_t magma_color(int id);
-#line 3480 "graph.cpp"
+#line 3701 "graph.cpp"
   bool has_nice_dual();
-#line 3500 "graph.cpp"
+#line 3721 "graph.cpp"
   bool is_nice_dual(cell *c);
-#line 3504 "graph.cpp"
+#line 3725 "graph.cpp"
   bool use_swapped_duals();
   #if CAP_SHAPES
-#line 3509 "graph.cpp"
+#line 3730 "graph.cpp"
   void floorShadow(cell *c, const shiftmatrix& V, color_t col);
-#line 3522 "graph.cpp"
+#line 3743 "graph.cpp"
   bool use_warp_graphics();
-#line 3529 "graph.cpp"
+#line 3750 "graph.cpp"
   void escherSidewall(cell *c, int sidepar, const shiftmatrix& V, color_t col);
-#line 3558 "graph.cpp"
+#line 3779 "graph.cpp"
   bool placeSidewall(cell *c, int i, int sidepar, const shiftmatrix& V, color_t col);
   #endif
-#line 3610 "graph.cpp"
+#line 3836 "graph.cpp"
   extern color_t stdgridcolor;
-#line 3612 "graph.cpp"
+#line 3838 "graph.cpp"
   int gridcolor(cell *c1, cell *c2);
   #if CAP_SHAPES
-#line 3636 "graph.cpp"
+#line 3862 "graph.cpp"
   void pushdown(cell *c, int& q, const shiftmatrix &V, double down, bool rezoom, bool repriority);
   #endif
-#line 3697 "graph.cpp"
+#line 3923 "graph.cpp"
   int shallow(cell *c);
-#line 3718 "graph.cpp"
+#line 3944 "graph.cpp"
   extern bool bright;
-#line 3721 "graph.cpp"
+#line 3945 "graph.cpp"
+  extern int canvasdark;
+#line 3948 "graph.cpp"
   int getfd(cell *c);
-#line 3782 "graph.cpp"
+#line 4011 "graph.cpp"
   extern bool just_gmatrix;
-#line 3784 "graph.cpp"
+#line 4013 "graph.cpp"
   int colorhash(color_t i);
-#line 3788 "graph.cpp"
+#line 4017 "graph.cpp"
   bool isWall3(cell *c, color_t& wcol);
-#line 3797 "graph.cpp"
+#line 4026 "graph.cpp"
   bool isWall3(cell *c);
-#line 3799 "graph.cpp"
+#line 4028 "graph.cpp"
   bool isSulphuric(eWall w);
-#line 3807 "graph.cpp"
+#line 4036 "graph.cpp"
   color_t transcolor(cell *c, cell *c2, color_t wcol);
-#line 3840 "graph.cpp"
+#line 4069 "graph.cpp"
   int get_darkval(cell *c, int d);
-#line 3877 "graph.cpp"
+#line 4108 "graph.cpp"
   ld mousedist(shiftmatrix T);
-#line 3888 "graph.cpp"
+#line 4119 "graph.cpp"
   extern int noclipped;
-#line 3890 "graph.cpp"
+#line 4121 "graph.cpp"
   extern bool frustum_culling;
-#line 3892 "graph.cpp"
+#line 4123 "graph.cpp"
   extern ld threshold, xyz_threshold;
-#line 3894 "graph.cpp"
+#line 4125 "graph.cpp"
   extern bool clip_checked;
-#line 3994 "graph.cpp"
+#line 4225 "graph.cpp"
   extern ld precise_width;
-#line 3998 "graph.cpp"
+#line 4229 "graph.cpp"
   extern bool fat_edges;
-#line 4000 "graph.cpp"
+#line 4231 "graph.cpp"
   void gridline(const shiftmatrix& V1, const hyperpoint h1, const shiftmatrix& V2, const hyperpoint h2, color_t col, int prec);
-#line 4034 "graph.cpp"
+#line 4287 "graph.cpp"
   void gridline(const shiftmatrix& V, const hyperpoint h1, const hyperpoint h2, color_t col, int prec);
-#line 4038 "graph.cpp"
+#line 4291 "graph.cpp"
   subcellshape& generate_subcellshape_if_needed(cell *c, int id);
-#line 4118 "graph.cpp"
+#line 4376 "graph.cpp"
   void queue_transparent_wall(const shiftmatrix& V, hpcshape& sh, color_t color);
   #if MAXMDIM >= 4
-#line 4131 "graph.cpp"
+#line 4389 "graph.cpp"
   int ceiling_category(cell *c);
   #endif
-#line 4248 "graph.cpp"
+#line 4506 "graph.cpp"
   void set_detail_level(const shiftmatrix& V);
-#line 4282 "graph.cpp"
+#line 4544 "graph.cpp"
   void drawBubble(cell *c, color_t col, string s, ld size);
-#line 4290 "graph.cpp"
+#line 4552 "graph.cpp"
   void drawFlash(cell *c);
-#line 4293 "graph.cpp"
+#line 4555 "graph.cpp"
   void drawBigFlash(cell *c);
-#line 4297 "graph.cpp"
+#line 4559 "graph.cpp"
   void drawParticleSpeed(cell *c, color_t col, int speed);
-#line 4302 "graph.cpp"
+#line 4564 "graph.cpp"
   void drawParticle(cell *c, color_t col, int maxspeed IS(100));
-#line 4306 "graph.cpp"
+#line 4568 "graph.cpp"
   void drawDirectionalParticle(cell *c, int dir, color_t col, int maxspeed IS(100));
-#line 4318 "graph.cpp"
+#line 4580 "graph.cpp"
   void drawParticles(cell *c, color_t col, int qty, int maxspeed IS(100));
-#line 4322 "graph.cpp"
+#line 4584 "graph.cpp"
   void drawFireParticles(cell *c, int qty, int maxspeed IS(100));
-#line 4327 "graph.cpp"
+#line 4589 "graph.cpp"
   void fallingFloorAnimation(cell *c, eWall w IS(waNone), eMonster m IS(moNone));
-#line 4335 "graph.cpp"
+#line 4597 "graph.cpp"
   void fallingMonsterAnimation(cell *c, eMonster m, int id IS(multi::cpid));
   #if CAP_QUEUE
-#line 4395 "graph.cpp"
+#line 4657 "graph.cpp"
   void queuecircleat1(cell *c, const shiftmatrix& V, double rad, color_t col);
-#line 4434 "graph.cpp"
+#line 4696 "graph.cpp"
   void queuecircleat(cell *c, double rad, color_t col);
   #endif
-#line 4447 "graph.cpp"
+#line 4709 "graph.cpp"
   cell *forwardcell();
-#line 4458 "graph.cpp"
+#line 4720 "graph.cpp"
   extern bool draw_centerover;
-#line 4460 "graph.cpp"
+#line 4722 "graph.cpp"
   bool should_draw_mouse_cursor();
-#line 4467 "graph.cpp"
+#line 4729 "graph.cpp"
   void drawMarkers();
   #if CAP_QUEUE
-#line 4710 "graph.cpp"
+#line 4972 "graph.cpp"
   void draw_flash(struct flashdata& f, const shiftmatrix& V, bool& kill);
   #endif
-#line 4799 "graph.cpp"
+#line 5061 "graph.cpp"
   bool allowIncreasedSight();
-#line 4813 "graph.cpp"
+#line 5075 "graph.cpp"
   bool allowChangeRange();
-#line 4824 "graph.cpp"
+#line 5086 "graph.cpp"
   extern purehookset hooks_drawmap;
-#line 4826 "graph.cpp"
+#line 5088 "graph.cpp"
   extern transmatrix actual_view_transform;
-#line 4828 "graph.cpp"
+#line 5090 "graph.cpp"
   ld wall_radar(cell *c, transmatrix T, transmatrix LPe, ld max);
-#line 4848 "graph.cpp"
+#line 5111 "graph.cpp"
+  extern bool nonisotropic_weird_transforms;
+#line 5113 "graph.cpp"
+  void decide_lpu();
+#line 5117 "graph.cpp"
   void make_actual_view();
-#line 4889 "graph.cpp"
+#line 5151 "graph.cpp"
   shiftmatrix cview(ld base_shift IS(0));
-#line 4893 "graph.cpp"
+#line 5155 "graph.cpp"
+  extern int point_direction;
+#line 5157 "graph.cpp"
+  int through_wall(cell *c, hyperpoint at);
+#line 5167 "graph.cpp"
   void precise_mouseover();
-#line 4930 "graph.cpp"
+#line 5236 "graph.cpp"
   extern transmatrix Viewbase;
-#line 4932 "graph.cpp"
-  extern bool no_wall_rendering;
-#line 4934 "graph.cpp"
-  void drawthemap();
-#line 5105 "graph.cpp"
-  void drawmovestar(double dx, double dy);
-#line 5160 "graph.cpp"
-  extern bool dronemode;
-#line 5164 "graph.cpp"
-  extern int corner_centering;
-#line 5166 "graph.cpp"
-  extern bool permaside;
-#line 5168 "graph.cpp"
-  void calcparam();
-#line 5234 "graph.cpp"
-  extern function<void()> wrap_drawfullmap;
 #line 5238 "graph.cpp"
+  extern bool no_wall_rendering;
+#line 5240 "graph.cpp"
+  extern bool set_multi;
+#line 5241 "graph.cpp"
+  extern hyperpoint multi_point;
+#line 5243 "graph.cpp"
+  void center_multiplayer_map(const vector<hyperpoint>& hs);
+#line 5255 "graph.cpp"
+  void drawthemap();
+#line 5420 "graph.cpp"
+  void drawmovestar(double dx, double dy);
+#line 5475 "graph.cpp"
+  extern bool dronemode;
+#line 5479 "graph.cpp"
+  extern int corner_centering;
+#line 5481 "graph.cpp"
+  extern bool permaside;
+#line 5483 "graph.cpp"
+  extern bool old_center;
+#line 5485 "graph.cpp"
+  void calcparam();
+#line 5551 "graph.cpp"
+  extern function<void()> wrap_drawfullmap;
+#line 5555 "graph.cpp"
   void drawfullmap();
-#line 5304 "graph.cpp"
+#line 5623 "graph.cpp"
   extern bool just_refreshing;
-#line 5306 "graph.cpp"
-  void gamescreen(int _darken);
-#line 5396 "graph.cpp"
+#line 5625 "graph.cpp"
+  extern int menu_darkening;
+#line 5626 "graph.cpp"
+  extern bool centered_menus;
+#line 5628 "graph.cpp"
+  void gamescreen();
+#line 5731 "graph.cpp"
   void emptyscreen();
-#line 5402 "graph.cpp"
+#line 5737 "graph.cpp"
   extern bool nohelp;
-#line 5403 "graph.cpp"
+#line 5738 "graph.cpp"
   extern bool no_find_player;
-#line 5405 "graph.cpp"
+#line 5740 "graph.cpp"
   void normalscreen();
-#line 5434 "graph.cpp"
+#line 5772 "graph.cpp"
   extern vector< function<void()> > screens;
-#line 5437 "graph.cpp"
+#line 5775 "graph.cpp"
   template<class T> void pushScreen(const T& x) { screens.push_back(x); } 
   inline void popScreen() { if(isize(screens)>1) screens.pop_back(); }
   inline void popScreenAll() { while(isize(screens)>1) popScreen(); }
   typedef void (*cfunction)();
-#line 5443 "graph.cpp"
+#line 5781 "graph.cpp"
   cfunction current_screen_cfunction();
-#line 5450 "graph.cpp"
+#line 5788 "graph.cpp"
   namespace sm {
   static const int NORMAL = 1;
   static const int MISSION = 2;
@@ -3552,16 +4017,29 @@ namespace hr {
   static const int EXPANSION = (1<<16);
   static const int HEXEDIT = (1<<17);
   static const int VR_MENU = (1<<18); // always show the menu in VR
+  static const int SHOWCURSOR = (1<<19); // despite MAP/DRAW always show the cursor, no panning
+  static const int PANNING = (1<<20); // smooth scrolling works
+  static const int DARKEN = (1<<21); // darken the game background
+  static const int NOSCR = (1<<22); // do not show the game background
+  static const int AUTO_VALUES = (1<<23); // automatic place for values
+  static const int NARROW_LINES = (1<<24); // do make the lines narrower if we needed to reduce width
+  static const int EDIT_BEFORE_WALLS = (1<<25); // mouseover targets before walls
+  static const int EDIT_INSIDE_WALLS = (1<<26); // mouseover targets inside walls
+  static const int DIALOG_WIDE = (1<<27); // make dialogs wide
   }
-#line 5472 "graph.cpp"
+#line 5819 "graph.cpp"
   extern int cmode;
-#line 5474 "graph.cpp"
+#line 5821 "graph.cpp"
+  extern bool dont_display_minecount;
+#line 5823 "graph.cpp"
+  extern color_t titlecolor;
+#line 5825 "graph.cpp"
   void drawscreen();
-#line 5600 "graph.cpp"
+#line 5952 "graph.cpp"
   void restartGraph();
-#line 5610 "graph.cpp"
+#line 5959 "graph.cpp"
   void clearAnimations();
-#line 5635 "graph.cpp"
+#line 5984 "graph.cpp"
   struct animation {
   int ltick;
   double footphase;
@@ -3579,31 +4057,31 @@ namespace hr {
   #define LAYER_SMALL 1 // for others
   #define LAYER_BOAT  2 // mark that a boat has moved
   #define LAYER_THROW 3 // for thrown items
-#line 5654 "graph.cpp"
+#line 6003 "graph.cpp"
   extern array<map<cell*, animation>, ANIMLAYERS> animations;
-#line 5656 "graph.cpp"
+#line 6005 "graph.cpp"
   int revhint(cell *c, int hint);
-#line 5661 "graph.cpp"
+#line 6010 "graph.cpp"
   transmatrix adj(const movei& m);
-#line 5666 "graph.cpp"
+#line 6015 "graph.cpp"
   transmatrix iadj(const movei& m);
-#line 5671 "graph.cpp"
+#line 6020 "graph.cpp"
   void animateMovement(const movei& m, int layer);
-#line 5694 "graph.cpp"
+#line 6043 "graph.cpp"
   void animate_item_throw(cell *from, cell *to, eItem it);
-#line 5713 "graph.cpp"
+#line 6062 "graph.cpp"
   void animateAttackOrHug(const movei& m, int layer, int phase, ld ratio, ld delta);
-#line 5725 "graph.cpp"
+#line 6074 "graph.cpp"
   void animateAttack(const movei& m, int layer);
-#line 5729 "graph.cpp"
+#line 6078 "graph.cpp"
   void animateHug(const movei& m, int layer);
-#line 5735 "graph.cpp"
+#line 6084 "graph.cpp"
   void indAnimateMovement(const movei& m, int layer);
-#line 5755 "graph.cpp"
+#line 6104 "graph.cpp"
   void commitAnimations(int layer);
-#line 5762 "graph.cpp"
+#line 6111 "graph.cpp"
   void drawBug(const cellwalker& cw, color_t col);
-#line 5772 "graph.cpp"
+#line 6121 "graph.cpp"
   bool inscreenrange(cell *c);
 
   // implemented in: textures.cpp
@@ -3626,8 +4104,10 @@ namespace hr {
   // these are required to adjust to geometry changes
   int current_type, symmetries;
   };
+#line 32 "textures.cpp"
+  string find_file(string s);
   namespace texture {
-#line 34 "textures.cpp"
+#line 38 "textures.cpp"
     enum eTextureState {
     tsOff, tsAdjusting, tsActive
     };
@@ -3717,8 +4197,8 @@ namespace hr {
     
     texture_config() {
     // argh, no member initialization in some of my compilers
-    texturename = "textures/hyperrogue-texture.png";
-    configname = "textures/hyperrogue.txc";
+    texturename = find_file("textures/hyperrogue-texture.png");
+    configname = find_file("textures/hyperrogue.txc");
     itt = Id; 
     grid_color = 0;
     mesh_color = 0;
@@ -3730,36 +4210,36 @@ namespace hr {
     }
     
     };
-#line 138 "textures.cpp"
+#line 142 "textures.cpp"
     extern cpatterntype cgroup;
-#line 172 "textures.cpp"
+#line 176 "textures.cpp"
     extern texture_config config;
-#line 174 "textures.cpp"
+#line 178 "textures.cpp"
     extern bool saving;
-#line 487 "textures.cpp"
+#line 491 "textures.cpp"
     extern bool texture_aura;
-#line 489 "textures.cpp"
+#line 493 "textures.cpp"
     bool using_aura();
-#line 732 "textures.cpp"
+#line 736 "textures.cpp"
     extern vector<string> mpnames;
     #if CAP_EDIT
-#line 1254 "textures.cpp"
+#line 1262 "textures.cpp"
     void start_editor();
     #endif
-#line 1267 "textures.cpp"
+#line 1275 "textures.cpp"
     void showMenu();
-#line 1574 "textures.cpp"
+#line 1582 "textures.cpp"
     extern bool texturesym;
-#line 1591 "textures.cpp"
+#line 1599 "textures.cpp"
     void drawPixel(cell *c, shiftpoint h, color_t col);
-#line 1595 "textures.cpp"
+#line 1603 "textures.cpp"
     extern cell *where;
-#line 1597 "textures.cpp"
+#line 1605 "textures.cpp"
     void drawPixel(shiftpoint h, color_t col);
-#line 1619 "textures.cpp"
+#line 1627 "textures.cpp"
     void drawLine(shiftpoint h1, shiftpoint h2, color_t col, int steps IS(10));
     #if CAP_TEXTURE
-#line 1708 "textures.cpp"
+#line 1716 "textures.cpp"
     double get_txp(ld x, ld y, int p);
     #endif
     }
@@ -3808,11 +4288,15 @@ namespace hr {
   inline string ONOFF(bool b) { return b ? XLAT("ON") : XLAT("OFF"); }
   
   struct hstream {
+  color_t vernum;
   virtual void write_char(char c) = 0;
   virtual void write_chars(const char* c, size_t q) { while(q--) write_char(*(c++)); }
   virtual char read_char() = 0;
   virtual void read_chars(char* c, size_t q) { while(q--) *(c++) = read_char(); }
-  virtual color_t get_vernum() { return VERNUM_HEX; }
+  virtual color_t get_vernum() { return vernum; }
+  virtual void flush() {}
+  
+  hstream() { vernum = VERNUM_HEX; }
   
   template<class T> void write(const T& t) { hwrite(*this, t); }
   template<class T> void read(T& t) { hread(*this, t); }
@@ -3870,24 +4354,21 @@ namespace hr {
   struct hstream_exception : hr_exception { hstream_exception() {} };
   
   struct fhstream : hstream {
-  color_t vernum;
   FILE *f;
-  explicit fhstream() { f = NULL; vernum = VERNUM_HEX; }
+  explicit fhstream() { f = NULL; }
   explicit fhstream(const string pathname, const char *mode) { f = fopen(pathname.c_str(), mode); vernum = VERNUM_HEX; }
   ~fhstream() { if(f) fclose(f); }
-  color_t get_vernum() override { return vernum; }
   void write_char(char c) override { write_chars(&c, 1); }
   void write_chars(const char* c, size_t i) override { if(fwrite(c, i, 1, f) != 1) throw hstream_exception(); }
   void read_chars(char* c, size_t i) override { if(fread(c, i, 1, f) != 1) throw hstream_exception(); }
   char read_char() override { char c; read_chars(&c, 1); return c; }
+  virtual void flush() override { fflush(f); }
   };
   
   struct shstream : hstream { 
-  color_t vernum;
   string s;
   int pos;
   explicit shstream(const string& t = "") : s(t) { pos = 0; vernum = VERNUM_HEX; }
-  color_t get_vernum() override { return vernum; }
   void write_char(char c) override { s += c; }
   char read_char() override { if(pos == isize(s)) throw hstream_exception(); return s[pos++]; }
   };
@@ -3961,8 +4442,16 @@ namespace hr {
   template<class T> void print(hstream& hs, const vector<T>& a) { print(hs, "("); comma_printer c(hs); for(const T& t: a) c(t); print(hs, ")"); }
   
   template<class T, class U> void print(hstream& hs, const map<T,U>& a) { print(hs, "("); comma_printer c(hs); for(auto& t: a) c(t); print(hs, ")"); }
+  template<class T> void print(hstream& hs, const set<T>& a) { print(hs, "("); comma_printer c(hs); for(auto& t: a) c(t); print(hs, ")"); }
   
-  inline void print(hstream& hs, const hyperpoint h) { print(hs, (const array<ld, MAXMDIM>&)h); }
+  template<class T> string separated(string separator, const vector<T>& a) {
+  shstream ss;
+  bool first = true;
+  for(auto& v: a) { if(first) first = false; else print(ss, separator); print(ss, v); }
+  return ss.s;
+  }
+  
+  inline void print(hstream& hs, const hyperpoint h) { print(hs, "("); for(int i=0; i<MDIM; i++) { if(i) print(hs, ","); print(hs, h[i]); } print(hs, ")"); } // (const array<ld, MAXMDIM>&)h); }
   inline void print(hstream& hs, const transmatrix T) { 
   print(hs, "("); comma_printer c(hs);
   for(int i=0; i<MDIM; i++)
@@ -3995,6 +4484,7 @@ namespace hr {
   explicit logger() { doindent = false; }
   void write_char(char c) override;  
   char read_char() override { throw hstream_exception(); }
+  void flush() override { fflush(stdout); }
   };
   
   extern logger hlog;
@@ -4030,43 +4520,53 @@ namespace hr {
   
   struct indenter_finish : indenter {
   explicit indenter_finish(bool b = true): indenter(b ? 2:0) {}
+  explicit indenter_finish(string s): indenter(2) {
+  indenter tmp(-2);
+  println(hlog, s);
+  }
   ~indenter_finish() { if(hlog.indentation != ind.backup) println(hlog, "(done)"); }
   };
   
-#line 322 "hprint.cpp"
+#line 336 "hprint.cpp"
   void print(hstream& hs, cld x);
-#line 338 "hprint.cpp"
+#line 352 "hprint.cpp"
   string fts_fixed(ld x, int prec IS(6));
-#line 374 "hprint.cpp"
+#line 365 "hprint.cpp"
+  string scanline_noblank(fhstream& hs);
+#line 395 "hprint.cpp"
   string cts(char c);
-#line 375 "hprint.cpp"
+#line 396 "hprint.cpp"
   string llts(long long i);
-#line 381 "hprint.cpp"
-  string itsh(unsigned int i);
-#line 382 "hprint.cpp"
-  string itsh(int i);
-#line 383 "hprint.cpp"
-  string itsh2(int i);
-#line 385 "hprint.cpp"
-  string itsh(unsigned long long i);
-#line 392 "hprint.cpp"
-  extern logger hlog;
-#line 397 "hprint.cpp"
-  ld kz(ld x);
 #line 402 "hprint.cpp"
+  string itsh(unsigned int i);
+#line 403 "hprint.cpp"
+  string itsh(int i);
+#line 404 "hprint.cpp"
+  string itsh2(int i);
+#line 406 "hprint.cpp"
+  string itsh(unsigned long long i);
+#line 413 "hprint.cpp"
+  extern logger hlog;
+#line 418 "hprint.cpp"
+  ld kz(ld x);
+#line 423 "hprint.cpp"
   hyperpoint kz(hyperpoint h);
-#line 407 "hprint.cpp"
+#line 428 "hprint.cpp"
   transmatrix kz(transmatrix h);
-#line 415 "hprint.cpp"
+#line 435 "hprint.cpp"
+  shiftmatrix kz(shiftmatrix h);
+#line 440 "hprint.cpp"
+  shiftpoint kz(shiftpoint h);
+#line 446 "hprint.cpp"
   template<class T> vector<T> kz(vector<T> v) {
   for(auto& el: v) el = kz(el);
   return v;
   }
-#line 421 "hprint.cpp"
+#line 452 "hprint.cpp"
   string pick123();
-#line 422 "hprint.cpp"
+#line 453 "hprint.cpp"
   string pick12();
-#line 425 "hprint.cpp"
+#line 456 "hprint.cpp"
   template<class T> string serialize(const T& data) {
   shstream shs;
   hwrite(shs, data);
@@ -4080,15 +4580,15 @@ namespace hr {
   hread(shs, data);
   return data;
   }
-#line 440 "hprint.cpp"
+#line 471 "hprint.cpp"
   string as_hexstring(string o);
-#line 450 "hprint.cpp"
+#line 481 "hprint.cpp"
   string from_hexstring(string o);
-#line 464 "hprint.cpp"
+#line 495 "hprint.cpp"
   string as_cstring(string o);
-#line 472 "hprint.cpp"
+#line 503 "hprint.cpp"
   string as_nice_cstring(string o);
-#line 486 "hprint.cpp"
+#line 517 "hprint.cpp"
   #if ISANDROID
   #define DEBB(r,x)
   #define DEBB0(r,x)
@@ -4099,12 +4599,12 @@ namespace hr {
   #define DEBBI(r,x) { if(debugflags & (r)) { println_log x; } } indenter_finish _debbi(debugflags & (r));
   #endif
   #if CAP_GMP
-#line 498 "hprint.cpp"
+#line 529 "hprint.cpp"
   string its(mpq_class x);
-#line 499 "hprint.cpp"
+#line 530 "hprint.cpp"
   void print(hstream& hs, const mpq_class& x);
   #endif
-#line 505 "hprint.cpp"
+#line 536 "hprint.cpp"
   template<class... T> string lalign(int len, T... t) {
   shstream hs;
   print(hs, t...);
@@ -4123,7 +4623,7 @@ namespace hr {
 #line 16 "language.cpp"
   const string dnameof(eItem i);
 #line 19 "language.cpp"
-  #define NUMLAN 7
+  #define NUMLAN 8
   
   struct stringpar {
   string v;
@@ -4140,30 +4640,30 @@ namespace hr {
   extern const char* natchars[NUMEXTRA];
   #endif
   #if CAP_TRANS
-#line 116 "language.cpp"
+#line 125 "language.cpp"
   bool translation_exists(const string& x);
   #endif
-#line 328 "language.cpp"
+#line 343 "language.cpp"
   string XLAT(string x);
-#line 333 "language.cpp"
+#line 348 "language.cpp"
   string XLAT(string x, stringpar p1);
-#line 339 "language.cpp"
-  string XLAT(string x, stringpar p1, stringpar p2);
-#line 346 "language.cpp"
-  string XLAT(string x, stringpar p1, stringpar p2, stringpar p3);
 #line 354 "language.cpp"
+  string XLAT(string x, stringpar p1, stringpar p2);
+#line 361 "language.cpp"
+  string XLAT(string x, stringpar p1, stringpar p2, stringpar p3);
+#line 369 "language.cpp"
   string XLAT(string x, stringpar p1, stringpar p2, stringpar p3, stringpar p4);
-#line 363 "language.cpp"
+#line 378 "language.cpp"
   string XLAT(string x, stringpar p1, stringpar p2, stringpar p3, stringpar p4, stringpar p5);
-#line 375 "language.cpp"
+#line 390 "language.cpp"
   string XLATN(string x);
-#line 385 "language.cpp"
+#line 400 "language.cpp"
   string XLAT1(string x);
-#line 395 "language.cpp"
+#line 410 "language.cpp"
   string XLATT1(stringpar p);
-#line 397 "language.cpp"
+#line 412 "language.cpp"
   bool shapename_available(int id);
-#line 399 "language.cpp"
+#line 414 "language.cpp"
   string shapename(int id);
 
   // implemented in: util.cpp
@@ -4227,6 +4727,10 @@ namespace hr {
   bool ok() { return at == isize(s); }
   char next(int step=0) { if(at >= isize(s)-step) return 0; else return s[at+step]; }
   
+  char eatchar() {
+  return s[at++];
+  }
+  
   bool eat(const char *c) {
   int orig_at = at;
   while(*c && *c == next()) at++, c++;
@@ -4240,6 +4744,8 @@ namespace hr {
   string next_token();
   
   char snext(int step=0) { skip_white(); return next(step); }
+  
+  vector<pair<ld, ld>> parse_with_reps();
   
   cld parse(int prio = 0);
   
@@ -4263,15 +4769,15 @@ namespace hr {
   }
   
   };
-#line 404 "util.cpp"
+#line 463 "util.cpp"
   ld parseld(const string& s);
-#line 410 "util.cpp"
+#line 469 "util.cpp"
   int parseint(const string& s);
-#line 416 "util.cpp"
+#line 475 "util.cpp"
   string available_functions();
-#line 421 "util.cpp"
+#line 480 "util.cpp"
   string available_constants();
-#line 427 "util.cpp"
+#line 486 "util.cpp"
   struct bignum {
   static const int BASE = 1000000000;
   static const long long BASE2 = BASE * (long long)BASE;
@@ -4345,29 +4851,33 @@ namespace hr {
   friend inline bignum operator +(bignum a, const bignum& b) { a.addmul(b, 1); return a; }
   friend inline bignum operator -(bignum a, const bignum& b) { a.addmul(b, -1); return a; }
   };
-#line 564 "util.cpp"
+#line 623 "util.cpp"
   bignum hrand(bignum b);
-#line 575 "util.cpp"
+#line 634 "util.cpp"
   void operator ++(bignum &b, int);
-#line 590 "util.cpp"
+#line 649 "util.cpp"
   void operator --(bignum &b, int);
-#line 622 "util.cpp"
+#line 681 "util.cpp"
   string short_form(bignum b);
-#line 655 "util.cpp"
+#line 714 "util.cpp"
   void replace_str(string& s, string a, string b);
   #if CAP_ZLIB
-#line 663 "util.cpp"
+#line 722 "util.cpp"
   string compress_string(string s);
-#line 684 "util.cpp"
+#line 744 "util.cpp"
   string decompress_string(string s);
   #endif
-#line 703 "util.cpp"
+#line 764 "util.cpp"
   bool file_exists(string fname);
-#line 707 "util.cpp"
+#line 769 "util.cpp"
+  string find_file(string s);
+#line 781 "util.cpp"
   void open_url(string s);
-#line 729 "util.cpp"
+#line 803 "util.cpp"
   void open_wiki(const char *title);
-#line 743 "util.cpp"
+#line 822 "util.cpp"
+  string read_file_as_string(string fname);
+#line 837 "util.cpp"
   void floyd_warshall(vector<vector<char>>& v);
 
   // implemented in: complex.cpp
@@ -4387,44 +4897,44 @@ namespace hr {
     void calcdirs(cell *c);
 #line 91 "complex.cpp"
     int winddir(int d);
-#line 150 "complex.cpp"
+#line 151 "complex.cpp"
     void move();
-#line 164 "complex.cpp"
+#line 165 "complex.cpp"
     cell *jumpFromWhereTo(cell *c, bool player);
-#line 178 "complex.cpp"
+#line 179 "complex.cpp"
     cell *jumpDestination(cell *c);
     }
   namespace elec { 
-#line 192 "complex.cpp"
-    extern bool havecharge, haveelec, havethunder;
 #line 193 "complex.cpp"
+    extern bool havecharge, haveelec, havethunder;
+#line 194 "complex.cpp"
     extern bool afterOrb; // extra charge from the Orb of Lightning
-#line 196 "complex.cpp"
+#line 197 "complex.cpp"
     enum eCharge {
     ecCharged, ecGrounded, ecIsolator, ecConductor
     };
-#line 207 "complex.cpp"
+#line 208 "complex.cpp"
     eCharge getCharge(cell *c);
-#line 388 "complex.cpp"
+#line 389 "complex.cpp"
     void init();
-#line 427 "complex.cpp"
+#line 428 "complex.cpp"
     void cleanup();
-#line 451 "complex.cpp"
+#line 452 "complex.cpp"
     bool affected(cell *c);
-#line 458 "complex.cpp"
+#line 459 "complex.cpp"
     struct builder {
     builder() { init(); }
     ~builder() { cleanup(); }
     };
-#line 464 "complex.cpp"
+#line 465 "complex.cpp"
     void act();
-#line 476 "complex.cpp"
-    extern int lightningfast;
 #line 477 "complex.cpp"
+    extern int lightningfast;
+#line 478 "complex.cpp"
     void checklightningfast();
     }
   namespace princess {
-#line 496 "complex.cpp"
+#line 497 "complex.cpp"
     #define OUT_OF_PRISON 200
     #define OUT_OF_PALACE 250
     #define PRADIUS0 (141)
@@ -4441,171 +4951,173 @@ namespace hr {
     int together;   // in which turn have we been together -- for the hug animation
     };
     
-#line 514 "complex.cpp"
+#line 515 "complex.cpp"
     gp::loc coords();
-#line 516 "complex.cpp"
-    extern bool generating;
 #line 517 "complex.cpp"
-    extern bool challenge;
+    extern bool generating;
 #line 518 "complex.cpp"
-    extern bool saved;
+    extern bool challenge;
 #line 519 "complex.cpp"
+    extern bool saved;
+#line 520 "complex.cpp"
     extern bool everSaved;
-#line 521 "complex.cpp"
-    extern bool forceVizier;
 #line 522 "complex.cpp"
-    extern bool forceMouse;
+    extern bool forceVizier;
 #line 523 "complex.cpp"
-    extern bool gotoPrincess;
+    extern bool forceMouse;
 #line 524 "complex.cpp"
-    extern bool nodungeon;
+    extern bool gotoPrincess;
 #line 525 "complex.cpp"
+    extern bool nodungeon;
+#line 526 "complex.cpp"
     extern bool squeaked;
-#line 527 "complex.cpp"
-    extern int saveHP;
 #line 528 "complex.cpp"
+    extern int saveHP;
+#line 529 "complex.cpp"
     extern int saveArmedHP;
-#line 530 "complex.cpp"
+#line 531 "complex.cpp"
     extern int reviveAt;
-#line 532 "complex.cpp"
+#line 533 "complex.cpp"
     extern vector<info*> infos;
-#line 538 "complex.cpp"
+#line 539 "complex.cpp"
     int newInfo(cell *c);
-#line 552 "complex.cpp"
+#line 553 "complex.cpp"
     void newFakeInfo(cell *c);
-#line 565 "complex.cpp"
+#line 566 "complex.cpp"
     info *getPrisonInfo(cell *c);
-#line 575 "complex.cpp"
+#line 576 "complex.cpp"
     info *getPrincessInfo(cell *c);
-#line 588 "complex.cpp"
+#line 589 "complex.cpp"
     int dist(cell *c);
-#line 620 "complex.cpp"
+#line 621 "complex.cpp"
     void bringBack();
-#line 656 "complex.cpp"
+#line 657 "complex.cpp"
     void save(cell *princess);
-#line 663 "complex.cpp"
+#line 664 "complex.cpp"
     void move(const movei& mi);
-#line 696 "complex.cpp"
+#line 697 "complex.cpp"
     void mouseSqueak(cell *c);
-#line 720 "complex.cpp"
+#line 721 "complex.cpp"
     void line(cell *c);
-#line 791 "complex.cpp"
+#line 792 "complex.cpp"
     void playernear(cell *c);
     }
   namespace clearing {
-#line 811 "complex.cpp"
+#line 812 "complex.cpp"
     struct clearingdata {
     cell *root;
     int dist;
     bool buggy;
     clearingdata() { root = nullptr; }
     };
-#line 819 "complex.cpp"
+#line 820 "complex.cpp"
     extern std::map<heptagon*, clearingdata> bpdata;
-#line 821 "complex.cpp"
+#line 822 "complex.cpp"
     extern cell *current_root;
-#line 823 "complex.cpp"
+#line 824 "complex.cpp"
     void new_root();
-#line 890 "complex.cpp"
+#line 891 "complex.cpp"
     void generate(cell *c);
-#line 994 "complex.cpp"
+#line 995 "complex.cpp"
     extern bignum imputed;
-#line 997 "complex.cpp"
+#line 998 "complex.cpp"
     extern int direct;
-#line 1011 "complex.cpp"
+#line 1013 "complex.cpp"
     void imput(cell *c);
     }
   namespace whirlpool {
-#line 1037 "complex.cpp"
+#line 1039 "complex.cpp"
     extern bool escaped;
-#line 1041 "complex.cpp"
+#line 1043 "complex.cpp"
     cell *get(cell *c, int next);
-#line 1074 "complex.cpp"
+#line 1075 "complex.cpp"
     void generate(cell *wto);
-#line 1156 "complex.cpp"
+#line 1157 "complex.cpp"
     void move();
     }
   namespace mirror {
-#line 1174 "complex.cpp"
+#line 1175 "complex.cpp"
     static const int SPINSINGLE = 1;
     static const int SPINMULTI = 2;
     static const int GO = 4;
     static const int ATTACK = 8;
-#line 1180 "complex.cpp"
+#line 1181 "complex.cpp"
     bool build(cell *c);
-#line 1212 "complex.cpp"
+#line 1213 "complex.cpp"
     extern vector<pair<int, cellwalker>> mirrors;
-#line 1214 "complex.cpp"
+#line 1215 "complex.cpp"
     constexpr int LIGHTNING = -1; // passed instead of cpid
-#line 1253 "complex.cpp"
+#line 1233 "complex.cpp"
+    void destroyKilled();
+#line 1254 "complex.cpp"
     void destroyAll();
-#line 1259 "complex.cpp"
+#line 1260 "complex.cpp"
     void createMirror(cellwalker cw, int cpid);
-#line 1311 "complex.cpp"
+#line 1312 "complex.cpp"
     void createMirrors(cellwalker cw, int cpid);
-#line 1349 "complex.cpp"
+#line 1350 "complex.cpp"
     void createMirages(cellwalker cw, int cpid);
-#line 1401 "complex.cpp"
+#line 1402 "complex.cpp"
     void createHere(cellwalker cw, int cpid);
-#line 1409 "complex.cpp"
+#line 1410 "complex.cpp"
     void breakMirror(cellwalker cw, int pid);
-#line 1424 "complex.cpp"
+#line 1425 "complex.cpp"
     bool isKilledByMirror(cell *c);
-#line 1486 "complex.cpp"
+#line 1492 "complex.cpp"
     void act(int d, int flags);
-#line 1503 "complex.cpp"
+#line 1509 "complex.cpp"
     void breakAll();
-#line 1522 "complex.cpp"
+#line 1528 "complex.cpp"
     int mirrordir(cell *c);
-#line 1640 "complex.cpp"
+#line 1646 "complex.cpp"
     cellwalker reflect(const cellwalker& cw);
     }
   namespace hive {
-#line 1670 "complex.cpp"
+#line 1676 "complex.cpp"
     int hivehard();
-#line 1675 "complex.cpp"
+#line 1681 "complex.cpp"
     eMonster randomHyperbug();
-#line 1709 "complex.cpp"
+#line 1715 "complex.cpp"
     extern int bugcount[BUGCOLORS];
-#line 1814 "complex.cpp"
+#line 1820 "complex.cpp"
     void movebugs();
-#line 1941 "complex.cpp"
+#line 1950 "complex.cpp"
     void createBugArmy(cell *c);
     }
-#line 2029 "complex.cpp"
+#line 2038 "complex.cpp"
   inline float& HEAT(cell *c) { return c->LHU.heat; }
   namespace heat {
-#line 2034 "complex.cpp"
+#line 2043 "complex.cpp"
     void affect(cell *c, double delta);
-#line 2038 "complex.cpp"
+#line 2047 "complex.cpp"
     double absheat(cell *c);
-#line 2044 "complex.cpp"
+#line 2053 "complex.cpp"
     double celsius(cell *c);
-#line 2049 "complex.cpp"
+#line 2058 "complex.cpp"
     extern vector<cell*> offscreen_heat, offscreen_fire; // offscreen cells to take care off
-#line 2051 "complex.cpp"
+#line 2060 "complex.cpp"
     void processheat(double rate IS(1));
-#line 2179 "complex.cpp"
+#line 2188 "complex.cpp"
     #define MELTCOLOR 0xA04040
-#line 2212 "complex.cpp"
+#line 2221 "complex.cpp"
     void processfires();
     }
-#line 2330 "complex.cpp"
+#line 2339 "complex.cpp"
   void doLightningNextTurn();
-#line 2422 "complex.cpp"
+#line 2431 "complex.cpp"
   void livecaves();
-#line 2591 "complex.cpp"
+#line 2598 "complex.cpp"
   void hurricaneWind();
-#line 2638 "complex.cpp"
+#line 2645 "complex.cpp"
   void hurricaneMoveBoat(cell *c);
   namespace tortoise {
-#line 2677 "complex.cpp"
+#line 2684 "complex.cpp"
     extern map<cell*, int> emap;
-#line 2678 "complex.cpp"
+#line 2685 "complex.cpp"
     extern map<cell*, int> babymap;
-#line 2679 "complex.cpp"
+#line 2686 "complex.cpp"
     extern int last;
-#line 2682 "complex.cpp"
+#line 2689 "complex.cpp"
     enum tflag {
     tfShell, tfScute0, tfScute1, tfScute2, tfScute3,
     tfEdge1, tfEdge, tfEdge3,
@@ -4615,170 +5127,874 @@ namespace hr {
     tfShellDark, tfSkinDark,
     tfCOUNT
     };
-#line 2693 "complex.cpp"
+#line 2700 "complex.cpp"
     extern const int numbits;
-#line 2694 "complex.cpp"
-    extern const int mask;
-#line 2696 "complex.cpp"
-    int getb(cell *where);
 #line 2701 "complex.cpp"
+    extern const int mask;
+#line 2703 "complex.cpp"
+    int getb(cell *where);
+#line 2708 "complex.cpp"
     int countBits(int c);
-#line 2707 "complex.cpp"
+#line 2714 "complex.cpp"
     int getBit(int bits, int id);
-#line 2709 "complex.cpp"
+#line 2716 "complex.cpp"
     int getRandomBits();
-#line 2711 "complex.cpp"
+#line 2718 "complex.cpp"
     bool seek();
-#line 2712 "complex.cpp"
+#line 2719 "complex.cpp"
     extern int seekbits;
-#line 2724 "complex.cpp"
+#line 2731 "complex.cpp"
     extern bool shading_enabled;
-#line 2726 "complex.cpp"
+#line 2733 "complex.cpp"
     bool shading_on();
-#line 2730 "complex.cpp"
+#line 2737 "complex.cpp"
     void updateVals(int delta);
-#line 2738 "complex.cpp"
+#line 2745 "complex.cpp"
     double getScent(int bits);
-#line 2757 "complex.cpp"
-    int diff(int bits);
-#line 2760 "complex.cpp"
-    string measure(int bits);
 #line 2764 "complex.cpp"
+    int diff(int bits);
+#line 2767 "complex.cpp"
+    string measure(int bits);
+#line 2771 "complex.cpp"
     void move_baby(cell *c1, cell *c2);
-#line 2768 "complex.cpp"
+#line 2775 "complex.cpp"
     void move_adult(cell *c1, cell *c2);
     }
   namespace dragon {
-#line 2775 "complex.cpp"
+#line 2782 "complex.cpp"
     extern int whichturn; // which turn has the target been set on
-#line 2776 "complex.cpp"
+#line 2783 "complex.cpp"
     extern cell *target; // actually for all Orb of Domination
-#line 2794 "complex.cpp"
+#line 2801 "complex.cpp"
     cell *findhead(cell *c);
-#line 2823 "complex.cpp"
+#line 2830 "complex.cpp"
     int bodypart(cell *c, cell *head);
-#line 2840 "complex.cpp"
+#line 2847 "complex.cpp"
     void kill(cell *c, eMonster who);
-#line 2872 "complex.cpp"
+#line 2879 "complex.cpp"
     int totalhp(cell *c);
-#line 2924 "complex.cpp"
+#line 2933 "complex.cpp"
     bool move(const movei& mi);
     }
   namespace sword {
-#line 2962 "complex.cpp"
+#line 2971 "complex.cpp"
     struct sworddir {
     int angle;
     transmatrix T;
     };
     
     /** dimensions available to the Sword */
-    #define SWORDDIM (hybri ? 2 : WDIM)
+    #define SWORDDIM (mhybrid ? 2 : WDIM)
     
-#line 2972 "complex.cpp"
+#line 2981 "complex.cpp"
     extern int sword_angles;
-#line 2974 "complex.cpp"
+#line 2983 "complex.cpp"
     extern array<sworddir, MAXPLAYER> dir;
-#line 2978 "complex.cpp"
+#line 2987 "complex.cpp"
     void determine_sword_angles();
-#line 2999 "complex.cpp"
+#line 3008 "complex.cpp"
     cell *pos2(cell *c, int s);
-#line 3011 "complex.cpp"
+#line 3022 "complex.cpp"
     cell *pos(cell *c, const sworddir& sd, bool rev);
-#line 3026 "complex.cpp"
+#line 3037 "complex.cpp"
     int orbcount(bool rev);
-#line 3028 "complex.cpp"
+#line 3039 "complex.cpp"
     cell *pos(int id, bool rev);
-#line 3033 "complex.cpp"
+#line 3044 "complex.cpp"
     bool at(cell *where, bool noplayer IS(false));
-#line 3041 "complex.cpp"
+#line 3052 "complex.cpp"
     bool isnear(cell *where);
-#line 3048 "complex.cpp"
+#line 3059 "complex.cpp"
     sworddir shift(movei mi, sworddir d);
-#line 3080 "complex.cpp"
+#line 3091 "complex.cpp"
     sworddir initial(cell *c);
-#line 3094 "complex.cpp"
+#line 3105 "complex.cpp"
     void reset();
     }
   namespace kraken {
-#line 3106 "complex.cpp"
+#line 3117 "complex.cpp"
     cell *head(cell *c);
-#line 3112 "complex.cpp"
+#line 3123 "complex.cpp"
     void kill(cell *c, eMonster who);
-#line 3134 "complex.cpp"
+#line 3145 "complex.cpp"
     int totalhp(cell *c);
-#line 3150 "complex.cpp"
+#line 3161 "complex.cpp"
     void attacks();
-#line 3188 "complex.cpp"
+#line 3198 "complex.cpp"
     void trymove(cell *c);
     }
   #if CAP_FIELD
   namespace prairie {
-#line 3263 "complex.cpp"
+#line 3274 "complex.cpp"
     void spread(cell *c, cell *from);
-#line 3347 "complex.cpp"
+#line 3358 "complex.cpp"
     bool no_worms(cell *c);
-#line 3353 "complex.cpp"
+#line 3364 "complex.cpp"
     bool isriver(cell *c);
-#line 3361 "complex.cpp"
+#line 3372 "complex.cpp"
     bool nearriver(cell *c);
-#line 3383 "complex.cpp"
+#line 3394 "complex.cpp"
     cell *next(cell *c, int pv IS(1));
-#line 3407 "complex.cpp"
+#line 3418 "complex.cpp"
     extern vector<cell*> beaststogen;
-#line 3409 "complex.cpp"
+#line 3420 "complex.cpp"
     void generateBeast(cell *c);
-#line 3468 "complex.cpp"
+#line 3479 "complex.cpp"
     void move();
-#line 3492 "complex.cpp"
+#line 3503 "complex.cpp"
     void generateTreasure(cell *c);
-#line 3508 "complex.cpp"
+#line 3519 "complex.cpp"
     void treasures();
     }
   #endif
   namespace ca {
-#line 3538 "complex.cpp"
+#line 3549 "complex.cpp"
     extern ld prob;
-#line 3542 "complex.cpp"
+#line 3553 "complex.cpp"
     extern eWall wlive;
-#line 3544 "complex.cpp"
+#line 3555 "complex.cpp"
     extern set<cell*> changed;
-#line 3546 "complex.cpp"
+#line 3557 "complex.cpp"
     void list_adj(cell *c);
-#line 3554 "complex.cpp"
+#line 3565 "complex.cpp"
     string fillup(string s);
-#line 3559 "complex.cpp"
+#line 3570 "complex.cpp"
     void init();
-#line 3604 "complex.cpp"
+#line 3615 "complex.cpp"
     void simulate();
     }
   #if CAP_FIELD
   namespace windmap {
-#line 3711 "complex.cpp"
+#line 3723 "complex.cpp"
     static const int NOWINDBELOW = 8;
     static const int NOWINDFROM = 120;  
-#line 3719 "complex.cpp"
-    int getId(cell *c);
 #line 3731 "complex.cpp"
+    int getId(cell *c);
+#line 3743 "complex.cpp"
     extern vector<unsigned char> windcodes;
-#line 3747 "complex.cpp"
+#line 3759 "complex.cpp"
     void create();
-#line 3836 "complex.cpp"
+#line 3849 "complex.cpp"
     int at(cell *c);
     }
   #endif
   namespace halloween {
-#line 3846 "complex.cpp"
+#line 3859 "complex.cpp"
     extern cell *dragoncells[4];
-#line 3924 "complex.cpp"
+#line 3862 "complex.cpp"
+    void generate();
+#line 3984 "complex.cpp"
     void getTreat(cell *where);
-#line 3930 "complex.cpp"
+#line 3990 "complex.cpp"
     void after_treat();
-#line 4096 "complex.cpp"
+#line 4156 "complex.cpp"
     void start_all();
     }
   namespace dungeon {
-#line 4415 "complex.cpp"
+#line 4475 "complex.cpp"
     void all(cell *c, int d);
+    }
+
+  // implemented in: multigame.cpp
+
+#line 12 "multigame.cpp"
+  /** gamedata structure, for recording the game data in memory temporarily */
+  struct gamedata {
+  /** important parameters should be visible */
+  eGeometry geo;
+  eVariation var;
+  eLand specland;
+  bool active;
+  /** other properties are recorded here */
+  vector<char> record;
+  int index, mode;
+  void storegame();
+  void restoregame();
+  template<class T> void store(T& x) {
+  int ssize = sizeof(x);
+  if(ssize & 7) ssize = (ssize | 7) + 1;
+  if(mode == 0) {
+  record.resize(index+ssize);
+  ::new (&record[index]) T(std::move(x));
+  }
+  else {
+  T& at = (T&) record[index];
+  x = std::move(at);
+  at.~T();
+  }
+  index += ssize;
+  }
+  template<class T> void store_ptr(T& x) {
+  if(mode == 0) {
+  T* copy = new T(std::move(x));
+  store(copy);
+  }
+  else {
+  T* copy = nullptr;
+  store(copy);
+  x = std::move(*copy);
+  delete copy;
+  }
+  }
+  };
+#line 106 "multigame.cpp"
+  extern hookset<void(gamedata*)> hooks_gamedata;
+  namespace gamestack {
+#line 112 "multigame.cpp"
+    bool pushed();
+#line 114 "multigame.cpp"
+    void push();
+#line 119 "multigame.cpp"
+    void pop();
+    }
+  namespace dual {
+#line 130 "multigame.cpp"
+    extern int state;
+#line 133 "multigame.cpp"
+    extern bool one_euclidean;
+#line 135 "multigame.cpp"
+    extern int currently_loaded;
+#line 136 "multigame.cpp"
+    extern int main_side;
+#line 137 "multigame.cpp"
+    extern bool affect_both;
+#line 140 "multigame.cpp"
+    extern transmatrix player_orientation[2];
+#line 144 "multigame.cpp"
+    extern purehookset hooks_after_move;
+#line 163 "multigame.cpp"
+    transmatrix get_orientation();
+#line 174 "multigame.cpp"
+    void switch_to(int k);
+#line 185 "multigame.cpp"
+    bool movepc(int d, int subdir, bool checkonly);
+#line 266 "multigame.cpp"
+    void in_subscreen(reaction_t what);
+#line 272 "multigame.cpp"
+    bool split(reaction_t what);
+#line 285 "multigame.cpp"
+    void enable();
+#line 329 "multigame.cpp"
+    void disable();
+#line 363 "multigame.cpp"
+    bool check_side(eLand l);
+#line 367 "multigame.cpp"
+    void assign_landsides();
+#line 435 "multigame.cpp"
+    void add_choice();
+#line 448 "multigame.cpp"
+    void split_or_do(reaction_t what);
+#line 453 "multigame.cpp"
+    bool may_split(reaction_t what);
+#line 461 "multigame.cpp"
+    void may_split_or_do(reaction_t what);
+#line 470 "multigame.cpp"
+    inline reaction_t mayboth(reaction_t what) { return [=] { may_split_or_do(what); }; }
+    }
+
+  // implemented in: arbitrile.cpp
+
+  namespace arb {
+#line 15 "arbitrile.cpp"
+    extern int affine_limit;
+#line 18 "arbitrile.cpp"
+    
+    /** a type used to specify the connections between shapes */
+    struct connection_t {
+    /** the index of the connected shape in the 'shapes' table */
+    int sid;
+    /** the index of the edge in the 'shapes' table */
+    int eid;
+    /** 1 if this connection mirrored, 0 otherwise. do_unmirror() removes all mirrors by doubling shapes */
+    int mirror;
+    bool operator == (const arb::connection_t& b) const { return tie(sid, eid, mirror) == tie(b.sid, b.eid, b.mirror); }
+    bool operator < (const arb::connection_t& b) const { return tie(sid, eid, mirror) < tie(b.sid, b.eid, b.mirror); }
+    };
+    
+    inline void print(hstream& hs, const connection_t& conn) { print(hs, tie(conn.sid, conn.eid, conn.mirror)); }
+    
+    /** \brief each shape of the arb tessellation
+    *  note: the usual HyperRogue convention is: vertex 0, edge 0, vertex 1, edge 1, ... 
+    *  note: the tesfile convention is: edge 0, vertex 0, edge 1, vertex 1, ...
+    */
+    
+    /** edge with infinite end on the left */
+    constexpr ld INFINITE_LEFT = -1;
+    /** edge with infinite end on the right */
+    constexpr ld INFINITE_RIGHT = -2;
+    /** edge with two infinite ends */
+    constexpr ld INFINITE_BOTH = -3;
+    
+    struct shape {
+    /** index in the arbi_tiling::shapes */
+    int id;
+    /** index in the original file */
+    int orig_id;
+    /** flags such as sfLINE and sfPH */
+    int flags;
+    /** list of vertices in the usual convention */
+    vector<hyperpoint> vertices;
+    /** list of angles in the tesfile convention */
+    vector<ld> angles;
+    /** list of edge lengths */
+    vector<ld> edges;
+    /** list of input edges */
+    vector<ld> in_edges;
+    /** list of input angles */
+    vector<ld> in_angles;
+    /** (ultra)ideal markers */
+    vector<bool> ideal_markers;
+    /** list of edge connections */
+    vector<connection_t> connections;
+    int size() const { return isize(vertices); }
+    void build_from_angles_edges(bool is_comb);
+    vector<pair<int, int> > sublines;
+    vector<pair<ld, ld>> stretch_shear;
+    /** '*inf' was applied to represent an apeirogon/pseudogon */
+    bool apeirogonal;
+    /** connections repeat `repeat_value` times */
+    int repeat_value;
+    /** 0 if the no mirror symmetries are declared; otherwise, edge i is the mirror of edge gmod(symmetric_value-i, size()). Make sure symmetric_value != 0, e.g., by adding size() */
+    int symmetric_value;
+    /** if a tile/edge combination may be connected to edges j1 and j2 of this, j1-j2 must be divisible by cycle_length */
+    int cycle_length;
+    /** list of valences of vertices in the tesfile convention */
+    vector<int> vertex_valence;
+    /** list of periods of vertices in the tesfile convention */
+    vector<int> vertex_period;
+    /** list of angles at vertices in the tesfile convention */
+    vector<vector<ld>> vertex_angles;
+    /** football types */
+    int football_type;
+    /** is it a mirrored version of an original tile */
+    bool is_mirrored;
+    /** auxiliary function for symmetric_value: is the edge index reflectable? */
+    bool reflectable(int id) {
+    if(!symmetric_value) return false;
+    if(apeirogonal && gmod(id, size()) >= size() - 2) return false;
+    return true;
+    }
+    /** reflect a reflectable reflect index */
+    int reflect(int id) {
+    return gmod(symmetric_value - id, size() - (apeirogonal ? 2 : 0));
+    }
+    };
+    
+    struct slider {
+    string name;
+    ld zero;
+    ld current;
+    ld min;
+    ld max;
+    };
+    
+    struct intslider {
+    string name;
+    int zero;
+    int current;
+    int min;
+    int max;
+    };
+    
+    struct arbi_tiling {
+    
+    int order;
+    /* line flags have been marked for tiles */
+    bool have_line;
+    /* pseudohept flags have been marked for tiles (1), or the tiling is football-colorable (2), or neither (0) */
+    int have_ph;
+    /* is the tree structure given in the tes file */
+    bool have_tree;
+    /* is the valence data reliable */
+    bool have_valence;
+    /* use "star." if the tessellation includs star polygons */
+    bool is_star;
+    /* use "combinatorial." for combinatorial tessellations; vertex valences computed based on their angles. Currently only rulegen works for combinatorial tessellations */
+    bool is_combinatorial;
+    /* reserved for future flags */
+    bool res0, res1, res2, res3;
+    
+    int yendor_backsteps;
+    
+    vector<shape> shapes;
+    string name;
+    string comment;
+    
+    vector<slider> sliders;
+    vector<intslider> intsliders;
+    
+    ld cscale;
+    int range;
+    ld floor_scale;
+    ld boundary_ratio;
+    string filename;
+    int mirror_rules;
+    
+    vector<string> options;
+    
+    int min_valence, max_valence;
+    bool is_football_colorable;
+    bool was_unmirrored;
+    bool was_split_for_football;
+    
+    geometryinfo1& get_geometry();
+    eGeometryClass get_class() { return get_geometry().kind; }
+    
+    ld scale();
+    };
+#line 165 "arbitrile.cpp"
+    extern arbi_tiling current;
+#line 168 "arbitrile.cpp"
+    extern bool using_slided;
+#line 171 "arbitrile.cpp"
+    extern arbi_tiling slided;
+#line 173 "arbitrile.cpp"
+    bool in_slided();
+#line 175 "arbitrile.cpp"
+    arbi_tiling& current_or_slided();
+#line 181 "arbitrile.cpp"
+    short& id_of(heptagon *h);
+#line 184 "arbitrile.cpp"
+    struct hr_polygon_error : hr_exception {
+    vector<transmatrix> v;
+    eGeometryClass c;
+    int id;
+    transmatrix end;
+    map<string, cld> params;
+    hr_polygon_error(const vector<transmatrix>& _v, int _id, transmatrix _e) : v(_v), c(cgclass), id(_id), end(_e) {}
+    ~hr_polygon_error() noexcept(true) {}
+    string generate_error();
+    };
+#line 352 "arbitrile.cpp"
+    bool correct_index(int index, int size);
+#line 359 "arbitrile.cpp"
+    void load_tile(exp_parser& ep, arbi_tiling& c, bool unit);
+#line 466 "arbitrile.cpp"
+    extern bool do_unmirror;
+#line 473 "arbitrile.cpp"
+    void unmirror(arbi_tiling& c);
+#line 541 "arbitrile.cpp"
+    void mirror_connection(arb::arbi_tiling& ac, connection_t& co);
+#line 548 "arbitrile.cpp"
+    void compute_vertex_valence_prepare(arb::arbi_tiling& ac);
+#line 596 "arbitrile.cpp"
+    bool compute_vertex_valence_flat(arb::arbi_tiling& ac);
+#line 644 "arbitrile.cpp"
+    bool compute_vertex_valence_generic(arb::arbi_tiling& ac);
+#line 691 "arbitrile.cpp"
+    void compute_vertex_valence(arb::arbi_tiling& ac);
+#line 718 "arbitrile.cpp"
+    extern bool extended_football;
+#line 720 "arbitrile.cpp"
+    void check_football_colorability(arbi_tiling& c);
+#line 886 "arbitrile.cpp"
+    void add_connection_sub(arbi_tiling& c, int ai, int as, int bi, int bs, int m);
+#line 902 "arbitrile.cpp"
+    void add_connection(arbi_tiling& c, int ai, int as, int bi, int bs, int m);
+#line 919 "arbitrile.cpp"
+    void set_defaults(arb::arbi_tiling& c, bool keep_sliders, string fname);
+#line 945 "arbitrile.cpp"
+    void load(const string& fname, bool load_as_slided IS(false), bool keep_sliders IS(false));
+#line 1348 "arbitrile.cpp"
+    extern map<heptagon*, pair<heptagon*, transmatrix>> arbi_matrix;
+#line 1350 "arbitrile.cpp"
+    extern hrmap *current_altmap;
+#line 1355 "arbitrile.cpp"
+    hyperpoint get_midedge(ld len, const hyperpoint &l, const hyperpoint &r);
+#line 1368 "arbitrile.cpp"
+    bool is_apeirogonal(cell *c);
+#line 1373 "arbitrile.cpp"
+    bool is_apeirogonal();
+#line 1380 "arbitrile.cpp"
+    extern bool apeirogon_consistent_coloring;
+#line 1381 "arbitrile.cpp"
+    extern bool apeirogon_hide_grid_edges;
+#line 1382 "arbitrile.cpp"
+    extern bool apeirogon_simplified_display;
+#line 1385 "arbitrile.cpp"
+    transmatrix get_adj(arbi_tiling& c, int t, int dl, int t1, int xdl, bool xmirror);
+#line 1436 "arbitrile.cpp"
+    transmatrix get_adj(arbi_tiling& c, int t, int dl);
+#line 1443 "arbitrile.cpp"
+    bool find_connection(const transmatrix& T, const transmatrix& F, connection_t& co);
+#line 1623 "arbitrile.cpp"
+    hrmap *new_map();
+#line 1625 "arbitrile.cpp"
+    void run(string fname);
+#line 1668 "arbitrile.cpp"
+    void sliders_changed(bool need_restart, bool need_start);
+#line 1691 "arbitrile.cpp"
+    void set_sliders();
+    namespace convert {
+#line 1721 "arbitrile.cpp"
+      extern eGeometry base_geometry;
+#line 1722 "arbitrile.cpp"
+      extern eVariation base_variation;
+#line 1798 "arbitrile.cpp"
+      extern bool reverse_order;
+#line 1799 "arbitrile.cpp"
+      extern bool minimize_on_convert;
+#line 1801 "arbitrile.cpp"
+      void convert_max();
+#line 1853 "arbitrile.cpp"
+      void convert_minimize(int N, vector<int>& old_shvids, map<int, int>& old_to_new);
+#line 1922 "arbitrile.cpp"
+      void convert();
+#line 2020 "arbitrile.cpp"
+      bool in();
+#line 2025 "arbitrile.cpp"
+      void activate();
+      }
+#line 2094 "arbitrile.cpp"
+    bool in();
+#line 2096 "arbitrile.cpp"
+    extern string tes;
+#line 2098 "arbitrile.cpp"
+    bool linespattern(cell *c);
+#line 2102 "arbitrile.cpp"
+    bool pseudohept(cell *c);
+#line 2107 "arbitrile.cpp"
+    void choose();
+#line 2119 "arbitrile.cpp"
+    pair<ld, ld> rep_ideal(ld e, ld u IS(1));
+#line 2135 "arbitrile.cpp"
+    void swap_vertices();
+    }
+
+  // implemented in: rulegen.cpp
+
+  namespace rulegen {
+#line 15 "rulegen.cpp"
+    extern int max_retries;
+#line 16 "rulegen.cpp"
+    extern int max_tcellcount;
+#line 17 "rulegen.cpp"
+    extern int max_adv_steps;
+#line 18 "rulegen.cpp"
+    extern int max_examine_branch;
+#line 19 "rulegen.cpp"
+    extern int max_bdata;
+#line 20 "rulegen.cpp"
+    extern int max_getside;
+#line 21 "rulegen.cpp"
+    extern int rulegen_timeout;
+#line 22 "rulegen.cpp"
+    extern int max_shortcut_length;
+#line 23 "rulegen.cpp"
+    extern int first_restart_on;
+#line 26 "rulegen.cpp"
+    /** exception thrown by this algoritm in case of any problems */
+    struct rulegen_failure : hr_exception {
+    rulegen_failure(string _s) : hr_exception(_s) {}
+    };
+    
+    /** this exception is thrown if we want to restart the computation -- this is normal, but if thrown more than max_retries times, just surrender */
+    struct rulegen_retry : rulegen_failure {
+    rulegen_retry(string _s) : rulegen_failure(_s) {}
+    };
+    
+    /** this exception is thrown in case if we run into a special case that is not implemented yet */
+    struct rulegen_surrender : rulegen_failure {
+    rulegen_surrender(string _s) : rulegen_failure(_s) {}
+    };
+    
+    const int MYSTERY = 31999;
+    const int MYSTERY_LARGE = 31999999;
+#line 48 "rulegen.cpp"
+    extern int tcellcount;
+#line 50 "rulegen.cpp"
+    extern int tunified;
+#line 52 "rulegen.cpp"
+    extern int hard_parents;
+#line 54 "rulegen.cpp"
+    extern int single_live_branches;
+#line 56 "rulegen.cpp"
+    extern int double_live_branches;
+#line 58 "rulegen.cpp"
+    extern int states_premini;
+#line 61 "rulegen.cpp"
+    /** change some flags -- they usually make it worse */
+    static const flagtype w_numerical = Flag(1); /*< build trees numerically */
+    static const flagtype w_near_solid = Flag(2); /*< solid's pre-parent is also solid */
+    static const flagtype w_no_shortcut = Flag(3); /*< generate no shortcuts */
+    static const flagtype w_no_restart = Flag(4); /*< do not restart at powers of two */
+    static const flagtype w_no_sidecache = Flag(5); /*< do not cache get_side */
+    static const flagtype w_no_relative_distance = Flag(6); /*< do not build relative distances into codes */
+    static const flagtype w_examine_once = Flag(7); /*< restart after first conflict found in analysis */
+    static const flagtype w_examine_all = Flag(8); /*< focus on all conflicts found in analysis even if we know them */
+    static const flagtype w_conflict_all = Flag(9); /*< full extension in case of conflicts */
+    static const flagtype w_parent_always = Flag(10); /*< always consider the full parent rule */
+    static const flagtype w_parent_reverse = Flag(11); /*< reverse paths in parent_dir */
+    static const flagtype w_parent_side = Flag(12); /*< allow side paths in parent_dir */
+    static const flagtype w_parent_never = Flag(13); /*< never consider the full parent rule */
+    static const flagtype w_always_clean = Flag(14); /*< restart following phases after any distance errors */
+    static const flagtype w_single_origin = Flag(15); /*< consider only one origin */
+    static const flagtype w_slow_side = Flag(16); /*< do not try get_side optimization */
+    static const flagtype w_bfs = Flag(17); /*< compute distances using BFS */
+    static const flagtype w_numerical_fix = Flag(18); /*< when doing numerical, find out filled vertices */
+    static const flagtype w_known_structure = Flag(19); /*< do flagless first, then use the known distances from there (handled in ruletest) */
+    static const flagtype w_known_distances = Flag(20); /*< with, use the actual distances */
+    static const flagtype w_no_smart_shortcuts = Flag(21); /*< disable the 'smart shortcut' optimization */
+    static const flagtype w_less_smart_retrace = Flag(22); /*< stop early when examining smart shortcut retraction */
+    static const flagtype w_less_smart_advance = Flag(23); /*< stop early when examining smart shortcut advancement */
+    static const flagtype w_no_queued_extensions = Flag(24); /*< consider extensions one by one */
+    static const flagtype w_no_branch_skipping = Flag(24); /*< do not skip branches */
+    
+    /* for 3D honeycombs */
+    static const flagtype w_skip_transducers = Flag(32); /*< skip the transducer test */
+    static const flagtype w_skip_transducer_loops = Flag(33); /*< skip loops during the transducer test */
+    static const flagtype w_skip_transducer_terminate = Flag(34); /*< skip termination during the transducer test */
+    static const flagtype w_r3_all_errors = Flag(35); /*< consider all errors for R3 */
+    static const flagtype w_r3_no_road_shortcuts = Flag(36); /*< consider all errors for R3 */
+    static const flagtype w_ignore_transducer_dist = Flag(37); /*< ignore distance errors while testing the transducers */
+#line 98 "rulegen.cpp"
+    extern flagtype rdebug_flags;
+#line 100 "rulegen.cpp"
+    extern flagtype flags;
+#line 102 "rulegen.cpp"
+    extern int64_t movecount;
+#line 104 "rulegen.cpp"
+    extern int current_getside, current_examine_branch;
+#line 107 "rulegen.cpp"
+    struct tcell* tmove(tcell *c, int d);
+    
+    /** rulegen algorithm works on tcells which have their own map generation */
+    struct tcell {
+    /** tcells form a list */
+    tcell *next;
+    /** shape ID in arb::current */
+    int id;
+    /** degree */
+    int type;
+    /** distance from the root */
+    short dist;
+    /** cached code */
+    int code;
+    /** direction to the parent in the tree */
+    short parent_dir;
+    /** direction to the OLD parent in the tree */
+    short old_parent_dir;
+    /** direction to anyone closer */
+    short any_nearer;
+    /** can we assume that dist is correct? if we assumed that the dist is correct but then find out it was wrong, throw an error */
+    bool is_solid;
+    bool distance_fixed;
+    /** is side info cached? */
+    unsigned long long known_sides;
+    /** which side is it */
+    unsigned long long which_side;
+    /** sometimes we find out that multiple tcells represent the same actual cell -- in this case we unify them; unified_to is used for the union-find algorithm */
+    walker<tcell> unified_to;
+    int degree() { return type; }
+    connection_table<tcell> c;
+    tcell*& move(int d) { movecount++; return c.move(d); }
+    tcell*& modmove(int d) { movecount++; return c.modmove(d); }
+    tcell* cmove(int d) { movecount++; return tmove(this, d); }
+    tcell* cmodmove(int d) { movecount++; return tmove(this, c.fix(d)); }
+    tcell() { }
+    };
+    
+    inline void print(hstream& hs, tcell* h) { print(hs, "P", index_pointer(h)); }
+    
+    using twalker = walker<tcell>;
+#line 150 "rulegen.cpp"
+    extern hookset<void(int, twalker)> hooks_gen_tcell;
+#line 177 "rulegen.cpp"
+    void ufind(twalker& p);
+#line 185 "rulegen.cpp"
+    void ufindc(tcell*& c);
+#line 189 "rulegen.cpp"
+    extern tcell *first_tcell;
+#line 198 "rulegen.cpp"
+    extern int less_states;
+#line 200 "rulegen.cpp"
+    int number_of_types();
+#line 206 "rulegen.cpp"
+    int get_id(cell *c);
+#line 244 "rulegen.cpp"
+    extern map<cell*, tcell*> cell_to_tcell;
+#line 245 "rulegen.cpp"
+    extern map<tcell*, cell*> tcell_to_cell;
+#line 402 "rulegen.cpp"
+    void connect_and_check(twalker p1, twalker p2);
+#line 411 "rulegen.cpp"
+    void unify(twalker pw1, twalker pw2);
+#line 457 "rulegen.cpp"
+    extern vector<twalker> t_origin;
+#line 459 "rulegen.cpp"
+    void delete_tmap();
+#line 472 "rulegen.cpp"
+    extern vector<twalker> debuglist;
+#line 474 "rulegen.cpp"
+    extern vector<twalker> solid_errors_list;
+#line 485 "rulegen.cpp"
+    extern int solid_errors;
+#line 488 "rulegen.cpp"
+    extern int all_solid_errors;
+#line 491 "rulegen.cpp"
+    extern int next_distance_warning;
+#line 494 "rulegen.cpp"
+    extern int distance_warnings;
+#line 497 "rulegen.cpp"
+    struct shortcut {
+    vector<int> pre;
+    vector<int> post;
+    tcell *sample;
+    int delta;
+    int last_dir;
+    };
+#line 506 "rulegen.cpp"
+    extern vector<vector<unique_ptr<shortcut>> > shortcuts;
+#line 530 "rulegen.cpp"
+    extern void calc_distances(tcell *c);
+#line 532 "rulegen.cpp"
+    void shortcut_found(tcell *c, tcell *alt, vector<twalker> &walkers, vector<twalker> &walkers2, const vector<int>& walkerdir, const vector<int>& walkerdir2, int wpos);
+#line 576 "rulegen.cpp"
+    void find_new_shortcuts(tcell *c, int d, tcell *alt, int newdir, int delta);
+#line 650 "rulegen.cpp"
+    void remove_parentdir(tcell *c);
+#line 666 "rulegen.cpp"
+    void fix_distances(tcell *c);
+#line 732 "rulegen.cpp"
+    void unify_distances(tcell *c1, tcell *c2, int delta);
+#line 746 "rulegen.cpp"
+    void handle_distance_errors();
+#line 767 "rulegen.cpp"
+    void be_solid(tcell *c);
+#line 789 "rulegen.cpp"
+    void look_for_shortcuts(tcell *c, shortcut& sh);
+#line 876 "rulegen.cpp"
+    void look_for_shortcuts(tcell *c);
+#line 882 "rulegen.cpp"
+    void ensure_shorter(twalker cw);
+#line 933 "rulegen.cpp"
+    extern int parent_updates;
+#line 937 "rulegen.cpp"
+    twalker get_parent_dir(twalker& cw);
+#line 1033 "rulegen.cpp"
+    using aid_t = pair<int, int>;
+    
+    /* for leaves, id equals MYSTERY and dir equals treestate ID for this code */
+    
+    struct analyzer_state {
+    int analyzer_id;
+    int id, dir;
+    map<int, analyzer_state*> substates;
+    analyzer_state() { id = MYSTERY; dir = MYSTERY_LARGE; } // for(int i=0; i<10; i++) substates[i] = nullptr; }
+    vector<twalker> inhabitants;
+    };
+    
+#line 1049 "rulegen.cpp"
+    extern vector<vector<analyzer_state*>> analyzers;
+#line 1050 "rulegen.cpp"
+    extern vector<analyzer_state*> all_analyzers;
+#line 1059 "rulegen.cpp"
+    aid_t get_aid(twalker cw);
+#line 1139 "rulegen.cpp"
+    
+    struct treestate {
+    int id;
+    bool known;
+    vector<int> rules;
+    twalker giver;
+    int sid;
+    int parent_dir;
+    int astate;
+    twalker where_seen;
+    bool is_live;
+    bool is_possible_parent;
+    bool is_root;
+    vector<pair<int, int>> possible_parents;
+    };
+    
+    static const int C_IGNORE = 0;
+    static const int C_CHILD = 1;
+    static const int C_UNCLE = 2;
+    static const int C_EQUAL = 4;
+    static const int C_NEPHEW = 6;  
+    static const int C_PARENT = 8;
+#line 1163 "rulegen.cpp"
+    extern vector<treestate> treestates;
+#line 1165 "rulegen.cpp"
+    extern set<tcell*> single_live_branch_close_to_root;
+#line 1180 "rulegen.cpp"
+    extern vector<tcell*> sidecaches_to_clear;
+#line 1311 "rulegen.cpp"
+    int move_code(twalker cs);
+#line 1344 "rulegen.cpp"
+    void id_at_spin(twalker cw, vector<twalker>& sprawl, vector<analyzer_state*>& states);
+#line 1381 "rulegen.cpp"
+    pair<int, int> get_code(twalker& cw);
+#line 1407 "rulegen.cpp"
+    pair<int, int> get_treestate_id(twalker& cw);
+#line 1427 "rulegen.cpp"
+    extern int rule_root;
+#line 1431 "rulegen.cpp"
+    extern int try_count;
+#line 1432 "rulegen.cpp"
+    extern vector<twalker> important;
+#line 1437 "rulegen.cpp"
+    /* special codes */
+    static const int DIR_UNKNOWN = -1;
+    static const int DIR_LEFT = -4;
+    static const int DIR_RIGHT = -5;
+    static const int DIR_PARENT = -6;
+#line 1478 "rulegen.cpp"
+    void rules_iteration_for(twalker& cw);
+#line 1814 "rulegen.cpp"
+    void clear_codes();
+#line 1843 "rulegen.cpp"
+    void clean_analyzers();
+#line 1851 "rulegen.cpp"
+    void clean_data();
+#line 1857 "rulegen.cpp"
+    void clear_sidecache_and_codes();
+#line 1862 "rulegen.cpp"
+    void update_all_codes(analyzer_state *a);
+#line 1872 "rulegen.cpp"
+    void clean_parents();
+#line 1891 "rulegen.cpp"
+    void rules_iteration();
+#line 2073 "rulegen.cpp"
+    void cleanup();
+#line 2082 "rulegen.cpp"
+    void clear_all();
+#line 2087 "rulegen.cpp"
+    extern int origin_id;
+#line 2089 "rulegen.cpp"
+    extern unsigned start_time;
+#line 2091 "rulegen.cpp"
+    void check_timeout();
+#line 2096 "rulegen.cpp"
+    void generate_rules();
+#line 2181 "rulegen.cpp"
+    void rule_iterations();
+#line 2384 "rulegen.cpp"
+    extern vector<treestate> alt_treestates;
+#line 2386 "rulegen.cpp"
+    void swap_treestates();
+#line 2390 "rulegen.cpp"
+    void add_other_origins(int qty);
+#line 2403 "rulegen.cpp"
+    int get_arb_dir(cell *c, int dir);
+#line 2407 "rulegen.cpp"
+    hrmap *new_hrmap_rulegen_alt(heptagon *h);
+#line 2411 "rulegen.cpp"
+    hrmap *new_hrmap_rulegen();
+#line 2413 "rulegen.cpp"
+    int get_state(cell *c);
+#line 2417 "rulegen.cpp"
+    extern string rules_known_for;
+#line 2420 "rulegen.cpp"
+    bool known();
+#line 2424 "rulegen.cpp"
+    bool prepare_rules();
+#line 2495 "rulegen.cpp"
+    void parse_treestate(arb::arbi_tiling& c, exp_parser& ep);
+#line 2533 "rulegen.cpp"
+    void verify_parsed_treestates(arb::arbi_tiling& c);
+#line 2546 "rulegen.cpp"
+    void show();
     }
 
   // implemented in: 3d-models.cpp
@@ -4790,9 +6006,9 @@ namespace hr {
   extern transmatrix front_leg_move, rear_leg_move, front_leg_move_inverse, rear_leg_move_inverse;
 #line 26 "3d-models.cpp"
   extern ld leg_length;
-#line 40 "3d-models.cpp"
+#line 41 "3d-models.cpp"
   ld zc(ld z);
-#line 788 "3d-models.cpp"
+#line 835 "3d-models.cpp"
   void queueball(const shiftmatrix& V, ld rad, color_t col, eItem what);
   #endif
 
@@ -4822,212 +6038,56 @@ namespace hr {
   extern vector<string> achievementsReceived;
 #line 107 "achievement.cpp"
   bool wrongMode(char flags);
-#line 141 "achievement.cpp"
+#line 149 "achievement.cpp"
   extern set<string> got_achievements;
-#line 143 "achievement.cpp"
+#line 151 "achievement.cpp"
   void achievement_gain_once(const string& s, char flags IS(0));
-#line 154 "achievement.cpp"
+#line 162 "achievement.cpp"
   void achievement_log(const char* s, char flags);
-#line 188 "achievement.cpp"
-  extern void achievement_init();
-#line 189 "achievement.cpp"
-  extern string myname();
-#line 190 "achievement.cpp"
-  extern void achievement_close();
 #line 196 "achievement.cpp"
+  extern void achievement_init();
+#line 197 "achievement.cpp"
+  extern string myname();
+#line 198 "achievement.cpp"
+  extern void achievement_close();
+#line 204 "achievement.cpp"
   extern void achievement_gain(const char* s, char flags IS(0));
-#line 214 "achievement.cpp"
+#line 222 "achievement.cpp"
   void achievement_collection(eItem it);
-#line 218 "achievement.cpp"
+#line 226 "achievement.cpp"
   void achievement_collection2(eItem it, int q);
-#line 561 "achievement.cpp"
+#line 569 "achievement.cpp"
   void achievement_count(const string& s, int current, int prev);
-#line 611 "achievement.cpp"
+#line 619 "achievement.cpp"
   void improve_score(int i, eItem what);
-#line 626 "achievement.cpp"
+#line 634 "achievement.cpp"
   void achievement_score(int cat, int number);
-#line 652 "achievement.cpp"
+#line 661 "achievement.cpp"
   void improveItemScores();
-#line 726 "achievement.cpp"
+#line 735 "achievement.cpp"
   void achievement_final(bool really_final);
-#line 834 "achievement.cpp"
+#line 847 "achievement.cpp"
   extern bool hadtotalvictory;
-#line 836 "achievement.cpp"
+#line 849 "achievement.cpp"
   void check_total_victory();
-#line 851 "achievement.cpp"
+#line 864 "achievement.cpp"
   void achievement_victory(bool hyper);
-#line 925 "achievement.cpp"
+#line 938 "achievement.cpp"
   extern void achievement_pump();
-#line 927 "achievement.cpp"
+#line 940 "achievement.cpp"
   string get_rich_presence_text();
-#line 990 "achievement.cpp"
+#line 1003 "achievement.cpp"
   void achievement_display();
-#line 1012 "achievement.cpp"
+#line 1025 "achievement.cpp"
   bool isAscending(int i);
-#line 1016 "achievement.cpp"
+#line 1029 "achievement.cpp"
   int score_default(int i);
   #ifndef HAVE_ACHIEVEMENTS
-#line 1022 "achievement.cpp"
+#line 1035 "achievement.cpp"
   int get_sync_status();
-#line 1023 "achievement.cpp"
+#line 1036 "achievement.cpp"
   void set_priority_board(int);
   #endif
-
-  // implemented in: arbitrile.cpp
-
-  namespace arb {
-#line 15 "arbitrile.cpp"
-    extern int affine_limit;
-#line 17 "arbitrile.cpp"
-    extern bool legacy; /* angleofs command */
-#line 20 "arbitrile.cpp"
-    
-    /** a type used to specify the connections between shapes */
-    struct connection_t {
-    /** the index of the connected shape in the 'shapes' table */
-    int sid;
-    /** the index of the edge in the 'shapes' table */
-    int eid;
-    /** 1 if this connection mirrored, 0 otherwise. do_unmirror() removes all mirrors by doubling shapes */
-    int mirror;
-    };
-    
-    inline void print(hstream& hs, const connection_t& conn) { print(hs, tie(conn.sid, conn.eid, conn.mirror)); }
-    
-    /** \brief each shape of the arb tessellation
-    *  note: the usual HyperRogue convention is: vertex 0, edge 0, vertex 1, edge 1, ... 
-    *  note: the tesfile convention is: edge 0, vertex 0, edge 1, vertex 1, ...
-    */
-    
-    struct shape {
-    /** index in the arbi_tiling::shapes */
-    int id;
-    /** flags such as sfLINE and sfPH */
-    int flags;
-    /** list of vertices in the usual convention */
-    vector<hyperpoint> vertices;
-    /** list of vertices in the tesfile convention */
-    vector<ld> angles;
-    /** list of edge lengths */
-    vector<ld> edges;
-    /** list of edge connections */
-    vector<connection_t> connections;
-    int size() const { return isize(vertices); }
-    void build_from_angles_edges();
-    vector<pair<int, int> > sublines;
-    vector<pair<ld, ld>> stretch_shear;
-    int repeat_value;
-    /** if a tile/edge combination may be connected to edges j1 and j2 of this, j1-j2 must be divisible by cycle_length */
-    int cycle_length;
-    /** list of valences of vertices in the tesfile convention */
-    vector<int> vertex_valence;
-    };
-    
-    struct slider {
-    string name;
-    ld zero;
-    ld current;
-    ld min;
-    ld max;
-    };
-    
-    struct arbi_tiling {
-    
-    int order;
-    bool have_line, have_ph, have_tree;
-    int yendor_backsteps;
-    
-    vector<shape> shapes;
-    string name;
-    string comment;
-    
-    vector<slider> sliders;
-    
-    ld cscale;
-    int range;
-    ld floor_scale;
-    ld boundary_ratio;
-    string filename;
-    
-    int min_valence, max_valence;
-    
-    geometryinfo1& get_geometry();
-    eGeometryClass get_class() { return get_geometry().kind; }
-    
-    ld scale();
-    };
-#line 97 "arbitrile.cpp"
-    extern arbi_tiling current;
-#line 99 "arbitrile.cpp"
-    extern bool using_slided;
-#line 101 "arbitrile.cpp"
-    extern arbi_tiling slided;
-#line 103 "arbitrile.cpp"
-    bool in_slided();
-#line 105 "arbitrile.cpp"
-    arbi_tiling& current_or_slided();
-#line 111 "arbitrile.cpp"
-    short& id_of(heptagon *h);
-#line 114 "arbitrile.cpp"
-    struct hr_polygon_error : hr_exception {
-    vector<transmatrix> v;
-    eGeometryClass c;
-    int id;
-    transmatrix end;
-    map<string, cld> params;
-    hr_polygon_error(const vector<transmatrix>& _v, int _id, transmatrix _e) : v(_v), c(cgclass), id(_id), end(_e) {}
-    ~hr_polygon_error() noexcept(true) {}
-    string generate_error();
-    };
-#line 216 "arbitrile.cpp"
-    bool correct_index(int index, int size);
-#line 223 "arbitrile.cpp"
-    void load_tile(exp_parser& ep, arbi_tiling& c, bool unit);
-#line 258 "arbitrile.cpp"
-    extern bool do_unmirror;
-#line 261 "arbitrile.cpp"
-    void unmirror();
-#line 295 "arbitrile.cpp"
-    void compute_vertex_valence();
-#line 383 "arbitrile.cpp"
-    void load(const string& fname, bool after_sliding IS(false));
-#line 760 "arbitrile.cpp"
-    extern map<heptagon*, pair<heptagon*, transmatrix>> arbi_matrix;
-#line 762 "arbitrile.cpp"
-    extern hrmap *current_altmap;
-#line 766 "arbitrile.cpp"
-    transmatrix get_adj(arbi_tiling& c, int t, int dl, int t1, int xdl);
-#line 979 "arbitrile.cpp"
-    hrmap *new_map();
-#line 981 "arbitrile.cpp"
-    void run(string fname);
-#line 1023 "arbitrile.cpp"
-    void sliders_changed();
-#line 1042 "arbitrile.cpp"
-    void set_sliders();
-    namespace convert {
-#line 1062 "arbitrile.cpp"
-      extern eGeometry base_geometry;
-#line 1063 "arbitrile.cpp"
-      extern eVariation base_variation;
-#line 1141 "arbitrile.cpp"
-      void convert();
-#line 1260 "arbitrile.cpp"
-      bool in();
-#line 1265 "arbitrile.cpp"
-      void activate();
-      }
-#line 1321 "arbitrile.cpp"
-    bool in();
-#line 1323 "arbitrile.cpp"
-    extern string tes;
-#line 1325 "arbitrile.cpp"
-    bool linespattern(cell *c);
-#line 1329 "arbitrile.cpp"
-    bool pseudohept(cell *c);
-#line 1334 "arbitrile.cpp"
-    void choose();
-    }
 
   // implemented in: archimedean.cpp
 
@@ -5134,43 +6194,45 @@ namespace hr {
     int neighbors_of(heptagon *h);
 #line 138 "archimedean.cpp"
     int gcd(int x, int y);
-#line 509 "archimedean.cpp"
+#line 156 "archimedean.cpp"
+    ld compute_edgelength(vector<pair<ld, ld>> facemul, ld halftotal IS(M_PI));
+#line 555 "archimedean.cpp"
     extern map<heptagon*, pair<heptagon*, transmatrix>> archimedean_gmatrix;
-#line 511 "archimedean.cpp"
+#line 557 "archimedean.cpp"
     extern hrmap *current_altmap;
-#line 521 "archimedean.cpp"
+#line 567 "archimedean.cpp"
     extern bool use_gmatrix;
-#line 527 "archimedean.cpp"
+#line 573 "archimedean.cpp"
     extern geometry_information *alt_cgip;
-#line 529 "archimedean.cpp"
+#line 575 "archimedean.cpp"
     geometry_information *find_alt_cgip();
-#line 820 "archimedean.cpp"
+#line 866 "archimedean.cpp"
     hrmap *new_map();
-#line 940 "archimedean.cpp"
+#line 986 "archimedean.cpp"
     int fix(heptagon *h, int spin);
-#line 1080 "archimedean.cpp"
+#line 1126 "archimedean.cpp"
     bool pseudohept(cell *c);
-#line 1091 "archimedean.cpp"
+#line 1137 "archimedean.cpp"
     bool chessvalue(cell *c);
-#line 1097 "archimedean.cpp"
+#line 1143 "archimedean.cpp"
     bool linespattern(cell *c);
-#line 1101 "archimedean.cpp"
+#line 1147 "archimedean.cpp"
     int threecolor(cell *c);
-#line 1124 "archimedean.cpp"
+#line 1170 "archimedean.cpp"
     extern vector<pair<string, int> > samples;
-#line 1228 "archimedean.cpp"
-    void next_variation();
-#line 1236 "archimedean.cpp"
-    void enable(archimedean_tiling& arct);
 #line 1274 "archimedean.cpp"
+    void next_variation();
+#line 1282 "archimedean.cpp"
+    void enable(archimedean_tiling& arct);
+#line 1320 "archimedean.cpp"
     void show();
-#line 1478 "archimedean.cpp"
+#line 1530 "archimedean.cpp"
     int degree(heptagon *h);
-#line 1482 "archimedean.cpp"
+#line 1534 "archimedean.cpp"
     bool is_vertex(heptagon *h);
-#line 1504 "archimedean.cpp"
+#line 1556 "archimedean.cpp"
     int valence();
-#line 1517 "archimedean.cpp"
+#line 1569 "archimedean.cpp"
     map<gp::loc, cdata>& get_cdata();
     #endif
     }
@@ -5238,61 +6300,69 @@ namespace hr {
   bool arrow_stuns(eMonster m);
 #line 83 "attack.cpp"
   bool canAttack(cell *c1, eMonster m1, cell *c2, eMonster m2, flagtype flags);
-#line 184 "attack.cpp"
+#line 181 "attack.cpp"
   bool petrify(cell *c, eWall walltype, eMonster m);
-#line 224 "attack.cpp"
+#line 221 "attack.cpp"
   void killIvy(cell *c, eMonster who);
-#line 234 "attack.cpp"
+#line 239 "attack.cpp"
+  void reset_spill();
+#line 243 "attack.cpp"
+  void record_spillinfo(cell *c, eWall t);
+#line 252 "attack.cpp"
   void prespill(cell* c, eWall t, int rad, cell *from);
-#line 314 "attack.cpp"
+#line 336 "attack.cpp"
+  eWall conditional_flip_slime(bool flip, eWall t);
+#line 342 "attack.cpp"
   void spillfix(cell* c, eWall t, int rad);
-#line 323 "attack.cpp"
+#line 352 "attack.cpp"
   void spill(cell* c, eWall t, int rad);
-#line 327 "attack.cpp"
+#line 367 "attack.cpp"
   void degradeDemons();
-#line 343 "attack.cpp"
+#line 383 "attack.cpp"
   void stunMonster(cell *c2, eMonster killer, flagtype flags);
-#line 376 "attack.cpp"
+#line 416 "attack.cpp"
   bool attackJustStuns(cell *c2, flagtype f, eMonster attacker);
-#line 391 "attack.cpp"
+#line 431 "attack.cpp"
   void minerEffect(cell *c);
-#line 414 "attack.cpp"
+#line 454 "attack.cpp"
   void killMutantIvy(cell *c, eMonster who);
-#line 424 "attack.cpp"
+#line 464 "attack.cpp"
   bignum ivy_total();
-#line 430 "attack.cpp"
+#line 470 "attack.cpp"
   void killMonster(cell *c, eMonster who, flagtype deathflags IS(0));
-#line 835 "attack.cpp"
+#line 875 "attack.cpp"
   void fightmessage(eMonster victim, eMonster attacker, bool stun, flagtype flags);
-#line 937 "attack.cpp"
+#line 977 "attack.cpp"
   bool notthateasy(eMonster m);
-#line 942 "attack.cpp"
+#line 982 "attack.cpp"
   bool attackMonster(cell *c, flagtype flags, eMonster killer);
-#line 1020 "attack.cpp"
-  void pushMonster(const movei& mi);
-#line 1049 "attack.cpp"
-  void killFriendlyIvy();
-#line 1054 "attack.cpp"
-  bool monsterPushable(cell *c2);
 #line 1060 "attack.cpp"
+  void pushMonster(const movei& mi);
+#line 1089 "attack.cpp"
+  void killFriendlyIvy();
+#line 1094 "attack.cpp"
+  bool monsterPushable(cell *c2);
+#line 1100 "attack.cpp"
   bool should_switchplace(cell *c1, cell *c2);
-#line 1068 "attack.cpp"
+#line 1108 "attack.cpp"
   bool switchplace_prevent(cell *c1, cell *c2, struct pcmove& m);
-#line 1083 "attack.cpp"
+#line 1123 "attack.cpp"
   void handle_switchplaces(cell *c1, cell *c2, bool& switchplaces);
-#line 1104 "attack.cpp"
+#line 1144 "attack.cpp"
   bool flashWouldKill(cell *c, flagtype extra);
-#line 1121 "attack.cpp"
+#line 1161 "attack.cpp"
   vector<cell*> gun_targets(cell *c);
-#line 1135 "attack.cpp"
+#line 1175 "attack.cpp"
   void fallMonster(cell *c, flagtype flags IS(0));
-#line 1139 "attack.cpp"
+#line 1179 "attack.cpp"
   void killHardcorePlayer(int id, flagtype flags);
-#line 1167 "attack.cpp"
+#line 1207 "attack.cpp"
+  extern bool suicidal;
+#line 1209 "attack.cpp"
   void killThePlayer(eMonster m, int id, flagtype flags);
-#line 1199 "attack.cpp"
+#line 1242 "attack.cpp"
   void killThePlayerAt(eMonster m, cell *c, flagtype flags);
-#line 1206 "attack.cpp"
+#line 1249 "attack.cpp"
   template<class T> void do_swords(movei mi, eMonster who, const T& f) {
   for(int bb=0; bb<2; bb++) if(who == moPlayer && sword::orbcount(bb)) {
   cell *sf = sword::pos(mi.s, sword::dir[multi::cpid], bb);
@@ -5310,7 +6380,7 @@ namespace hr {
   }
   }
   }
-#line 1227 "attack.cpp"
+#line 1270 "attack.cpp"
   void stabbingAttack(movei mi, eMonster who, int bonuskill IS(0));
 
   // implemented in: barriers.cpp
@@ -5327,80 +6397,92 @@ namespace hr {
   bool warped_version(eLand l1, eLand l2);
 #line 74 "barriers.cpp"
   int get_valence(cellwalker bb, int dir, bool& ok);
-#line 85 "barriers.cpp"
-  void set_and_wall(cell *c, eLand l);
 #line 93 "barriers.cpp"
+  void set_and_wall(cell *c, eLand l);
+#line 101 "barriers.cpp"
   void surround_by(bool setit, cellwalker bb, int dir, int a, int b, eLand which, bool swapped, bool& ok);
-#line 109 "barriers.cpp"
+#line 117 "barriers.cpp"
   void spin_around_by(cellwalker& bb, int dir, int q);
-#line 116 "barriers.cpp"
+#line 124 "barriers.cpp"
   bool on_wall(eLand ws);
-#line 132 "barriers.cpp"
+#line 140 "barriers.cpp"
   bool general_barrier_advance(cellwalker& bb, int& dir, eLand& l1, eLand& l2, eLand& ws, bool setit);
-#line 243 "barriers.cpp"
+#line 258 "barriers.cpp"
   bool general_barrier_check(cellwalker bb, int q, int dir, eLand ws, eLand l1 IS(laNone), eLand l2 IS(laNone));
-#line 266 "barriers.cpp"
+#line 281 "barriers.cpp"
   bool general_barrier_check_after(cellwalker bb, int steps, int q, int dir, eLand ws, eLand l1 IS(laNone), eLand l2 IS(laNone));
-#line 271 "barriers.cpp"
+#line 286 "barriers.cpp"
   eWall getElementalWall(eLand l);
-#line 279 "barriers.cpp"
+#line 294 "barriers.cpp"
   void setbarrier(cell *c, eLand l1, eLand l2, bool setbar);
-#line 308 "barriers.cpp"
+#line 323 "barriers.cpp"
   void setbarrier(cell *c);
-#line 312 "barriers.cpp"
+#line 327 "barriers.cpp"
   void setland(cell *c, eLand l);
-#line 322 "barriers.cpp"
+#line 337 "barriers.cpp"
   void extendcheck(cell *c);
-#line 329 "barriers.cpp"
+#line 344 "barriers.cpp"
   bool mirrorwall(cell *c);
-#line 333 "barriers.cpp"
+#line 348 "barriers.cpp"
   void extendBarrierFront(cell *c);
-#line 383 "barriers.cpp"
+#line 398 "barriers.cpp"
   void extendBarrierBack(cell *c);
-#line 415 "barriers.cpp"
+#line 430 "barriers.cpp"
   void general_barrier_extend(cell *c);
-#line 509 "barriers.cpp"
+#line 524 "barriers.cpp"
   void extendCR5(cell *c);
-#line 536 "barriers.cpp"
+#line 551 "barriers.cpp"
   bool isbar4(cell *c);
-#line 543 "barriers.cpp"
+#line 558 "barriers.cpp"
   bool barrier_cross(eLand l, eLand r);
-#line 549 "barriers.cpp"
+#line 564 "barriers.cpp"
   void extendBarrier(cell *c);
-#line 636 "barriers.cpp"
-  void buildBarrierForce(cell *c, int d, eLand l);
 #line 651 "barriers.cpp"
+  void buildBarrierForce(cell *c, int d, eLand l);
+#line 666 "barriers.cpp"
   void buildBarrier(cell *c, int d, eLand l IS(laNone));
-#line 665 "barriers.cpp"
+#line 680 "barriers.cpp"
   bool buildBarrier6(cellwalker cw, int type);
-#line 776 "barriers.cpp"
+#line 791 "barriers.cpp"
   bool buildBarrier4(cell *c, int d, int mode, eLand ll, eLand lr);
-#line 837 "barriers.cpp"
+#line 852 "barriers.cpp"
   void buildBarrierStrong(cell *c, int d, bool oldleft, eLand newland);
-#line 850 "barriers.cpp"
+#line 865 "barriers.cpp"
   void buildBarrierStrong(cell *c, int d, bool oldleft);
-#line 854 "barriers.cpp"
+#line 869 "barriers.cpp"
   void buildCrossroads2(cell *c);
   #if MAXMDIM >= 4
-#line 953 "barriers.cpp"
+#line 968 "barriers.cpp"
   bool bufferzone();
-#line 954 "barriers.cpp"
+#line 969 "barriers.cpp"
   int basic_tests();
-#line 956 "barriers.cpp"
+#line 971 "barriers.cpp"
   bool valid_dir(const vector<char>& ad, int j, cell *c);
-#line 970 "barriers.cpp"
+#line 985 "barriers.cpp"
   void extend3D(cell *c);
-#line 1027 "barriers.cpp"
+#line 1042 "barriers.cpp"
   bool buildBarrier3D(cell *c, eLand l2, int forced_dir);
   #endif
-#line 1082 "barriers.cpp"
+#line 1097 "barriers.cpp"
   bool buildBarrierNowall(cell *c, eLand l2, int forced_dir IS(NODIR));
-#line 1086 "barriers.cpp"
+#line 1101 "barriers.cpp"
   bool general_barrier_build(eLand ws, cell *c, eLand l2, int forced_dir IS(NODIR));
 
   // implemented in: basegraph.cpp
 
 #line 12 "basegraph.cpp"
+  struct radarpoint {
+  hyperpoint h;
+  char glyph;
+  color_t color;
+  color_t line;
+  };
+  
+  struct radarline {
+  hyperpoint h1, h2;
+  color_t line;
+  };
+  
   /** configuration of the current view */
   struct display_data {
   /** The cell which is currently in the center. */
@@ -5428,6 +6510,11 @@ namespace hr {
   ld tanfov;
   flagtype next_shader_flags;
   
+  vector<radarpoint> radarpoints;
+  vector<radarline> radarlines;
+  transmatrix radar_transform;
+  transmatrix radar_transform_post;
+  
   ld eyewidth();
   bool stereo_active();
   bool in_anaglyph();
@@ -5450,84 +6537,88 @@ namespace hr {
   #define gmatrix0 (::hr::current_display->old_cellmatrices)
   #define NLP (::hr::current_display->local_perspective)
   
-#line 63 "basegraph.cpp"
+#line 80 "basegraph.cpp"
   extern display_data default_display;
-#line 64 "basegraph.cpp"
-  extern display_data *current_display;
-#line 67 "basegraph.cpp"
-  extern unsigned backcolor;
-#line 68 "basegraph.cpp"
-  extern unsigned bordcolor;
-#line 69 "basegraph.cpp"
-  extern unsigned forecolor;
-#line 79 "basegraph.cpp"
-  int get_sightrange();
 #line 81 "basegraph.cpp"
+  extern display_data *current_display;
+#line 84 "basegraph.cpp"
+  extern unsigned backcolor;
+#line 85 "basegraph.cpp"
+  extern unsigned bordcolor;
+#line 86 "basegraph.cpp"
+  extern unsigned forecolor;
+#line 96 "basegraph.cpp"
+  int get_sightrange();
+#line 98 "basegraph.cpp"
   int get_sightrange_ambush();
-#line 107 "basegraph.cpp"
+#line 124 "basegraph.cpp"
   int getnext(const char* s, int& i);
   #if CAP_SDL
   #if !CAP_SDL2
-#line 145 "basegraph.cpp"
+#line 162 "basegraph.cpp"
   typedef SDL_Surface SDL_Renderer;
   #define srend s
   #endif
-#line 150 "basegraph.cpp"
+#line 167 "basegraph.cpp"
   extern SDL_Surface *s;
-#line 151 "basegraph.cpp"
+#line 168 "basegraph.cpp"
   extern SDL_Surface *s_screen;
   #if CAP_SDL2
-#line 153 "basegraph.cpp"
+#line 170 "basegraph.cpp"
   extern SDL_Renderer *s_renderer, *s_software_renderer;
-#line 155 "basegraph.cpp"
+#line 172 "basegraph.cpp"
   #define srend s_software_renderer
-#line 157 "basegraph.cpp"
+#line 174 "basegraph.cpp"
   extern SDL_Texture *s_texture;
-#line 158 "basegraph.cpp"
+#line 175 "basegraph.cpp"
   extern SDL_Window *s_window;
+#line 176 "basegraph.cpp"
+  extern SDL_GLContext s_context;
+#line 177 "basegraph.cpp"
+  extern bool s_have_context;
   #endif
-#line 161 "basegraph.cpp"
+#line 180 "basegraph.cpp"
   extern color_t qpixel_pixel_outside;
-#line 163 "basegraph.cpp"
-  color_t& qpixel(SDL_Surface *surf, int x, int y);
-#line 171 "basegraph.cpp"
-  void present_surface();
 #line 182 "basegraph.cpp"
+  color_t& qpixel(SDL_Surface *surf, int x, int y);
+#line 190 "basegraph.cpp"
+  void present_surface();
+#line 201 "basegraph.cpp"
   void present_screen();
   #endif
   #if CAP_SDLTTF
-#line 200 "basegraph.cpp"
+#line 219 "basegraph.cpp"
   extern string fontpath;
   #endif
   #if !CAP_GL
-#line 248 "basegraph.cpp"
+#line 267 "basegraph.cpp"
   void setcameraangle(bool b);
   #endif
   #if !CAP_GL
-#line 252 "basegraph.cpp"
+#line 271 "basegraph.cpp"
   void reset_projection();
-#line 253 "basegraph.cpp"
+#line 272 "basegraph.cpp"
   void glflush();
-#line 254 "basegraph.cpp"
+#line 273 "basegraph.cpp"
   bool model_needs_depth();
   #endif
   #if CAP_GL
-#line 260 "basegraph.cpp"
+#line 279 "basegraph.cpp"
   void eyewidth_translate(int ed);
-#line 266 "basegraph.cpp"
+#line 285 "basegraph.cpp"
   extern bool new_projection_needed;
-#line 268 "basegraph.cpp"
+#line 287 "basegraph.cpp"
   inline void reset_projection() { new_projection_needed = true; }
-#line 271 "basegraph.cpp"
+#line 290 "basegraph.cpp"
   extern ld lband_shift;
-#line 311 "basegraph.cpp"
+#line 330 "basegraph.cpp"
   bool model_needs_depth();
-#line 315 "basegraph.cpp"
+#line 334 "basegraph.cpp"
   void setGLProjection(color_t col IS(backcolor));
-#line 364 "basegraph.cpp"
+#line 383 "basegraph.cpp"
    int next_p2 (int a );
   #if CAP_GLFONT
-#line 376 "basegraph.cpp"
+#line 395 "basegraph.cpp"
   struct charinfo_t {
   int w, h;
   float tx0, ty0, tx1, ty1;
@@ -5540,41 +6631,41 @@ namespace hr {
   };
   
   const int max_glfont_size = 72;
-#line 390 "basegraph.cpp"
+#line 409 "basegraph.cpp"
   extern glfont_t *glfont[max_glfont_size+1];
-#line 436 "basegraph.cpp"
+#line 455 "basegraph.cpp"
   void init_glfont(int size);
   #endif
-#line 622 "basegraph.cpp"
+#line 641 "basegraph.cpp"
   extern purehookset hooks_resetGL;
-#line 624 "basegraph.cpp"
+#line 643 "basegraph.cpp"
   void resetGL();
   #endif
   #if CAP_XGD
-#line 666 "basegraph.cpp"
+#line 685 "basegraph.cpp"
   void gdpush(int t);
-#line 670 "basegraph.cpp"
+#line 689 "basegraph.cpp"
   bool displaychr(int x, int y, int shift, int size, char chr, color_t col);
-#line 705 "basegraph.cpp"
+#line 724 "basegraph.cpp"
   bool displayfr(int x, int y, int b, int size, const string &s, color_t color, int align);
-#line 717 "basegraph.cpp"
+#line 736 "basegraph.cpp"
   bool displaystr(int x, int y, int shift, int size, const string &s, color_t color, int align);
-#line 721 "basegraph.cpp"
+#line 740 "basegraph.cpp"
   bool displaystr(int x, int y, int shift, int size, char const *s, color_t color, int align);
   #endif
   #if !CAP_XGD
-#line 727 "basegraph.cpp"
+#line 746 "basegraph.cpp"
   bool displaystr(int x, int y, int shift, int size, const char *str, color_t color, int align);
-#line 795 "basegraph.cpp"
+#line 814 "basegraph.cpp"
   bool displaystr(int x, int y, int shift, int size, const string &s, color_t color, int align);
-#line 799 "basegraph.cpp"
+#line 818 "basegraph.cpp"
   bool displayfrSP(int x, int y, int sh, int b, int size, const string &s, color_t color, int align, int p);
-#line 816 "basegraph.cpp"
+#line 835 "basegraph.cpp"
   bool displayfr(int x, int y, int b, int size, const string &s, color_t color, int align);
-#line 820 "basegraph.cpp"
+#line 839 "basegraph.cpp"
   bool displaychr(int x, int y, int shift, int size, char chr, color_t col);
   #endif
-#line 829 "basegraph.cpp"
+#line 848 "basegraph.cpp"
   struct msginfo {
   int stamp;
   time_t rtstamp;
@@ -5585,137 +6676,151 @@ namespace hr {
   int quantity;
   string msg;
   };
-#line 841 "basegraph.cpp"
+#line 860 "basegraph.cpp"
   extern vector<msginfo> msgs;
-#line 843 "basegraph.cpp"
+#line 862 "basegraph.cpp"
   extern vector<msginfo> gamelog;
-#line 845 "basegraph.cpp"
+#line 864 "basegraph.cpp"
   void flashMessages();
-#line 853 "basegraph.cpp"
+#line 872 "basegraph.cpp"
   string fullmsg(msginfo& m);
-#line 877 "basegraph.cpp"
+#line 896 "basegraph.cpp"
   void clearMessages();
-#line 879 "basegraph.cpp"
+#line 898 "basegraph.cpp"
   void addMessage(string s, char spamtype);
-#line 894 "basegraph.cpp"
+#line 913 "basegraph.cpp"
   color_t colormix(color_t a, color_t b, color_t c);
-#line 900 "basegraph.cpp"
+#line 920 "basegraph.cpp"
+  int color_diff(color_t a, color_t b);
+#line 926 "basegraph.cpp"
   int rhypot(int a, int b);
-#line 902 "basegraph.cpp"
+#line 928 "basegraph.cpp"
   ld realradius();
-#line 916 "basegraph.cpp"
+#line 942 "basegraph.cpp"
   void drawmessage(const string& s, int& y, color_t col);
-#line 953 "basegraph.cpp"
+#line 979 "basegraph.cpp"
   void drawmessages();
-#line 988 "basegraph.cpp"
+#line 1014 "basegraph.cpp"
   void drawCircle(int x, int y, int size, color_t color, color_t fillcolor IS(0));
-#line 1039 "basegraph.cpp"
+#line 1065 "basegraph.cpp"
   void displayButton(int x, int y, const string& name, int key, int align, int rad IS(0));
-#line 1047 "basegraph.cpp"
+#line 1073 "basegraph.cpp"
   #define SETMOUSEKEY 5000
-#line 1050 "basegraph.cpp"
+#line 1076 "basegraph.cpp"
   extern char mousekey;
-#line 1051 "basegraph.cpp"
+#line 1077 "basegraph.cpp"
   extern char newmousekey;
-#line 1053 "basegraph.cpp"
-  void displaymm(char c, int x, int y, int rad, int size, const string& title, int align);
-#line 1060 "basegraph.cpp"
-  bool displayButtonS(int x, int y, const string& name, color_t col, int align, int size);
-#line 1068 "basegraph.cpp"
-  void displayColorButton(int x, int y, const string& name, int key, int align, int rad, color_t color, color_t color2 IS(0));
 #line 1079 "basegraph.cpp"
+  void displaymm(char c, int x, int y, int rad, int size, const string& title, int align);
+#line 1086 "basegraph.cpp"
+  bool displayButtonS(int x, int y, const string& name, color_t col, int align, int size);
+#line 1094 "basegraph.cpp"
+  void displayColorButton(int x, int y, const string& name, int key, int align, int rad, color_t color, color_t color2 IS(0));
+#line 1105 "basegraph.cpp"
   void compute_fsize();
-#line 1089 "basegraph.cpp"
+#line 1115 "basegraph.cpp"
   extern bool graphics_on;
-#line 1091 "basegraph.cpp"
-  bool want_vsync();
-#line 1097 "basegraph.cpp"
-  bool need_to_reopen_window();
-#line 1107 "basegraph.cpp"
-  bool need_to_apply_screen_settings();
 #line 1117 "basegraph.cpp"
+  extern bool request_resolution_change;
+#line 1119 "basegraph.cpp"
+  void do_request_resolution_change();
+#line 1121 "basegraph.cpp"
+  bool want_vsync();
+#line 1127 "basegraph.cpp"
+  bool need_to_reopen_window();
+#line 1139 "basegraph.cpp"
+  bool need_to_apply_screen_settings();
+#line 1149 "basegraph.cpp"
   void close_renderer();
-#line 1126 "basegraph.cpp"
+#line 1158 "basegraph.cpp"
   void close_window();
-#line 1133 "basegraph.cpp"
+#line 1168 "basegraph.cpp"
   void apply_screen_settings();
-#line 1164 "basegraph.cpp"
+#line 1199 "basegraph.cpp"
   pair<int, int> get_requested_resolution();
-#line 1182 "basegraph.cpp"
+#line 1217 "basegraph.cpp"
   extern bool resizable;
-#line 1184 "basegraph.cpp"
+#line 1219 "basegraph.cpp"
   void setvideomode_android();
   #if CAP_SDL
-#line 1192 "basegraph.cpp"
+#line 1227 "basegraph.cpp"
   extern int current_window_flags;
-#line 1194 "basegraph.cpp"
+#line 1229 "basegraph.cpp"
   void setvideomode();
   #endif
-#line 1330 "basegraph.cpp"
+#line 1377 "basegraph.cpp"
   extern bool noGUI;
   #if CAP_SDL
-#line 1333 "basegraph.cpp"
+#line 1380 "basegraph.cpp"
   extern bool sdl_on;
-#line 1334 "basegraph.cpp"
+#line 1381 "basegraph.cpp"
   int SDL_Init1(Uint32 flags);
   #endif
-#line 1344 "basegraph.cpp"
+#line 1391 "basegraph.cpp"
   void init_font();
-#line 1353 "basegraph.cpp"
+#line 1400 "basegraph.cpp"
   void close_font();
-#line 1369 "basegraph.cpp"
+#line 1416 "basegraph.cpp"
   void init_graph();
-#line 1427 "basegraph.cpp"
-  void initialize_all();
 #line 1474 "basegraph.cpp"
+  void initialize_all();
+#line 1521 "basegraph.cpp"
   void quit_all();
-#line 1486 "basegraph.cpp"
+#line 1533 "basegraph.cpp"
   int calcfps();
   namespace subscreens {
-#line 1499 "basegraph.cpp"
+#line 1546 "basegraph.cpp"
     extern vector<display_data> player_displays;
-#line 1500 "basegraph.cpp"
+#line 1548 "basegraph.cpp"
     extern bool in;
-#line 1501 "basegraph.cpp"
+#line 1549 "basegraph.cpp"
     extern int current_player;
-#line 1503 "basegraph.cpp"
+#line 1551 "basegraph.cpp"
     bool is_current_player(int id);
-#line 1508 "basegraph.cpp"
+#line 1556 "basegraph.cpp"
     void prepare();
-#line 1528 "basegraph.cpp"
+#line 1576 "basegraph.cpp"
     bool split(reaction_t what);
     }
 
   // implemented in: bigstuff.cpp
 
-#line 20 "bigstuff.cpp"
+#line 18 "bigstuff.cpp"
+  extern bool disable_bigstuff;
+#line 22 "bigstuff.cpp"
   int newRoundTableRadius();
   #if CAP_COMPLEX2
-#line 25 "bigstuff.cpp"
+#line 28 "bigstuff.cpp"
+  bool anthrax();
+#line 32 "bigstuff.cpp"
   int getAnthraxData(cell *c, bool b);
   #endif
-#line 42 "bigstuff.cpp"
+#line 49 "bigstuff.cpp"
   int roundTableRadius(cell *c);
-#line 51 "bigstuff.cpp"
+#line 58 "bigstuff.cpp"
   int celldistAltRelative(cell *c);
-#line 68 "bigstuff.cpp"
+#line 75 "bigstuff.cpp"
   gp::loc camelot_coords();
-#line 70 "bigstuff.cpp"
+#line 77 "bigstuff.cpp"
   int euclidAlt(short x, short y);
-#line 97 "bigstuff.cpp"
+#line 104 "bigstuff.cpp"
   int cylinder_alt(cell *c);
-#line 111 "bigstuff.cpp"
-  int compassDist(cell *c);
 #line 118 "bigstuff.cpp"
+  int compassDist(cell *c);
+#line 125 "bigstuff.cpp"
   cell *findcompass(cell *c);
-#line 137 "bigstuff.cpp"
+#line 144 "bigstuff.cpp"
   bool grailWasFound(cell *c);
-#line 142 "bigstuff.cpp"
+#line 149 "bigstuff.cpp"
   int default_levs();
-#line 155 "bigstuff.cpp"
+#line 162 "bigstuff.cpp"
   namespace altmap {
+  
+  /* in quotient space we cannot use alt for quotient */
+  extern map<heptagon*, short> quotient_relspins;
+  
   /** h->move(relspin(h->alt)) corresponds to h->alt->move(0) */
-  inline short& relspin(heptagon *alt) { return alt->zebraval; }
+  inline short& relspin(heptagon *alt) { return quotient ? quotient_relspins[alt] : alt->zebraval; }
   
   /** for Camelot, the radius */
   inline short& radius(heptagon *alt) { return alt->emeraldval; }
@@ -5729,140 +6834,140 @@ namespace hr {
   /** NOTE: do not use fieldval, because it would conflict with the map generation for hrmap_h3_rule and hrmap_rulegen */
   }
   #if MAXMDIM >= 4
-#line 209 "bigstuff.cpp"
+#line 223 "bigstuff.cpp"
   int hrandom_adjacent(cellwalker cw);
   #endif
-#line 217 "bigstuff.cpp"
+#line 231 "bigstuff.cpp"
   heptagon *create_altmap(cell *c, int rad, hstate firststate, int special IS(0));
-#line 315 "bigstuff.cpp"
+#line 329 "bigstuff.cpp"
   void beCIsland(cell *c);
-#line 323 "bigstuff.cpp"
+#line 337 "bigstuff.cpp"
   void generateTreasureIsland(cell *c);
-#line 385 "bigstuff.cpp"
+#line 399 "bigstuff.cpp"
   extern bool generatingEquidistant;
-#line 387 "bigstuff.cpp"
+#line 401 "bigstuff.cpp"
   cell *buildAnotherEquidistant(cell *c, int radius);
-#line 477 "bigstuff.cpp"
-  void buildAnotherEquidistant(cell *c);
 #line 491 "bigstuff.cpp"
+  void buildAnotherEquidistant(cell *c);
+#line 505 "bigstuff.cpp"
   int coastval(cell *c, eLand base);
-#line 516 "bigstuff.cpp"
+#line 530 "bigstuff.cpp"
   bool checkInTree(cell *c, int maxv);
-#line 536 "bigstuff.cpp"
+#line 550 "bigstuff.cpp"
   void buildEquidistant(cell *c);
-#line 810 "bigstuff.cpp"
+#line 824 "bigstuff.cpp"
   cell *randomDown(cell *c);
-#line 819 "bigstuff.cpp"
+#line 833 "bigstuff.cpp"
   int edgeDepth(cell *c);
-#line 829 "bigstuff.cpp"
+#line 843 "bigstuff.cpp"
   int getHauntedDepth(cell *c);
-#line 837 "bigstuff.cpp"
+#line 851 "bigstuff.cpp"
   int towerval(cell *c, const cellfunction& cf);
-#line 848 "bigstuff.cpp"
+#line 862 "bigstuff.cpp"
   void setLandWeird(cell *c);
-#line 859 "bigstuff.cpp"
+#line 873 "bigstuff.cpp"
   void setLandQuotient(cell *c);
-#line 879 "bigstuff.cpp"
+#line 893 "bigstuff.cpp"
   void elementalXY(cell *c, int x, int y, bool make_wall);
-#line 898 "bigstuff.cpp"
+#line 912 "bigstuff.cpp"
   void setLandSphere(cell *c);
-#line 934 "bigstuff.cpp"
+#line 948 "bigstuff.cpp"
   eLand& get_euland(int c);
-#line 939 "bigstuff.cpp"
+#line 953 "bigstuff.cpp"
   void clear_euland(eLand first);
-#line 952 "bigstuff.cpp"
+#line 966 "bigstuff.cpp"
   eLand switchable(eLand nearland, eLand farland, int c);
-#line 983 "bigstuff.cpp"
+#line 997 "bigstuff.cpp"
   eLand getEuclidLand(int c);
-#line 996 "bigstuff.cpp"
+#line 1010 "bigstuff.cpp"
   void setLandSol(cell *c);
-#line 1021 "bigstuff.cpp"
+#line 1035 "bigstuff.cpp"
   void setLandHybrid(cell *c);
-#line 1063 "bigstuff.cpp"
+#line 1077 "bigstuff.cpp"
   void setLandNil(cell *c);
-#line 1117 "bigstuff.cpp"
+#line 1131 "bigstuff.cpp"
   void setLandEuclid(cell *c);
-#line 1241 "bigstuff.cpp"
+#line 1255 "bigstuff.cpp"
   eLand get_euland3(int x);
-#line 1248 "bigstuff.cpp"
+#line 1262 "bigstuff.cpp"
   void set_euland3(cell *c, int co10, int co11, int alt, int hash);
-#line 1302 "bigstuff.cpp"
+#line 1316 "bigstuff.cpp"
   extern bool easy_to_find_specialland;
-#line 1304 "bigstuff.cpp"
+#line 1318 "bigstuff.cpp"
   bool quickfind(eLand l);
-#line 1317 "bigstuff.cpp"
+#line 1331 "bigstuff.cpp"
   extern hookset<int(cell*, bool)> hooks_wallchance;
-#line 1319 "bigstuff.cpp"
+#line 1333 "bigstuff.cpp"
   int wallchance(cell *c, bool deepOcean);
-#line 1357 "bigstuff.cpp"
+#line 1371 "bigstuff.cpp"
   bool horo_ok();
-#line 1364 "bigstuff.cpp"
-  bool horo_or_eubinary();
-#line 1369 "bigstuff.cpp"
-  bool have_alt(cell *c);
-#line 1374 "bigstuff.cpp"
-  void gen_alt(cell *c);
 #line 1379 "bigstuff.cpp"
+  bool horo_or_eubinary();
+#line 1384 "bigstuff.cpp"
+  bool have_alt(cell *c);
+#line 1389 "bigstuff.cpp"
+  void gen_alt(cell *c);
+#line 1394 "bigstuff.cpp"
   void gen_alt_around(cell *c);
-#line 1388 "bigstuff.cpp"
+#line 1403 "bigstuff.cpp"
   bool greater_alt(cell *c, cell *c2);
-#line 1392 "bigstuff.cpp"
+#line 1407 "bigstuff.cpp"
   int horo_gen_distance();
-#line 1396 "bigstuff.cpp"
+#line 1411 "bigstuff.cpp"
   bool single_horo(eLand horoland);
-#line 1400 "bigstuff.cpp"
+#line 1415 "bigstuff.cpp"
   bool in_single_horo(cell *c, eLand horoland);
-#line 1404 "bigstuff.cpp"
-  bool inside_starting_horo(cell *c, eLand horoland);
-#line 1408 "bigstuff.cpp"
-  bool extend_alt(cell *c, eLand horoland, eLand overland, bool extend_in_single IS(true), int dist IS(horo_gen_distance()));
 #line 1419 "bigstuff.cpp"
+  bool inside_starting_horo(cell *c, eLand horoland);
+#line 1423 "bigstuff.cpp"
+  bool extend_alt(cell *c, eLand horoland, eLand overland, bool extend_in_single IS(true), int dist IS(horo_gen_distance()));
+#line 1434 "bigstuff.cpp"
   bool can_start_horo(cell *c);
-#line 1425 "bigstuff.cpp"
+#line 1440 "bigstuff.cpp"
   bool gp_wall_test();
-#line 1435 "bigstuff.cpp"
+#line 1450 "bigstuff.cpp"
   bool deep_ocean_at(cell *c, cell *from);
-#line 1465 "bigstuff.cpp"
+#line 1480 "bigstuff.cpp"
   bool good_for_wall(cell *c);
-#line 1473 "bigstuff.cpp"
+#line 1488 "bigstuff.cpp"
   bool walls_not_implemented();
-#line 1479 "bigstuff.cpp"
+#line 1494 "bigstuff.cpp"
   bool old_nice_walls();
-#line 1483 "bigstuff.cpp"
+#line 1498 "bigstuff.cpp"
   bool nice_walls_available();
-#line 1489 "bigstuff.cpp"
+#line 1504 "bigstuff.cpp"
   void build_barrier_good(cell *c, eLand l IS(laNone));
-#line 1501 "bigstuff.cpp"
+#line 1516 "bigstuff.cpp"
   void build_walls(cell *c, cell *from);
-#line 1636 "bigstuff.cpp"
+#line 1651 "bigstuff.cpp"
   void start_camelot(cell *c);
-#line 1645 "bigstuff.cpp"
+#line 1660 "bigstuff.cpp"
   void build_horocycles(cell *c, cell *from);
-#line 1706 "bigstuff.cpp"
+#line 1721 "bigstuff.cpp"
   void buildBigStuff(cell *c, cell *from);
-#line 1714 "bigstuff.cpp"
+#line 1737 "bigstuff.cpp"
   bool openplains(cell *c);
-#line 1740 "bigstuff.cpp"
+#line 1763 "bigstuff.cpp"
   void buildCamelotWall(cell *c);
-#line 1752 "bigstuff.cpp"
+#line 1775 "bigstuff.cpp"
   bool no_barriers_in_radius(cell *c, int rad);
-#line 1758 "bigstuff.cpp"
+#line 1781 "bigstuff.cpp"
   eMonster camelot_monster();
-#line 1768 "bigstuff.cpp"
+#line 1791 "bigstuff.cpp"
   void buildCamelot(cell *c);
-#line 1834 "bigstuff.cpp"
+#line 1860 "bigstuff.cpp"
   int masterAlt(cell *c);
-#line 1843 "bigstuff.cpp"
+#line 1869 "bigstuff.cpp"
   int temple_layer_size();
-#line 1854 "bigstuff.cpp"
+#line 1880 "bigstuff.cpp"
   void gen_temple(cell *c);
-#line 1924 "bigstuff.cpp"
+#line 1950 "bigstuff.cpp"
   void moreBigStuff(cell *c);
-#line 1982 "bigstuff.cpp"
+#line 2009 "bigstuff.cpp"
   void generate_mines();
-#line 1998 "bigstuff.cpp"
+#line 2025 "bigstuff.cpp"
   extern vector<eLand> currentlands;
-#line 2000 "bigstuff.cpp"
+#line 2027 "bigstuff.cpp"
   void pregen();
 
   // implemented in: binary-tiling.cpp
@@ -5918,59 +7023,65 @@ namespace hr {
     ld area_expansion_rate();
 #line 605 "binary-tiling.cpp"
     ld expansion();
-#line 625 "binary-tiling.cpp"
+#line 626 "binary-tiling.cpp"
     transmatrix normalized_at(hyperpoint h);
-#line 666 "binary-tiling.cpp"
+#line 667 "binary-tiling.cpp"
     transmatrix normalized_at(ld x, ld y, ld z IS(0));
-#line 670 "binary-tiling.cpp"
+#line 671 "binary-tiling.cpp"
     int updir();
-#line 679 "binary-tiling.cpp"
+#line 680 "binary-tiling.cpp"
     int dirs_outer();
-#line 689 "binary-tiling.cpp"
+#line 690 "binary-tiling.cpp"
     int dirs_inner();
-#line 694 "binary-tiling.cpp"
+#line 695 "binary-tiling.cpp"
     void build_tmatrix();
     #if MAXMDIM == 4
-#line 779 "binary-tiling.cpp"
+#line 780 "binary-tiling.cpp"
     void queuecube(const shiftmatrix& V, ld size, color_t linecolor, color_t facecolor);
     #endif
-#line 812 "binary-tiling.cpp"
+#line 813 "binary-tiling.cpp"
+    ld xy_mul();
+#line 815 "binary-tiling.cpp"
     transmatrix parabolic(ld u);
-#line 816 "binary-tiling.cpp"
+#line 819 "binary-tiling.cpp"
     transmatrix parabolic3(ld y, ld z);
-#line 822 "binary-tiling.cpp"
+#line 825 "binary-tiling.cpp"
     ld horo_level(hyperpoint h);
-#line 830 "binary-tiling.cpp"
-    hyperpoint deparabolic3(hyperpoint h);
+#line 837 "binary-tiling.cpp"
+    hyperpoint bt_to_minkowski(hyperpoint h);
 #line 844 "binary-tiling.cpp"
+    hyperpoint minkowski_to_bt(hyperpoint h);
+#line 856 "binary-tiling.cpp"
     bool pseudohept(cell *c);
-#line 855 "binary-tiling.cpp"
+#line 867 "binary-tiling.cpp"
     pair<gp::loc, gp::loc> gpvalue(heptagon *h);
-#line 862 "binary-tiling.cpp"
+#line 874 "binary-tiling.cpp"
     int tridist(gp::loc v);
-#line 871 "binary-tiling.cpp"
+#line 883 "binary-tiling.cpp"
     int equalize(heptagon*& c1, heptagon*& c2);
-#line 880 "binary-tiling.cpp"
+#line 892 "binary-tiling.cpp"
     int celldistance3_tri(heptagon *c1, heptagon *c2);
-#line 907 "binary-tiling.cpp"
+#line 919 "binary-tiling.cpp"
     int celldistance3_rec(heptagon *c1, heptagon *c2);
-#line 928 "binary-tiling.cpp"
+#line 940 "binary-tiling.cpp"
     int celldistance3_square(heptagon *c1, heptagon *c2);
-#line 953 "binary-tiling.cpp"
+#line 965 "binary-tiling.cpp"
     int celldistance3_hex(heptagon *c1, heptagon *c2);
-#line 984 "binary-tiling.cpp"
+#line 996 "binary-tiling.cpp"
     int celldistance3_approx(heptagon *c1, heptagon *c2);
-#line 1001 "binary-tiling.cpp"
+#line 1013 "binary-tiling.cpp"
     int celldistance3(heptagon *c1, heptagon *c2);
-#line 1015 "binary-tiling.cpp"
+#line 1027 "binary-tiling.cpp"
     int celldistance3(cell *c1, cell *c2);
-#line 1017 "binary-tiling.cpp"
+#line 1029 "binary-tiling.cpp"
     hyperpoint get_horopoint(ld y, ld x);
-#line 1021 "binary-tiling.cpp"
+#line 1033 "binary-tiling.cpp"
     hyperpoint get_horopoint(hyperpoint h);
-#line 1025 "binary-tiling.cpp"
+#line 1037 "binary-tiling.cpp"
+    hyperpoint inverse_horopoint(hyperpoint h);
+#line 1043 "binary-tiling.cpp"
     hyperpoint get_corner_horo_coordinates(cell *c, int i);
-#line 1079 "binary-tiling.cpp"
+#line 1095 "binary-tiling.cpp"
     void create_faces();
     #endif
     }
@@ -6038,6 +7149,7 @@ namespace hr {
   void bookkeeping();
   void draw_cellstat();
   void draw_wall_full();
+  void draw_wallshadow();
   void draw_item_full();
   void draw_monster_full();
   void add_map_effects();
@@ -6068,11 +7180,15 @@ namespace hr {
   dd.V = V;
   dd.draw();
   }
-#line 627 "celldrawer.cpp"
+#line 630 "celldrawer.cpp"
   color_t w_monochromatize(color_t x, int d);
-#line 833 "celldrawer.cpp"
+#line 841 "celldrawer.cpp"
   int grid_prec();
-#line 1806 "celldrawer.cpp"
+#line 1089 "celldrawer.cpp"
+  extern int canvasfloor;
+#line 1395 "celldrawer.cpp"
+  extern bool numerical_minefield;
+#line 1897 "celldrawer.cpp"
   struct downseek_t {
   cell *best;
   hyperpoint total;
@@ -6087,10 +7203,12 @@ namespace hr {
   best = nullptr;
   }
   };
-#line 1822 "celldrawer.cpp"
+#line 1913 "celldrawer.cpp"
   extern downseek_t downseek;
+#line 1977 "celldrawer.cpp"
+  extern int debug_tiles;
   #if CAP_SHAPES
-#line 2641 "celldrawer.cpp"
+#line 2790 "celldrawer.cpp"
   extern shiftmatrix ocwtV;
   #endif
 
@@ -6146,19 +7264,19 @@ namespace hr {
   bool monstersnear(cell *c, eMonster who);
 #line 202 "checkmove.cpp"
   bool monstersnear_aux();
-#line 246 "checkmove.cpp"
+#line 243 "checkmove.cpp"
   bool monstersnear_add_pmi(player_move_info pmi0);
-#line 253 "checkmove.cpp"
+#line 254 "checkmove.cpp"
   bool multimove();
   namespace multi { 
-#line 272 "checkmove.cpp"
-    extern bool checkonly;
 #line 273 "checkmove.cpp"
+    extern bool checkonly;
+#line 274 "checkmove.cpp"
     extern bool aftermove;
     }
-#line 276 "checkmove.cpp"
+#line 277 "checkmove.cpp"
   bool swordConflict(const player_move_info& sm1, const player_move_info& sm2);
-#line 285 "checkmove.cpp"
+#line 286 "checkmove.cpp"
   void checkmove();
 
   // implemented in: commandline.cpp
@@ -6173,7 +7291,7 @@ namespace hr {
   #endif
   #if CAP_COMMANDLINE
 #line 20 "commandline.cpp"
-  extern const char *scorefile;
+  extern string scorefile;
   namespace arg {
 #line 23 "commandline.cpp"
     eLand readland(const string& ss);
@@ -6205,19 +7323,23 @@ namespace hr {
     const char* argcs();
 #line 89 "commandline.cpp"
     int argi();
-#line 91 "commandline.cpp"
-    int shift_argi();
+#line 90 "commandline.cpp"
+    long long argll();
 #line 92 "commandline.cpp"
+    int shift_argi();
+#line 93 "commandline.cpp"
     const string& shift_args();
-#line 94 "commandline.cpp"
-    unsigned arghex();
 #line 95 "commandline.cpp"
+    unsigned arghex();
+#line 96 "commandline.cpp"
     ld argf();
-#line 104 "commandline.cpp"
+#line 105 "commandline.cpp"
     bool argis(const string& s);
-#line 106 "commandline.cpp"
-    void shift_arg_formula(ld& x, const reaction_t& r IS(reaction_t()));
+#line 107 "commandline.cpp"
+    color_t argcolor(int bits);
 #line 115 "commandline.cpp"
+    void shift_arg_formula(ld& x, const reaction_t& r IS(reaction_t()));
+#line 124 "commandline.cpp"
     
     // an useful macro
     #define PHASE(x) { if(arg::curphase > x) arg::phaseerror(x); else if(arg::curphase < x) return 2; }
@@ -6228,45 +7350,47 @@ namespace hr {
     else if(args()[0] == '-' && args()[1] == x && args()[2] == '1') { PHASEFROM(2); showstartmenu = false; if(!param) act; } \
     else if(args()[0] == '-' && args()[1] == x && args()[2] == '0') { PHASEFROM(2); showstartmenu = false; if(param) act; }
     
-#line 127 "commandline.cpp"
+#line 136 "commandline.cpp"
     void cheat();
-#line 129 "commandline.cpp"
-    void init(int argc, char **argv);
-#line 131 "commandline.cpp"
-    void phaseerror(int x);
 #line 138 "commandline.cpp"
+    void run_arguments(const vector<string> vec);
+#line 144 "commandline.cpp"
+    void init(int argc, char **argv);
+#line 146 "commandline.cpp"
+    void phaseerror(int x);
+#line 153 "commandline.cpp"
     void launch_dialog(const reaction_t& r IS(reaction_t()));
-#line 147 "commandline.cpp"
+#line 162 "commandline.cpp"
     extern int readCommon();
-#line 148 "commandline.cpp"
+#line 163 "commandline.cpp"
     extern int readLocal();  
-#line 149 "commandline.cpp"
+#line 164 "commandline.cpp"
     extern void read(int phase);
     }
-#line 379 "commandline.cpp"
+#line 415 "commandline.cpp"
   extern purehookset hooks_config;
-#line 381 "commandline.cpp"
+#line 417 "commandline.cpp"
   extern hookset<int()> hooks_args;
-#line 383 "commandline.cpp"
+#line 419 "commandline.cpp"
   extern map<string, pair<int, reaction_t>> *added_commands;
   namespace arg {
-#line 401 "commandline.cpp"
+#line 437 "commandline.cpp"
     int add_at(const string& s, int at, const reaction_t& r);
-#line 408 "commandline.cpp"
+#line 444 "commandline.cpp"
     int add1(const string& s, const reaction_t& r);
-#line 409 "commandline.cpp"
+#line 445 "commandline.cpp"
     int add2(const string& s, const reaction_t& r);
-#line 410 "commandline.cpp"
+#line 446 "commandline.cpp"
     int add3(const string& s, const reaction_t& r);
     }
   #endif
   #if !CAP_COMMANDLINE
   namespace arg {
-#line 432 "commandline.cpp"
+#line 468 "commandline.cpp"
     int add1(const string& s, const reaction_t& r);
-#line 433 "commandline.cpp"
+#line 469 "commandline.cpp"
     int add2(const string& s, const reaction_t& r);
-#line 434 "commandline.cpp"
+#line 470 "commandline.cpp"
     int add3(const string& s, const reaction_t& r);
     }
   #endif
@@ -6301,11 +7425,11 @@ namespace hr {
     void switchTreasure(cell *c);
 #line 219 "complex2.cpp"
     int coastvalEdge1(cell *c);
-#line 260 "complex2.cpp"
+#line 261 "complex2.cpp"
     void move();
     }
   namespace variant {
-#line 281 "complex2.cpp"
+#line 282 "complex2.cpp"
     struct feature {
     color_t color_change;
     int rate_change;
@@ -6316,74 +7440,76 @@ namespace hr {
     extern array<feature, 21> features;
     }
   namespace camelot {
-#line 334 "complex2.cpp"
+#line 335 "complex2.cpp"
     extern int knighted;
-#line 337 "complex2.cpp"
+#line 338 "complex2.cpp"
     extern int anthraxBonus;
-#line 360 "complex2.cpp"
+#line 361 "complex2.cpp"
     string knight_name(cell *c);
-#line 365 "complex2.cpp"
+#line 366 "complex2.cpp"
     void move_knight(cell *c1, cell *c2);
-#line 373 "complex2.cpp"
+#line 374 "complex2.cpp"
     void roundTableMessage(cell *c2);
-#line 400 "complex2.cpp"
+#line 401 "complex2.cpp"
     void knightFlavorMessage(cell *c2);
     }
   namespace mine {
-#line 518 "complex2.cpp"
+#line 519 "complex2.cpp"
     extern int victory_time;
-#line 520 "complex2.cpp"
+#line 521 "complex2.cpp"
     void count_status();
-#line 532 "complex2.cpp"
+#line 533 "complex2.cpp"
     bool in_minesweeper();
-#line 536 "complex2.cpp"
+#line 537 "complex2.cpp"
     bool uncoverMines(cell *c, int lev, int dist, bool just_checking);
-#line 577 "complex2.cpp"
+#line 578 "complex2.cpp"
     bool mightBeMine(cell *c);
-#line 581 "complex2.cpp"
+#line 582 "complex2.cpp"
     extern hookset<bool(cell*)> hooks_mark;
-#line 583 "complex2.cpp"
+#line 584 "complex2.cpp"
+    extern bool mark_always;
+#line 586 "complex2.cpp"
     void performMarkCommand(cell *c);
-#line 602 "complex2.cpp"
+#line 606 "complex2.cpp"
     bool marked_mine(cell *c);
-#line 609 "complex2.cpp"
+#line 613 "complex2.cpp"
     bool marked_safe(cell *c);
-#line 616 "complex2.cpp"
-    bool safe();
 #line 620 "complex2.cpp"
+    bool safe();
+#line 624 "complex2.cpp"
     void uncover_full(cell *c2);
-#line 638 "complex2.cpp"
+#line 642 "complex2.cpp"
     void auto_teleport_charges();
     }
   namespace terracotta {
-#line 649 "complex2.cpp"
+#line 653 "complex2.cpp"
     // predictable or not
     static constexpr bool randterra = false;
-#line 653 "complex2.cpp"
+#line 657 "complex2.cpp"
     void check(cell *c);
-#line 674 "complex2.cpp"
-    void check_around(cell *c);
 #line 679 "complex2.cpp"
+    void check_around(cell *c);
+#line 684 "complex2.cpp"
     void check();
     }
   namespace ambush {
-#line 694 "complex2.cpp"
+#line 699 "complex2.cpp"
     void mark(cell *c, manual_celllister& cl);
-#line 701 "complex2.cpp"
+#line 706 "complex2.cpp"
     extern int distance;
-#line 702 "complex2.cpp"
+#line 707 "complex2.cpp"
     extern bool ambushed;
-#line 704 "complex2.cpp"
+#line 709 "complex2.cpp"
     void check_state();
-#line 741 "complex2.cpp"
+#line 746 "complex2.cpp"
     extern int fixed_size;
-#line 743 "complex2.cpp"
+#line 748 "complex2.cpp"
     int size(cell *c, eItem what);
-#line 831 "complex2.cpp"
+#line 836 "complex2.cpp"
     void ambush(cell *c, int dogs);
     }
   namespace dice {
-#line 966 "complex2.cpp"
+#line 971 "complex2.cpp"
     extern vector<struct die_structure*> die_list;
     
     struct die_data {
@@ -6393,42 +7519,56 @@ namespace hr {
     bool mirrored;
     int happy();
     };
-#line 977 "complex2.cpp"
+#line 982 "complex2.cpp"
     int shape_faces(die_structure *w);
-#line 979 "complex2.cpp"
+#line 984 "complex2.cpp"
     string die_name(die_structure *w);
-#line 987 "complex2.cpp"
+#line 992 "complex2.cpp"
     die_structure *get_by_id(unsigned i);
-#line 988 "complex2.cpp"
+#line 993 "complex2.cpp"
     int get_die_id(die_structure *ds);
-#line 995 "complex2.cpp"
+#line 1000 "complex2.cpp"
     extern map<cell*, die_data> data;
-#line 997 "complex2.cpp"
+#line 1002 "complex2.cpp"
     void generate_specific(cell *c, die_structure *ds, int min_hardness, int max_hardness);
-#line 1016 "complex2.cpp"
+#line 1021 "complex2.cpp"
     int die_possible(cell *c);
-#line 1025 "complex2.cpp"
+#line 1030 "complex2.cpp"
     bool can_roll(int sides, int cur, movei mi);
-#line 1031 "complex2.cpp"
+#line 1036 "complex2.cpp"
     bool can_roll(movei mi);
-#line 1037 "complex2.cpp"
+#line 1042 "complex2.cpp"
     bool generate_random(cell *c);
-#line 1047 "complex2.cpp"
+#line 1052 "complex2.cpp"
     void generate_full(cell *c, int hard);
-#line 1115 "complex2.cpp"
+#line 1120 "complex2.cpp"
     die_data roll_effect(movei mi, die_data dd);
-#line 1156 "complex2.cpp"
+#line 1161 "complex2.cpp"
     bool on(cell *c);
-#line 1160 "complex2.cpp"
+#line 1165 "complex2.cpp"
     string describe(cell *c);
-#line 1166 "complex2.cpp"
+#line 1171 "complex2.cpp"
     void roll(movei mi);
-#line 1176 "complex2.cpp"
+#line 1181 "complex2.cpp"
     void draw_die(cell *c, const shiftmatrix& V, ld scale, color_t color);
-#line 1424 "complex2.cpp"
+#line 1434 "complex2.cpp"
     bool swap_forbidden(cell *ca, cell *cb);
-#line 1429 "complex2.cpp"
+#line 1439 "complex2.cpp"
     void chaos_swap(cellwalker wa, cellwalker wb);
+    }
+  #endif
+  #if !CAP_COMPLEX2
+  namespace dice {
+#line 1460 "complex2.cpp"
+    bool on(cell *c);
+#line 1461 "complex2.cpp"
+    bool swap_forbidden(cell *a, cell *b);
+#line 1462 "complex2.cpp"
+    void chaos_swap(cellwalker wa, cellwalker wb);
+    }
+  namespace mine {
+#line 1466 "complex2.cpp"
+    bool in_minesweeper();
     }
   #endif
 
@@ -6474,7 +7614,7 @@ namespace hr {
   virtual bool affects(void *v) { return false; }
   virtual void add_as_saver() {}
   void show_edit_option() { show_edit_option(default_key); }
-  virtual void show_edit_option(char key) {
+  virtual void show_edit_option(int key) {
   println(hlog, "default called!"); }
   virtual string search_key() { 
   return parameter_name + "|" + config_name + "|" + menu_item_name + "|" + help_text;
@@ -6514,7 +7654,7 @@ namespace hr {
   default_key = key;
   return this;
   }
-  void show_edit_option(char key) override;
+  void show_edit_option(int key) override;
   };
   
   template<class T> struct enum_setting : list_setting {
@@ -6549,9 +7689,15 @@ namespace hr {
   float_setting *modif(const function<void(float_setting*)>& r) { modify_me = r; return this; }
   void add_as_saver() override;
   bool affects(void *v) override { return v == value; }
-  void show_edit_option(char key) override;
+  void show_edit_option(int key) override;
   cld get_cld() override { return *value; }
   void load_from(const string& s) override;
+  };
+  
+  struct float_setting_dft : public float_setting {
+  void show_edit_option(int key) override;
+  function<ld()> get_hint;
+  float_setting_dft* set_hint(const function<ld()>& f) { get_hint = f; return this; }
   };
   
   struct int_setting : public setting {
@@ -6563,9 +7709,10 @@ namespace hr {
   function<void(int_setting*)> modify_me;
   int_setting *modif(const function<void(int_setting*)>& r) { modify_me = r; return this; }
   bool affects(void *v) override { return v == value; }
-  void show_edit_option(char key) override;
+  void show_edit_option(int key) override;
   cld get_cld() override { return *value; }
   int_setting *editable(int min_value, int max_value, ld step, string menu_item_name, string help_text, char key) {
+  this->is_editable = true;
   this->min_value = min_value;
   this->max_value = max_value;
   this->menu_item_name = menu_item_name;
@@ -6590,7 +7737,7 @@ namespace hr {
   menu_item_name = cap; default_key = key; return this; 
   } 
   bool affects(void *v) override { return v == value; }
-  void show_edit_option(char key) override;
+  void show_edit_option(int key) override;
   cld get_cld() override { return *value ? 1 : 0; }
   void load_from(const string& s) override {
   *value = parseint(s);
@@ -6601,7 +7748,7 @@ namespace hr {
   function<void(char)> custom_viewer;
   function<cld()> custom_value;
   function<bool(void*)> custom_affect;
-  void show_edit_option(char key) override { custom_viewer(key); }
+  void show_edit_option(int key) override { custom_viewer(key); }
   cld get_cld() override { return custom_value(); }
   bool affects(void *v) override { return custom_affect(v); }
   };
@@ -6705,19 +7852,21 @@ namespace hr {
   }
   };
   #endif
-#line 355 "config.cpp"
+#line 385 "config.cpp"
   float_setting *param_f(ld& val, const string p, const string s, ld dft);
-#line 379 "config.cpp"
+#line 409 "config.cpp"
+  float_setting_dft *param_fd(ld& val, const string s, ld dft IS(use_the_default_value) );
+#line 427 "config.cpp"
   string param_esc(string s);
-#line 389 "config.cpp"
+#line 437 "config.cpp"
   int_setting *param_i(int& val, const string s, int dft);
-#line 412 "config.cpp"
+#line 460 "config.cpp"
   int_setting *param_i(int& val, const string s);
-#line 414 "config.cpp"
+#line 462 "config.cpp"
   bool_setting *param_b(bool& val, const string s, bool dft);
-#line 430 "config.cpp"
+#line 478 "config.cpp"
   bool_setting *param_b(bool& val, const string s);
-#line 433 "config.cpp"
+#line 481 "config.cpp"
   template<class T> void enum_setting<T>::add_as_saver() { 
   #if CAP_CONFIG
   addsaverenum(*value, config_name, dft);
@@ -6738,13 +7887,13 @@ namespace hr {
   params[p] = std::move(u);
   return f;
   }
-#line 455 "config.cpp"
+#line 503 "config.cpp"
   float_setting* param_f(ld& val, const string s);
-#line 459 "config.cpp"
+#line 507 "config.cpp"
   float_setting* param_f(ld& val, const string p, const string s);
-#line 463 "config.cpp"
+#line 511 "config.cpp"
   float_setting* param_f(ld& val, const string s, ld dft);
-#line 468 "config.cpp"
+#line 516 "config.cpp"
   template<class T>
   custom_setting* param_custom(T& val, const string& s, function<void(char)> menuitem, char key) {
   unique_ptr<custom_setting> u ( new custom_setting );
@@ -6761,166 +7910,180 @@ namespace hr {
   params[s] = std::move(u);
   return f;  
   }
-#line 486 "config.cpp"
+#line 534 "config.cpp"
   extern ld bounded_mine_percentage;
-#line 487 "config.cpp"
+#line 535 "config.cpp"
   extern int bounded_mine_quantity, bounded_mine_max;
-#line 489 "config.cpp"
+#line 537 "config.cpp"
   extern const char *conffile;
-#line 492 "config.cpp"
+#line 540 "config.cpp"
   extern array<ld, gGUARD+64> sightranges;
-#line 494 "config.cpp"
+#line 542 "config.cpp"
+  extern bool logfog;
+#line 544 "config.cpp"
   extern videopar vid;
-#line 499 "config.cpp"
+#line 549 "config.cpp"
   void android_settings_changed();
-#line 507 "config.cpp"
+#line 557 "config.cpp"
   charstyle& getcs(int id IS(multi::cpid));
-#line 520 "config.cpp"
+#line 570 "config.cpp"
   void hread(hstream& hs, charstyle& cs);
-#line 538 "config.cpp"
+#line 588 "config.cpp"
   void hwrite(hstream& hs, const charstyle& cs);
-#line 545 "config.cpp"
+#line 595 "config.cpp"
   string csnameid(int id);
-#line 556 "config.cpp"
+#line 606 "config.cpp"
   string csname(charstyle& cs);
-#line 560 "config.cpp"
+#line 610 "config.cpp"
   int playergender();
-#line 563 "config.cpp"
+#line 613 "config.cpp"
   int princessgender();
-#line 569 "config.cpp"
+#line 619 "config.cpp"
   extern int default_language;
-#line 571 "config.cpp"
+#line 621 "config.cpp"
   int lang();
-#line 577 "config.cpp"
+#line 627 "config.cpp"
   extern bool autojoy;
-#line 593 "config.cpp"
+#line 643 "config.cpp"
   void addsaver(charstyle& cs, string s);
-#line 614 "config.cpp"
+#line 664 "config.cpp"
   void initcs(charstyle &cs);
-#line 626 "config.cpp"
+#line 676 "config.cpp"
   void savecolortable(colortable& ct, string name);
-#line 631 "config.cpp"
+#line 681 "config.cpp"
   extern purehookset hooks_configfile;
-#line 633 "config.cpp"
+#line 683 "config.cpp"
   void initConfig();
-#line 1073 "config.cpp"
+#line 1232 "config.cpp"
   bool inSpecialMode();
-#line 1084 "config.cpp"
+#line 1243 "config.cpp"
   bool have_current_settings();
-#line 1105 "config.cpp"
+#line 1264 "config.cpp"
   bool have_current_graph_settings();
-#line 1116 "config.cpp"
+#line 1275 "config.cpp"
   void reset_graph_settings();
-#line 1127 "config.cpp"
+#line 1286 "config.cpp"
   void resetModes(char leave IS('c'));
   #if CAP_CONFIG  
-#line 1165 "config.cpp"
+#line 1324 "config.cpp"
   void resetConfig();
   #endif
   #if CAP_CONFIG
-#line 1177 "config.cpp"
+#line 1336 "config.cpp"
   void saveConfig();
-#line 1217 "config.cpp"
+#line 1376 "config.cpp"
   void parseline(const string& str);
-#line 1232 "config.cpp"
+#line 1391 "config.cpp"
   void loadNewConfig(FILE *f);
-#line 1247 "config.cpp"
+#line 1406 "config.cpp"
   void loadConfig();
   #endif
-#line 1276 "config.cpp"
+#line 1435 "config.cpp"
   void add_cells_drawn(char c IS('C'));
-#line 1307 "config.cpp"
+#line 1466 "config.cpp"
   void menuitem_sightrange_bonus(char c);
-#line 1320 "config.cpp"
+#line 1479 "config.cpp"
   void edit_sightrange();
-#line 1401 "config.cpp"
+#line 1565 "config.cpp"
   void menuitem_sightrange_style(char c IS('c'));
-#line 1428 "config.cpp"
+#line 1592 "config.cpp"
   void menuitem_sightrange(char c IS('c'));
-#line 1443 "config.cpp"
+#line 1607 "config.cpp"
   void sets_sfx_volume();
-#line 1456 "config.cpp"
+#line 1620 "config.cpp"
   void sets_music_volume();
-#line 1477 "config.cpp"
+#line 1641 "config.cpp"
   void showSpecialEffects();
-#line 1493 "config.cpp"
+#line 1657 "config.cpp"
   void show_vector_settings();
-#line 1542 "config.cpp"
+#line 1706 "config.cpp"
   void showGraphConfig();
-#line 1690 "config.cpp"
+#line 1866 "config.cpp"
   void edit_whatever(char type, int index);
-#line 1711 "config.cpp"
+#line 1887 "config.cpp"
   void configureOther();
-#line 1749 "config.cpp"
+#line 1928 "config.cpp"
   void configureInterface();
   #if CAP_SDLJOY
-#line 1803 "config.cpp"
+#line 1990 "config.cpp"
   void showJoyConfig();
   #endif
-#line 1854 "config.cpp"
+#line 2042 "config.cpp"
   void projectionDialog();
-#line 1886 "config.cpp"
+#line 2074 "config.cpp"
   void menuitem_projection_distance(char key);
-#line 1891 "config.cpp"
+#line 2079 "config.cpp"
   void explain_detail();
-#line 1900 "config.cpp"
+#line 2088 "config.cpp"
   ld max_fov_angle();
-#line 1906 "config.cpp"
+#line 2094 "config.cpp"
   void add_edit_fov(char key IS('f'), bool pop IS(false));
-#line 1973 "config.cpp"
+#line 2161 "config.cpp"
   void showStereo();
-#line 2044 "config.cpp"
+#line 2232 "config.cpp"
   void add_edit_wall_quality(char c);
-#line 2070 "config.cpp"
-  void edit_levellines(char c);
-#line 2092 "config.cpp"
-  void show3D();
 #line 2258 "config.cpp"
+  void edit_levellines(char c);
+#line 2280 "config.cpp"
+  geom3::eSpatialEmbedding shown_spatial_embedding();
+#line 2285 "config.cpp"
+  bool in_tpp();
+#line 2287 "config.cpp"
+  void display_embedded_errors();
+#line 2353 "config.cpp"
+  void show_spatial_embedding();
+#line 2416 "config.cpp"
+  void show3D_height_details();
+#line 2469 "config.cpp"
+  void show3D();
+#line 2646 "config.cpp"
   extern int config3;
-#line 2400 "config.cpp"
+#line 2868 "config.cpp"
   void switchcolor(unsigned int& c, unsigned int* cs);
-#line 2408 "config.cpp"
+#line 2876 "config.cpp"
   void showCustomizeChar();
-#line 2480 "config.cpp"
+#line 2949 "config.cpp"
   void refresh_canvas();
-#line 2494 "config.cpp"
+#line 2963 "config.cpp"
+  color_t addalpha(color_t c);
+#line 2965 "config.cpp"
   void edit_color_table(colortable& ct, const reaction_t& r IS(reaction_t()), bool has_bit IS(false));
-#line 2518 "config.cpp"
+#line 3003 "config.cpp"
   void show_color_dialog();
   #if CAP_CONFIG
-#line 2632 "config.cpp"
+#line 3122 "config.cpp"
   void resetConfigMenu();
   #endif
   #if CAP_TRANS
-#line 2664 "config.cpp"
+#line 3154 "config.cpp"
   void selectLanguageScreen();
   #endif
-#line 2722 "config.cpp"
+#line 3213 "config.cpp"
   void configureMouse();
-#line 2766 "config.cpp"
+#line 3258 "config.cpp"
   void add_to_changed(setting *f);
-#line 2777 "config.cpp"
+#line 3269 "config.cpp"
   setting *find_edit(void *val);
-#line 2786 "config.cpp"
+#line 3278 "config.cpp"
   void add_edit_ptr(void *val);
-#line 2797 "config.cpp"
+#line 3289 "config.cpp"
   template<class T> void add_edit(T& val) {
   add_edit_ptr(&val);
   }
-#line 2802 "config.cpp"
+#line 3294 "config.cpp"
   void find_setting();
-#line 2836 "config.cpp"
+#line 3328 "config.cpp"
   void edit_all_settings();
-#line 2878 "config.cpp"
+#line 3383 "config.cpp"
   void showSettings();
   #if CAP_COMMANDLINE
-#line 2932 "config.cpp"
+#line 3438 "config.cpp"
   int read_color_args();
-#line 2975 "config.cpp"
+#line 3487 "config.cpp"
   int read_config_args();
-#line 3220 "config.cpp"
+#line 3752 "config.cpp"
   int read_param_args();
-#line 3237 "config.cpp"
+#line 3769 "config.cpp"
   int read_gamemode_args();
   #endif
 
@@ -6951,59 +8114,61 @@ namespace hr {
 #line 28 "control.cpp"
   extern bool inslider;
 #line 29 "control.cpp"
+  extern bool invslider;
+#line 30 "control.cpp"
   extern int slider_x;
-#line 31 "control.cpp"
-  extern function <void(int sym, int uni)> keyhandler;
 #line 32 "control.cpp"
+  extern function <void(int sym, int uni)> keyhandler;
+#line 33 "control.cpp"
   extern function <bool(SDL_Event &ev)> joyhandler;
-#line 35 "control.cpp"
+#line 36 "control.cpp"
   // what part of the compass does 'skip turn'
   static const auto SKIPFAC = .4;
-#line 40 "control.cpp"
+#line 41 "control.cpp"
   extern bool mousing;
-#line 44 "control.cpp"
+#line 45 "control.cpp"
   extern int which_pointer;
-#line 47 "control.cpp"
-  extern bool mousepressed;
 #line 48 "control.cpp"
-  extern bool mousemoved;
+  extern bool mousepressed;
 #line 49 "control.cpp"
+  extern bool mousemoved;
+#line 50 "control.cpp"
   extern bool actonrelease;
-#line 51 "control.cpp"
+#line 52 "control.cpp"
   extern bool mousepan, oldmousepan;
   #if CAP_MOUSEGRAB
-#line 53 "control.cpp"
+#line 54 "control.cpp"
   extern ld mouseaim_x, mouseaim_y;
   #endif
-#line 55 "control.cpp"
+#line 56 "control.cpp"
   extern ld mouseaim_sensitivity;
-#line 57 "control.cpp"
+#line 58 "control.cpp"
   extern int timetowait;
   #if CAP_SDLJOY
-#line 60 "control.cpp"
-  extern int joyx, joyy, panjoyx, panjoyy; 
 #line 61 "control.cpp"
+  extern int joyx, joyy, panjoyx, panjoyy; 
+#line 62 "control.cpp"
   extern movedir joydir;
   #endif
-#line 64 "control.cpp"
-  extern movedir mousedest;
 #line 65 "control.cpp"
+  extern movedir mousedest;
+#line 66 "control.cpp"
   extern ld shiftmul;
-#line 67 "control.cpp"
-  extern cell *mouseover, *mouseover2, *lmouseover, *lmouseover_distant;
 #line 68 "control.cpp"
+  extern cell *mouseover, *mouseover2, *lmouseover, *lmouseover_distant;
+#line 69 "control.cpp"
   extern ld modist, modist2;
-#line 70 "control.cpp"
+#line 71 "control.cpp"
   extern int lastt;
-#line 72 "control.cpp"
+#line 73 "control.cpp"
   bool mouseout();
-#line 77 "control.cpp"
+#line 78 "control.cpp"
   bool mouseout2();
-#line 82 "control.cpp"
+#line 83 "control.cpp"
   movedir vectodir(hyperpoint P);
-#line 119 "control.cpp"
+#line 121 "control.cpp"
   void remission();
-#line 123 "control.cpp"
+#line 125 "control.cpp"
   hyperpoint move_destination_vec(int d);
 #line 131 "control.cpp"
   void movepckeydir(int d);
@@ -7046,87 +8211,95 @@ namespace hr {
 #line 349 "control.cpp"
   void full_forward_camera(ld t);
 #line 359 "control.cpp"
-  void full_strafe_camera(ld t);
+  void full_cstrafe_camera(int dir, ld t);
 #line 367 "control.cpp"
+  void full_strafe_camera(ld t);
+#line 369 "control.cpp"
+  void full_ystrafe_camera(ld t);
+#line 375 "control.cpp"
+  extern ld third_person_rotation;
+#line 377 "control.cpp"
   void full_rotate_camera(int dir, ld val);
-#line 412 "control.cpp"
+#line 431 "control.cpp"
   void full_rotate_view(ld h, ld v);
-#line 423 "control.cpp"
+#line 442 "control.cpp"
   void handlePanning(int sym, int uni);
-#line 482 "control.cpp"
+#line 501 "control.cpp"
   extern purehookset hooks_fixticks;
-#line 484 "control.cpp"
+#line 503 "control.cpp"
   extern array<int, 8> keys_vi;
-#line 485 "control.cpp"
+#line 504 "control.cpp"
   extern array<int, 8> keys_wasd;
-#line 486 "control.cpp"
+#line 505 "control.cpp"
   extern array<int, 8> keys_numpad;
-#line 488 "control.cpp"
+#line 507 "control.cpp"
   void handleKeyNormal(int sym, int uni);
-#line 615 "control.cpp"
+#line 637 "control.cpp"
   extern bool need_mouseh;
-#line 617 "control.cpp"
+#line 639 "control.cpp"
   void fix_mouseh();
-#line 642 "control.cpp"
+#line 664 "control.cpp"
   void handlekey(int sym, int uni);
-#line 649 "control.cpp"
+#line 671 "control.cpp"
   extern void resize_screen_to(int x, int y);
   #if !CAP_SDL
-#line 652 "control.cpp"
+#line 674 "control.cpp"
   void mainloopiter();
   #endif
   #if CAP_SDL
-#line 661 "control.cpp"
+#line 683 "control.cpp"
   void resize_screen_to(int x, int y);
-#line 679 "control.cpp"
-  extern int sc_ticks;
-#line 681 "control.cpp"
+#line 701 "control.cpp"
+  extern int sc_ticks, sc_ticks2;
+#line 703 "control.cpp"
   bool mouseaiming(bool shmupon);
-#line 686 "control.cpp"
+#line 709 "control.cpp"
+  extern bool game_keys_scroll;
+#line 711 "control.cpp"
   void mainloopiter();
-#line 940 "control.cpp"
+#line 988 "control.cpp"
   extern bool need_refresh;
-#line 942 "control.cpp"
+#line 990 "control.cpp"
   void handle_event(SDL_Event& ev);
   #endif
-#line 1220 "control.cpp"
+#line 1272 "control.cpp"
   void mainloop();
   #if ISMOBILE
-#line 1232 "control.cpp"
+#line 1284 "control.cpp"
   void displayabutton(int px, int py, string s, int col);
   #endif
-#line 1254 "control.cpp"
+#line 1306 "control.cpp"
   bool interpret_as_direction(int sym, int uni);
-#line 1262 "control.cpp"
+#line 1314 "control.cpp"
   int get_direction_key(int sym, int uni);
-#line 1279 "control.cpp"
+#line 1331 "control.cpp"
   bool gmodekeys(int sym, int uni);
-#line 1318 "control.cpp"
+#line 1370 "control.cpp"
   bool haveMobileCompass();
-#line 1328 "control.cpp"
+#line 1380 "control.cpp"
   bool handleCompass();
   #if CAP_ORIENTATION
-#line 1353 "control.cpp"
+#line 1405 "control.cpp"
   extern transmatrix getOrientation();
   #endif
   namespace ors {
-#line 1359 "control.cpp"
+#line 1411 "control.cpp"
     extern int mode;
-#line 1366 "control.cpp"
+#line 1418 "control.cpp"
     extern string choices[3];
     #if CAP_ORIENTATION
-#line 1369 "control.cpp"
+#line 1421 "control.cpp"
     transmatrix getOrientation();
     #endif
-#line 1374 "control.cpp"
+#line 1426 "control.cpp"
     void reset();
-#line 1387 "control.cpp"
+#line 1439 "control.cpp"
     void show();
-#line 1470 "control.cpp"
+#line 1522 "control.cpp"
     void unrotate(transmatrix& T);
-#line 1474 "control.cpp"
+#line 1526 "control.cpp"
     void rerotate(transmatrix& T);
-#line 1480 "control.cpp"
+#line 1532 "control.cpp"
     void check_orientation();
     }
 
@@ -7167,81 +8340,81 @@ namespace hr {
     extern ld compass_probability;
 #line 465 "crystal.cpp"
     extern int crystal_period;
-#line 697 "crystal.cpp"
-    heptagon *get_heptagon_at(coord c);
-#line 698 "crystal.cpp"
-    coord get_coord(heptagon *h);
 #line 699 "crystal.cpp"
-    ldcoord get_ldcoord(cell *c);
+    heptagon *get_heptagon_at(coord c);
+#line 700 "crystal.cpp"
+    coord get_coord(heptagon *h);
 #line 701 "crystal.cpp"
+    ldcoord get_ldcoord(cell *c);
+#line 703 "crystal.cpp"
     int get_dim();
     #if MAXMDIM >= 4
-#line 704 "crystal.cpp"
+#line 706 "crystal.cpp"
     transmatrix get_adj(heptagon *h, int d);
     #endif
-#line 717 "crystal.cpp"
+#line 719 "crystal.cpp"
     color_t colorize(cell *c, char whichCanvas);
-#line 798 "crystal.cpp"
-    extern colortable coordcolors;
 #line 800 "crystal.cpp"
+    extern colortable coordcolors;
+#line 802 "crystal.cpp"
     ld compass_angle();
-#line 805 "crystal.cpp"
+#line 807 "crystal.cpp"
     bool crystal_cell(cell *c, shiftmatrix V);
-#line 836 "crystal.cpp"
+#line 838 "crystal.cpp"
     vector<cell*> build_shortest_path(cell *c1, cell *c2);
-#line 889 "crystal.cpp"
+#line 891 "crystal.cpp"
     int precise_distance(cell *c1, cell *c2);
-#line 953 "crystal.cpp"
+#line 955 "crystal.cpp"
     ld space_distance(cell *c1, cell *c2);
-#line 960 "crystal.cpp"
+#line 962 "crystal.cpp"
     ld space_distance_camelot(cell *c);
-#line 965 "crystal.cpp"
+#line 967 "crystal.cpp"
     int dist_relative(cell *c);
-#line 1088 "crystal.cpp"
+#line 1090 "crystal.cpp"
     int dist_alt(cell *c);
-#line 1110 "crystal.cpp"
+#line 1112 "crystal.cpp"
     void init_rotation();
-#line 1131 "crystal.cpp"
+#line 1134 "crystal.cpp"
     void random_rotation();
-#line 1149 "crystal.cpp"
+#line 1152 "crystal.cpp"
     void next_home_orientation();
-#line 1154 "crystal.cpp"
+#line 1157 "crystal.cpp"
     void flip_z();
     #if CAP_RUG
-#line 1172 "crystal.cpp"
+#line 1175 "crystal.cpp"
     void switch_z_coordinate();
-#line 1181 "crystal.cpp"
+#line 1184 "crystal.cpp"
     void apply_rotation(const transmatrix t);
-#line 1191 "crystal.cpp"
+#line 1194 "crystal.cpp"
     void centerrug(ld aspd);
     #if MAXMDIM >= 4
-#line 1237 "crystal.cpp"
+#line 1240 "crystal.cpp"
     void build_rugdata();
     #endif
     #endif
-#line 1298 "crystal.cpp"
+#line 1301 "crystal.cpp"
     void set_land(cell *c);
-#line 1312 "crystal.cpp"
+#line 1315 "crystal.cpp"
     void set_crystal(int sides);
-#line 1354 "crystal.cpp"
+#line 1357 "crystal.cpp"
     void set_crystal_period_flags();
-#line 1414 "crystal.cpp"
+#line 1417 "crystal.cpp"
     hrmap *new_map();
-#line 1418 "crystal.cpp"
+#line 1421 "crystal.cpp"
     string compass_help();
-#line 1443 "crystal.cpp"
+#line 1446 "crystal.cpp"
     void crystal_knight_help();
-#line 1466 "crystal.cpp"
+#line 1470 "crystal.cpp"
     void show();
-#line 1581 "crystal.cpp"
+#line 1585 "crystal.cpp"
     string get_table_volume();
-#line 1629 "crystal.cpp"
+#line 1633 "crystal.cpp"
     string get_table_boundary();
-#line 1639 "crystal.cpp"
+#line 1643 "crystal.cpp"
     void may_place_compass(cell *c);
     #endif
     #if CAP_CRYSTAL && MAXMDIM >= 4
-#line 1801 "crystal.cpp"
+#line 1805 "crystal.cpp"
     void add_crystal_transform(char c);
     #endif
     }
@@ -7272,27 +8445,27 @@ namespace hr {
   cell *pathTowards(cell *pf, cell *pt);
 #line 46 "debug.cpp"
   void describeCell(cell *c);
-#line 95 "debug.cpp"
+#line 90 "debug.cpp"
   extern eLand cheatdest;
-#line 97 "debug.cpp"
+#line 92 "debug.cpp"
   void cheatMoveTo(eLand l);
-#line 104 "debug.cpp"
-  bool applyCheat(char u, cell *c IS(NULL));
-#line 323 "debug.cpp"
+#line 255 "debug.cpp"
+  bool applyCheat(char u);
+#line 273 "debug.cpp"
   extern vector<pair<cellwalker,int> > drawbugs;
-#line 512 "debug.cpp"
+#line 464 "debug.cpp"
   void push_debug_screen();
-#line 518 "debug.cpp"
+#line 470 "debug.cpp"
   void showCheatMenu();
-#line 561 "debug.cpp"
+#line 484 "debug.cpp"
   void viewall();
-#line 625 "debug.cpp"
+#line 548 "debug.cpp"
   void modalDebug(cell *c);
-#line 648 "debug.cpp"
+#line 571 "debug.cpp"
   void raiseBuggyGeneration(cell *c, const char *s);
-#line 931 "debug.cpp"
+#line 901 "debug.cpp"
   extern bool ldebug;
-#line 933 "debug.cpp"
+#line 903 "debug.cpp"
   void breakhere();
 
   // implemented in: dialogs.cpp
@@ -7305,7 +8478,7 @@ namespace hr {
     
     static const int DONT_SHOW = 16;
     
-    enum tDialogItem {diTitle, diItem, diBreak, diHelp, diInfo, diIntSlider, diSlider, diBigItem, diKeyboard};
+    enum tDialogItem {diTitle, diItem, diBreak, diHelp, diInfo, diIntSlider, diSlider, diBigItem, diKeyboard, diCustom, diColorItem, diListStart, diListEnd};
     
     struct item {
     tDialogItem type;
@@ -7317,6 +8490,8 @@ namespace hr {
     double param;
     int p1, p2, p3;
     int position;
+    reaction_t customfun;
+    item(tDialogItem t = diBreak);
     };
     
     struct scaler {
@@ -7347,201 +8522,243 @@ namespace hr {
     inline void scaleLog() { ne.sc = logarithmic; }
     inline void scaleSinh() { ne.sc = asinhic; }
     inline void scaleSinh100() { ne.sc = asinhic100; }  
-#line 64 "dialogs.cpp"
-    extern color_t dialogcolor;
 #line 66 "dialogs.cpp"
-    void addBack();
+    extern color_t dialogcolor;
+#line 67 "dialogs.cpp"
+    extern color_t dialogcolor_clicked;
+#line 68 "dialogs.cpp"
+    extern color_t dialogcolor_selected;
+#line 69 "dialogs.cpp"
+    extern color_t dialogcolor_key;
+#line 70 "dialogs.cpp"
+    extern color_t dialogcolor_value;
+#line 71 "dialogs.cpp"
+    extern color_t dialogcolor_off;
+#line 72 "dialogs.cpp"
+    extern color_t dialogcolor_on;
 #line 73 "dialogs.cpp"
+    extern color_t dialogcolor_big;
+#line 76 "dialogs.cpp"
+    color_t dialogcolor_over(bool b);
+#line 82 "dialogs.cpp"
+    void addBack();
+#line 89 "dialogs.cpp"
     void addHelp();
     namespace zoom {
-#line 97 "dialogs.cpp"
+#line 113 "dialogs.cpp"
       bool displayfr(int x, int y, int b, int size, const string &s, color_t color, int align);
-#line 101 "dialogs.cpp"
+#line 117 "dialogs.cpp"
       bool displayfr_highlight(int x, int y, int b, int size, const string &s, color_t color, int align, int hicolor IS(0xFFFF00));
       }
     #if CAP_MENUSCALING && CAP_SDL
-#line 109 "dialogs.cpp"
+#line 125 "dialogs.cpp"
     void handleZooming(SDL_Event &ev);
     #endif
     #if !(CAP_MENUSCALING && CAP_SDL)
-#line 119 "dialogs.cpp"
+#line 135 "dialogs.cpp"
     void handleZooming(SDL_Event &ev);
     #endif
-#line 122 "dialogs.cpp"
+#line 138 "dialogs.cpp"
     extern vector<item> items;
-#line 124 "dialogs.cpp"
+#line 140 "dialogs.cpp"
     item& lastItem();
-#line 126 "dialogs.cpp"
+#line 142 "dialogs.cpp"
     item& titleItem();
-#line 128 "dialogs.cpp"
+#line 144 "dialogs.cpp"
     extern map<int, reaction_t> key_actions;
-#line 130 "dialogs.cpp"
+#line 146 "dialogs.cpp"
     void add_key_action(int key, const reaction_t& action);
-#line 134 "dialogs.cpp"
+#line 150 "dialogs.cpp"
     void add_key_action_adjust(int& key, const reaction_t& action);
-#line 139 "dialogs.cpp"
+#line 155 "dialogs.cpp"
     void extend();
-#line 143 "dialogs.cpp"
+#line 159 "dialogs.cpp"
     void add_action(const reaction_t& action);
-#line 147 "dialogs.cpp"
+#line 163 "dialogs.cpp"
     void add_action_push(const reaction_t& action);
-#line 149 "dialogs.cpp"
+#line 165 "dialogs.cpp"
     void add_action_push_clear(const reaction_t& action);
-#line 151 "dialogs.cpp"
+#line 167 "dialogs.cpp"
     void handler(int sym, int uni);
-#line 156 "dialogs.cpp"
+#line 173 "dialogs.cpp"
+    extern int list_size_min, list_size_max, list_fake_key;
+#line 174 "dialogs.cpp"
+    extern const int first_list_fake_key;
+#line 176 "dialogs.cpp"
     void init();
-#line 162 "dialogs.cpp"
+#line 184 "dialogs.cpp"
     string keyname(int k);
-#line 179 "dialogs.cpp"
+#line 214 "dialogs.cpp"
     void addSlider(double d1, double d2, double d3, int key);
-#line 189 "dialogs.cpp"
-    void addIntSlider(int d1, int d2, int d3, int key);
-#line 200 "dialogs.cpp"
-    void addSelItem(string body, string value, int key);
-#line 217 "dialogs.cpp"
-    void addBoolItem(string body, bool value, int key);
 #line 221 "dialogs.cpp"
+    void addIntSlider(int d1, int d2, int d3, int key);
+#line 229 "dialogs.cpp"
+    void addSelItem(string body, string value, int key);
+#line 239 "dialogs.cpp"
+    void addBoolItem(string body, bool value, int key);
+#line 243 "dialogs.cpp"
     int displaycolor(color_t col);
-#line 227 "dialogs.cpp"
+#line 249 "dialogs.cpp"
     void addKeyboardItem(string keys);
-#line 237 "dialogs.cpp"
+#line 256 "dialogs.cpp"
+    void addCustom(int size, reaction_t custom);
+#line 263 "dialogs.cpp"
     void addColorItem(string body, int value, int key);
-#line 251 "dialogs.cpp"
-    void addHelp(string body);
-#line 262 "dialogs.cpp"
-    void addInfo(string body, color_t color IS(dialogcolor));
 #line 271 "dialogs.cpp"
+    void addHelp(string body);
+#line 280 "dialogs.cpp"
+    void addInfo(string body, color_t color IS(dialogcolor));
+#line 287 "dialogs.cpp"
     void addItem(string body, int key);
-#line 284 "dialogs.cpp"
+#line 294 "dialogs.cpp"
     void addBigItem(string body, int key);
-#line 296 "dialogs.cpp"
+#line 303 "dialogs.cpp"
     int addBreak(int val);
-#line 304 "dialogs.cpp"
+#line 310 "dialogs.cpp"
+    void start_list(int size_min, int size_max, int key_start IS(0));
+#line 320 "dialogs.cpp"
+    void end_list();
+#line 326 "dialogs.cpp"
     void addTitle(string body, color_t color, int scale);
-#line 313 "dialogs.cpp"
+#line 334 "dialogs.cpp"
     void init(string title, color_t color IS(0xE8E8E8), int scale IS(150), int brk IS(60));
-#line 319 "dialogs.cpp"
+#line 340 "dialogs.cpp"
     extern int dcenter, dwidth;
-#line 321 "dialogs.cpp"
+#line 342 "dialogs.cpp"
     extern int dialogflags;
-#line 323 "dialogs.cpp"
+#line 344 "dialogs.cpp"
     int displayLong(string str, int siz, int y, bool measure);
-#line 356 "dialogs.cpp"
-    extern int tothei, dialogwidth, dfsize, dfspace, leftwidth, rightwidth, innerwidth, itemx, keyx, valuex;
-#line 358 "dialogs.cpp"
+#line 377 "dialogs.cpp"
+    extern int tothei, dialogwidth, dfsize, dfspace, odfspace, leftwidth, rightwidth, innerwidth, itemx, keyx, valuex, top, list_starts_at, list_ends_at, list_full_size, list_actual_size, list_skip, fwidth;
+#line 379 "dialogs.cpp"
     extern string highlight_text;
-#line 360 "dialogs.cpp"
-    void measure();
-#line 387 "dialogs.cpp"
-    extern purehookset hooks_display_dialog;
+#line 380 "dialogs.cpp"
+    extern int highlight_key;
+#line 382 "dialogs.cpp"
+    bool is_highlight(item& I);
+#line 383 "dialogs.cpp"
+    void set_highlight(item& I);
+#line 384 "dialogs.cpp"
+    void find_highlight(const string& s);
 #line 389 "dialogs.cpp"
+    void measure();
+#line 434 "dialogs.cpp"
+    extern purehookset hooks_display_dialog;
+#line 436 "dialogs.cpp"
     extern vector<int> key_queue;
-#line 391 "dialogs.cpp"
+#line 438 "dialogs.cpp"
     void queue_key(int key);
-#line 393 "dialogs.cpp"
+#line 440 "dialogs.cpp"
+    int uishape();
+#line 447 "dialogs.cpp"
+    void draw_list_slider(int x, int yt);
+#line 482 "dialogs.cpp"
+    void draw_slider(int sl, int sr, int y, item& I);
+#line 546 "dialogs.cpp"
     void display();
-#line 542 "dialogs.cpp"
+#line 814 "dialogs.cpp"
     void handle_actions(int &sym, int &uni);
-#line 555 "dialogs.cpp"
-    void handleNavigation(int &sym, int &uni);
-#line 617 "dialogs.cpp"
-    extern color_t *palette;
-#line 623 "dialogs.cpp"
-    void handleKeyColor(int sym, int uni);
-#line 668 "dialogs.cpp"
-    extern bool colorAlpha;
-#line 670 "dialogs.cpp"
-    void drawColorDialog();
-#line 732 "dialogs.cpp"
-    void openColorDialog(unsigned int& col, unsigned int *pal IS(palette));
-#line 741 "dialogs.cpp"
-    extern numberEditor ne;
-#line 743 "dialogs.cpp"
-    bool editingDetail();
-#line 752 "dialogs.cpp"
-    string disp(ld x);
-#line 757 "dialogs.cpp"
-    extern reaction_t reaction;
-#line 758 "dialogs.cpp"
-    extern reaction_t reaction_final;
-#line 760 "dialogs.cpp"
-    extern reaction_t extra_options;
-#line 762 "dialogs.cpp"
-    void apply_slider();
-#line 772 "dialogs.cpp"
-    void use_hexeditor();
-#line 777 "dialogs.cpp"
-    void apply_edit();
-#line 794 "dialogs.cpp"
-    void bound_low(ld val);
-#line 805 "dialogs.cpp"
-    void bound_up(ld val);
-#line 816 "dialogs.cpp"
-    extern int numberdark;
-#line 818 "dialogs.cpp"
-    void formula_keyboard(bool lr);
 #line 827 "dialogs.cpp"
-    extern bool onscreen_keyboard;
-#line 829 "dialogs.cpp"
-    void number_dialog_help();
-#line 871 "dialogs.cpp"
-    void parser_help();
-#line 878 "dialogs.cpp"
-    void drawNumberDialog();
-#line 980 "dialogs.cpp"
-    int handlePage(int& nl, int& nlm, int perpage);
-#line 1001 "dialogs.cpp"
-    void displayPageButtons(int i, bool pages);
-#line 1018 "dialogs.cpp"
-    bool handlePageButtons(int uni);
-#line 1028 "dialogs.cpp"
-    void editNumber(ld& x, ld vmin, ld vmax, ld step, ld dft, string title, string help);
-#line 1053 "dialogs.cpp"
-    void editNumber(int& x, int vmin, int vmax, ld step, int dft, string title, string help);
+    void handleNavigation(int &sym, int &uni);
+#line 915 "dialogs.cpp"
+    extern color_t *palette;
+#line 921 "dialogs.cpp"
+    void handleKeyColor(int sym, int uni);
+#line 966 "dialogs.cpp"
+    extern bool colorAlpha;
+#line 968 "dialogs.cpp"
+    void drawColorDialog();
+#line 1034 "dialogs.cpp"
+    void openColorDialog(unsigned int& col, unsigned int *pal IS(palette));
+#line 1043 "dialogs.cpp"
+    extern numberEditor ne;
+#line 1045 "dialogs.cpp"
+    bool editingDetail();
+#line 1054 "dialogs.cpp"
+    string disp(ld x);
 #line 1059 "dialogs.cpp"
+    extern reaction_t reaction;
+#line 1060 "dialogs.cpp"
+    extern reaction_t reaction_final;
+#line 1062 "dialogs.cpp"
+    extern reaction_t extra_options;
+#line 1064 "dialogs.cpp"
+    void apply_slider();
+#line 1074 "dialogs.cpp"
+    void use_hexeditor();
+#line 1079 "dialogs.cpp"
+    void apply_edit();
+#line 1096 "dialogs.cpp"
+    void bound_low(ld val);
+#line 1107 "dialogs.cpp"
+    void bound_up(ld val);
+#line 1118 "dialogs.cpp"
+    void formula_keyboard(bool lr);
+#line 1127 "dialogs.cpp"
+    extern bool onscreen_keyboard;
+#line 1129 "dialogs.cpp"
+    void number_dialog_help();
+#line 1171 "dialogs.cpp"
+    void parser_help();
+#line 1178 "dialogs.cpp"
+    void drawNumberDialog();
+#line 1278 "dialogs.cpp"
+    int handlePage(int& nl, int& nlm, int perpage);
+#line 1299 "dialogs.cpp"
+    void displayPageButtons(int i, bool pages);
+#line 1316 "dialogs.cpp"
+    bool handlePageButtons(int uni);
+#line 1326 "dialogs.cpp"
+    void editNumber(ld& x, ld vmin, ld vmax, ld step, ld dft, string title, string help);
+#line 1350 "dialogs.cpp"
+    void editNumber(int& x, int vmin, int vmax, ld step, int dft, string title, string help);
+#line 1356 "dialogs.cpp"
     void helpToEdit(int& x, int vmin, int vmax, int step, int dft);
-#line 1092 "dialogs.cpp"
+#line 1391 "dialogs.cpp"
     void drawFileDialog();
-#line 1146 "dialogs.cpp"
+#line 1488 "dialogs.cpp"
     void handleKeyFile(int sym, int uni);
-#line 1189 "dialogs.cpp"
+#line 1514 "dialogs.cpp"
     void openFileDialog(string& filename, string fcap, string ext, bool_reaction_t action);
-#line 1199 "dialogs.cpp"
+#line 1524 "dialogs.cpp"
     extern string infix;
-#line 1204 "dialogs.cpp"
+#line 1529 "dialogs.cpp"
+    string human_simplify(const string &s, bool include_symbols);
+#line 1551 "dialogs.cpp"
     bool hasInfix(const string &s);
-#line 1226 "dialogs.cpp"
+#line 1556 "dialogs.cpp"
+    bool has_substring(const string &s, const string& needle);
+#line 1565 "dialogs.cpp"
     bool editInfix(int uni);
-#line 1235 "dialogs.cpp"
+#line 1574 "dialogs.cpp"
     extern vector<pair<string, color_t> > v;  
-#line 1237 "dialogs.cpp"
+#line 1576 "dialogs.cpp"
     void vpush(color_t color, const char *name);
-#line 1244 "dialogs.cpp"
+#line 1583 "dialogs.cpp"
     extern string *edited_string;
-#line 1246 "dialogs.cpp"
+#line 1585 "dialogs.cpp"
     string view_edited_string();
-#line 1254 "dialogs.cpp"
+#line 1593 "dialogs.cpp"
     void start_editing(string& s);
-#line 1259 "dialogs.cpp"
+#line 1598 "dialogs.cpp"
     string editchecker(int sym, int uni);
-#line 1264 "dialogs.cpp"
+#line 1603 "dialogs.cpp"
     bool handle_edit_string(int sym, int uni, function<string(int, int)> checker IS(editchecker));
-#line 1284 "dialogs.cpp"
+#line 1623 "dialogs.cpp"
     void string_edit_dialog();
-#line 1315 "dialogs.cpp"
+#line 1652 "dialogs.cpp"
     void edit_string(string& s, string title, string help);
-#line 1328 "dialogs.cpp"
+#line 1664 "dialogs.cpp"
     void confirm_dialog(const string& text, const reaction_t& act);
-#line 1342 "dialogs.cpp"
-    void addBoolItem_action(const string& s, bool& b, char c);
-#line 1347 "dialogs.cpp"
-    void addBoolItem_action_neg(const string& s, bool& b, char c);
-#line 1352 "dialogs.cpp"
+#line 1679 "dialogs.cpp"
+    void addBoolItem_action(const string& s, bool& b, int c);
+#line 1684 "dialogs.cpp"
+    void addBoolItem_action_neg(const string& s, bool& b, int c);
+#line 1689 "dialogs.cpp"
     bool cheat_forbidden();
-#line 1364 "dialogs.cpp"
+#line 1701 "dialogs.cpp"
     void add_action_confirmed(const reaction_t& act);
-#line 1369 "dialogs.cpp"
+#line 1706 "dialogs.cpp"
     
     template<class T> void addBoolItem_choice(const string&  s, T& b, T val, char c) {
     addBoolItem(s, b == val, c);
@@ -7567,17 +8784,6 @@ namespace hr {
     inline reaction_t add_confirmation(const reaction_t& act) {
     return [act] { do_if_confirmed(act); };
     }
-    }
-
-  // implemented in: dpgen.cpp
-
-  namespace dpgen {
-#line 14 "dpgen.cpp"
-    extern bool in;
-#line 181 "dpgen.cpp"
-    void check();
-#line 195 "dpgen.cpp"
-    void show_menu();
     }
 
   // implemented in: drawing.cpp
@@ -7612,6 +8818,8 @@ namespace hr {
   static const int POLY_FAT = (1<<26);            // fatten this model in WRL export (used for Rug)
   static const int POLY_SHADE_TEXTURE = (1<<27);  // texture has 'z' coordinate for shading
   static const int POLY_ONE_LEVEL = (1<<28);      // only one level of the universal cover in SL(2,R)
+  static const int POLY_APEIROGONAL = (1<<29);    // only vertices indexed up to she are drawn as the boundary
+  static const int POLY_NO_FOG = (1<<30);         // disable fog for this
   
   /** \brief A graphical element that can be drawn. Objects are not drawn immediately but rather queued.
   *
@@ -7645,6 +8853,8 @@ namespace hr {
   int offset;
   /** \brief how many vertices in the model */
   int cnt;
+  /** cnt for POLY_APEIROGONAL */
+  int apeiro_cnt;
   /** \brief the offset in the texture vertices */
   int offset_texture;
   /** \brief outline color */
@@ -7719,158 +8929,168 @@ namespace hr {
   void draw() override { action(); }
   color_t outline_group() override { return 2; }
   };
-#line 150 "drawing.cpp"
+#line 154 "drawing.cpp"
   extern bool in_vr_sphere;
-#line 155 "drawing.cpp"
+#line 159 "drawing.cpp"
   extern color_t poly_outline;
-#line 157 "drawing.cpp"
+#line 161 "drawing.cpp"
   extern vector<unique_ptr<drawqueueitem>> ptds;
   #if CAP_GL
-#line 160 "drawing.cpp"
-  extern color_t text_color;
-#line 161 "drawing.cpp"
-  extern int text_shift;
-#line 162 "drawing.cpp"
-  extern GLuint text_texture;
-#line 163 "drawing.cpp"
-  extern int texts_merged;
 #line 164 "drawing.cpp"
+  extern color_t text_color;
+#line 165 "drawing.cpp"
+  extern int text_shift;
+#line 166 "drawing.cpp"
+  extern GLuint text_texture;
+#line 167 "drawing.cpp"
+  extern int texts_merged;
+#line 168 "drawing.cpp"
   extern int shapes_merged;
-#line 173 "drawing.cpp"
+#line 177 "drawing.cpp"
   void glflush();
   #endif
   #if CAP_POLY
-#line 252 "drawing.cpp"
+#line 256 "drawing.cpp"
   #define POLYMAX 60000
-#line 255 "drawing.cpp"
+#line 259 "drawing.cpp"
   extern vector<glvertex> glcoords;
   #endif
-#line 259 "drawing.cpp"
+#line 263 "drawing.cpp"
   extern int spherespecial, spherephase;
   #if CAP_POLY
-#line 264 "drawing.cpp"
+#line 268 "drawing.cpp"
   extern int polyx[POLYMAX], polyxr[POLYMAX], polyy[POLYMAX];
-#line 299 "drawing.cpp"
+#line 303 "drawing.cpp"
   bool two_sided_model();
-#line 318 "drawing.cpp"
+#line 322 "drawing.cpp"
   int get_side(const hyperpoint& H);
-#line 359 "drawing.cpp"
+#line 376 "drawing.cpp"
   bool correct_side(const hyperpoint& H);
   #if CAP_SDLGFX
-#line 560 "drawing.cpp"
+#line 581 "drawing.cpp"
   void filledPolygonColorI(SDL_Renderer *s, int* px, int *py, int polyi, color_t col);
   #endif
-#line 611 "drawing.cpp"
+#line 632 "drawing.cpp"
   extern int global_projection;
-#line 782 "drawing.cpp"
+#line 811 "drawing.cpp"
   ld scale_at(const shiftmatrix& T);
-#line 792 "drawing.cpp"
+#line 836 "drawing.cpp"
   extern int perfect_linewidth;
-#line 794 "drawing.cpp"
+#line 838 "drawing.cpp"
   ld linewidthat(const shiftpoint& h);
-#line 814 "drawing.cpp"
+#line 869 "drawing.cpp"
   void set_width(ld w);
   namespace s2xe {
-#line 1077 "drawing.cpp"
+#line 1132 "drawing.cpp"
     extern int qrings;
     }
-#line 1330 "drawing.cpp"
+#line 1385 "drawing.cpp"
   extern int berger_limit;
   namespace ods {
     #if CAP_ODS
-#line 1428 "drawing.cpp"
+#line 1483 "drawing.cpp"
     bool project(hyperpoint h, hyperpoint& h1, hyperpoint& h2, bool eye);
     #endif
     }
-#line 2013 "drawing.cpp"
-  void prettypoint(const hyperpoint& h);
-#line 2017 "drawing.cpp"
-  void prettylinesub(const hyperpoint& h1, const hyperpoint& h2, int lev);
-#line 2026 "drawing.cpp"
-  void prettyline(hyperpoint h1, hyperpoint h2, ld shift, color_t col, int lev, int flags, PPR prio);
-#line 2045 "drawing.cpp"
-  void prettypoly(const vector<hyperpoint>& t, color_t fillcol, color_t linecol, int lev);
 #line 2068 "drawing.cpp"
+  void prettypoint(const hyperpoint& h);
+#line 2072 "drawing.cpp"
+  void prettylinesub(const hyperpoint& h1, const hyperpoint& h2, int lev);
+#line 2081 "drawing.cpp"
+  void prettyline(hyperpoint h1, hyperpoint h2, ld shift, color_t col, int lev, int flags, PPR prio);
+#line 2100 "drawing.cpp"
+  void prettypoly(const vector<hyperpoint>& t, color_t fillcol, color_t linecol, int lev);
+#line 2119 "drawing.cpp"
+  extern vector<glvertex> curvedata;
+#line 2120 "drawing.cpp"
+  extern int curvestart;
+#line 2121 "drawing.cpp"
+  extern bool keep_curvedata;
+#line 2123 "drawing.cpp"
   void queuereset(eModel m, PPR prio);
-#line 2102 "drawing.cpp"
+#line 2157 "drawing.cpp"
   void initquickqueue();
-#line 2107 "drawing.cpp"
+#line 2162 "drawing.cpp"
   void sortquickqueue();
-#line 2116 "drawing.cpp"
+#line 2171 "drawing.cpp"
   void quickqueue();
-#line 2137 "drawing.cpp"
+#line 2192 "drawing.cpp"
   extern ld backbrightness;
-#line 2139 "drawing.cpp"
+#line 2194 "drawing.cpp"
   extern purehookset hooks_drawqueue;
-#line 2167 "drawing.cpp"
+#line 2222 "drawing.cpp"
   void sort_drawqueue();
-#line 2207 "drawing.cpp"
+#line 2262 "drawing.cpp"
   void reverse_priority(PPR p);
-#line 2211 "drawing.cpp"
+#line 2266 "drawing.cpp"
   void reverse_side_priorities();
-#line 2218 "drawing.cpp"
+#line 2273 "drawing.cpp"
   void draw_backside();
-#line 2253 "drawing.cpp"
+#line 2308 "drawing.cpp"
   void reverse_transparent_walls();
-#line 2258 "drawing.cpp"
+#line 2313 "drawing.cpp"
   void set_vr_sphere();
-#line 2274 "drawing.cpp"
+#line 2329 "drawing.cpp"
+  extern int hemi_side;
+#line 2331 "drawing.cpp"
   void draw_main();
-#line 2365 "drawing.cpp"
+#line 2450 "drawing.cpp"
   void drawqueue();
-#line 2503 "drawing.cpp"
+#line 2588 "drawing.cpp"
   template<class T, class... U> T& queuea(PPR prio, U... u) {
   ptds.push_back(unique_ptr<T>(new T (u...)));
   ptds.back()->prio = prio;  
   return (T&) *ptds.back();
   }
   #if CAP_SHAPES
-#line 2511 "drawing.cpp"
+#line 2596 "drawing.cpp"
   dqi_poly& queuepolyat(const shiftmatrix& V, const hpcshape& h, color_t col, PPR prio);
   #endif
-#line 2532 "drawing.cpp"
+#line 2618 "drawing.cpp"
   dqi_poly& queuetable(const shiftmatrix& V, const vector<glvertex>& f, int cnt, color_t linecol, color_t fillcol, PPR prio);
   #if CAP_SHAPES
-#line 2550 "drawing.cpp"
+#line 2636 "drawing.cpp"
   dqi_poly& queuepoly(const shiftmatrix& V, const hpcshape& h, color_t col);
   #endif
-#line 2559 "drawing.cpp"
+#line 2645 "drawing.cpp"
   void curvepoint(const hyperpoint& H1);
-#line 2563 "drawing.cpp"
+#line 2649 "drawing.cpp"
+  void curvepoint_first();
+#line 2653 "drawing.cpp"
   dqi_poly& queuecurve(const shiftmatrix& V, color_t linecol, color_t fillcol, PPR prio);
-#line 2570 "drawing.cpp"
+#line 2660 "drawing.cpp"
   dqi_action& queueaction(PPR prio, const reaction_t& action);
-#line 2574 "drawing.cpp"
+#line 2664 "drawing.cpp"
   dqi_line& queueline(const shiftpoint& H1, const shiftpoint& H2, color_t col, int prf IS(0), PPR prio IS(PPR::LINE));
-#line 2586 "drawing.cpp"
+#line 2676 "drawing.cpp"
   void queuestr(int x, int y, int shift, int size, string str, color_t col, int frame IS(0), int align IS(8));
-#line 2598 "drawing.cpp"
+#line 2688 "drawing.cpp"
   void queuecircle(int x, int y, int size, color_t color, PPR prio IS(PPR::CIRCLE), color_t fillcolor IS(0));
-#line 2608 "drawing.cpp"
+#line 2698 "drawing.cpp"
   void getcoord0(const shiftpoint& h, int& xc, int &yc, int &sc);
-#line 2617 "drawing.cpp"
+#line 2707 "drawing.cpp"
   ld scale_in_pixels(const shiftmatrix& V);
-#line 2621 "drawing.cpp"
+#line 2711 "drawing.cpp"
   bool getcoord0_checked(const shiftpoint& h, int& xc, int &yc, int &zc);
-#line 2628 "drawing.cpp"
+#line 2718 "drawing.cpp"
   void queuestr(const shiftpoint& h, int size, const string& chr, color_t col, int frame IS(0));
-#line 2634 "drawing.cpp"
+#line 2724 "drawing.cpp"
   extern basic_textureinfo finf;
   #if CAP_GL
-#line 2638 "drawing.cpp"
+#line 2728 "drawing.cpp"
   using pointfunction = function<hyperpoint(ld, ld)>;
-#line 2641 "drawing.cpp"
+#line 2731 "drawing.cpp"
   hyperpoint default_pointfunction(ld x, ld y);
   #if !CAP_EXTFONT
-#line 2646 "drawing.cpp"
+#line 2736 "drawing.cpp"
   void write_in_space(const shiftmatrix& V, int fsize, double size, const string& s, color_t col, int frame IS(0), int align IS(8), PPR prio IS(PPR::TEXT), pointfunction pf IS(default_pointfunction));
   #endif
   #endif
-#line 2702 "drawing.cpp"
+#line 2792 "drawing.cpp"
   void queuestr(const shiftmatrix& V, double size, const string& chr, color_t col, int frame IS(0), int align IS(8));
-#line 2722 "drawing.cpp"
+#line 2812 "drawing.cpp"
   void queuestrn(const shiftmatrix& V, double size, const string& chr, color_t col, int frame IS(0), int align IS(8));
-#line 2755 "drawing.cpp"
+#line 2845 "drawing.cpp"
   void queuecircle(const shiftmatrix& V, double size, color_t col);
   #endif
 
@@ -7916,71 +9136,76 @@ namespace hr {
   extern flagtype havewhat, hadwhat;
 #line 53 "environment.cpp"
   extern vector<cell*> worms, ivies, ghosts, golems, hexsnakes, ants;
-#line 63 "environment.cpp"
-  extern vector<int> reachedfrom;
-#line 66 "environment.cpp"
+#line 59 "environment.cpp"
   extern int first7;           
-#line 69 "environment.cpp"
+#line 62 "environment.cpp"
   extern vector<cell*> dcal;
-#line 71 "environment.cpp"
-  extern vector<cell*> pathq;
-#line 74 "environment.cpp"
+#line 65 "environment.cpp"
+  extern vector<cellwalker> pathq;
+#line 68 "environment.cpp"
   extern int statuecount;
-#line 77 "environment.cpp"
+#line 71 "environment.cpp"
   extern int wetslime;
-#line 80 "environment.cpp"
+#line 74 "environment.cpp"
   extern vector<cell*> pathqm;
-#line 83 "environment.cpp"
+#line 77 "environment.cpp"
   extern set<int> snaketypes;
-#line 85 "environment.cpp"
+#line 79 "environment.cpp"
   extern int gamerange_bonus;
-#line 86 "environment.cpp"
+#line 80 "environment.cpp"
   int gamerange();
-#line 89 "environment.cpp"
+#line 83 "environment.cpp"
   extern cell *pd_from;
-#line 90 "environment.cpp"
+#line 84 "environment.cpp"
   extern int pd_range;
-#line 92 "environment.cpp"
-  void onpath(cell *c, int d);
-#line 97 "environment.cpp"
-  void onpath(cell *c, int d, int sp);
-#line 103 "environment.cpp"
-  void clear_pathdata();
-#line 110 "environment.cpp"
-  extern int pathlock;
-#line 112 "environment.cpp"
-  void compute_graphical_distance();
-#line 174 "environment.cpp"
-  void computePathdist(eMonster param, bool include_allies IS(true));
-#line 239 "environment.cpp"
+#line 87 "environment.cpp"
+  /** The pathdata is used to keep a list of visited cells. It is used as follows:
+  *  1) create pathdata object: pathdata pd(identifier)
+  *  2) use one of the following methods to mark cells as visited:
+  *  2a) onpath_with_dir or onpath_random_dir, to mark a cell together with its distance and the direction we came from (used by computePathdist to make pathfinding not sensitive to direction indexing)
+  *  2b) onpath, to mark a cell at its distance (used when ordering is irrelevant: compute_graphical_distance and in shmup)
+  *  2c) onpatk_mark, to just mark a cell (used in groupmove2)
+  *  3) All the visited cells are listed in pathq, and they have 'pathdist' set to their recorded distance (0 in case of onpath_mark).
+  *  4) When the pathdata object is deleted, all the pathdist values are cleared back to PINFD.
+  *  The variable 'pathlock' ensures that we do not use two pathdata objects at once.
+  **/
+  
   struct pathdata {
-  void checklock() { 
-  if(pd_from) pd_from = NULL, clear_pathdata();
-  if(pathlock) printf("path error\n"); 
-  pathlock++; 
-  }
-  ~pathdata() {
-  pathlock--;
-  clear_pathdata();
-  }
-  pathdata(eMonster m, bool include_allies IS(true)) { 
-  checklock();
-  computePathdist(m, include_allies); 
-  }
-  pathdata(int i) { 
-  checklock();
-  }
+  void checklock();
+  ~pathdata();
+  pathdata(eMonster m, bool include_allies IS(true));
+  pathdata(int i);
   };
-#line 261 "environment.cpp"
+#line 107 "environment.cpp"
+  void onpath_with_dir(cellwalker cw, int d);
+#line 116 "environment.cpp"
+  void onpath_random_dir(cell *c, int d);
+#line 120 "environment.cpp"
+  void onpath(cell *c, int d);
+#line 124 "environment.cpp"
+  void onpath_mark(cell *c);
+#line 128 "environment.cpp"
+  void clear_pathdata();
+#line 135 "environment.cpp"
+  extern int pathlock;
+#line 141 "environment.cpp"
+  void compute_graphical_distance();
+#line 205 "environment.cpp"
+  void computePathdist(eMonster param, bool include_allies IS(true));
+#line 303 "environment.cpp"
+  extern vector<int> bfs_reachedfrom;
+#line 306 "environment.cpp"
   void bfs();
-#line 523 "environment.cpp"
+#line 568 "environment.cpp"
   void moverefresh(bool turn IS(true));
-#line 745 "environment.cpp"
+#line 790 "environment.cpp"
   void settemp(cell *c);
-#line 750 "environment.cpp"
+#line 795 "environment.cpp"
   void findWormIvy(cell *c);
-#line 796 "environment.cpp"
+#line 841 "environment.cpp"
   void monstersTurn();
+#line 923 "environment.cpp"
+  bool looped(vector<cell*>& whirlline);
 
   // implemented in: euclid.cpp
 
@@ -8060,114 +9285,115 @@ namespace hr {
     extern torus_config eu_input, eu_edit;
 #line 128 "euclid.cpp"
     extern torus_config_full eu;
-#line 309 "euclid.cpp"
-    vector<coord>& get_current_shifttable();
 #line 310 "euclid.cpp"
-    map<coord, heptagon*>& get_spacemap();
+    vector<coord>& get_current_shifttable();
 #line 311 "euclid.cpp"
-    map<heptagon*, coord>& get_ispacemap();
+    map<coord, heptagon*>& get_spacemap();
 #line 312 "euclid.cpp"
+    map<heptagon*, coord>& get_ispacemap();
+#line 313 "euclid.cpp"
     cell *& get_camelot_center();
-#line 314 "euclid.cpp"
+#line 315 "euclid.cpp"
     heptagon* get_at(coord co);
-#line 316 "euclid.cpp"
+#line 317 "euclid.cpp"
     hrmap* new_map();
-#line 320 "euclid.cpp"
+#line 321 "euclid.cpp"
     transmatrix move_matrix(heptagon *h, int i);
-#line 324 "euclid.cpp"
+#line 325 "euclid.cpp"
     bool pseudohept(cell *c);
-#line 336 "euclid.cpp"
+#line 337 "euclid.cpp"
     int dist_alt(cell *c);
-#line 348 "euclid.cpp"
+#line 349 "euclid.cpp"
     bool get_emerald(cell *c);
-#line 368 "euclid.cpp"
+#line 369 "euclid.cpp"
     int celldistance(coord v);
-#line 393 "euclid.cpp"
+#line 394 "euclid.cpp"
     int celldistance(cell *c1, cell *c2);
-#line 400 "euclid.cpp"
+#line 401 "euclid.cpp"
     void set_land(cell *c);
-#line 415 "euclid.cpp"
+#line 416 "euclid.cpp"
     int dist_relative(cell *c);
-#line 448 "euclid.cpp"
+#line 449 "euclid.cpp"
     torus_config torus3(int x, int y, int z);
-#line 454 "euclid.cpp"
+#line 455 "euclid.cpp"
     torus_config clear_torus3();
-#line 469 "euclid.cpp"
+#line 470 "euclid.cpp"
     bool valid_third_turn(const intmatrix& m);
-#line 479 "euclid.cpp"
+#line 480 "euclid.cpp"
     torus_config make_hantzsche_wendt(int v);
-#line 492 "euclid.cpp"
+#line 493 "euclid.cpp"
     bool valid_hantzsche_wendt(const intmatrix& m);
-#line 496 "euclid.cpp"
+#line 497 "euclid.cpp"
     torus_config make_third_turn(int a, int b, int c);
-#line 509 "euclid.cpp"
+#line 510 "euclid.cpp"
     torus_config make_quarter_turn(int a, int b, int c);
-#line 532 "euclid.cpp"
+#line 533 "euclid.cpp"
     bool valid_irr_torus();
-#line 551 "euclid.cpp"
+#line 552 "euclid.cpp"
     void build_torus3(eGeometry g);
-#line 647 "euclid.cpp"
+#line 648 "euclid.cpp"
     void build_torus3();
-#line 815 "euclid.cpp"
+#line 816 "euclid.cpp"
     void prepare_torus3();
-#line 819 "euclid.cpp"
+#line 820 "euclid.cpp"
     void show_fundamental();
-#line 863 "euclid.cpp"
+#line 864 "euclid.cpp"
     torus_config rectangular_torus(int x, int y, bool klein);
-#line 878 "euclid.cpp"
+#line 879 "euclid.cpp"
     extern int quotient_size;
-#line 880 "euclid.cpp"
+#line 881 "euclid.cpp"
     void show_torus3();
-#line 1130 "euclid.cpp"
+#line 1131 "euclid.cpp"
     int dscalar(gp::loc e1, gp::loc e2);
-#line 1134 "euclid.cpp"
+#line 1135 "euclid.cpp"
     int dsquare(gp::loc e);
-#line 1136 "euclid.cpp"
+#line 1137 "euclid.cpp"
     int dcross(gp::loc e1, gp::loc e2);
-#line 1140 "euclid.cpp"
+#line 1141 "euclid.cpp"
     gp::loc full_coords2(cell *c);
-#line 1167 "euclid.cpp"
+#line 1168 "euclid.cpp"
     cell* at(gp::loc p);
-#line 1175 "euclid.cpp"
+#line 1176 "euclid.cpp"
     coord to_coord(gp::loc p);
-#line 1177 "euclid.cpp"
+#line 1178 "euclid.cpp"
     gp::loc sdxy();
-#line 1179 "euclid.cpp"
+#line 1180 "euclid.cpp"
     pair<bool, string> coord_display(const shiftmatrix& V, cell *c);
-#line 1192 "euclid.cpp"
+#line 1193 "euclid.cpp"
     gp::loc to_loc(const coord& v);
-#line 1194 "euclid.cpp"
+#line 1195 "euclid.cpp"
     map<gp::loc, cdata>& get_cdata();
-#line 1196 "euclid.cpp"
+#line 1197 "euclid.cpp"
     transmatrix eumove(coord co);
-#line 1213 "euclid.cpp"
-    transmatrix eumove(gp::loc co);
 #line 1215 "euclid.cpp"
+    transmatrix eumove(gp::loc co);
+#line 1217 "euclid.cpp"
     bool chiral(gp::loc g);
-#line 1227 "euclid.cpp"
+#line 1229 "euclid.cpp"
     void twist_once(gp::loc coo);
-#line 1239 "euclid.cpp"
+#line 1241 "euclid.cpp"
     int dist(int sx, int sy, bool reduce IS(true));
-#line 1249 "euclid.cpp"
+#line 1251 "euclid.cpp"
     int dist(gp::loc a, gp::loc b);
-#line 1253 "euclid.cpp"
+#line 1255 "euclid.cpp"
     int cyldist(gp::loc a, gp::loc b);
-#line 1273 "euclid.cpp"
+#line 1275 "euclid.cpp"
     void generate();
-#line 1357 "euclid.cpp"
+#line 1359 "euclid.cpp"
     bool in();
-#line 1362 "euclid.cpp"
+#line 1365 "euclid.cpp"
     bool in(int dim);
-#line 1363 "euclid.cpp"
+#line 1366 "euclid.cpp"
     bool in(int dim, int s7);
     }
-#line 1367 "euclid.cpp"
+#line 1370 "euclid.cpp"
   gp::loc euc2_coordinates(cell *c);
 
   // implemented in: expansion.cpp
 
 #line 25 "expansion.cpp"
   struct expansion_analyzer {
+  int sibling_limit;
   vector<int> gettype(cell *c);
   int N;
   vector<cell*> samples;  
@@ -8202,66 +9428,76 @@ namespace hr {
   bool verify(int id);
   int valid(int v, int step);
   };
-#line 353 "expansion.cpp"
+#line 355 "expansion.cpp"
   int type_in(expansion_analyzer& ea, cell *c, const cellfunction& f);
-#line 392 "expansion.cpp"
+#line 394 "expansion.cpp"
   bool sizes_known();
-#line 405 "expansion.cpp"
+#line 407 "expansion.cpp"
   bool trees_known();
-#line 424 "expansion.cpp"
+#line 426 "expansion.cpp"
+  enum eDistanceFrom { dfPlayer, dfStart, dfWorld };
+#line 428 "expansion.cpp"
   extern string dfnames[3];
-#line 429 "expansion.cpp"
+#line 430 "expansion.cpp"
+  extern eDistanceFrom distance_from;
+#line 433 "expansion.cpp"
+  enum eNumberCoding { ncNone, ncDistance, ncType, ncDebug, ncError };
+#line 435 "expansion.cpp"
   extern string ncnames[5];
 #line 436 "expansion.cpp"
+  extern eNumberCoding number_coding;
+#line 438 "expansion.cpp"
+  bool mod_allowed();
+#line 442 "expansion.cpp"
   int curr_dist(cell *c);
-#line 456 "expansion.cpp"
+#line 463 "expansion.cpp"
   int type_in_reduced(expansion_analyzer& ea, cell *c, const cellfunction& f);
-#line 468 "expansion.cpp"
+#line 476 "expansion.cpp"
   int parent_id(cell *c, int which, const cellfunction& cf);
-#line 489 "expansion.cpp"
+#line 497 "expansion.cpp"
   void generate_around(cell *c);
   namespace ts {
-#line 494 "expansion.cpp"
+#line 502 "expansion.cpp"
     cell *verified_add(cell *c, int which, int bonus, const cellfunction& cf);
-#line 500 "expansion.cpp"
+#line 508 "expansion.cpp"
     cell *verified_add_gen(cell *c, int which, int bonus, const cellfunction& cf);
-#line 504 "expansion.cpp"
+#line 512 "expansion.cpp"
     cell *add(cell *c, int which, int bonus, const cellfunction& cf);
-#line 510 "expansion.cpp"
+#line 518 "expansion.cpp"
     cell *left_of(cell *c, const cellfunction& cf);
-#line 517 "expansion.cpp"
+#line 525 "expansion.cpp"
     cell *right_of(cell *c, const cellfunction& cf);
-#line 524 "expansion.cpp"
+#line 532 "expansion.cpp"
     cell *child_number(cell *c, int id, const cellfunction& cf);
-#line 531 "expansion.cpp"
+#line 539 "expansion.cpp"
     inline cell *left_parent(cell *c, const cellfunction& cf) { return verified_add(c, 1, 0, cf); }
     inline cell *right_parent(cell *c, const cellfunction& cf) { return verified_add(c, -1, 0, cf); }
     }
-#line 537 "expansion.cpp"
-  extern bool viewdists;
-#line 538 "expansion.cpp"
-  extern bool use_color_codes;
-#line 539 "expansion.cpp"
-  extern bool use_analyzer;
-#line 540 "expansion.cpp"
-  extern bool show_distance_lists;
 #line 545 "expansion.cpp"
+  extern bool viewdists;
+#line 546 "expansion.cpp"
+  extern bool use_color_codes;
+#line 547 "expansion.cpp"
+  extern bool use_analyzer;
+#line 548 "expansion.cpp"
+  extern bool show_distance_lists;
+#line 553 "expansion.cpp"
   extern map<int, color_t> expcolors;
-#line 554 "expansion.cpp"
+#line 562 "expansion.cpp"
   extern bool dist_label_colored;
-#line 555 "expansion.cpp"
+#line 563 "expansion.cpp"
   extern color_t dist_label_color;
-#line 627 "expansion.cpp"
+#line 632 "expansion.cpp"
   void viewdist_configure_dialog();
-#line 799 "expansion.cpp"
+#line 705 "expansion.cpp"
+  extern bool auto_extend;
+#line 802 "expansion.cpp"
   void enable_viewdists();
-#line 952 "expansion.cpp"
-  extern expansion_analyzer expansion;
-#line 954 "expansion.cpp"
-  extern int sibling_limit;
-#line 956 "expansion.cpp"
+#line 961 "expansion.cpp"
+  expansion_analyzer& get_expansion();
+#line 966 "expansion.cpp"
   void set_sibling_limit();
-#line 1005 "expansion.cpp"
+#line 1016 "expansion.cpp"
   int hyperbolic_celldistance(cell *c1, cell *c2);
 
   // implemented in: fake.cpp
@@ -8295,11 +9531,11 @@ namespace hr {
     bool split();
 #line 31 "fake.cpp"
     bool available();
-#line 385 "fake.cpp"
+#line 395 "fake.cpp"
     hrmap* new_map();
-#line 387 "fake.cpp"
+#line 397 "fake.cpp"
     hrmap* get_umap();
-#line 390 "fake.cpp"
+#line 400 "fake.cpp"
     template<class T> auto in_underlying_geometry(const T& f) -> decltype(f()) {
     if(!fake::in()) return f();
     pcgip = cgip; 
@@ -8312,29 +9548,29 @@ namespace hr {
     }
     
     #define FPIU(x) hr::fake::in_underlying_geometry([&] { return (x); })
-#line 404 "fake.cpp"
+#line 414 "fake.cpp"
     hyperpoint befake(hyperpoint h);
-#line 412 "fake.cpp"
+#line 422 "fake.cpp"
     vector<hyperpoint> befake(const vector<hyperpoint>& v);
-#line 418 "fake.cpp"
+#line 428 "fake.cpp"
     vector<vector<hyperpoint>> befake(const vector<vector<hyperpoint>>& v);
-#line 424 "fake.cpp"
+#line 434 "fake.cpp"
     ld compute_around(bool setup);
-#line 480 "fake.cpp"
+#line 490 "fake.cpp"
     void generate();
-#line 521 "fake.cpp"
+#line 531 "fake.cpp"
     extern ld around;
-#line 524 "fake.cpp"
+#line 534 "fake.cpp"
     ld compute_euclidean();
-#line 539 "fake.cpp"
+#line 549 "fake.cpp"
     ld around_orig();
-#line 554 "fake.cpp"
-    geometryinfo1 geometry_of_curvature(ld curvature, int dim);
 #line 564 "fake.cpp"
+    geometryinfo1 geometry_of_curvature(ld curvature, int dim);
+#line 574 "fake.cpp"
     void compute_scale();
-#line 652 "fake.cpp"
+#line 662 "fake.cpp"
     void change_around();
-#line 688 "fake.cpp"
+#line 698 "fake.cpp"
     void configure();
     }
 
@@ -8365,7 +9601,7 @@ namespace hr {
 #line 40 "fieldpattern.cpp"
     bool isprime(int n);
 #line 46 "fieldpattern.cpp"
-    #define MWDIM (prod ? 3 : WDIM+1)
+    #define MWDIM (mproduct ? 3 : WDIM+1)
     
     struct matrix : array<array<int, MAXMDIM>, MAXMDIM> {
     bool operator == (const matrix& B) const {
@@ -8459,13 +9695,22 @@ namespace hr {
     
     int sqr(int x) { return mul(x,x); }
     
+    int err;
+    
     matrix mmul(const matrix& A, const matrix& B) {
     matrix res;
     for(int i=0; i<MWDIM; i++) for(int k=0; k<MWDIM; k++) {
     int t = 0;
     #ifdef EASY
-    for(int j=0; j<MWDIM; j++) t += mul(A[i][j], B[j][k]);
-    t %= Prime;
+    int tp = 0, tn = 0;
+    for(int j=0; j<MWDIM; j++) {
+    int val = mul(A[i][j], B[j][k]);
+    if(val > 0) tp += val;
+    else tn += val;
+    }
+    tp %= Prime; tn %= Prime;
+    if(tp && tn) err++;
+    t = tp + tn;
     #else
     for(int j=0; j<MWDIM; j++) t = add(t, mul(A[i][j], B[j][k]));
     #endif
@@ -8611,6 +9856,7 @@ namespace hr {
     exit(1);
     }
     build();
+    analyze();
     }
     
     fpattern(int p) {
@@ -8674,60 +9920,66 @@ namespace hr {
     };
     #endif
     
-#line 761 "fieldpattern.cpp"
+    #if MAXMDIM >= 4
+#line 603 "fieldpattern.cpp"
+    extern purehookset hooks_solve3;
+    #endif
+#line 773 "fieldpattern.cpp"
     extern int triplet_id;
-#line 1227 "fieldpattern.cpp"
+#line 1239 "fieldpattern.cpp"
     void info();
-#line 1259 "fieldpattern.cpp"
+#line 1271 "fieldpattern.cpp"
     extern fpattern current_quotient_field;
-#line 1260 "fieldpattern.cpp"
+#line 1272 "fieldpattern.cpp"
     extern fpattern fp_invalid;
-#line 1261 "fieldpattern.cpp"
+#line 1273 "fieldpattern.cpp"
     extern bool quotient_field_changed;
-#line 1266 "fieldpattern.cpp"
+#line 1278 "fieldpattern.cpp"
     struct fpattern& getcurrfp();
-#line 1401 "fieldpattern.cpp"
+#line 1446 "fieldpattern.cpp"
     extern int subpathid;
-#line 1402 "fieldpattern.cpp"
+#line 1447 "fieldpattern.cpp"
     extern int subpathorder;
-#line 1406 "fieldpattern.cpp"
+#line 1451 "fieldpattern.cpp"
     extern vector<fgeomextra> fgeomextras;
-#line 1420 "fieldpattern.cpp"
+#line 1465 "fieldpattern.cpp"
     extern int current_extra;
-#line 1422 "fieldpattern.cpp"
+#line 1467 "fieldpattern.cpp"
     void nextPrime(fgeomextra& ex);
-#line 1444 "fieldpattern.cpp"
+#line 1489 "fieldpattern.cpp"
     void nextPrimes(fgeomextra& ex);
-#line 1449 "fieldpattern.cpp"
+#line 1494 "fieldpattern.cpp"
     void enableFieldChange();
-#line 1464 "fieldpattern.cpp"
+#line 1509 "fieldpattern.cpp"
+    extern eGeometry underlying_geometry;
+#line 1511 "fieldpattern.cpp"
     void field_from_current();
     #if CAP_THREAD && MAXMDIM >= 4
-#line 1479 "fieldpattern.cpp"
+#line 1527 "fieldpattern.cpp"
     extern map<string, discovery> discoveries;
     #endif
-#line 1540 "fieldpattern.cpp"
+#line 1588 "fieldpattern.cpp"
     extern purehookset hooks_on_geometry_change;
-#line 1542 "fieldpattern.cpp"
+#line 1590 "fieldpattern.cpp"
     int field_celldistance(cell *c1, cell *c2);
     }
-#line 1555 "fieldpattern.cpp"
+#line 1603 "fieldpattern.cpp"
   int currfp_gmul(int a, int b);
-#line 1556 "fieldpattern.cpp"
+#line 1604 "fieldpattern.cpp"
   int currfp_inverses(int i);
-#line 1557 "fieldpattern.cpp"
+#line 1605 "fieldpattern.cpp"
   int currfp_distwall(int i);
-#line 1558 "fieldpattern.cpp"
+#line 1606 "fieldpattern.cpp"
   int currfp_n();
-#line 1559 "fieldpattern.cpp"
+#line 1607 "fieldpattern.cpp"
   int currfp_get_R();
-#line 1560 "fieldpattern.cpp"
+#line 1608 "fieldpattern.cpp"
   int currfp_get_P();
-#line 1561 "fieldpattern.cpp"
+#line 1609 "fieldpattern.cpp"
   int currfp_get_X();
-#line 1563 "fieldpattern.cpp"
+#line 1611 "fieldpattern.cpp"
   void hread_fpattern(hstream& hs, fieldpattern::fpattern& fp);
-#line 1575 "fieldpattern.cpp"
+#line 1623 "fieldpattern.cpp"
   void hwrite_fpattern(hstream& hs, fieldpattern::fpattern& fp);
   #endif
 
@@ -9004,107 +10256,123 @@ namespace hr {
   void teleportToLand(eLand l, bool make_it_safe);
 #line 260 "game.cpp"
   void activateSafety(eLand l);
-#line 271 "game.cpp"
+#line 275 "game.cpp"
   void placeGolem(cell *on, cell *moveto, eMonster m);
-#line 303 "game.cpp"
+#line 307 "game.cpp"
   bool multiRevival(cell *on, cell *moveto);
-#line 325 "game.cpp"
+#line 329 "game.cpp"
   extern eMonster passive_switch;
-#line 327 "game.cpp"
-  void checkSwitch();
 #line 331 "game.cpp"
+  void checkSwitch();
+#line 335 "game.cpp"
   void pushThumper(const movei& mi);
-#line 417 "game.cpp"
+#line 425 "game.cpp"
   bool canPushThumperOn(movei mi, cell *player);
-#line 436 "game.cpp"
+#line 444 "game.cpp"
   void activateActiv(cell *c, bool msg);
-#line 456 "game.cpp"
-  void fixWormBug(cell *c);
 #line 464 "game.cpp"
+  void fixWormBug(cell *c);
+#line 472 "game.cpp"
   bool isWormhead(eMonster m);
-#line 470 "game.cpp"
+#line 478 "game.cpp"
   cell *worm_tohead(cell *c);
-#line 477 "game.cpp"
+#line 485 "game.cpp"
   cell *wormhead(cell *c);
-#line 493 "game.cpp"
+#line 501 "game.cpp"
   bool sameMonster(cell *c1, cell *c2);
-#line 503 "game.cpp"
-  eMonster haveMount();
 #line 511 "game.cpp"
+  eMonster haveMount();
+#line 519 "game.cpp"
   eMonster otherpole(eMonster m);
 
   // implemented in: geom-exp.cpp
 
-#line 139 "geom-exp.cpp"
+#line 141 "geom-exp.cpp"
   extern string bitruncnames[5];
-#line 150 "geom-exp.cpp"
+#line 152 "geom-exp.cpp"
   extern bool showquotients;
-#line 154 "geom-exp.cpp"
+#line 156 "geom-exp.cpp"
   void ge_land_selection();
-#line 241 "geom-exp.cpp"
+#line 239 "geom-exp.cpp"
   void activate_ge_land_selection();
-#line 248 "geom-exp.cpp"
+#line 246 "geom-exp.cpp"
   struct geometry_filter {
   string name;
+  int hotkey;
   /** test if the current geometry matches the filter */
   function<bool()> test; 
   };
-#line 255 "geom-exp.cpp"
+#line 254 "geom-exp.cpp"
   extern geometry_filter *current_filter;
-#line 259 "geom-exp.cpp"
+#line 258 "geom-exp.cpp"
   extern geometry_filter gf_hyperbolic;
-#line 260 "geom-exp.cpp"
+#line 259 "geom-exp.cpp"
   extern geometry_filter gf_spherical;
-#line 261 "geom-exp.cpp"
+#line 260 "geom-exp.cpp"
   extern geometry_filter gf_euclidean;
-#line 262 "geom-exp.cpp"
+#line 261 "geom-exp.cpp"
   extern geometry_filter gf_other;
-#line 263 "geom-exp.cpp"
+#line 262 "geom-exp.cpp"
   extern geometry_filter gf_regular_2d;
-#line 266 "geom-exp.cpp"
+#line 265 "geom-exp.cpp"
   extern geometry_filter gf_regular_3d;
-#line 270 "geom-exp.cpp"
+#line 269 "geom-exp.cpp"
   extern geometry_filter gf_quotient;
-#line 274 "geom-exp.cpp"
+#line 272 "geom-exp.cpp"
+  extern geometry_filter gf_tes_file;
+#line 273 "geom-exp.cpp"
+  extern geometry_filter gf_no_filters;
+#line 275 "geom-exp.cpp"
   extern vector<geometry_filter*> available_filters;
-#line 418 "geom-exp.cpp"
+#line 421 "geom-exp.cpp"
   string current_proj_name();
-#line 442 "geom-exp.cpp"
+#line 445 "geom-exp.cpp"
   string dim_name();
   #if CAP_THREAD && MAXMDIM >= 4
-#line 447 "geom-exp.cpp"
+#line 450 "geom-exp.cpp"
   void showQuotientConfig3();
   #endif
-#line 506 "geom-exp.cpp"
+#line 510 "geom-exp.cpp"
+  string geometry_name(eGeometryClass gc);
+#line 544 "geom-exp.cpp"
   string geometry_name();
-#line 547 "geom-exp.cpp"
+#line 557 "geom-exp.cpp"
   void select_quotient_screen();
-#line 594 "geom-exp.cpp"
+#line 604 "geom-exp.cpp"
   void select_quotient();
-#line 630 "geom-exp.cpp"
+#line 640 "geom-exp.cpp"
   string full_geometry_name();
-#line 660 "geom-exp.cpp"
+#line 672 "geom-exp.cpp"
   void menuitem_change_variation(char key);
-#line 665 "geom-exp.cpp"
+#line 677 "geom-exp.cpp"
   void menuitem_change_geometry(char key);
-#line 670 "geom-exp.cpp"
+#line 682 "geom-exp.cpp"
   void menuitem_projection(char key);
-#line 675 "geom-exp.cpp"
+#line 687 "geom-exp.cpp"
   void menuitem_binary_width(char key);
-#line 690 "geom-exp.cpp"
+#line 702 "geom-exp.cpp"
   void menuitem_nilwidth(char key);
-#line 699 "geom-exp.cpp"
-  void edit_stretch();
 #line 711 "geom-exp.cpp"
+  void edit_stretch();
+#line 724 "geom-exp.cpp"
+  struct geometry_data {
+  int ts, tv, nom, denom, euler, demigenus, worldsize;
+  int area;
+  string spf;
+  string size_str;
+  };
+#line 732 "geom-exp.cpp"
+  geometry_data compute_geometry_data();
+#line 941 "geom-exp.cpp"
   void showEuclideanMenu();
-#line 1122 "geom-exp.cpp"
+#line 1161 "geom-exp.cpp"
   void runGeometryExperiments();
   #if CAP_COMMANDLINE
-#line 1130 "geom-exp.cpp"
+#line 1169 "geom-exp.cpp"
   eGeometry readGeo(const string& ss);
-#line 1142 "geom-exp.cpp"
+#line 1181 "geom-exp.cpp"
   void field_quotient_3d(int p, unsigned hash);
-#line 1155 "geom-exp.cpp"
+#line 1194 "geom-exp.cpp"
   void field_quotient_2d(int group, int id, int triplet);
   #endif
 
@@ -9116,13 +10384,13 @@ namespace hr {
   void fixelliptic(hyperpoint& h);
 #line 26 "geometry2.cpp"
   transmatrix relative_matrix_recursive(heptagon *h2, heptagon *h1);
-#line 88 "geometry2.cpp"
+#line 90 "geometry2.cpp"
   transmatrix calc_relative_matrix(cell *c2, cell *c1, const hyperpoint& hint);
-#line 112 "geometry2.cpp"
+#line 114 "geometry2.cpp"
   transmatrix relative_matrix_via_masters(cell *c2, cell *c1, const hyperpoint& hint);
-#line 201 "geometry2.cpp"
+#line 203 "geometry2.cpp"
   shiftmatrix &ggmatrix(cell *c);
-#line 211 "geometry2.cpp"
+#line 213 "geometry2.cpp"
   struct horo_distance {
   ld a, b;
   
@@ -9132,47 +10400,51 @@ namespace hr {
   bool operator < (const horo_distance z) const;
   friend void print(hstream& hs, horo_distance x) { print(hs, "[", x.a, ":", x.b, "]"); }
   };
-#line 355 "geometry2.cpp"
-  void virtualRebase(cell*& base, transmatrix& at);
-#line 359 "geometry2.cpp"
-  void virtualRebase(cell*& base, hyperpoint& h);
 #line 402 "geometry2.cpp"
+  void virtualRebase(cell*& base, transmatrix& at);
+#line 406 "geometry2.cpp"
+  void virtualRebase(cell*& base, hyperpoint& h);
+#line 449 "geometry2.cpp"
   bool no_easy_spin();
-#line 423 "geometry2.cpp"
+#line 453 "geometry2.cpp"
+  extern bool never_invert;
+#line 455 "geometry2.cpp"
+  bool dont_inverse();
+#line 475 "geometry2.cpp"
   transmatrix ddspin(cell *c, int d, ld bonus IS(0));
-#line 424 "geometry2.cpp"
+#line 476 "geometry2.cpp"
   transmatrix iddspin(cell *c, int d, ld bonus IS(0));
-#line 425 "geometry2.cpp"
+#line 477 "geometry2.cpp"
   ld cellgfxdist(cell *c, int d);
-#line 427 "geometry2.cpp"
+#line 479 "geometry2.cpp"
   transmatrix ddspin_side(cell *c, int d, ld bonus IS(0));
-#line 437 "geometry2.cpp"
+#line 492 "geometry2.cpp"
   transmatrix iddspin_side(cell *c, int d, ld bonus IS(0));
-#line 503 "geometry2.cpp"
+#line 561 "geometry2.cpp"
   double randd();
-#line 505 "geometry2.cpp"
+#line 563 "geometry2.cpp"
   hyperpoint randomPointIn(int t);
-#line 525 "geometry2.cpp"
+#line 583 "geometry2.cpp"
   hyperpoint get_corner_position(cell *c, int cid, ld cf IS(3));
-#line 551 "geometry2.cpp"
+#line 612 "geometry2.cpp"
   extern bool approx_nearcorner;
-#line 555 "geometry2.cpp"
+#line 616 "geometry2.cpp"
   hyperpoint nearcorner(cell *c, int i);
-#line 652 "geometry2.cpp"
+#line 713 "geometry2.cpp"
   hyperpoint farcorner(cell *c, int i, int which);
-#line 720 "geometry2.cpp"
+#line 781 "geometry2.cpp"
   hyperpoint midcorner(cell *c, int i, ld v);
-#line 726 "geometry2.cpp"
+#line 787 "geometry2.cpp"
   hyperpoint get_warp_corner(cell *c, int cid);
-#line 737 "geometry2.cpp"
+#line 798 "geometry2.cpp"
   extern map<cell*, map<cell*, vector<transmatrix>>> brm_structure;
-#line 739 "geometry2.cpp"
+#line 800 "geometry2.cpp"
   void generate_brm(cell *c1);
-#line 795 "geometry2.cpp"
+#line 856 "geometry2.cpp"
   const transmatrix& brm_get(cell *c1, hyperpoint h1, cell *c2, hyperpoint h2);
-#line 811 "geometry2.cpp"
+#line 872 "geometry2.cpp"
   bool exhaustive_distance_appropriate();
-#line 826 "geometry2.cpp"
+#line 887 "geometry2.cpp"
   struct pathgen {
   cellwalker start;
   cellwalker last;
@@ -9180,9 +10452,9 @@ namespace hr {
   bignum full_id_0;
   int last_id;
   };
-#line 835 "geometry2.cpp"
+#line 896 "geometry2.cpp"
   pathgen generate_random_path_randomdir(cellwalker start, int length, bool for_yendor);
-#line 840 "geometry2.cpp"
+#line 901 "geometry2.cpp"
   pathgen generate_random_path(cellwalker start, int length, bool for_yendor, bool randomdir);
 
   // implemented in: glhr.cpp
@@ -9288,6 +10560,8 @@ namespace hr {
     }
     };  
     
+#line 156 "glhr.cpp"
+    extern bool glew;
 #line 162 "glhr.cpp"
     typedef const void *constvoidptr;
 #line 165 "glhr.cpp"
@@ -9380,43 +10654,43 @@ namespace hr {
 #line 689 "glhr.cpp"
     void set_ualpha(ld alpha);
     #if CAP_VERTEXBUFFER
-#line 742 "glhr.cpp"
+#line 743 "glhr.cpp"
     void bindbuffer_vertex(vector<glvertex>& v);
     #endif
-#line 748 "glhr.cpp"
+#line 749 "glhr.cpp"
     void vertices(const vector<glvertex>& v, int vshift IS(0));
-#line 769 "glhr.cpp"
+#line 770 "glhr.cpp"
     void vertices_texture(const vector<glvertex>& v, const vector<glvertex>& t, int vshift IS(0), int tshift IS(0));
-#line 788 "glhr.cpp"
+#line 789 "glhr.cpp"
     void vertices_texture_color(const vector<glvertex>& v, const vector<glvertex>& t, const vector<glvertex>& c, int vshift IS(0), int tshift IS(0));
-#line 814 "glhr.cpp"
+#line 815 "glhr.cpp"
     void prepare(vector<colored_vertex>& v);
-#line 832 "glhr.cpp"
+#line 833 "glhr.cpp"
     void prepare(vector<textured_vertex>& v);
-#line 851 "glhr.cpp"
+#line 852 "glhr.cpp"
     void prepare(vector<ct_vertex>& v);
-#line 872 "glhr.cpp"
+#line 873 "glhr.cpp"
     void store_in_buffer(vector<glvertex>& v);
-#line 887 "glhr.cpp"
+#line 888 "glhr.cpp"
     void set_depthtest(bool b);
-#line 896 "glhr.cpp"
+#line 897 "glhr.cpp"
     void set_depthwrite(bool b);
-#line 904 "glhr.cpp"
+#line 905 "glhr.cpp"
     void set_linewidth(ld lw);
-#line 911 "glhr.cpp"
+#line 912 "glhr.cpp"
     void switch_to_text(const vector<glvertex>& v, const vector<glvertex>& t);
-#line 918 "glhr.cpp"
-    void be_nontextured();
 #line 919 "glhr.cpp"
-    void be_textured();
+    void be_nontextured();
 #line 920 "glhr.cpp"
+    void be_textured();
+#line 921 "glhr.cpp"
     void be_color_textured();
     }
-#line 924 "glhr.cpp"
+#line 925 "glhr.cpp"
   extern vector<glhr::textured_vertex> text_vertices;
-#line 926 "glhr.cpp"
+#line 927 "glhr.cpp"
   void texture_vertices(GLfloat *f, int qty, int stride IS(2));
-#line 933 "glhr.cpp"
+#line 934 "glhr.cpp"
   void oldvertices(GLfloat *f, int qty);
   #endif
 
@@ -9428,7 +10702,7 @@ namespace hr {
   extern function<void()> help_delegate;
 #line 16 "help.cpp"
   struct help_extension {
-  char key;
+  int key;
   string text;
   string subtext;
   color_t color;
@@ -9438,128 +10712,132 @@ namespace hr {
   };
 #line 27 "help.cpp"
   extern vector<help_extension> help_extensions;
-#line 213 "help.cpp"
+#line 88 "help.cpp"
+  void buildHelpText();
+#line 220 "help.cpp"
   string standard_help();
-#line 217 "help.cpp"
+#line 224 "help.cpp"
   void buildCredits();
-#line 265 "help.cpp"
+#line 272 "help.cpp"
   string helptitle(string s, color_t col);
-#line 337 "help.cpp"
+#line 344 "help.cpp"
   string generateHelpForItem(eItem it);
-#line 552 "help.cpp"
-  string generateHelpForWall(eWall w);
 #line 572 "help.cpp"
+  string generateHelpForWall(eWall w);
+#line 592 "help.cpp"
   string generateHelpForMonster(eMonster m);
-#line 693 "help.cpp"
+#line 713 "help.cpp"
   string generateHelpForLand(eLand l);
-#line 787 "help.cpp"
+#line 807 "help.cpp"
   extern bool instat;
-#line 795 "help.cpp"
+#line 815 "help.cpp"
   string bygen(reaction_t h);
-#line 814 "help.cpp"
+#line 834 "help.cpp"
   void appendHelp(string s);
-#line 825 "help.cpp"
+#line 845 "help.cpp"
   extern hookset<void(cell*)> hooks_mouseover;
-#line 831 "help.cpp"
+#line 854 "help.cpp"
   void describeMouseover();
-#line 1061 "help.cpp"
+#line 1084 "help.cpp"
   void showHelp();
-#line 1114 "help.cpp"
+#line 1141 "help.cpp"
   extern hookset<bool()> hooks_default_help;
-#line 1116 "help.cpp"
+#line 1143 "help.cpp"
   void gotoHelp(const string& h);
-#line 1145 "help.cpp"
+#line 1172 "help.cpp"
   void subhelp(const string& h);
-#line 1158 "help.cpp"
+#line 1185 "help.cpp"
   void gotoHelpFor(eLand l);
 
   // implemented in: heptagon.cpp
 
 #line 27 "heptagon.cpp"
   hstate transition(hstate s, int dir);
-#line 72 "heptagon.cpp"
+#line 73 "heptagon.cpp"
   heptagon *buildHeptagon1(heptagon *h, heptagon *parent, int d, hstate s, int pard IS(0));
-#line 80 "heptagon.cpp"
+#line 81 "heptagon.cpp"
   heptagon *init_heptagon(int type);
-#line 257 "heptagon.cpp"
+#line 258 "heptagon.cpp"
   extern hookset<void(heptagon*, int)> hooks_createStep;
 
   // implemented in: history.cpp
 
   namespace history {
-#line 166 "history.cpp"
-    void progress_screen();
-#line 171 "history.cpp"
-    void progress(string str);
-#line 183 "history.cpp"
-    extern bool on;
-#line 184 "history.cpp"
-    extern vector<shmup::monster*> v;
-#line 186 "history.cpp"
-    extern double phase;
-#line 188 "history.cpp"
-    extern vector<pair<cell*, eMonster> > killhistory;
-#line 189 "history.cpp"
-    extern vector<pair<cell*, eItem> > findhistory;
-#line 190 "history.cpp"
-    extern vector<cell*> movehistory;
 #line 192 "history.cpp"
-    extern bool includeHistory;
-#line 193 "history.cpp"
-    extern ld lvspeed;
-#line 194 "history.cpp"
-    extern int bandhalf;
-#line 195 "history.cpp"
-    extern int bandsegment;
+    void progress_screen();
 #line 197 "history.cpp"
-    extern int saved_ends;
+    extern int progress_each;
 #line 199 "history.cpp"
+    void progress(string str);
+#line 211 "history.cpp"
+    extern bool on;
+#line 212 "history.cpp"
+    extern vector<shmup::monster*> v;
+#line 214 "history.cpp"
+    extern double phase;
+#line 216 "history.cpp"
+    extern vector<pair<cell*, eMonster> > killhistory;
+#line 217 "history.cpp"
+    extern vector<pair<cell*, eItem> > findhistory;
+#line 218 "history.cpp"
+    extern vector<cell*> movehistory;
+#line 220 "history.cpp"
+    extern bool includeHistory;
+#line 221 "history.cpp"
+    extern ld lvspeed;
+#line 222 "history.cpp"
+    extern int bandhalf;
+#line 223 "history.cpp"
+    extern int bandsegment;
+#line 225 "history.cpp"
+    extern int saved_ends;
+#line 227 "history.cpp"
     extern cell* first_center_at;
-#line 200 "history.cpp"
+#line 228 "history.cpp"
     extern transmatrix first_center_view;
-#line 202 "history.cpp"
+#line 230 "history.cpp"
     void save_end();
-#line 232 "history.cpp"
+#line 260 "history.cpp"
     extern bool autoband;
-#line 233 "history.cpp"
+#line 261 "history.cpp"
     extern bool autobandhistory;
-#line 234 "history.cpp"
+#line 262 "history.cpp"
     extern bool dospiral;
-#line 236 "history.cpp"
+#line 264 "history.cpp"
     extern ld extra_line_steps;
-#line 238 "history.cpp"
+#line 266 "history.cpp"
     extern vector<cell*> path_for_lineanimation;
-#line 240 "history.cpp"
+#line 268 "history.cpp"
     void clear();
-#line 247 "history.cpp"
+#line 275 "history.cpp"
     void smoothen_line();
-#line 278 "history.cpp"
+#line 306 "history.cpp"
     void create(cell *start, cell *target, transmatrix last);
-#line 311 "history.cpp"
+#line 339 "history.cpp"
     void create_playerpath();
-#line 315 "history.cpp"
+#line 343 "history.cpp"
     void create_recenter_to_view(bool precise);
-#line 320 "history.cpp"
+#line 348 "history.cpp"
     void movetophase();
-#line 364 "history.cpp"
+#line 392 "history.cpp"
     void apply();
     #if CAP_SDL
-#line 409 "history.cpp"
+#line 437 "history.cpp"
     void createImage(const string& name_format, bool dospiral);
-#line 529 "history.cpp"
+#line 557 "history.cpp"
     void open_filedialog_to_create_image(bool ds);
     #endif
-#line 539 "history.cpp"
+#line 567 "history.cpp"
     bool band_renderable_now();
-#line 543 "history.cpp"
+#line 571 "history.cpp"
     void history_menu();
-#line 656 "history.cpp"
+#line 684 "history.cpp"
     extern set<cell*> inmovehistory, inkillhistory, infindhistory;
-#line 658 "history.cpp"
+#line 686 "history.cpp"
     void restore();
-#line 680 "history.cpp"
+#line 708 "history.cpp"
     void restoreBack();
-#line 695 "history.cpp"
+#line 723 "history.cpp"
     void renderAutoband();
     }
 
@@ -9573,36 +10851,38 @@ namespace hr {
   int glyphclass(int i);
 #line 30 "hud.cpp"
   int subclass(int i);
-#line 50 "hud.cpp"
+#line 51 "hud.cpp"
   enum eGlyphsortorder {
   gsoFirstTop, gsoFirstBottom,
   gsoLastTop, gsoLastBottom,
   gsoLand, gsoValue,
   gsoMAX
   };
-#line 58 "hud.cpp"
+#line 59 "hud.cpp"
   extern eGlyphsortorder glyphsortorder;
-#line 100 "hud.cpp"
+#line 101 "hud.cpp"
   void preparesort();
-#line 176 "hud.cpp"
+#line 179 "hud.cpp"
   bool graphglyph(bool isMonster);
-#line 332 "hud.cpp"
+#line 353 "hud.cpp"
   extern bool nohud, nomenukey, nomsg;
-#line 334 "hud.cpp"
+#line 355 "hud.cpp"
   extern hookset<bool()> hooks_prestats;
-#line 377 "hud.cpp"
+#line 398 "hud.cpp"
   extern bool nofps;
-#line 379 "hud.cpp"
+#line 400 "hud.cpp"
   extern color_t crosshair_color;
-#line 380 "hud.cpp"
+#line 401 "hud.cpp"
   extern ld crosshair_size;
-#line 382 "hud.cpp"
+#line 403 "hud.cpp"
   extern bool long_kills;
-#line 385 "hud.cpp"
+#line 406 "hud.cpp"
   int hud_margin(int side);
-#line 392 "hud.cpp"
+#line 413 "hud.cpp"
   void draw_crosshair();
-#line 409 "hud.cpp"
+#line 430 "hud.cpp"
+  extern bool less_in_portrait, less_in_landscape;
+#line 432 "hud.cpp"
   void drawStats();
 
   // implemented in: hyper-main.cpp
@@ -9610,6 +10890,14 @@ namespace hr {
 #line 32 "hyper-main.cpp"
   extern hookset<bool(int argc, char** argv)> hooks_main;
 #line 34 "hyper-main.cpp"
+  extern bool initialized;
+#line 37 "hyper-main.cpp"
+  int hyper_init(int argc, char **argv);
+#line 62 "hyper-main.cpp"
+  int hyper_init();
+#line 73 "hyper-main.cpp"
+  void hyper_loop();
+#line 79 "hyper-main.cpp"
   int hyper_main(int argc, char **argv);
 
   // implemented in: hyperweb.cpp
@@ -9618,213 +10906,247 @@ namespace hr {
   void offer_download(string sfilename, string smimetype);
 #line 108 "hyperweb.cpp"
   void offer_choose_file(reaction_t r);
-#line 214 "hyperweb.cpp"
+#line 215 "hyperweb.cpp"
   void get_canvas_size();
-#line 243 "hyperweb.cpp"
+#line 244 "hyperweb.cpp"
   void initweb();
-#line 264 "hyperweb.cpp"
+#line 265 "hyperweb.cpp"
   void emscripten_get_commandline();
 
   // implemented in: hypgraph.cpp
 
-#line 15 "hypgraph.cpp"
-  inline bool sphereflipped() { return sphere && pconf.alpha > 1.1; }
-#line 24 "hypgraph.cpp"
+#line 14 "hypgraph.cpp"
+  extern ld flip_limit;
+#line 16 "hypgraph.cpp"
+  bool flip_sphere();
+#line 18 "hypgraph.cpp"
+  extern bool sphere_flipped;
+#line 26 "hypgraph.cpp"
   void camrotate(ld& hx, ld& hy);
-#line 32 "hypgraph.cpp"
+#line 34 "hypgraph.cpp"
   bool non_spatial_model();
-#line 44 "hypgraph.cpp"
+#line 46 "hypgraph.cpp"
   hyperpoint perspective_to_space(hyperpoint h, ld alpha IS(pconf.alpha), eGeometryClass gc IS(ginf[geometry].cclass));
-#line 79 "hypgraph.cpp"
+#line 81 "hypgraph.cpp"
   hyperpoint space_to_perspective(hyperpoint z, ld alpha IS(pconf.alpha));
-#line 92 "hypgraph.cpp"
+#line 94 "hypgraph.cpp"
   hyperpoint pointable();
-#line 98 "hypgraph.cpp"
+#line 100 "hypgraph.cpp"
   shiftmatrix minimize_point_value(shiftmatrix T, function<ld(const shiftmatrix&)> value);
-#line 121 "hypgraph.cpp"
+#line 123 "hypgraph.cpp"
   shiftpoint find_on_screen(hyperpoint hxy, const shiftmatrix& T);
-#line 131 "hypgraph.cpp"
+#line 133 "hypgraph.cpp"
   shiftpoint gethyper(ld x, ld y);
-#line 230 "hypgraph.cpp"
+#line 232 "hypgraph.cpp"
   ld atan2(hyperpoint h);
-#line 371 "hypgraph.cpp"
+#line 282 "hypgraph.cpp"
+  void makeband_f(shiftpoint H, hyperpoint& ret, const hr::function<void(ld&,ld&)>& f);
+#line 377 "hypgraph.cpp"
   ld signed_sqrt(ld x);
-#line 373 "hypgraph.cpp"
+#line 379 "hypgraph.cpp"
   extern int axial_x, axial_y;
-#line 375 "hypgraph.cpp"
+#line 381 "hypgraph.cpp"
   void apply_perspective(const hyperpoint& H, hyperpoint& ret);
-#line 384 "hypgraph.cpp"
+#line 390 "hypgraph.cpp"
   void apply_nil_rotation(hyperpoint& H);
-#line 393 "hypgraph.cpp"
+#line 399 "hypgraph.cpp"
   void applymodel(shiftpoint H_orig, hyperpoint& ret);
-#line 397 "hypgraph.cpp"
+#line 403 "hypgraph.cpp"
   void vr_sphere(hyperpoint& ret, hyperpoint& H, eModel md);
   #if MAXMDIM >= 4
-#line 439 "hypgraph.cpp"
+#line 445 "hypgraph.cpp"
   void threepoint_projection(const hyperpoint& H, hyperpoint& ret);
   #endif
-#line 496 "hypgraph.cpp"
+#line 502 "hypgraph.cpp"
+  extern vector<hr::function<void(shiftpoint& H_orig, hyperpoint& H, hyperpoint& ret)>> extra_projections;
+#line 504 "hypgraph.cpp"
   void apply_other_model(shiftpoint H_orig, hyperpoint& ret, eModel md);
-#line 1349 "hypgraph.cpp"
-  extern transmatrix sphereflip; // on the sphere, flip
-#line 1350 "hypgraph.cpp"
-  extern bool playerfound; // has player been found in the last drawing?
-#line 1352 "hypgraph.cpp"
-  bool outofmap(hyperpoint h);
-#line 1363 "hypgraph.cpp"
-  hyperpoint mirrorif(const hyperpoint& V, bool b);
-#line 1368 "hypgraph.cpp"
-  shiftmatrix mirrorif(const shiftmatrix& V, bool b);
-#line 1374 "hypgraph.cpp"
-  int away(const transmatrix& V2);
-#line 1385 "hypgraph.cpp"
-  double zgrad0(double l1, double l2, int nom, int den);
-#line 1390 "hypgraph.cpp"
-  bool behindsphere(const hyperpoint& h);
-#line 1412 "hypgraph.cpp"
-  ld spherity(const hyperpoint& h);
-#line 1426 "hypgraph.cpp"
-  bool behindsphere(const transmatrix& V);
-#line 1430 "hypgraph.cpp"
-  bool behindsphere(const shiftmatrix& V);
-#line 1434 "hypgraph.cpp"
-  ld spherity(const transmatrix& V);
-#line 1438 "hypgraph.cpp"
-  bool confusingGeometry();
-#line 1445 "hypgraph.cpp"
-  ld master_to_c7_angle();
 #line 1455 "hypgraph.cpp"
+  extern transmatrix sphereflip; // on the sphere, flip
+#line 1456 "hypgraph.cpp"
+  extern bool playerfound; // has player been found in the last drawing?
+#line 1458 "hypgraph.cpp"
+  bool outofmap(hyperpoint h);
+#line 1469 "hypgraph.cpp"
+  hyperpoint mirrorif(const hyperpoint& V, bool b);
+#line 1474 "hypgraph.cpp"
+  shiftmatrix mirrorif(const shiftmatrix& V, bool b);
+#line 1480 "hypgraph.cpp"
+  int away(const transmatrix& V2);
+#line 1491 "hypgraph.cpp"
+  double zgrad0(double l1, double l2, int nom, int den);
+#line 1496 "hypgraph.cpp"
+  bool behindsphere(const hyperpoint& h);
+#line 1518 "hypgraph.cpp"
+  ld spherity(const hyperpoint& h);
+#line 1532 "hypgraph.cpp"
+  bool behindsphere(const transmatrix& V);
+#line 1536 "hypgraph.cpp"
+  bool behindsphere(const shiftmatrix& V);
+#line 1540 "hypgraph.cpp"
+  ld spherity(const transmatrix& V);
+#line 1544 "hypgraph.cpp"
+  bool confusingGeometry();
+#line 1551 "hypgraph.cpp"
+  ld master_to_c7_angle();
+#line 1562 "hypgraph.cpp"
   transmatrix actualV(const heptspin& hs, const transmatrix& V);
-#line 1472 "hypgraph.cpp"
+#line 1579 "hypgraph.cpp"
   shiftmatrix actualV(const heptspin& hs, const shiftmatrix& V);
-#line 1476 "hypgraph.cpp"
+#line 1583 "hypgraph.cpp"
   bool point_behind(const shiftpoint h);
-#line 1490 "hypgraph.cpp"
+#line 1597 "hypgraph.cpp"
   bool invalid_matrix(const transmatrix T);
-#line 1502 "hypgraph.cpp"
+#line 1609 "hypgraph.cpp"
   bool invalid_point(const hyperpoint h);
-#line 1506 "hypgraph.cpp"
+#line 1613 "hypgraph.cpp"
   bool invalid_point(const shiftpoint h);
-#line 1508 "hypgraph.cpp"
+#line 1615 "hypgraph.cpp"
   bool in_smart_range(const shiftmatrix& T);
-#line 1640 "hypgraph.cpp"
+#line 1753 "hypgraph.cpp"
   bool drawcell_subs(cell *c, const shiftmatrix& V);
-#line 1777 "hypgraph.cpp"
+#line 1890 "hypgraph.cpp"
   bool keep_vertical();
-#line 1784 "hypgraph.cpp"
+#line 1896 "hypgraph.cpp"
   hyperpoint vertical_vector();
-#line 1795 "hypgraph.cpp"
-  extern bool down_is_forward;
-#line 1797 "hypgraph.cpp"
+#line 1913 "hypgraph.cpp"
   void spinEdge(ld aspd);
-#line 1881 "hypgraph.cpp"
+#line 2003 "hypgraph.cpp"
   transmatrix back_to_view(const shiftmatrix& V);
-#line 1887 "hypgraph.cpp"
+#line 2009 "hypgraph.cpp"
   void fix_whichcopy(cell *c);
-#line 1899 "hypgraph.cpp"
+#line 2021 "hypgraph.cpp"
+  void adjust_eye(transmatrix& T, cell *c, ld sign);
+#line 2031 "hypgraph.cpp"
+  bool shmup_inverted();
+#line 2036 "hypgraph.cpp"
   void centerpc(ld aspd);
-#line 1991 "hypgraph.cpp"
+#line 2148 "hypgraph.cpp"
   extern transmatrix oView;
-#line 1993 "hypgraph.cpp"
+#line 2150 "hypgraph.cpp"
   extern purehookset hooks_preoptimize, hooks_postoptimize;
-#line 1995 "hypgraph.cpp"
+#line 2152 "hypgraph.cpp"
   void optimizeview();
-#line 2050 "hypgraph.cpp"
+#line 2209 "hypgraph.cpp"
   void resetview();
-#line 2098 "hypgraph.cpp"
+#line 2255 "hypgraph.cpp"
   void panning(shiftpoint hf0, shiftpoint ht0);
-#line 2106 "hypgraph.cpp"
+#line 2263 "hypgraph.cpp"
   extern int cells_drawn, cells_generated;
-#line 2108 "hypgraph.cpp"
+#line 2265 "hypgraph.cpp"
   void fullcenter();
-#line 2134 "hypgraph.cpp"
+#line 2291 "hypgraph.cpp"
   extern int flat_on;
-#line 2140 "hypgraph.cpp"
+#line 2298 "hypgraph.cpp"
   void enable_flat_model(int val);
-#line 2178 "hypgraph.cpp"
+#line 2340 "hypgraph.cpp"
   struct flat_model_enabler {
   flat_model_enabler() { enable_flat_model(+1); }
   ~flat_model_enabler() { enable_flat_model(-1); }
   };
-#line 2184 "hypgraph.cpp"
+#line 2346 "hypgraph.cpp"
   transmatrix atscreenpos(ld x, ld y, ld size);
-#line 2233 "hypgraph.cpp"
+#line 2395 "hypgraph.cpp"
   extern color_t periodcolor;
-#line 2234 "hypgraph.cpp"
+#line 2396 "hypgraph.cpp"
   extern color_t ringcolor;
-#line 2235 "hypgraph.cpp"
+#line 2397 "hypgraph.cpp"
   extern color_t modelcolor;
   #if CAP_QUEUE
-#line 2238 "hypgraph.cpp"
+#line 2400 "hypgraph.cpp"
   void draw_model_elements();
-#line 2387 "hypgraph.cpp"
+#line 2575 "hypgraph.cpp"
   void draw_boundary(int w);
   #endif
-#line 2612 "hypgraph.cpp"
+#line 2811 "hypgraph.cpp"
   void change_shift(shiftpoint& h, ld by);
-#line 2627 "hypgraph.cpp"
+#line 2826 "hypgraph.cpp"
   void change_shift(shiftmatrix& T, ld by);
-#line 2645 "hypgraph.cpp"
+#line 2844 "hypgraph.cpp"
   transmatrix unshift(shiftmatrix T, ld to IS(0));
-#line 2650 "hypgraph.cpp"
+#line 2849 "hypgraph.cpp"
   hyperpoint unshift(shiftpoint T, ld to IS(0));
-#line 2655 "hypgraph.cpp"
+#line 2854 "hypgraph.cpp"
   transmatrix inverse_shift(const shiftmatrix& T1, const shiftmatrix& T2);
-#line 2659 "hypgraph.cpp"
+#line 2858 "hypgraph.cpp"
   hyperpoint inverse_shift(const shiftmatrix& T1, const shiftpoint& T2);
-#line 2663 "hypgraph.cpp"
+#line 2862 "hypgraph.cpp"
+  void optimize_shift(shiftpoint& h);
+#line 2868 "hypgraph.cpp"
   void optimize_shift(shiftmatrix& T);
-#line 2693 "hypgraph.cpp"
+#line 2900 "hypgraph.cpp"
   shiftmatrix optimized_shift(const shiftmatrix& T);
   namespace dq {
-#line 2700 "hypgraph.cpp"
+#line 2907 "hypgraph.cpp"
     extern queue<pair<heptagon*, shiftmatrix>> drawqueue;
-#line 2702 "hypgraph.cpp"
+#line 2909 "hypgraph.cpp"
     unsigned bucketer(const shiftpoint& T);
-#line 2706 "hypgraph.cpp"
+#line 2917 "hypgraph.cpp"
     extern set<heptagon*> visited;
-#line 2707 "hypgraph.cpp"
+#line 2918 "hypgraph.cpp"
     void enqueue(heptagon *h, const shiftmatrix& T);
-#line 2713 "hypgraph.cpp"
+#line 2924 "hypgraph.cpp"
     extern set<unsigned> visited_by_matrix;
-#line 2714 "hypgraph.cpp"
+#line 2925 "hypgraph.cpp"
     void enqueue_by_matrix(heptagon *h, const shiftmatrix& T);
-#line 2722 "hypgraph.cpp"
+#line 2933 "hypgraph.cpp"
     extern queue<pair<cell*, shiftmatrix>> drawqueue_c;
-#line 2723 "hypgraph.cpp"
+#line 2934 "hypgraph.cpp"
     extern set<cell*> visited_c;
-#line 2725 "hypgraph.cpp"
+#line 2936 "hypgraph.cpp"
     void enqueue_c(cell *c, const shiftmatrix& T);
-#line 2731 "hypgraph.cpp"
+#line 2942 "hypgraph.cpp"
     void enqueue_by_matrix_c(cell *c, const shiftmatrix& T);
-#line 2739 "hypgraph.cpp"
+#line 2950 "hypgraph.cpp"
     void clear_all();
     }
-#line 2750 "hypgraph.cpp"
+#line 2961 "hypgraph.cpp"
   bool do_draw(cell *c);
-#line 2762 "hypgraph.cpp"
+#line 2973 "hypgraph.cpp"
   extern ld extra_generation_distance;
-#line 2773 "hypgraph.cpp"
+#line 2984 "hypgraph.cpp"
+  extern int min_cells_drawn;
+#line 2986 "hypgraph.cpp"
   bool do_draw(cell *c, const shiftmatrix& T);
-#line 2842 "hypgraph.cpp"
+#line 3056 "hypgraph.cpp"
   int cone_side(const shiftpoint H);
-#line 2871 "hypgraph.cpp"
+#line 3085 "hypgraph.cpp"
   transmatrix& get_view_orientation();
-#line 2875 "hypgraph.cpp"
+#line 3089 "hypgraph.cpp"
   extern hookset<bool(const transmatrix&)> hooks_rotate_view;
-#line 2876 "hypgraph.cpp"
+#line 3090 "hypgraph.cpp"
   extern hookset<bool(const hyperpoint&)> hooks_shift_view;
-#line 2879 "hypgraph.cpp"
+#line 3093 "hypgraph.cpp"
   void rotate_view(transmatrix T);
-#line 2887 "hypgraph.cpp"
-  transmatrix get_shift_view_of(const hyperpoint H, const transmatrix V);
-#line 2903 "hypgraph.cpp"
-  void shift_view(hyperpoint H);
-#line 2923 "hypgraph.cpp"
-  void shift_view_to(shiftpoint H);
-#line 2928 "hypgraph.cpp"
-  void shift_view_towards(shiftpoint H, ld l);
-#line 2940 "hypgraph.cpp"
+#line 3100 "hypgraph.cpp"
+  shiftpoint lie_exp(hyperpoint h1);
+#line 3166 "hypgraph.cpp"
+  hyperpoint rel_log(shiftpoint h, bool relativistic_length);
+#line 3210 "hypgraph.cpp"
+  bool lie_movement_available();
+#line 3216 "hypgraph.cpp"
+  hyperpoint lie_log(const shiftpoint h1);
+#line 3266 "hypgraph.cpp"
+  hyperpoint lie_log_correct(const shiftpoint H_orig, hyperpoint& H);
+#line 3277 "hypgraph.cpp"
+  void shift_v_by_vector(transmatrix& V, const hyperpoint H, eShiftMethod sm IS(shift_method(smaManualCamera)));
+#line 3303 "hypgraph.cpp"
+  transmatrix get_shift_view_of(const hyperpoint H, transmatrix V, eShiftMethod sm IS(shift_method(smaManualCamera)));
+#line 3309 "hypgraph.cpp"
+  void shift_view(hyperpoint H, eShiftMethod sm IS(shift_method(smaManualCamera)));
+#line 3325 "hypgraph.cpp"
+  void shift_v_embedded(transmatrix& V, const transmatrix T);
+#line 3334 "hypgraph.cpp"
+  void shift_v_by_matrix(transmatrix& V, const transmatrix T, eShiftMethod sm);
+#line 3347 "hypgraph.cpp"
+  void shift_view_to(shiftpoint H, eShiftMethod sm IS(shift_method(smaManualCamera)));
+#line 3352 "hypgraph.cpp"
+  void shift_v_to(transmatrix& V, shiftpoint H, eShiftMethod sm IS(shift_method(smaManualCamera)));
+#line 3368 "hypgraph.cpp"
+  void shift_view_towards(shiftpoint H, ld l, eShiftMethod sm IS(shift_method(smaManualCamera)));
+#line 3373 "hypgraph.cpp"
+  void shift_v_towards(transmatrix& V, shiftpoint H, ld l, eShiftMethod sm IS(shift_method(smaManualCamera)));
+#line 3391 "hypgraph.cpp"
   void set_view(hyperpoint camera, hyperpoint forward, hyperpoint upward);
 
   // implemented in: inforder.cpp
@@ -9840,6 +11162,166 @@ namespace hr {
     hrmap* new_map();
 #line 42 "inforder.cpp"
     int celldistance(cell *c1, cell *c2);
+    }
+
+  // implemented in: intra.cpp
+
+  namespace intra {
+#line 7 "intra.cpp"
+    extern bool in;
+    #if CAP_RAY && MAXMDIM >= 4
+#line 11 "intra.cpp"
+    /** information per every space connected with intra-portals */
+    struct intra_data {
+    gamedata gd;
+    geometryinfo gi;
+    int wallindex;  
+    };
+#line 19 "intra.cpp"
+    extern vector<intra_data> data;
+#line 22 "intra.cpp"
+    extern bool switching;
+#line 25 "intra.cpp"
+    extern int current;
+#line 28 "intra.cpp"
+    extern int debug_portal;
+#line 31 "intra.cpp"
+    extern map<cell*, int> intra_id;
+#line 34 "intra.cpp"
+    /** information about portal (one side) */
+    struct portal_data {
+    int kind;
+    hyperpoint v0;
+    ld d;
+    transmatrix T;
+    transmatrix iT;
+    hyperpoint co0;
+    hyperpoint co1;
+    ld scale;
+    /* convert h to portal coordinates ('poco') to usual coordinates */
+    hyperpoint to_poco(hyperpoint h) const;
+    /* convert h from portal coordinates ('poco') to usual coordinates */
+    hyperpoint from_poco(hyperpoint h) const;
+    };
+#line 150 "intra.cpp"
+    portal_data make_portal(cellwalker cw, int spin);
+#line 309 "intra.cpp"
+    /** information about connection (portal-to-portal) */
+    struct connection_data {
+    int source_world;
+    int target_world;
+    cellwalker scw, tcw;
+    portal_data id1;
+    portal_data id2;
+    transmatrix T;
+    int spin_value;
+    bool mirrored; /* not implemented */
+    };
+#line 322 "intra.cpp"
+    extern map<cellwalker, connection_data> connections;
+#line 324 "intra.cpp"
+    connection_data* find_connection(int a, int b);
+#line 331 "intra.cpp"
+    void switch_to(int id);
+#line 410 "intra.cpp"
+    extern vector<pair<int, cell*>> full_sample_list;
+#line 412 "intra.cpp"
+    void connect_portal(cellwalker cw1, cellwalker cw2, int spin);
+#line 417 "intra.cpp"
+    void generate_sample_list_for_current();
+#line 430 "intra.cpp"
+    void regenerate_full_sample_list();
+#line 441 "intra.cpp"
+    void become();
+#line 467 "intra.cpp"
+    void start(int id IS(0));
+#line 490 "intra.cpp"
+    /** a convenience struct to switch back after a temporary switch_to */
+    struct resetter {
+    int ic;
+    resetter() { ic = current; }
+    ~resetter() { if(in) switch_to(ic); }
+    };
+#line 498 "intra.cpp"
+    void may_switch_to(cell *c);
+#line 502 "intra.cpp"
+    int full_wall_offset(cell *c);
+#line 516 "intra.cpp"
+    void analyze_orthonormal(array<hyperpoint, 4> ds, ld sca);
+#line 529 "intra.cpp"
+    void shift_view_portal(hyperpoint H);
+#line 547 "intra.cpp"
+    const connection_data* through_portal();
+#line 555 "intra.cpp"
+    void check_portal_movement();
+#line 645 "intra.cpp"
+    extern string portal_help;
+#line 659 "intra.cpp"
+    void become_menu();
+#line 680 "intra.cpp"
+    void world_list();
+#line 722 "intra.cpp"
+    void show_portals();
+#line 836 "intra.cpp"
+    struct portal_to_save {
+    cellwalker cw1;
+    cellwalker cw2;
+    int spin;
+    bool mirrored;
+    };
+#line 844 "intra.cpp"
+    extern vector<portal_to_save> portals_to_save;
+#line 846 "intra.cpp"
+    void prepare_to_save();
+#line 853 "intra.cpp"
+    void load_saved_portals();
+#line 857 "intra.cpp"
+    void be_ratio(ld v IS(1));
+#line 865 "intra.cpp"
+    ld get_edge_length(cell *c, int i);
+#line 870 "intra.cpp"
+    ld get_ratio_edge(cell *c, int i);
+#line 875 "intra.cpp"
+    void be_ratio_edge(cell *c, int i, ld v IS(1));
+#line 882 "intra.cpp"
+    void be_ratio_edge(int i, ld v IS(1));
+#line 888 "intra.cpp"
+    void kill(int id);
+#line 910 "intra.cpp"
+    void erase_all_maps();
+#line 927 "intra.cpp"
+    extern set<cell*> need_to_save;
+#line 929 "intra.cpp"
+    void prepare_need_to_save();
+    #endif
+    }
+  namespace walking {
+#line 967 "intra.cpp"
+    extern bool on;
+#line 969 "intra.cpp"
+    extern bool auto_eyelevel;
+#line 971 "intra.cpp"
+    extern int floor_dir;
+#line 972 "intra.cpp"
+    extern cell *on_floor_of;
+#line 973 "intra.cpp"
+    extern ld eye_level;
+#line 974 "intra.cpp"
+    extern ld eye_angle;
+#line 975 "intra.cpp"
+    extern ld eye_angle_scale;
+#line 977 "intra.cpp"
+    extern int ticks_end, ticks_last;
+#line 979 "intra.cpp"
+    extern set<color_t> colors_of_floors;
+#line 981 "intra.cpp"
+    bool isFloor(cell *c);
+#line 988 "intra.cpp"
+    void handle();
+#line 1147 "intra.cpp"
+    void switch_walking();
+#line 1156 "intra.cpp"
+    void add_options();
     }
 
   // implemented in: inventory.cpp
@@ -9875,16 +11357,16 @@ namespace hr {
 #line 487 "inventory.cpp"
     void show();
     #if CAP_SAVE
-#line 688 "inventory.cpp"
+#line 703 "inventory.cpp"
     void applyBox(eItem it);
     #endif
-#line 693 "inventory.cpp"
+#line 708 "inventory.cpp"
     extern int incheck;
-#line 695 "inventory.cpp"
+#line 710 "inventory.cpp"
     void check(int delta);
     #endif
     #if !CAP_INV
-#line 707 "inventory.cpp"
+#line 722 "inventory.cpp"
     extern always_false on, activating;
     #endif
     }
@@ -9974,6 +11456,8 @@ namespace hr {
     bool supports(eGeometry g);
 #line 1052 "irregular.cpp"
     array<heptagon*, 3> get_masters(cell *c);
+#line 1059 "irregular.cpp"
+    void swap_vertices();
     #endif
     }
 
@@ -9991,54 +11475,56 @@ namespace hr {
   bool canPickupItemWithMagnetism(cell *c, cell *from);
 #line 31 "items.cpp"
   bool doPickupItemsWithMagnetism(cell *c);
-#line 67 "items.cpp"
-  void pickupMovedItems(cell *c);
-#line 80 "items.cpp"
+#line 68 "items.cpp"
+  void pickupMovedItems(cell *c, cell *from);
+#line 81 "items.cpp"
   bool in_lovasz();
-#line 84 "items.cpp"
-  bool collectItem(cell *c2, bool telekinesis IS(false));
-#line 341 "items.cpp"
+#line 85 "items.cpp"
+  int threshold_met(int i);
+#line 91 "items.cpp"
+  bool collectItem(cell *c2, cell *last, bool telekinesis IS(false));
+#line 359 "items.cpp"
   void glance_message();
-#line 358 "items.cpp"
+#line 376 "items.cpp"
   void dropGreenStone(cell *c);
-#line 393 "items.cpp"
+#line 411 "items.cpp"
   void moveItem1(cell *from, cell *to, bool activateYendor);
-#line 421 "items.cpp"
+#line 439 "items.cpp"
   void moveItem (cell *from, cell *to, bool activateYendor);
-#line 429 "items.cpp"
+#line 447 "items.cpp"
   bool itemHidden(cell *c);
-#line 433 "items.cpp"
-  eItem localTreasureType();
-#line 438 "items.cpp"
-  void countLocalTreasure();
 #line 451 "items.cpp"
+  eItem localTreasureType();
+#line 456 "items.cpp"
+  void countLocalTreasure();
+#line 469 "items.cpp"
   static const int NO_TREASURE = 1;
   static const int NO_YENDOR = 2;
   static const int NO_GRAIL = 4;
   static const int NO_LOVE = 8;
-#line 457 "items.cpp"
+#line 475 "items.cpp"
   int gold(int no IS(0));
-#line 480 "items.cpp"
-  int maxgold();
-#line 488 "items.cpp"
-  void updateHi_for_code(eItem it, int v, modecode_t xcode);
-#line 494 "items.cpp"
-  void updateHi(eItem it, int v);
 #line 498 "items.cpp"
+  int maxgold();
+#line 506 "items.cpp"
+  void updateHi_for_code(eItem it, int v, modecode_t xcode);
+#line 512 "items.cpp"
+  void updateHi(eItem it, int v);
+#line 516 "items.cpp"
   void gainItem(eItem it);
-#line 559 "items.cpp"
+#line 577 "items.cpp"
   string itemcounter(int qty);
-#line 563 "items.cpp"
+#line 581 "items.cpp"
   void gainShard(cell *c2, const char *msg);
-#line 576 "items.cpp"
+#line 597 "items.cpp"
   void placeItems(int qty, eItem it);
-#line 585 "items.cpp"
+#line 606 "items.cpp"
   bool cantGetGrimoire(cell *c2, bool verbose IS(true));
-#line 596 "items.cpp"
+#line 617 "items.cpp"
   void gainLife();
-#line 601 "items.cpp"
+#line 622 "items.cpp"
   void collectMessage(cell *c2, eItem which);
-#line 719 "items.cpp"
+#line 740 "items.cpp"
   bool itemHiddenFromSight(cell *c);
 
   // implemented in: kite.cpp
@@ -10055,9 +11541,9 @@ namespace hr {
     pair<vector<vector<hyperpoint>>, vector<vector<ld>>> make_walls();
 #line 124 "kite.cpp"
     extern bool no_adj;
-#line 360 "kite.cpp"
+#line 371 "kite.cpp"
     hrmap *new_map();
-#line 367 "kite.cpp"
+#line 378 "kite.cpp"
     void find_cell_connection(cell *c, int d);
     #endif
     }
@@ -10108,15 +11594,15 @@ namespace hr {
   void gen_eclectic_monster(cell *c);
 #line 272 "landgen.cpp"
   void giantLandSwitch(cell *c, int d, cell *from);
-#line 2883 "landgen.cpp"
+#line 2839 "landgen.cpp"
   void repairLandgen(cell *c);
-#line 2935 "landgen.cpp"
+#line 2891 "landgen.cpp"
   void setland_randomwalk(cell *c);
-#line 2945 "landgen.cpp"
+#line 2901 "landgen.cpp"
   void set_land_for_geometry(cell *c);
-#line 2984 "landgen.cpp"
+#line 2940 "landgen.cpp"
   extern hookset<bool(cell *c, int d, cell *from)> hooks_cellgen;
-#line 2986 "landgen.cpp"
+#line 2942 "landgen.cpp"
   void setdist(cell *c, int d, cell *from);
 
   // implemented in: landlock.cpp
@@ -10199,40 +11685,42 @@ namespace hr {
   int isRandland(eLand l);
 #line 251 "landlock.cpp"
   bool incompatible1(eLand l1, eLand l2);
-#line 278 "landlock.cpp"
+#line 281 "landlock.cpp"
   eLand randomElementalLand();
-#line 284 "landlock.cpp"
+#line 287 "landlock.cpp"
   int elementalKills();
-#line 289 "landlock.cpp"
+#line 292 "landlock.cpp"
   eLand randomElementalLandWeighted();
-#line 300 "landlock.cpp"
+#line 303 "landlock.cpp"
   bool incompatible(eLand nw, eLand old);
-#line 304 "landlock.cpp"
+#line 307 "landlock.cpp"
   bool rlyehComplete();
-#line 315 "landlock.cpp"
+#line 318 "landlock.cpp"
   eLand pickLandRPM(eLand old);
-#line 323 "landlock.cpp"
+#line 326 "landlock.cpp"
   eLand pickluck(eLand l1, eLand l2);
-#line 343 "landlock.cpp"
+#line 346 "landlock.cpp"
   eLand getNewSealand(eLand old);
-#line 355 "landlock.cpp"
+#line 358 "landlock.cpp"
   bool createOnSea(eLand old);
-#line 363 "landlock.cpp"
+#line 366 "landlock.cpp"
   extern hookset<eLand(eLand)> hooks_nextland;
-#line 365 "landlock.cpp"
+#line 368 "landlock.cpp"
   extern bool all_unlocked;
-#line 367 "landlock.cpp"
+#line 370 "landlock.cpp"
+  extern vector<eLand> cheatdest_list;
+#line 372 "landlock.cpp"
   eLand getNewLand(eLand old);
-#line 564 "landlock.cpp"
-  extern vector<eLand> land_over;
 #line 587 "landlock.cpp"
+  extern vector<eLand> land_over;
+#line 610 "landlock.cpp"
   extern vector<eLand> landlist;
-#line 590 "landlock.cpp"
+#line 613 "landlock.cpp"
   template<class T> void generateLandList(T t) {
   landlist.clear();
   for(auto l: land_over) if(t(l)) landlist.push_back(l);    
   }
-#line 597 "landlock.cpp"
+#line 620 "landlock.cpp"
   namespace lv {
   static const flagtype appears_in_geom_exp = 1;
   static const flagtype display_error_message = 2;
@@ -10240,6 +11728,7 @@ namespace hr {
   static const flagtype appears_in_ptm = 8;
   static const flagtype display_in_help = 16;
   static const flagtype one_and_half = 32;
+  static const flagtype switch_to_single = 64;
   }
   
   struct land_validity_t {
@@ -10247,36 +11736,46 @@ namespace hr {
   flagtype flags;
   string msg;
   };
-#line 613 "landlock.cpp"
+#line 637 "landlock.cpp"
   eLand getLandForList(cell *c);
-#line 626 "landlock.cpp"
+#line 650 "landlock.cpp"
   bool isLandIngame(eLand l);
-#line 704 "landlock.cpp"
+#line 729 "landlock.cpp"
   extern int old_daily_id;
-#line 708 "landlock.cpp"
+#line 733 "landlock.cpp"
   extern const int frog_when;
-#line 710 "landlock.cpp"
+#line 735 "landlock.cpp"
   extern const int cursed_when;
-#line 712 "landlock.cpp"
+#line 737 "landlock.cpp"
   extern const int walls_when;
-#line 715 "landlock.cpp"
+#line 740 "landlock.cpp"
   land_validity_t& land_validity(eLand l);
 
   // implemented in: language-data.cpp
 
-#line 62 "language-data.cpp"
+#line 125 "language-data.cpp"
   #if CAP_TRANS
-  #define NUMEXTRA 152
-  #define NATCHARS {"¨","°","²","´","½","Á","Ä","Ç","È","É","Í","Î","Ö","Ú","Ü","ß","à","á","â","ã","ä","ç","è","é","ê","ì","í","î","ï","ò","ó","ô","õ","ö","ø","ù","ú","ü","ý","ą","ć","Č","č","Ď","ď","Ę","ę","Ě","ě","ğ","İ","ı","Ł","ł","ń","ň","Ř","ř","Ś","ś","Ş","ş","Š","š","Ť","ť","ů","Ź","ź","Ż","ż","Ž","ž","Θ","δ","λ","π","ϕ","Ё","А","Б","В","Г","Д","Е","Ж","З","И","Й","К","Л","М","Н","О","П","Р","С","Т","У","Ф","Х","Ц","Ч","Ш","Щ","Ы","Ь","Э","Ю","Я","а","б","в","г","д","е","ж","з","и","й","к","л","м","н","о","п","р","с","т","у","ф","х","ц","ч","ш","щ","ъ","ы","ь","э","ю","я","ё","ᵈ","ᶻ","⁻","←","→","∞","⌫","⏎","�",}
+  #define NUMEXTRA 158
+  #define NATCHARS {"¨","°","²","´","½","À","Á","Ä","Ç","È","É","Ê","Í","Î","Ö","Ú","Ü","ß","à","á","â","ã","ä","ç","è","é","ê","ì","í","î","ï","ò","ó","ô","õ","ö","ø","ù","ú","û","ü","ý","ą","ć","Č","č","Ď","ď","Ę","ę","Ě","ě","ğ","İ","ı","Ł","ł","ń","ň","Œ","œ","Ř","ř","Ś","ś","Ş","ş","Š","š","Ť","ť","ů","Ź","ź","Ż","ż","Ž","ž","Θ","δ","λ","π","ϕ","Ё","А","Б","В","Г","Д","Е","Ж","З","И","Й","К","Л","М","Н","О","П","Р","С","Т","У","Ф","Х","Ц","Ч","Ш","Щ","Ы","Ь","Э","Ю","Я","а","б","в","г","д","е","ж","з","и","й","к","л","м","н","о","п","р","с","т","у","ф","х","ц","ч","ш","щ","ъ","ы","ь","э","ю","я","ё","ᵈ","ᶻ","’","⁻","←","→","∞","⌫","⏎","�",}
   extern const char* natchars[NUMEXTRA];
   #endif
-#line 71 "language-data.cpp"
+#line 134 "language-data.cpp"
   extern int transcompleteness[NUMLAN];
 
   // implemented in: legacy.cpp
 
 #line 205 "legacy.cpp"
   modecode_t legacy_modecode();
+  #if CAP_RACING
+#line 250 "legacy.cpp"
+  bool legacy_racing();
+#line 254 "legacy.cpp"
+  bool rcheck(string which, int qty, int x);
+#line 258 "legacy.cpp"
+  int wallchance_legacy(cell *c, bool deepOcean);
+#line 269 "legacy.cpp"
+  void buildBigStuff_legacy(cell *c, cell *from);
+  #endif
 
   // implemented in: mapeffects.cpp
 
@@ -10346,49 +11845,49 @@ namespace hr {
   int gravityLevel(cell *c);
 #line 624 "mapeffects.cpp"
   int gravityLevelDiff(cell *c, cell *d);
-#line 642 "mapeffects.cpp"
+#line 646 "mapeffects.cpp"
   bool canUnstable(eWall w, flagtype flags);
-#line 648 "mapeffects.cpp"
+#line 652 "mapeffects.cpp"
   bool cellEdgeUnstable(cell *c, flagtype flags IS(0));
-#line 672 "mapeffects.cpp"
+#line 676 "mapeffects.cpp"
   extern int tidalsize, tide[200];
-#line 674 "mapeffects.cpp"
+#line 678 "mapeffects.cpp"
   void calcTidalPhase();
-#line 706 "mapeffects.cpp"
-  int tidespeed();
 #line 710 "mapeffects.cpp"
+  int tidespeed();
+#line 714 "mapeffects.cpp"
   extern bool recalcTide;
-#line 713 "mapeffects.cpp"
+#line 717 "mapeffects.cpp"
   #define SEADIST LHU.bytes[0]
   #define LANDDIST LHU.bytes[1]
   #define CHAOSPARAM LHU.bytes[2]
   #if CAP_FIELD
-#line 719 "mapeffects.cpp"
+#line 723 "mapeffects.cpp"
   int lavatide(cell *c, int t);
   #endif
-#line 725 "mapeffects.cpp"
+#line 729 "mapeffects.cpp"
   void checkTide(cell *c);
-#line 775 "mapeffects.cpp"
+#line 779 "mapeffects.cpp"
   bool makeEmpty(cell *c);
-#line 855 "mapeffects.cpp"
+#line 859 "mapeffects.cpp"
   void toggleGates(cell *c, eWall type, int rad);
-#line 883 "mapeffects.cpp"
+#line 887 "mapeffects.cpp"
   int toggle_radius(eWall type);
-#line 890 "mapeffects.cpp"
+#line 894 "mapeffects.cpp"
   void toggleGates(cell *ct, eWall type);
-#line 900 "mapeffects.cpp"
+#line 904 "mapeffects.cpp"
   void destroyTrapsOn(cell *c);
-#line 909 "mapeffects.cpp"
-  void destroyTrapsAround(cell *c);
 #line 913 "mapeffects.cpp"
+  void destroyTrapsAround(cell *c);
+#line 917 "mapeffects.cpp"
   void destroyWeakBranch(cell *cf, cell *ct, eMonster who);
-#line 932 "mapeffects.cpp"
+#line 936 "mapeffects.cpp"
   bool isCentralTrap(cell *c);
-#line 939 "mapeffects.cpp"
+#line 943 "mapeffects.cpp"
   array<cell*, 5> traplimits(cell *c);
-#line 957 "mapeffects.cpp"
+#line 961 "mapeffects.cpp"
   void activateArrowTrap(cell *c);
-#line 968 "mapeffects.cpp"
+#line 972 "mapeffects.cpp"
   template<class T> 
   movei determinePush(cellwalker who, int subdir, const T& valid) {
   if(subdir != 1 && subdir != -1) {
@@ -10432,13 +11931,13 @@ namespace hr {
   }
   return movei(c2, NO_SPACE);
   }
-#line 1014 "mapeffects.cpp"
+#line 1018 "mapeffects.cpp"
   void explodeAround(cell *c);
-#line 1054 "mapeffects.cpp"
+#line 1058 "mapeffects.cpp"
   bool earthMove(const movei& mi);
-#line 1069 "mapeffects.cpp"
+#line 1073 "mapeffects.cpp"
   bool colorMove(const movei& mi);
-#line 1081 "mapeffects.cpp"
+#line 1085 "mapeffects.cpp"
   bool cellDangerous(cell *c);
 
   // implemented in: menus.cpp
@@ -10450,42 +11949,40 @@ namespace hr {
 #line 24 "menus.cpp"
   void showOverview();
 #line 212 "menus.cpp"
-  void showMainMenu();
-#line 327 "menus.cpp"
   void editScale();
-#line 333 "menus.cpp"
+#line 218 "menus.cpp"
   extern const char *wdmodes[7];
-#line 334 "menus.cpp"
+#line 219 "menus.cpp"
   extern const char *mdmodes[6];
-#line 335 "menus.cpp"
+#line 220 "menus.cpp"
   extern const char *hlmodes[3];
-#line 337 "menus.cpp"
+#line 222 "menus.cpp"
   void showGraphQuickKeys();
-#line 370 "menus.cpp"
+#line 255 "menus.cpp"
   void enable_cheat();
-#line 394 "menus.cpp"
+#line 279 "menus.cpp"
   void switchHardcore();
-#line 408 "menus.cpp"
+#line 293 "menus.cpp"
   void switch_casual();
-#line 425 "menus.cpp"
+#line 310 "menus.cpp"
   void showCreative();
-#line 502 "menus.cpp"
+#line 384 "menus.cpp"
   void show_chaos();
-#line 559 "menus.cpp"
+#line 442 "menus.cpp"
   void mode_higlights();
-#line 706 "menus.cpp"
+#line 609 "menus.cpp"
   eLandStructure default_land_structure();
-#line 715 "menus.cpp"
+#line 618 "menus.cpp"
   void menuitem_land_structure(char key);
-#line 724 "menus.cpp"
+#line 627 "menus.cpp"
   void showChangeMode();
-#line 823 "menus.cpp"
+#line 719 "menus.cpp"
   extern bool showstartmenu;
-#line 825 "menus.cpp"
+#line 721 "menus.cpp"
   bool showHalloween();
-#line 852 "menus.cpp"
+#line 748 "menus.cpp"
   void showStartMenu();
-#line 1123 "menus.cpp"
+#line 1010 "menus.cpp"
   struct named_functionality {
   std::string first;
   reaction_t second;
@@ -10495,21 +11992,21 @@ namespace hr {
   friend bool operator!=(const named_functionality& a, const named_functionality& b) { return a.first != b.first; }
   };
   inline named_functionality named_dialog(string x, reaction_t dialog) { return named_functionality(x, [dialog] () { pushScreen(dialog); }); }
-#line 1135 "menus.cpp"
+#line 1022 "menus.cpp"
   using o_funcs = vector<named_functionality>;
-#line 1138 "menus.cpp"
+#line 1025 "menus.cpp"
   extern hookset<void(o_funcs&)> hooks_o_key;
-#line 1140 "menus.cpp"
+#line 1027 "menus.cpp"
   named_functionality get_o_key();
-#line 1193 "menus.cpp"
+#line 1080 "menus.cpp"
   extern int messagelogpos;
-#line 1194 "menus.cpp"
+#line 1081 "menus.cpp"
   extern int timeformat;
-#line 1195 "menus.cpp"
+#line 1082 "menus.cpp"
   extern int stampbase;
-#line 1197 "menus.cpp"
+#line 1084 "menus.cpp"
   string gettimestamp(msginfo& m);
-#line 1221 "menus.cpp"
+#line 1108 "menus.cpp"
   void showMessageLog();
 
   // implemented in: mobile.cpp
@@ -10519,7 +12016,7 @@ namespace hr {
   extern bool clicked;
 #line 53 "mobile.cpp"
   extern bool buttonclicked;
-#line 201 "mobile.cpp"
+#line 198 "mobile.cpp"
   void mobile_draw(MOBPAR_FORMAL);
   #endif
 
@@ -10585,32 +12082,40 @@ namespace hr {
     extern transmatrix euclidean_spin;
 #line 151 "models.cpp"
     void configure();
-#line 188 "models.cpp"
+#line 189 "models.cpp"
+    extern bool desitter_projections;
+#line 191 "models.cpp"
     bool model_available(eModel pm);
-#line 209 "models.cpp"
+#line 216 "models.cpp"
     bool has_orientation(eModel m);
-#line 219 "models.cpp"
+#line 226 "models.cpp"
     int get_broken_coord(eModel m);
-#line 225 "models.cpp"
+#line 232 "models.cpp"
+    bool is_hyperboloid(eModel m);
+#line 236 "models.cpp"
     bool is_perspective(eModel m);
-#line 229 "models.cpp"
+#line 240 "models.cpp"
     bool is_3d(const projection_configuration& p);
-#line 234 "models.cpp"
+#line 245 "models.cpp"
     bool has_transition(eModel m);
-#line 238 "models.cpp"
+#line 249 "models.cpp"
     bool product_model(eModel m);
-#line 246 "models.cpp"
+#line 257 "models.cpp"
     string get_model_name(eModel m);
-#line 300 "models.cpp"
+#line 311 "models.cpp"
     void edit_formula();
-#line 331 "models.cpp"
+#line 342 "models.cpp"
     void edit_rotation(ld& which);
-#line 355 "models.cpp"
+#line 366 "models.cpp"
     void model_list();
-#line 411 "models.cpp"
+#line 426 "models.cpp"
     void model_menu();
-#line 690 "models.cpp"
+#line 714 "models.cpp"
     void quick_model();
+    #if CAP_COMMANDLINE
+#line 800 "models.cpp"
+    eModel read_model(const string& ss);
+    #endif
     }
 
   // implemented in: monstergen.cpp
@@ -10661,7 +12166,7 @@ namespace hr {
   eItem wanderingTreasure(cell *c);
 #line 334 "monstergen.cpp"
   void wandering();
-#line 791 "monstergen.cpp"
+#line 794 "monstergen.cpp"
   void generateSnake(cell *c, int i, int snakecolor);
 
   // implemented in: monstermove.cpp
@@ -10678,252 +12183,158 @@ namespace hr {
   extern vector<pair<cell*, int> > butterflies;
 #line 26 "monstermove.cpp"
   void addButterfly(cell *c);
-#line 35 "monstermove.cpp"
+#line 36 "monstermove.cpp"
   void makeTrollFootprints(cell *c);
-#line 41 "monstermove.cpp"
+#line 42 "monstermove.cpp"
   bool hasPrincessWeapon(eMonster m);
-#line 45 "monstermove.cpp"
+#line 46 "monstermove.cpp"
   void sageheat(cell *c, double v);
-#line 57 "monstermove.cpp"
+#line 58 "monstermove.cpp"
   void moveEffect(const movei& mi, eMonster m);
-#line 112 "monstermove.cpp"
+#line 113 "monstermove.cpp"
+  void check_beauty(cell *ct, cell *cf, eMonster m);
+#line 129 "monstermove.cpp"
   void moveMonster(const movei& mi);
-#line 349 "monstermove.cpp"
+#line 354 "monstermove.cpp"
   bool cannotGo(eMonster m, cell *c);
-#line 355 "monstermove.cpp"
+#line 360 "monstermove.cpp"
   bool wantsToStay(eMonster m);
-#line 359 "monstermove.cpp"
+#line 364 "monstermove.cpp"
   bool batsAfraid(cell *c);
-#line 378 "monstermove.cpp"
+#line 383 "monstermove.cpp"
   int angledist(int t, int d1, int d2);
-#line 386 "monstermove.cpp"
+#line 391 "monstermove.cpp"
   int angledistButterfly(int t, int d1, int d2, bool mirrored);
-#line 393 "monstermove.cpp"
+#line 398 "monstermove.cpp"
   int angledist(cell *c, int d1, int d2);
-#line 397 "monstermove.cpp"
+#line 402 "monstermove.cpp"
   bool anglestraight(cell *c, int d1, int d2);
-#line 401 "monstermove.cpp"
+#line 406 "monstermove.cpp"
   int bulldist(cell *c);
-#line 407 "monstermove.cpp"
+#line 412 "monstermove.cpp"
   int bulldistance(cell *c, cell *d);
-#line 414 "monstermove.cpp"
+#line 419 "monstermove.cpp"
   int landheattype(cell *c);
-#line 424 "monstermove.cpp"
+#line 429 "monstermove.cpp"
   int moveval(cell *c1, cell *c2, int d, flagtype mf);
-#line 551 "monstermove.cpp"
+#line 556 "monstermove.cpp"
   int stayval(cell *c, flagtype mf);
-#line 577 "monstermove.cpp"
+#line 582 "monstermove.cpp"
   int totalbulldistance(cell *c, int k);
-#line 587 "monstermove.cpp"
+#line 592 "monstermove.cpp"
   void determinizeBull(cell *c, vector<int>& posdir);
-#line 604 "monstermove.cpp"
+#line 609 "monstermove.cpp"
   int determinizeBullPush(cellwalker bull);
-#line 620 "monstermove.cpp"
+#line 625 "monstermove.cpp"
   int pickMoveDirection(cell *c, flagtype mf);
-#line 639 "monstermove.cpp"
+#line 644 "monstermove.cpp"
   int pickDownDirection(cell *c, flagtype mf);
-#line 661 "monstermove.cpp"
+#line 666 "monstermove.cpp"
   void beastAttack(cell *c, bool player, bool targetdir);
-#line 697 "monstermove.cpp"
+#line 702 "monstermove.cpp"
   extern bool quantum;
-#line 699 "monstermove.cpp"
+#line 704 "monstermove.cpp"
   cell *moveNormal(cell *c, flagtype mf);
-#line 790 "monstermove.cpp"
+#line 795 "monstermove.cpp"
   void mountmove(const movei& mi, bool fp);
-#line 815 "monstermove.cpp"
+#line 820 "monstermove.cpp"
   void moveWorm(cell *c);
-#line 955 "monstermove.cpp"
+#line 961 "monstermove.cpp"
   void ivynext(cell *c);
-#line 991 "monstermove.cpp"
+#line 997 "monstermove.cpp"
   void removeIvy(cell *c);
-#line 1008 "monstermove.cpp"
+#line 1014 "monstermove.cpp"
   void moveivy();
-#line 1078 "monstermove.cpp"
+#line 1084 "monstermove.cpp"
   bool isTargetOrAdjacent(cell *c);
-#line 1085 "monstermove.cpp"
+#line 1091 "monstermove.cpp"
   void groupmove2(const movei& mi, eMonster movtype, flagtype mf);
-#line 1192 "monstermove.cpp"
+#line 1198 "monstermove.cpp"
   void groupmove(eMonster movtype, flagtype mf);
-#line 1255 "monstermove.cpp"
+#line 1261 "monstermove.cpp"
   void moveHexSnake(const movei& mi, bool mounted);
-#line 1281 "monstermove.cpp"
+#line 1287 "monstermove.cpp"
   void snakeAttack(cell *c, bool mounted);
-#line 1292 "monstermove.cpp"
+#line 1298 "monstermove.cpp"
   bool goodmount(cell *c, bool mounted);
-#line 1297 "monstermove.cpp"
+#line 1303 "monstermove.cpp"
   int inpair(cell *c, int colorpair);
-#line 1301 "monstermove.cpp"
+#line 1307 "monstermove.cpp"
   int snake_pair(cell *c);
-#line 1309 "monstermove.cpp"
+#line 1315 "monstermove.cpp"
   void hexvisit(cell *c, cell *from, int d, bool mounted, int colorpair);
-#line 1344 "monstermove.cpp"
+#line 1350 "monstermove.cpp"
   void movehex(bool mounted, int colorpair);
-#line 1373 "monstermove.cpp"
+#line 1379 "monstermove.cpp"
   void movehex_rest(bool mounted);
-#line 1404 "monstermove.cpp"
+#line 1411 "monstermove.cpp"
   void movemutant();
-#line 1452 "monstermove.cpp"
+#line 1459 "monstermove.cpp"
   #define SHSIZE 16
-#line 1455 "monstermove.cpp"
+#line 1462 "monstermove.cpp"
   extern vector<array<cell*, MAXPLAYER>> shpos;
-#line 1456 "monstermove.cpp"
+#line 1463 "monstermove.cpp"
   extern int cshpos;
-#line 1458 "monstermove.cpp"
+#line 1465 "monstermove.cpp"
   extern cell *lastmountpos[MAXPLAYER];
-#line 1460 "monstermove.cpp"
-  void clearshadow();
 #line 1467 "monstermove.cpp"
-  void kill_shadow_at(cell *c);
+  void clearshadow();
 #line 1474 "monstermove.cpp"
+  void kill_shadow_at(cell *c);
+#line 1481 "monstermove.cpp"
   void moveshadow();
-#line 1509 "monstermove.cpp"
+#line 1518 "monstermove.cpp"
   void moveghosts();
-#line 1566 "monstermove.cpp"
+#line 1575 "monstermove.cpp"
   int stayvalue(eMonster m, cell *c);
-#line 1576 "monstermove.cpp"
+#line 1585 "monstermove.cpp"
   int movevalue(eMonster m, cell *c, int dir, flagtype flags);
-#line 1683 "monstermove.cpp"
+#line 1692 "monstermove.cpp"
   void movegolems(flagtype flags);
-#line 1781 "monstermove.cpp"
+#line 1789 "monstermove.cpp"
   void moveButterflies();
-#line 1804 "monstermove.cpp"
+#line 1812 "monstermove.cpp"
   void stormNextTurn(cell *c);
-#line 1809 "monstermove.cpp"
+#line 1817 "monstermove.cpp"
   void castWeakLightningBoltFrom(cell *c);
-#line 1814 "monstermove.cpp"
+#line 1822 "monstermove.cpp"
   void castWeakLightningBolt(cellwalker lig);
-#line 1908 "monstermove.cpp"
+#line 1916 "monstermove.cpp"
   void specialMoves();
-#line 2111 "monstermove.cpp"
+#line 2119 "monstermove.cpp"
   void moveworms();
-#line 2121 "monstermove.cpp"
-  void moveants();
 #line 2129 "monstermove.cpp"
+  void moveants();
+#line 2137 "monstermove.cpp"
   int getAntMove(cell *c);
-#line 2163 "monstermove.cpp"
+#line 2171 "monstermove.cpp"
   void refreshFriend(cell *c);
-#line 2172 "monstermove.cpp"
+#line 2180 "monstermove.cpp"
   void consMove(cell *c, eMonster param);
-#line 2198 "monstermove.cpp"
+#line 2206 "monstermove.cpp"
   void moveNormals(eMonster param);
-#line 2219 "monstermove.cpp"
+#line 2227 "monstermove.cpp"
   void movehex_all();
-#line 2228 "monstermove.cpp"
+#line 2236 "monstermove.cpp"
   void movemonsters();
-#line 2357 "monstermove.cpp"
+#line 2365 "monstermove.cpp"
   bool nogoSlow(cell *to, cell *from);
-#line 2363 "monstermove.cpp"
+#line 2371 "monstermove.cpp"
   void beastcrash(cell *c, cell *beast);
-#line 2401 "monstermove.cpp"
+#line 2409 "monstermove.cpp"
   void stayEffect(cell *c);
-#line 2414 "monstermove.cpp"
+#line 2422 "monstermove.cpp"
   int realstuntime(cell *c);
-
-  // implemented in: multigame.cpp
-
-#line 12 "multigame.cpp"
-  /** gamedata structure, for recording the game data in memory temporarily */
-  struct gamedata {
-  /** important parameters should be visible */
-  eGeometry geo;
-  eVariation var;
-  eLand specland;
-  bool active;
-  /** other properties are recorded here */
-  vector<char> record;
-  int index, mode;
-  void storegame();
-  void restoregame();
-  template<class T> void store(T& x) {
-  int ssize = sizeof(x);
-  if(ssize & 7) ssize = (ssize | 7) + 1;
-  if(mode == 0) {
-  record.resize(index+ssize);
-  T& at = *(new (&record[index]) T());
-  at = move(x);
-  }
-  else {
-  T& at = (T&) record[index];
-  x = move(at);
-  at.~T();
-  }
-  index += ssize;
-  }
-  template<class T> void store_ptr(T& x) {
-  T* copy;
-  if(mode == 0) {
-  copy = new T;
-  *copy = move(x);
-  }
-  store(copy);
-  if(mode != 0) {
-  x = move(*copy);
-  delete copy;
-  }
-  }
-  };
-#line 97 "multigame.cpp"
-  extern hookset<void(gamedata*)> hooks_gamedata;
-  namespace gamestack {
-#line 103 "multigame.cpp"
-    bool pushed();
-#line 105 "multigame.cpp"
-    void push();
-#line 110 "multigame.cpp"
-    void pop();
-    }
-  namespace dual {
-#line 121 "multigame.cpp"
-    extern int state;
-#line 124 "multigame.cpp"
-    extern bool one_euclidean;
-#line 126 "multigame.cpp"
-    extern int currently_loaded;
-#line 127 "multigame.cpp"
-    extern int main_side;
-#line 128 "multigame.cpp"
-    extern bool affect_both;
-#line 131 "multigame.cpp"
-    extern transmatrix player_orientation[2];
-#line 152 "multigame.cpp"
-    transmatrix get_orientation();
-#line 163 "multigame.cpp"
-    void switch_to(int k);
-#line 174 "multigame.cpp"
-    bool movepc(int d, int subdir, bool checkonly);
-#line 256 "multigame.cpp"
-    void in_subscreen(reaction_t what);
-#line 262 "multigame.cpp"
-    bool split(reaction_t what);
-#line 275 "multigame.cpp"
-    void enable();
-#line 319 "multigame.cpp"
-    void disable();
-#line 353 "multigame.cpp"
-    bool check_side(eLand l);
-#line 357 "multigame.cpp"
-    void assign_landsides();
-#line 425 "multigame.cpp"
-    void add_choice();
-#line 438 "multigame.cpp"
-    void split_or_do(reaction_t what);
-#line 443 "multigame.cpp"
-    bool may_split(reaction_t what);
-#line 451 "multigame.cpp"
-    void may_split_or_do(reaction_t what);
-#line 460 "multigame.cpp"
-    inline reaction_t mayboth(reaction_t what) { return [=] { may_split_or_do(what); }; }
-    }
 
   // implemented in: netgen.cpp
 
   #if CAP_MODEL
   namespace netgen {
-#line 75 "netgen.cpp"
+#line 76 "netgen.cpp"
     extern int mode;
-#line 77 "netgen.cpp"
+#line 78 "netgen.cpp"
     void buildVertexInfo(cell *c, transmatrix V);
-#line 740 "netgen.cpp"
+#line 773 "netgen.cpp"
     void run();
     }
   #endif
@@ -10940,11 +12351,11 @@ namespace hr {
   // implemented in: nonisotropic.cpp
 
   namespace nisot {
-#line 14 "nonisotropic.cpp"
-    inline bool local_perspective_used() { return nonisotropic || prod; }
-#line 17 "nonisotropic.cpp"
+#line 13 "nonisotropic.cpp"
+    extern bool local_perspective_used;
+#line 15 "nonisotropic.cpp"
     extern bool geodesic_movement;
-#line 19 "nonisotropic.cpp"
+#line 17 "nonisotropic.cpp"
     transmatrix translate(hyperpoint h, ld co IS(1));
     }
   #if !CAP_SOLV
@@ -10958,8 +12369,8 @@ namespace hr {
 #line 53 "nonisotropic.cpp"
     bool in();
 #line 55 "nonisotropic.cpp"
-    eGeometry geom();
-#line 61 "nonisotropic.cpp"
+    eGeometryClass geom();
+#line 60 "nonisotropic.cpp"
     typedef array<float, 3> compressed_point;
     
     inline hyperpoint decompress(compressed_point p) { return point3(p[0], p[1], p[2]); }
@@ -10983,63 +12394,81 @@ namespace hr {
     
     tabled_inverses(string s) : fname(s), texture_id(0), toload(true) {}  
     };
-#line 171 "nonisotropic.cpp"
+#line 173 "nonisotropic.cpp"
     ld x_to_ix(ld u);
-#line 185 "nonisotropic.cpp"
+#line 187 "nonisotropic.cpp"
     ld ix_to_x(ld ix);
-#line 197 "nonisotropic.cpp"
+#line 199 "nonisotropic.cpp"
     ld z_to_iz(ld z);
-#line 203 "nonisotropic.cpp"
+#line 205 "nonisotropic.cpp"
     ld iz_to_z(ld iz);
-#line 216 "nonisotropic.cpp"
+#line 218 "nonisotropic.cpp"
     hyperpoint azeq_to_table(hyperpoint x);
-#line 225 "nonisotropic.cpp"
+#line 227 "nonisotropic.cpp"
     hyperpoint table_to_azeq(hyperpoint x);
-#line 452 "nonisotropic.cpp"
+#line 454 "nonisotropic.cpp"
     pair<heptagon*,heptagon*> getcoord(heptagon *h);
-#line 456 "nonisotropic.cpp"
+#line 458 "nonisotropic.cpp"
     heptagon *get_at(heptagon *h1, heptagon *h2, bool gen);
-#line 462 "nonisotropic.cpp"
+#line 464 "nonisotropic.cpp"
     extern string common;
-#line 519 "nonisotropic.cpp"
+#line 521 "nonisotropic.cpp"
     hyperpoint get_inverse_exp_symsol(hyperpoint h, flagtype flags);
-#line 539 "nonisotropic.cpp"
+#line 541 "nonisotropic.cpp"
     hyperpoint get_inverse_exp_nsym(hyperpoint h, flagtype flags);
-#line 556 "nonisotropic.cpp"
+#line 558 "nonisotropic.cpp"
     extern string shader_symsol;
-#line 603 "nonisotropic.cpp"
+#line 605 "nonisotropic.cpp"
     extern string shader_nsymsol;
-#line 641 "nonisotropic.cpp"
+#line 643 "nonisotropic.cpp"
     extern string shader_nsym;
-#line 663 "nonisotropic.cpp"
+#line 665 "nonisotropic.cpp"
     extern ld solrange_xy;
-#line 664 "nonisotropic.cpp"
-    extern ld solrange_z;
 #line 666 "nonisotropic.cpp"
+    extern ld solrange_z;
+#line 668 "nonisotropic.cpp"
     bool in_table_range(hyperpoint h);
-#line 670 "nonisotropic.cpp"
-    extern tabled_inverses solt;
-#line 671 "nonisotropic.cpp"
-    extern tabled_inverses niht;
 #line 672 "nonisotropic.cpp"
-    extern tabled_inverses sont;
+    extern tabled_inverses solt;
+#line 673 "nonisotropic.cpp"
+    extern tabled_inverses niht;
 #line 674 "nonisotropic.cpp"
+    extern tabled_inverses sont;
+#line 676 "nonisotropic.cpp"
     tabled_inverses& get_tabled();
-#line 683 "nonisotropic.cpp"
+#line 685 "nonisotropic.cpp"
     int approx_distance(heptagon *h1, heptagon *h2);
-#line 692 "nonisotropic.cpp"
+#line 694 "nonisotropic.cpp"
     void create_faces();
     }
   #endif
   namespace nilv {
-#line 756 "nonisotropic.cpp"
+#line 750 "nonisotropic.cpp"
+    /** nmSym is the rotationally symmetric model of Nil, while nmHeis is the Heisenberg model. */
+    constexpr ld nmSym = 0, nmHeis = 1;
+#line 755 "nonisotropic.cpp"
+    extern ld model_used;
+#line 758 "nonisotropic.cpp"
+    ld sym_to_heis_bonus(const hyperpoint& H);
+#line 762 "nonisotropic.cpp"
+    hyperpoint convert(hyperpoint H, ld from, ld to);
+#line 767 "nonisotropic.cpp"
+    void convert_ref(hyperpoint& H, ld from, ld to);
+#line 771 "nonisotropic.cpp"
+    void convert_tangent_ref(hyperpoint at, hyperpoint& v, ld from, ld to);
+#line 775 "nonisotropic.cpp"
+    void convert_ref(transmatrix& T, ld from, ld to);
+#line 783 "nonisotropic.cpp"
+    hyperpoint checked_convert(hyperpoint H, ld from, ld to);
+#line 813 "nonisotropic.cpp"
     hyperpoint formula_exp(hyperpoint v);
-#line 777 "nonisotropic.cpp"
+#line 834 "nonisotropic.cpp"
     hyperpoint get_inverse_exp(hyperpoint h, flagtype prec IS(pNORMAL));
-#line 817 "nonisotropic.cpp"
-    extern string nilshader;
-#line 844 "nonisotropic.cpp"
+#line 876 "nonisotropic.cpp"
+    string nilshader();
+#line 905 "nonisotropic.cpp"
     struct mvec : array<int, 3> {
+    /** these are in nmHeis */
     
     mvec() { }
     
@@ -11056,92 +12485,120 @@ namespace hr {
     return mvec(a[0] + b[0], a[1] + b[1], a[2] + b[2] + a[0] * b[1]);
     }
     };
-#line 865 "nonisotropic.cpp"
+#line 927 "nonisotropic.cpp"
     extern ld nilwidth;
-#line 870 "nonisotropic.cpp"
+#line 932 "nonisotropic.cpp"
     struct nilstructure {
     vector<mvec> movevectors;
     vector<vector<hyperpoint>> facevertices;
     };
-#line 904 "nonisotropic.cpp"
+#line 938 "nonisotropic.cpp"
+    hyperpoint heis(ld x, ld y, ld z);
+#line 968 "nonisotropic.cpp"
     nilstructure& current_ns();
-#line 906 "nonisotropic.cpp"
+#line 970 "nonisotropic.cpp"
     extern array<int,3> nilperiod, nilperiod_edit;
-#line 909 "nonisotropic.cpp"
+#line 973 "nonisotropic.cpp"
     transmatrix adjmatrix(int i);
-#line 954 "nonisotropic.cpp"
+#line 1018 "nonisotropic.cpp"
     mvec get_coord(heptagon *h);
-#line 956 "nonisotropic.cpp"
+#line 1020 "nonisotropic.cpp"
     heptagon *get_heptagon_at(mvec m);
-#line 958 "nonisotropic.cpp"
+#line 1022 "nonisotropic.cpp"
     void set_flags();
-#line 966 "nonisotropic.cpp"
+#line 1030 "nonisotropic.cpp"
     hyperpoint on_geodesic(hyperpoint s0, hyperpoint s1, ld x);
-#line 972 "nonisotropic.cpp"
+#line 1036 "nonisotropic.cpp"
     color_t colorize(cell *c, char whichCanvas);
-#line 993 "nonisotropic.cpp"
+#line 1057 "nonisotropic.cpp"
     void prepare_niltorus3();
-#line 998 "nonisotropic.cpp"
+#line 1062 "nonisotropic.cpp"
     void show_niltorus3();
-#line 1037 "nonisotropic.cpp"
+#line 1101 "nonisotropic.cpp"
     void create_faces();
     }
-#line 1049 "nonisotropic.cpp"
+#line 1113 "nonisotropic.cpp"
   bool in_s2xe();
-#line 1050 "nonisotropic.cpp"
+#line 1114 "nonisotropic.cpp"
   bool in_h2xe();
-#line 1051 "nonisotropic.cpp"
+#line 1115 "nonisotropic.cpp"
   bool in_e2xe();
   namespace hybrid {
-#line 1055 "nonisotropic.cpp"
+#line 1119 "nonisotropic.cpp"
     extern eGeometry underlying;
-#line 1056 "nonisotropic.cpp"
+#line 1120 "nonisotropic.cpp"
     extern geometry_information *underlying_cgip;
-#line 1058 "nonisotropic.cpp"
+#line 1122 "nonisotropic.cpp"
     eGeometryClass under_class();
-#line 1060 "nonisotropic.cpp"
+#line 1131 "nonisotropic.cpp"
     extern int csteps;
-#line 1062 "nonisotropic.cpp"
+#line 1133 "nonisotropic.cpp"
     extern int disc_quotient;
-#line 1064 "nonisotropic.cpp"
+#line 1135 "nonisotropic.cpp"
     extern map<heptagon*, short> altmap_heights;
-#line 1066 "nonisotropic.cpp"
+#line 1137 "nonisotropic.cpp"
     void configure(eGeometry g);
-#line 1105 "nonisotropic.cpp"
+#line 1176 "nonisotropic.cpp"
     void reconfigure();
-#line 1114 "nonisotropic.cpp"
+#line 1185 "nonisotropic.cpp"
     extern hrmap *pmap;
-#line 1115 "nonisotropic.cpp"
+#line 1186 "nonisotropic.cpp"
     extern geometry_information *pcgip;
-#line 1116 "nonisotropic.cpp"
+#line 1187 "nonisotropic.cpp"
     extern eGeometry actual_geometry;
-#line 1141 "nonisotropic.cpp"
+#line 1190 "nonisotropic.cpp"
+    template<class T> auto in_actual(const T& t) -> decltype(t()) {
+    if(pmap == nullptr) return t();
+    dynamicval<eGeometry> g(geometry, actual_geometry);
+    dynamicval<geometry_information*> gc(cgip, pcgip);
+    dynamicval<hrmap*> gu(currentmap, pmap);
+    dynamicval<hrmap*> gup(pmap, NULL);
+    return t();  
+    }
+    
+    #define PIA(x) hr::hybrid::in_actual([&] { return (x); })
+#line 1217 "nonisotropic.cpp"
     vector<int>& make_shift(cell *c);
-#line 1147 "nonisotropic.cpp"
+#line 1223 "nonisotropic.cpp"
     int& get_shift_current(cellwalker cw);
-#line 1151 "nonisotropic.cpp"
-    bool have_shift(cellwalker cw);
-#line 1155 "nonisotropic.cpp"
-    int get_shift(cellwalker cw0);
-#line 1199 "nonisotropic.cpp"
-    void ensure_shifts(cell *c);
-#line 1215 "nonisotropic.cpp"
-    int cycle_discrepancy(cellwalker cw0);
 #line 1227 "nonisotropic.cpp"
+    bool have_shift(cellwalker cw);
+#line 1231 "nonisotropic.cpp"
+    int get_shift(cellwalker cw0);
+#line 1275 "nonisotropic.cpp"
+    void ensure_shifts(cell *c);
+#line 1291 "nonisotropic.cpp"
+    int cycle_discrepancy(cellwalker cw0);
+#line 1303 "nonisotropic.cpp"
     void fix_bounded_cycles();
-#line 1321 "nonisotropic.cpp"
+#line 1402 "nonisotropic.cpp"
     cell *get_at(cell *base, int level);
-#line 1325 "nonisotropic.cpp"
+#line 1406 "nonisotropic.cpp"
     pair<cell*, int> get_where(cell *c);
-#line 1327 "nonisotropic.cpp"
+#line 1408 "nonisotropic.cpp"
     void find_cell_connection(cell *c, int d);
-#line 1350 "nonisotropic.cpp"
+#line 1431 "nonisotropic.cpp"
     hrmap* get_umap();
-#line 1353 "nonisotropic.cpp"
+#line 1434 "nonisotropic.cpp"
     template<class T> auto in_underlying_geometry(const T& f) -> decltype(f()) {
-    if(!hybri) return f();
-    dynamicval<eGeometry> g(geometry, underlying);
+    if(!mhybrid && !gproduct) return f();
+    if(embedded_plane) {
+    if(cgi.emb->is_euc_in_product()) {
+    dynamicval<eGeometryClass> dgc(cginf.g.kind, cginf.g.sig[2] < 0 ? gcHyperbolic : gcSphere);
+    return f();
+    }
+    if(cgi.emb->is_cylinder()) {
+    dynamicval<eGeometryClass> dgc(cginf.g.kind, cginf.g.sig[2] < 0 ? gcHyperbolic : gcSphere);
+    return f();
+    }
+    geom3::light_flip(true);
+    finalizer ff([] { geom3::light_flip(false); });
+    return f();
+    }
+    if(geom3::flipped) throw hr_exception("called in_underlying_geometry in flipped");
+    pcgip = cgip;
     dynamicval<eGeometry> gag(actual_geometry, geometry);
+    dynamicval<eGeometry> g(geometry, underlying);
     dynamicval<int> gss(underlying_cgip->single_step, cgi.single_step);
     dynamicval<int> gsp(underlying_cgip->psl_steps, cgi.psl_steps);
     dynamicval<geometry_information*> gc(cgip, underlying_cgip);
@@ -11151,133 +12608,141 @@ namespace hr {
     }
     
     #define PIU(x) hr::hybrid::in_underlying_geometry([&] { return (x); })
-#line 1368 "nonisotropic.cpp"
+#line 1465 "nonisotropic.cpp"
+    void switch_to_underlying();
+#line 1480 "nonisotropic.cpp"
+    void switch_to_actual();
+#line 1489 "nonisotropic.cpp"
     hyperpoint get_corner(cell *c, int i, int next, ld z);
-#line 1405 "nonisotropic.cpp"
+#line 1534 "nonisotropic.cpp"
     vector<pair<int, cell*>> gen_sample_list();
-#line 1417 "nonisotropic.cpp"
+#line 1548 "nonisotropic.cpp"
     void will_link(cell *c);
-#line 1419 "nonisotropic.cpp"
+#line 1550 "nonisotropic.cpp"
     extern bool in_link;
-#line 1421 "nonisotropic.cpp"
+#line 1552 "nonisotropic.cpp"
     void link();
-#line 1445 "nonisotropic.cpp"
+#line 1576 "nonisotropic.cpp"
     int celldistance(cell *c1, cell *c2);
-#line 1472 "nonisotropic.cpp"
+#line 1603 "nonisotropic.cpp"
     void configure_period();
     }
   namespace product {
-#line 1586 "nonisotropic.cpp"
+#line 1717 "nonisotropic.cpp"
     extern bool current_spin_invalid, cmirror;
-#line 1587 "nonisotropic.cpp"
+#line 1718 "nonisotropic.cpp"
     extern int cspin;
-#line 1590 "nonisotropic.cpp"
+#line 1721 "nonisotropic.cpp"
     hyperpoint inverse_exp(hyperpoint h);
-#line 1612 "nonisotropic.cpp"
+#line 1743 "nonisotropic.cpp"
     hyperpoint direct_exp(hyperpoint h);
-#line 1622 "nonisotropic.cpp"
+#line 1753 "nonisotropic.cpp"
     bool validate_spin();
-#line 1644 "nonisotropic.cpp"
+#line 1775 "nonisotropic.cpp"
     void show_config();
     }
   namespace slr {
-#line 1683 "nonisotropic.cpp"
+#line 1815 "nonisotropic.cpp"
     extern ld range_xy;
-#line 1684 "nonisotropic.cpp"
-    extern int steps;
-#line 1686 "nonisotropic.cpp"
+#line 1818 "nonisotropic.cpp"
+    extern ld range_z;
+#line 1821 "nonisotropic.cpp"
+    extern int shader_iterations;
+#line 1823 "nonisotropic.cpp"
     transmatrix translate(hyperpoint h);
-#line 1695 "nonisotropic.cpp"
+#line 1832 "nonisotropic.cpp"
     hyperpoint polar(ld r, ld theta, ld phi);
-#line 1699 "nonisotropic.cpp"
+#line 1836 "nonisotropic.cpp"
     hyperpoint xyz_point(ld x, ld y, ld z);
-#line 1705 "nonisotropic.cpp"
+#line 1842 "nonisotropic.cpp"
     hyperpoint get_inverse_exp(shiftpoint h);
-#line 1882 "nonisotropic.cpp"
+#line 2019 "nonisotropic.cpp"
     extern string slshader;
     }
   namespace rots {
-#line 2026 "nonisotropic.cpp"
+#line 2163 "nonisotropic.cpp"
     extern ld underlying_scale;
     #if MAXMDIM >= 4
-#line 2029 "nonisotropic.cpp"
+#line 2166 "nonisotropic.cpp"
     transmatrix uxpush(ld x);
-#line 2034 "nonisotropic.cpp"
-    transmatrix uypush(ld y);
-#line 2039 "nonisotropic.cpp"
-    transmatrix uzpush(ld z);
-#line 2044 "nonisotropic.cpp"
-    transmatrix lift_matrix(const transmatrix& T);
-#line 2060 "nonisotropic.cpp"
-    extern std::map<int, transmatrix> saved_matrices_ray;
-#line 2124 "nonisotropic.cpp"
-    transmatrix qtm(hyperpoint h);
 #line 2171 "nonisotropic.cpp"
+    transmatrix uypush(ld y);
+#line 2176 "nonisotropic.cpp"
+    transmatrix uzpush(ld z);
+#line 2181 "nonisotropic.cpp"
+    transmatrix lift_matrix(const transmatrix& T);
+#line 2197 "nonisotropic.cpp"
+    extern std::map<int, transmatrix> saved_matrices_ray;
+#line 2261 "nonisotropic.cpp"
+    transmatrix qtm(hyperpoint h);
+#line 2308 "nonisotropic.cpp"
     extern bool drawing_underlying;
-#line 2173 "nonisotropic.cpp"
+#line 2310 "nonisotropic.cpp"
     void draw_underlying(bool cornermode);
-#line 2237 "nonisotropic.cpp"
+#line 2374 "nonisotropic.cpp"
     hyperpoint formula_exp(hyperpoint vel);
     #endif
     }
   namespace stretch {
-#line 2299 "nonisotropic.cpp"
+#line 2438 "nonisotropic.cpp"
     extern ld factor;
-#line 2301 "nonisotropic.cpp"
+#line 2440 "nonisotropic.cpp"
     extern bool mstretch;
-#line 2303 "nonisotropic.cpp"
+#line 2442 "nonisotropic.cpp"
     extern transmatrix m_itoa, m_atoi, m_pd;
-#line 2304 "nonisotropic.cpp"
+#line 2443 "nonisotropic.cpp"
     extern ld ms_christoffel[3][3][3];
-#line 2306 "nonisotropic.cpp"
+#line 2445 "nonisotropic.cpp"
     extern transmatrix mstretch_matrix;
-#line 2308 "nonisotropic.cpp"
+#line 2447 "nonisotropic.cpp"
     void enable_mstretch();
-#line 2419 "nonisotropic.cpp"
+#line 2558 "nonisotropic.cpp"
     bool applicable();
-#line 2423 "nonisotropic.cpp"
+#line 2562 "nonisotropic.cpp"
     bool in();
-#line 2427 "nonisotropic.cpp"
+#line 2566 "nonisotropic.cpp"
     transmatrix translate(hyperpoint h);
-#line 2437 "nonisotropic.cpp"
+#line 2576 "nonisotropic.cpp"
     transmatrix itranslate(hyperpoint h);
-#line 2451 "nonisotropic.cpp"
+#line 2590 "nonisotropic.cpp"
     ld squared();
-#line 2455 "nonisotropic.cpp"
+#line 2594 "nonisotropic.cpp"
     ld not_squared();
-#line 2459 "nonisotropic.cpp"
+#line 2598 "nonisotropic.cpp"
     hyperpoint isometric_to_actual(const hyperpoint at, const hyperpoint velocity);
-#line 2466 "nonisotropic.cpp"
+#line 2605 "nonisotropic.cpp"
     hyperpoint actual_to_isometric(const hyperpoint at, const hyperpoint velocity);
-#line 2473 "nonisotropic.cpp"
+#line 2612 "nonisotropic.cpp"
     hyperpoint christoffel(const hyperpoint at, const hyperpoint velocity, const hyperpoint transported);
-#line 2499 "nonisotropic.cpp"
+#line 2638 "nonisotropic.cpp"
     ld sqnorm(hyperpoint at, hyperpoint h);
-#line 2506 "nonisotropic.cpp"
+#line 2645 "nonisotropic.cpp"
     vector<hyperpoint> inverse_exp_all(hyperpoint h, int generations);
     }
   namespace nisot {
-#line 2643 "nonisotropic.cpp"
+#line 2779 "nonisotropic.cpp"
     hyperpoint christoffel(const hyperpoint at, const hyperpoint velocity, const hyperpoint transported);
-#line 2652 "nonisotropic.cpp"
+#line 2788 "nonisotropic.cpp"
     bool in_table_range(hyperpoint h);
-#line 2659 "nonisotropic.cpp"
+#line 2795 "nonisotropic.cpp"
     hyperpoint get_acceleration(const hyperpoint& at, const hyperpoint& vel);
-#line 2663 "nonisotropic.cpp"
+#line 2799 "nonisotropic.cpp"
     void geodesic_step(hyperpoint& at, hyperpoint& vel);
-#line 2674 "nonisotropic.cpp"
+#line 2810 "nonisotropic.cpp"
     extern int rk_steps;
-#line 2676 "nonisotropic.cpp"
+#line 2812 "nonisotropic.cpp"
     hyperpoint numerical_exp(hyperpoint v);
-#line 2684 "nonisotropic.cpp"
+#line 2820 "nonisotropic.cpp"
     transmatrix parallel_transport_bare(transmatrix Pos, hyperpoint h);
-#line 2775 "nonisotropic.cpp"
+#line 2911 "nonisotropic.cpp"
     void fixmatrix(transmatrix& T);
-#line 2784 "nonisotropic.cpp"
+#line 2920 "nonisotropic.cpp"
     transmatrix parallel_transport(const transmatrix Position, const hyperpoint direction);
-#line 2791 "nonisotropic.cpp"
+#line 2926 "nonisotropic.cpp"
+    transmatrix lie_transport(const transmatrix Position, const hyperpoint direction);
+#line 2933 "nonisotropic.cpp"
     transmatrix spin_towards(const transmatrix Position, const hyperpoint goal, flagtype prec IS(pNORMAL));
-#line 2803 "nonisotropic.cpp"
+#line 2945 "nonisotropic.cpp"
     hrmap *new_map();
     }
 
@@ -11379,102 +12844,106 @@ namespace hr {
   void placeLocalSpecial(cell *c, int outof, int loc IS(1), int priz IS(1));
 #line 577 "orbgen.cpp"
   void placeCrossroadOrbs(cell *c);
-#line 613 "orbgen.cpp"
+#line 614 "orbgen.cpp"
   void placeOceanOrbs(cell *c);
 
   // implemented in: orbs.cpp
 
-#line 11 "orbs.cpp"
-  extern bool orbused[ittypes], lastorbused[ittypes];
+#line 12 "orbs.cpp"
+  extern array<bool, ittypes> orbused;
 #line 13 "orbs.cpp"
+  extern array<bool, ittypes> lastorbused;
+#line 15 "orbs.cpp"
   bool markOrb(eItem it);
-#line 19 "orbs.cpp"
+#line 21 "orbs.cpp"
   bool markEmpathy(eItem it);
-#line 26 "orbs.cpp"
+#line 28 "orbs.cpp"
   bool markEmpathy2(eItem it);
-#line 33 "orbs.cpp"
+#line 35 "orbs.cpp"
   bool markOrb2(eItem it);
-#line 40 "orbs.cpp"
-  int fixpower(int qty);
-#line 45 "orbs.cpp"
+#line 42 "orbs.cpp"
+  int fixpower(int qty, bool checking);
+#line 47 "orbs.cpp"
   void useupOrb(eItem it, int qty);
-#line 50 "orbs.cpp"
+#line 52 "orbs.cpp"
   void drainOrb(eItem it, int target IS(0));
-#line 54 "orbs.cpp"
+#line 56 "orbs.cpp"
   void empathyMove(const movei& mi);
-#line 79 "orbs.cpp"
+#line 81 "orbs.cpp"
   int intensify(int val);
-#line 83 "orbs.cpp"
+#line 85 "orbs.cpp"
   bool reduceOrbPower(eItem it, int cap);
-#line 105 "orbs.cpp"
+#line 107 "orbs.cpp"
   void reduceOrbPowerAlways(eItem it);
-#line 112 "orbs.cpp"
+#line 114 "orbs.cpp"
   void reverse_curse(eItem curse, eItem orb, bool cancel);
-#line 126 "orbs.cpp"
+#line 128 "orbs.cpp"
   void chargeOrbs();
-#line 135 "orbs.cpp"
+#line 137 "orbs.cpp"
   void reduceOrbPowers();
-#line 236 "orbs.cpp"
+#line 240 "orbs.cpp"
   void flashAlchemist(cell *c);
-#line 245 "orbs.cpp"
+#line 247 "orbs.cpp"
   void flashCell(cell *c, eMonster killer, flagtype flags);
-#line 308 "orbs.cpp"
+#line 310 "orbs.cpp"
   void activateFlashFrom(cell *cf, eMonster who, flagtype flags);
-#line 324 "orbs.cpp"
+#line 327 "orbs.cpp"
   bool distanceBound(cell *c1, cell *c2, int d);
-#line 332 "orbs.cpp"
+#line 335 "orbs.cpp"
   void checkFreedom(cell *cf);
-#line 366 "orbs.cpp"
+#line 371 "orbs.cpp"
   void activateFlash();
-#line 383 "orbs.cpp"
+#line 389 "orbs.cpp"
   bool reflectingBarrierAt(cell *c);
-#line 390 "orbs.cpp"
+#line 396 "orbs.cpp"
   bool reflectingBarrierAt(cellwalker& c, int d);
-#line 406 "orbs.cpp"
+#line 412 "orbs.cpp"
   void killAdjacentSharks(cell *c);
-#line 430 "orbs.cpp"
+#line 436 "orbs.cpp"
   void castLightningBolt(cellwalker lig);
-#line 563 "orbs.cpp"
+#line 569 "orbs.cpp"
   void castLightningBoltFrom(cell *c);
-#line 567 "orbs.cpp"
+#line 574 "orbs.cpp"
   void activateLightning();
-#line 591 "orbs.cpp"
+#line 598 "orbs.cpp"
   bool haveRangedTarget();
-#line 618 "orbs.cpp"
+#line 625 "orbs.cpp"
   void teleportTo(cell *dest);
-#line 667 "orbs.cpp"
+#line 675 "orbs.cpp"
   bool jumpTo(orbAction a, cell *dest, eItem byWhat, int bonuskill IS(0), eMonster dashmon IS(moNone));
-#line 808 "orbs.cpp"
+#line 843 "orbs.cpp"
   eMonster summonedAt(cell *dest);
-#line 1044 "orbs.cpp"
+#line 1079 "orbs.cpp"
   void checkStunKill(cell *dest);
-#line 1179 "orbs.cpp"
+#line 1218 "orbs.cpp"
   bool monstersnearO(orbAction a, cell *c);
-#line 1188 "orbs.cpp"
+#line 1227 "orbs.cpp"
   bool isCheck(orbAction a);
-#line 1189 "orbs.cpp"
+#line 1228 "orbs.cpp"
   bool isWeakCheck(orbAction a);
-#line 1191 "orbs.cpp"
+#line 1230 "orbs.cpp"
   movei blowoff_destination(cell *c, int& di);
-#line 1206 "orbs.cpp"
-  int check_jump(cell *cf, cell *ct, flagtype flags, cell*& jumpthru);
-#line 1222 "orbs.cpp"
-  int check_phase(cell *cf, cell *ct, flagtype flags, cell*& jumpthru);
-#line 1238 "orbs.cpp"
-  cell *common_neighbor(cell *cf, cell *ct);
 #line 1245 "orbs.cpp"
+  int check_jump(cell *cf, cell *ct, flagtype flags, cell*& jumpthru);
+#line 1261 "orbs.cpp"
+  int check_phase(cell *cf, cell *ct, flagtype flags, cell*& jumpthru);
+#line 1277 "orbs.cpp"
+  cell *common_neighbor(cell *cf, cell *ct);
+#line 1284 "orbs.cpp"
   void apply_impact(cell *c);
-#line 1258 "orbs.cpp"
+#line 1297 "orbs.cpp"
   int check_vault(cell *cf, cell *ct, flagtype flags, cell*& jumpthru);
-#line 1276 "orbs.cpp"
+#line 1315 "orbs.cpp"
+  extern bool disable_orb_range;
+#line 1317 "orbs.cpp"
   eItem targetRangedOrb(cell *c, orbAction a);
-#line 1600 "orbs.cpp"
+#line 1690 "orbs.cpp"
   int orbcharges(eItem it);
-#line 1731 "orbs.cpp"
+#line 1822 "orbs.cpp"
   bool isShmupLifeOrb(eItem it);
-#line 1739 "orbs.cpp"
+#line 1830 "orbs.cpp"
   void makelava(cell *c, int i);
-#line 1747 "orbs.cpp"
+#line 1838 "orbs.cpp"
   void orboflava(int i);
 
   // implemented in: passable.cpp
@@ -11495,10 +12964,10 @@ namespace hr {
   bool strictlyAgainstGravity(cell *w, cell *from, bool revdir, flagtype flags);
 #line 92 "passable.cpp"
   bool anti_alchemy(cell *w, cell *from);
-#line 125 "passable.cpp"
+#line 138 "passable.cpp"
   #define P_MONSTER    Flag(0)  // can move through monsters
   #define P_MIRROR     Flag(1)  // can move through mirrors
-  #define P_REVDIR     Flag(2)  // reverse direction movement
+  // unused
   #define P_WIND       Flag(3)  // can move against the wind
   #define P_GRAVITY    Flag(4)  // can move against the gravity
   #define P_ISPLAYER   Flag(5)  // player-only moves (like the Round Table jump)
@@ -11532,51 +13001,51 @@ namespace hr {
   #define P_PHASE      Flag(33) // phasing movement
   #define P_PULLMAGNET Flag(34) // pull the other part of the magnet
   #define P_WATERCURSE Flag(35) // Curse of Water
-#line 163 "passable.cpp"
+#line 176 "passable.cpp"
   bool passable(cell *w, cell *from, flagtype flags);
-#line 317 "passable.cpp"
-  extern vector<pair<cell*, int> > airmap;
-#line 319 "passable.cpp"
-  int airdist(cell *c);
 #line 327 "passable.cpp"
+  extern vector<pair<cell*, int> > airmap;
+#line 329 "passable.cpp"
+  int airdist(cell *c);
+#line 337 "passable.cpp"
   ld calcAirdir(cell *c);
-#line 351 "passable.cpp"
+#line 361 "passable.cpp"
   bool againstWind(cell *cto, cell *cfrom);
-#line 379 "passable.cpp"
+#line 389 "passable.cpp"
   bool ghostmove(eMonster m, cell* to, cell* from, flagtype extra);
-#line 463 "passable.cpp"
-  bool canPushStatueOn(cell *c, flagtype flags);
-#line 470 "passable.cpp"
-  void moveBoat(const movei& mi);
 #line 477 "passable.cpp"
+  bool canPushStatueOn(cell *c, flagtype flags);
+#line 484 "passable.cpp"
+  void moveBoat(const movei& mi);
+#line 491 "passable.cpp"
   void moveBoatIfUsingOne(const movei& mi);
-#line 505 "passable.cpp"
+#line 519 "passable.cpp"
   bool againstPair(cell *c1, cell *c2, eMonster m);
-#line 511 "passable.cpp"
+#line 525 "passable.cpp"
   bool notNearItem(cell *c);
-#line 516 "passable.cpp"
+#line 530 "passable.cpp"
   bool isNeighbor1(cell *f, cell *w);
-#line 520 "passable.cpp"
+#line 534 "passable.cpp"
   bool passable_for(eMonster m, cell *w, cell *from, flagtype extra);
-#line 642 "passable.cpp"
+#line 656 "passable.cpp"
   eMonster movegroup(eMonster m);
-#line 644 "passable.cpp"
-  bool logical_adjacent(cell *c1, eMonster m1, cell *c2);
 #line 658 "passable.cpp"
+  bool logical_adjacent(cell *c1, eMonster m1, cell *c2);
+#line 672 "passable.cpp"
   void buildAirmap();
-#line 674 "passable.cpp"
+#line 688 "passable.cpp"
   extern int rosewave, rosephase;
-#line 683 "passable.cpp"
+#line 697 "passable.cpp"
   extern map<cell*, int> rosemap;
-#line 685 "passable.cpp"
-  int rosedist(cell *c);
-#line 693 "passable.cpp"
-  bool againstRose(cell *cfrom, cell *cto);
 #line 699 "passable.cpp"
+  int rosedist(cell *c);
+#line 707 "passable.cpp"
+  bool againstRose(cell *cfrom, cell *cto);
+#line 713 "passable.cpp"
   bool withRose(cell *cfrom, cell *cto);
-#line 705 "passable.cpp"
+#line 719 "passable.cpp"
   void buildRosemap();
-#line 742 "passable.cpp"
+#line 756 "passable.cpp"
   bool scentResistant();
 
   // implemented in: patterns.cpp
@@ -11694,9 +13163,9 @@ namespace hr {
   extern cell *global_pushto;
 #line 234 "pcmove.cpp"
   bool movepcto(int d, int subdir IS(1), bool checkonly IS(false));
-#line 392 "pcmove.cpp"
+#line 395 "pcmove.cpp"
   void copy_metadata(cell *x, const gcell *y);
-#line 408 "pcmove.cpp"
+#line 411 "pcmove.cpp"
   
   extern void playSound(cell *c, const string& fname, int vol);
   
@@ -11725,6 +13194,7 @@ namespace hr {
   forCellEx(c1, cwt.at) ccell(c1);
   value_keep(kills);
   value_keep(items);
+  value_keep(orbused);
   value_keep(hrngen);
   checking = ch;
   }
@@ -11814,11 +13284,11 @@ namespace hr {
   commits.push_back(v);
   }
   };
-#line 528 "pcmove.cpp"
+#line 532 "pcmove.cpp"
   extern changes_t changes;
-#line 539 "pcmove.cpp"
+#line 543 "pcmove.cpp"
   int chaos_mirror_dir(int dir, cellwalker src, cellwalker dst);
-#line 545 "pcmove.cpp"
+#line 549 "pcmove.cpp"
   template<class T> void swap_data(T& data, cell *c1, cell *c2) {
   changes.map_value(data, c1);
   changes.map_value(data, c2);
@@ -11829,69 +13299,71 @@ namespace hr {
   else if(data.count(c2))
   data[c1] = data[c2], data.erase(c2);
   }
-#line 717 "pcmove.cpp"
+#line 728 "pcmove.cpp"
   void tortoise_hero_message(cell *c2);
-#line 1089 "pcmove.cpp"
+#line 1096 "pcmove.cpp"
   bool chaos_forbidden(cell *c);
-#line 1093 "pcmove.cpp"
+#line 1100 "pcmove.cpp"
   int fatigue_cost(const movei& mi);
-#line 1281 "pcmove.cpp"
+#line 1288 "pcmove.cpp"
   inline bool movepcto(const movedir& md) { return movepcto(md.d, md.subdir); }
-#line 1285 "pcmove.cpp"
+#line 1291 "pcmove.cpp"
+  extern bool warning_shown;
+#line 1293 "pcmove.cpp"
   bool warningprotection(const string& s);
-#line 1309 "pcmove.cpp"
+#line 1319 "pcmove.cpp"
   bool warningprotection_hit(eMonster m);
-#line 1315 "pcmove.cpp"
+#line 1325 "pcmove.cpp"
   bool playerInWater();
-#line 1322 "pcmove.cpp"
+#line 1332 "pcmove.cpp"
   int numplayers();
-#line 1326 "pcmove.cpp"
+#line 1336 "pcmove.cpp"
   vector<cell*> player_positions();
-#line 1334 "pcmove.cpp"
+#line 1344 "pcmove.cpp"
   vector<int> player_indices();
-#line 1342 "pcmove.cpp"
+#line 1352 "pcmove.cpp"
   cell *playerpos(int i);
-#line 1348 "pcmove.cpp"
+#line 1358 "pcmove.cpp"
   bool allPlayersInBoats();
-#line 1354 "pcmove.cpp"
+#line 1364 "pcmove.cpp"
   int whichPlayerOn(cell *c);
-#line 1361 "pcmove.cpp"
+#line 1371 "pcmove.cpp"
   bool isPlayerOn(cell *c);
-#line 1365 "pcmove.cpp"
+#line 1375 "pcmove.cpp"
   bool isPlayerInBoatOn(cell *c, int i);
-#line 1372 "pcmove.cpp"
+#line 1382 "pcmove.cpp"
   bool playerInBoat(int i);
-#line 1376 "pcmove.cpp"
+#line 1386 "pcmove.cpp"
   bool isPlayerInBoatOn(cell *c);
-#line 1381 "pcmove.cpp"
+#line 1391 "pcmove.cpp"
   bool playerInPower();
-#line 1390 "pcmove.cpp"
+#line 1400 "pcmove.cpp"
   void playerMoveEffects(movei mi);
-#line 1446 "pcmove.cpp"
+#line 1456 "pcmove.cpp"
   void afterplayermoved();
-#line 1457 "pcmove.cpp"
+#line 1467 "pcmove.cpp"
   void produceGhost(cell *c, eMonster victim, eMonster who);
-#line 1466 "pcmove.cpp"
+#line 1476 "pcmove.cpp"
   bool swordAttack(cell *mt, eMonster who, cell *c, int bb);
-#line 1507 "pcmove.cpp"
-  void swordAttackStatic(int bb);
-#line 1511 "pcmove.cpp"
-  void swordAttackStatic();
-#line 1517 "pcmove.cpp"
-  extern int plague_kills;
 #line 1519 "pcmove.cpp"
+  void swordAttackStatic(int bb);
+#line 1523 "pcmove.cpp"
+  void swordAttackStatic();
+#line 1529 "pcmove.cpp"
+  extern int plague_kills;
+#line 1531 "pcmove.cpp"
   void spread_plague(cell *mf, cell *mt, int dir, eMonster who);
-#line 1527 "pcmove.cpp"
+#line 1539 "pcmove.cpp"
   void sideAttackAt(cell *mf, int dir, cell *mt, eMonster who, eItem orb, cell *pf);
-#line 1581 "pcmove.cpp"
+#line 1593 "pcmove.cpp"
   void sideAttack(cell *mf, int dir, eMonster who, int bonus, eItem orb);
-#line 1592 "pcmove.cpp"
+#line 1604 "pcmove.cpp"
   void sideAttack(cell *mf, int dir, eMonster who, int bonuskill);
-#line 1607 "pcmove.cpp"
+#line 1619 "pcmove.cpp"
   eMonster do_we_stab_a_friend(movei mi, eMonster who);
-#line 1627 "pcmove.cpp"
+#line 1639 "pcmove.cpp"
   void wouldkill(const char *msg);
-#line 1642 "pcmove.cpp"
+#line 1654 "pcmove.cpp"
   void movecost(cell* from, cell *to, int phase);
 
   // implemented in: polygons.cpp
@@ -11899,9 +13371,9 @@ namespace hr {
   #if CAP_SHAPES
 #line 14 "polygons.cpp"
   static constexpr ld NEWSHAPE = (-13.5);
-#line 308 "polygons.cpp"
+#line 374 "polygons.cpp"
   #define SHADMUL (S3==4 ? 1.05 : 1.3)
-#line 1495 "polygons.cpp"
+#line 1648 "polygons.cpp"
   extern vector<long double> polydata;
   #endif
 
@@ -11935,14 +13407,14 @@ namespace hr {
 #line 301 "quit.cpp"
   extern int hinttoshow;
 #line 316 "quit.cpp"
-  void showMission();
-#line 523 "quit.cpp"
+  void showGameMenu();
+#line 574 "quit.cpp"
   string safety_help();
-#line 536 "quit.cpp"
+#line 587 "quit.cpp"
   void handleKeyQuit(int sym, int uni);
-#line 599 "quit.cpp"
+#line 649 "quit.cpp"
   int counthints();
-#line 603 "quit.cpp"
+#line 653 "quit.cpp"
   void showMissionScreen();
 
   // implemented in: quotient.cpp
@@ -12004,7 +13476,7 @@ namespace hr {
     
     vector<cell*>& allcells() override { return celllist; }
     };
-#line 407 "quotient.cpp"
+#line 425 "quotient.cpp"
     struct hrmap_quotient* new_map();
     }
 
@@ -12022,105 +13494,111 @@ namespace hr {
     extern bool standard_centering;
 #line 22 "racing.cpp"
     extern bool track_ready;
-#line 28 "racing.cpp"
+#line 23 "racing.cpp"
+    extern bool official_race;
+#line 27 "racing.cpp"
     extern ld race_advance;
-#line 33 "racing.cpp"
+#line 32 "racing.cpp"
     extern int ghosts_to_show;
-#line 34 "racing.cpp"
+#line 33 "racing.cpp"
     extern int ghosts_to_save;
-#line 44 "racing.cpp"
+#line 43 "racing.cpp"
     extern vector<cell*> track;
-#line 47 "racing.cpp"
+#line 46 "racing.cpp"
     extern int trophy[MAXPLAYER];
-#line 49 "racing.cpp"
-    extern string track_code;
-#line 55 "racing.cpp"
-    void apply_seed();
-#line 61 "racing.cpp"
+#line 52 "racing.cpp"
     extern int race_start_tick, race_finish_tick[MAXPLAYER];
-#line 333 "racing.cpp"
+#line 82 "racing.cpp"
+    extern map<eLand, int> best_scores;
+#line 83 "racing.cpp"
+    extern map<eLand, int> best_scores_to_save;
+    #if CAP_FILES && CAP_EDIT
+#line 107 "racing.cpp"
+    void save_ghosts(hstream& f);
+#line 111 "racing.cpp"
+    void load_ghosts(hstream& f);
+    #endif
+#line 275 "racing.cpp"
     void block_cells(vector<cell*> to_block, function<bool(cell*)> blockbound);
-#line 390 "racing.cpp"
+#line 332 "racing.cpp"
     void make_bounded_track(cell *s);
-#line 426 "racing.cpp"
+#line 368 "racing.cpp"
     extern bool bounded_track;
-#line 428 "racing.cpp"
+#line 370 "racing.cpp"
     void generate_track();
-#line 746 "racing.cpp"
+#line 465 "racing.cpp"
+    extern vector<cell*> reachable_goals;
+#line 467 "racing.cpp"
+    void restore_goals();
+#line 472 "racing.cpp"
+    void configure_track(bool gen);
+#line 665 "racing.cpp"
+    void reset_race();
+#line 701 "racing.cpp"
     extern ld race_angle;
-#line 748 "racing.cpp"
+#line 703 "racing.cpp"
     bool force_standard_centering();
-#line 752 "racing.cpp"
+#line 707 "racing.cpp"
     bool use_standard_centering();
-#line 756 "racing.cpp"
+#line 711 "racing.cpp"
     transmatrix track_matrix(int at, int dir);
-#line 771 "racing.cpp"
+#line 726 "racing.cpp"
     bool set_view();
-#line 879 "racing.cpp"
+#line 859 "racing.cpp"
     extern vector<eLand> race_lands;
-#line 906 "racing.cpp"
+#line 886 "racing.cpp"
     string racetimeformat(int t);
+#line 904 "racing.cpp"
+    void load_official_track();
     #if MAXMDIM >= 4
-#line 1094 "racing.cpp"
+#line 1070 "racing.cpp"
     void thurston_racing();
     #endif
-#line 1254 "racing.cpp"
+#line 1204 "racing.cpp"
     void configure_race();
-#line 1280 "racing.cpp"
+#line 1231 "racing.cpp"
     void displayScore(eLand l);
-#line 1302 "racing.cpp"
+#line 1253 "racing.cpp"
+    extern int pause_limit;
+#line 1255 "racing.cpp"
+    bool started();
+#line 1259 "racing.cpp"
+    bool finished();
+#line 1264 "racing.cpp"
     void race_won();
-#line 1393 "racing.cpp"
+#line 1354 "racing.cpp"
     int get_percentage(cell *c);
-#line 1397 "racing.cpp"
+#line 1358 "racing.cpp"
     int get_percentage(int i);
-#line 1409 "racing.cpp"
+#line 1369 "racing.cpp"
     void drawStats();
-#line 1436 "racing.cpp"
+#line 1395 "racing.cpp"
     void markers();
-#line 1482 "racing.cpp"
+#line 1435 "racing.cpp"
     void add_debug(cell *c);
     #if MAXMDIM >= 4
-#line 1493 "racing.cpp"
+#line 1446 "racing.cpp"
     void start_thurston();
     #endif
     #endif
     #if !CAP_RACING
-#line 1504 "racing.cpp"
+#line 1457 "racing.cpp"
     extern always_false on;
     #endif
     }
 
   // implemented in: radar.cpp
 
-#line 5 "radar.cpp"
-  struct radarpoint {
-  hyperpoint h;
-  char glyph;
-  color_t color;
-  color_t line;
-  };
-  
-  struct radarline {
-  hyperpoint h1, h2;
-  color_t line;
-  };
-#line 18 "radar.cpp"
-  extern vector<radarpoint> radarpoints;
-#line 19 "radar.cpp"
-  extern vector<radarline> radarlines;
-#line 21 "radar.cpp"
-  extern transmatrix radar_transform;
   #if MAXMDIM >= 4
-#line 61 "radar.cpp"
+#line 48 "radar.cpp"
   void addradar(const shiftmatrix& V, char ch, color_t col, color_t outline);
-#line 68 "radar.cpp"
+#line 55 "radar.cpp"
   void addradar(const shiftpoint h1, const shiftpoint h2, color_t col);
   #endif
-#line 99 "radar.cpp"
+#line 86 "radar.cpp"
   void draw_radar(bool cornermode);
   #if MAXMDIM < 4
-#line 194 "radar.cpp"
+#line 193 "radar.cpp"
   void addradar(const shiftmatrix& V, char ch, color_t col, color_t outline);
   #endif
 
@@ -12151,34 +13629,40 @@ namespace hr {
 #line 43 "raycaster.cpp"
     extern ld maxstep_pro;
 #line 44 "raycaster.cpp"
+    extern ld maxstep_intra;
+#line 45 "raycaster.cpp"
     extern ld minstep;
-#line 46 "raycaster.cpp"
+#line 47 "raycaster.cpp"
     extern ld reflect_val;
-#line 50 "raycaster.cpp"
+#line 51 "raycaster.cpp"
     extern ld hard_limit;
-#line 52 "raycaster.cpp"
-    extern int max_iter_sol;
 #line 53 "raycaster.cpp"
-    extern int max_iter_iso;
+    extern int max_iter_intra;
 #line 54 "raycaster.cpp"
-    extern int max_iter_eyes;
+    extern int max_iter_sol;
+#line 55 "raycaster.cpp"
+    extern int max_iter_iso;
 #line 56 "raycaster.cpp"
+    extern int max_iter_eyes;
+#line 58 "raycaster.cpp"
     extern int max_cells;
-#line 57 "raycaster.cpp"
-    extern bool rays_generate;
 #line 59 "raycaster.cpp"
+    extern bool rays_generate;
+#line 61 "raycaster.cpp"
     ld& exp_decay_current();
-#line 64 "raycaster.cpp"
+#line 67 "raycaster.cpp"
     int& max_iter_current();
-#line 70 "raycaster.cpp"
+#line 74 "raycaster.cpp"
     bool is_eyes();
-#line 78 "raycaster.cpp"
+#line 82 "raycaster.cpp"
     bool is_stepbased();
-#line 100 "raycaster.cpp"
+#line 86 "raycaster.cpp"
+    bool horos();
+#line 114 "raycaster.cpp"
     bool available();
-#line 134 "raycaster.cpp"
-    bool requested();
 #line 148 "raycaster.cpp"
+    bool requested();
+#line 164 "raycaster.cpp"
     struct raycaster : glhr::GLprogram {
     GLint uStart, uStartid, uM, uLength, uIPD;
     GLint uWallstart, uWallX, uWallY;
@@ -12196,84 +13680,99 @@ namespace hr {
     GLint tM, uInvLengthM;
     GLint tWall, uInvLengthWall;
     
+    GLint tPortalConnections;
     raycaster(string vsh, string fsh);
     };
-#line 264 "raycaster.cpp"
+#line 281 "raycaster.cpp"
     extern hookset<void(string&, string&)> hooks_rayshader;
-#line 265 "raycaster.cpp"
+#line 282 "raycaster.cpp"
     extern hookset<bool(shared_ptr<raycaster>)> hooks_rayset;
-#line 1806 "raycaster.cpp"
+#line 2105 "raycaster.cpp"
+    transmatrix get_ms(cell *c, int a, bool mirror);
+#line 2136 "raycaster.cpp"
+    transmatrix mirrorize(transmatrix T);
+#line 2463 "raycaster.cpp"
     extern bool reset_rmap;
-#line 1808 "raycaster.cpp"
+#line 2465 "raycaster.cpp"
+    cell* rmap_get_by_id(int id);
+#line 2469 "raycaster.cpp"
+    int rmap_get_id_of(cell *c);
+#line 2473 "raycaster.cpp"
     void reset_raycaster();
-#line 1814 "raycaster.cpp"
+#line 2479 "raycaster.cpp"
     void reset_raycaster_map();
-#line 1818 "raycaster.cpp"
+#line 2483 "raycaster.cpp"
+    void load_walls(vector<glvertex>& wallx, vector<glvertex>& wally, vector<GLint>& wallstart);
+#line 2497 "raycaster.cpp"
     void cast();
     namespace volumetric {
-#line 2073 "raycaster.cpp"
+#line 2767 "raycaster.cpp"
       extern bool on;
-#line 2075 "raycaster.cpp"
+#line 2769 "raycaster.cpp"
       extern map<cell*, color_t> vmap;
-#line 2079 "raycaster.cpp"
+#line 2773 "raycaster.cpp"
       void enable();
-#line 2086 "raycaster.cpp"
+#line 2780 "raycaster.cpp"
       void random_fog();
-#line 2092 "raycaster.cpp"
+#line 2786 "raycaster.cpp"
       void menu();
       }
-#line 2144 "raycaster.cpp"
+#line 2838 "raycaster.cpp"
     void configure();
     #endif
     #if !CAP_RAY
-#line 2355 "raycaster.cpp"
+#line 3053 "raycaster.cpp"
     extern always_false in_use;
-#line 2356 "raycaster.cpp"
+#line 3054 "raycaster.cpp"
     extern always_false comparison_mode;
-#line 2357 "raycaster.cpp"
+#line 3055 "raycaster.cpp"
     void reset_raycaster();
-#line 2358 "raycaster.cpp"
+#line 3056 "raycaster.cpp"
     void cast();
     #endif
     }
 
   // implemented in: reg3.cpp
 
-  #if MAXMDIM >= 4
-#line 16 "reg3.cpp"
+#line 15 "reg3.cpp"
   hyperpoint final_coords(hyperpoint h);
   namespace reg3 {
-#line 91 "reg3.cpp"
-    extern int subcube_count;
-#line 93 "reg3.cpp"
-    extern flagtype coxeter_param;
-#line 100 "reg3.cpp"
-    inline short& altdist(heptagon *h) { return h->emeraldval; }
-#line 103 "reg3.cpp"
-    extern int extra_verification;
-#line 105 "reg3.cpp"
-    extern bool ultra_mirror_on;
-#line 107 "reg3.cpp"
-    bool ultra_mirror_in();
-#line 109 "reg3.cpp"
-    bool in();
-#line 114 "reg3.cpp"
-    void compute_ultra();
-#line 172 "reg3.cpp"
+#line 71 "reg3.cpp"
     void make_vertices_only(vector<hyperpoint>& vo, const vector<vector<hyperpoint>>& csh);
-#line 182 "reg3.cpp"
+    }
+  #if MAXMDIM >= 4
+  namespace reg3 {
+#line 101 "reg3.cpp"
+    extern int subcube_count;
+#line 103 "reg3.cpp"
+    extern flagtype coxeter_param;
+#line 110 "reg3.cpp"
+    inline short& altdist(heptagon *h) { return h->emeraldval; }
+#line 113 "reg3.cpp"
+    extern int extra_verification;
+#line 115 "reg3.cpp"
+    extern bool ultra_mirror_on;
+#line 117 "reg3.cpp"
+    bool ultra_mirror_in();
+#line 119 "reg3.cpp"
+    extern bool cubes_reg3;
+#line 121 "reg3.cpp"
+    bool in();
+#line 127 "reg3.cpp"
+    void compute_ultra();
+#line 185 "reg3.cpp"
     void generate();
-#line 344 "reg3.cpp"
+#line 349 "reg3.cpp"
     void generate_plain_subcubes();
-#line 365 "reg3.cpp"
+#line 370 "reg3.cpp"
     void generate_coxeter(flagtype f);
-#line 429 "reg3.cpp"
+#line 434 "reg3.cpp"
     void generate_special_subcubes(bool bch);
-#line 624 "reg3.cpp"
+#line 629 "reg3.cpp"
     void generate_bch_oct();
-#line 667 "reg3.cpp"
+#line 672 "reg3.cpp"
     void generate_subcells();
-#line 711 "reg3.cpp"
+#line 718 "reg3.cpp"
     /** \brief vertex_adjacencies[heptagon id] is a list of other heptagons which are vertex adjacent 
     *  note: in case of ideal vertices this is just the face adjacency
     **/
@@ -12307,6 +13806,10 @@ namespace hr {
     void initialize(int cell_count);
     vector<cell*>& allcells() override { return acells; }
     
+    ~hrmap_closed3() {
+    clearfrom(getOrigin());
+    }
+    
     subcellshape& get_cellshape(cell *c) override {
     if(PURE) return *cgi.heptshape ;
     int id = local_id.at(c).second;
@@ -12338,59 +13841,79 @@ namespace hr {
     };
     
     struct hrmap_quotient3 : hrmap_closed3 { };
-#line 794 "reg3.cpp"
+#line 805 "reg3.cpp"
     const vector<hyperpoint>& get_face_vertices(cell *c, int d);
-#line 798 "reg3.cpp"
+#line 809 "reg3.cpp"
     int get_face_vertex_count(cell *c, int d);
     #if CAP_CRYSTAL
-#line 1023 "reg3.cpp"
-    crystal::coord decode_coord(int a);
+#line 1034 "reg3.cpp"
+    crystal::coord decode_coord(int bits, int a);
     #endif
-#line 1675 "reg3.cpp"
+#line 1306 "reg3.cpp"
+    extern bool minimize_quotient_maps;
+#line 1308 "reg3.cpp"
+    extern bool strafe_test;
+#line 1744 "reg3.cpp"
+    int get_aid(cell *c);
+#line 1751 "reg3.cpp"
+    int get_size_of_aid(int aid);
+#line 1836 "reg3.cpp"
     const transmatrix& get_sphere_loc(int v);
-#line 2097 "reg3.cpp"
+#line 2466 "reg3.cpp"
     hrmap *new_alt_map(heptagon *o);
-#line 2122 "reg3.cpp"
-    extern bool reg3_rule_available;
-#line 2123 "reg3.cpp"
-    extern string other_rule;
-#line 2125 "reg3.cpp"
-    string get_rule_filename();
-#line 2144 "reg3.cpp"
-    bool in_rule();
-#line 2148 "reg3.cpp"
+#line 2472 "reg3.cpp"
+    extern int consider_rules;
+#line 2474 "reg3.cpp"
+    extern string replace_rule_file;
+#line 2476 "reg3.cpp"
+    string get_rule_filename(bool with_variations);
+#line 2495 "reg3.cpp"
+    bool variation_rule_available();
+#line 2499 "reg3.cpp"
+    bool pure_rule_available();
+#line 2511 "reg3.cpp"
+    void dump_rules(string fname);
+#line 2516 "reg3.cpp"
     int rule_get_root(int i);
-#line 2152 "reg3.cpp"
+#line 2520 "reg3.cpp"
     const vector<short>& rule_get_children();
-#line 2156 "reg3.cpp"
+#line 2524 "reg3.cpp"
+    const vector<int>& rule_get_childpos();
+#line 2528 "reg3.cpp"
     hrmap* new_map();
-#line 2170 "reg3.cpp"
+#line 2543 "reg3.cpp"
+    bool in_hrmap_h3();
+#line 2547 "reg3.cpp"
+    bool in_hrmap_rule_or_subrule();
+#line 2551 "reg3.cpp"
+    bool exact_rules();
+#line 2556 "reg3.cpp"
     int quotient_count();
-#line 2217 "reg3.cpp"
+#line 2560 "reg3.cpp"
+    int quotient_count_sub();
+#line 2607 "reg3.cpp"
     int celldistance(cell *c1, cell *c2);
-#line 2241 "reg3.cpp"
+#line 2631 "reg3.cpp"
     bool pseudohept(cell *c);
-#line 2284 "reg3.cpp"
+#line 2676 "reg3.cpp"
     void generate_cellrotations();
     #endif
     #if MAXMDIM >= 4
-#line 2412 "reg3.cpp"
+#line 2804 "reg3.cpp"
     int matrix_order(const transmatrix A);
-#line 2421 "reg3.cpp"
+#line 2813 "reg3.cpp"
     void generate_fulls();
-#line 2440 "reg3.cpp"
-    void construct_relations();
-#line 2508 "reg3.cpp"
+#line 2837 "reg3.cpp"
     void edit_variation();
-#line 2567 "reg3.cpp"
+#line 2896 "reg3.cpp"
     void configure_variation();
     }
   #endif
   #if MAXMDIM == 3
   namespace reg3 {
-#line 2579 "reg3.cpp"
+#line 2908 "reg3.cpp"
     bool in();
-#line 2580 "reg3.cpp"
+#line 2909 "reg3.cpp"
     bool in_rule();
     }
   #endif
@@ -12430,7 +13953,7 @@ namespace hr {
   resetbuffer();
   void reset();
   };
-#line 171 "renderbuffer.cpp"
+#line 172 "renderbuffer.cpp"
   extern int current_rbuffer;
 
   // implemented in: rug.cpp
@@ -12560,19 +14083,19 @@ namespace hr {
     extern map<cell*, rugpoint*> rug_map;
 #line 170 "rug.cpp"
     rugpoint *addRugpoint(shiftpoint h, double dist);
-#line 275 "rug.cpp"
+#line 273 "rug.cpp"
     rugpoint *findRugpoint(shiftpoint h);
-#line 282 "rug.cpp"
+#line 280 "rug.cpp"
     rugpoint *findOrAddRugpoint(shiftpoint h, double dist);
-#line 293 "rug.cpp"
+#line 291 "rug.cpp"
     bool edge_exists(rugpoint *e1, rugpoint *e2);
-#line 313 "rug.cpp"
+#line 311 "rug.cpp"
     void addTriangle(rugpoint *t1, rugpoint *t2, rugpoint *t3, ld len IS(1));
-#line 341 "rug.cpp"
+#line 339 "rug.cpp"
     void sort_rug_points();
-#line 351 "rug.cpp"
+#line 349 "rug.cpp"
     void calcparam_rug();
-#line 362 "rug.cpp"
+#line 360 "rug.cpp"
     struct clifford_torus {
     transmatrix T;
     transmatrix iT;
@@ -12588,292 +14111,190 @@ namespace hr {
     }
     clifford_torus();
     ld get_modelscale() {
-    return hypot_d(2, xh) * xfactor * 2 * M_PI;
+    return hypot_d(2, xh) * xfactor * TAU;
     }
     ld compute_mx();  
     };
     #if MAXMDIM >= 4
-#line 427 "rug.cpp"
+#line 431 "rug.cpp"
     void buildTorusRug();
     #endif
-#line 529 "rug.cpp"
+#line 533 "rug.cpp"
     void verify();
-#line 555 "rug.cpp"
+#line 559 "rug.cpp"
     void buildRug();
-#line 629 "rug.cpp"
+#line 633 "rug.cpp"
     void enqueue(rugpoint *m);
-#line 687 "rug.cpp"
+#line 691 "rug.cpp"
     void preset(rugpoint *m);
-#line 757 "rug.cpp"
+#line 761 "rug.cpp"
     void optimize(rugpoint *m, bool do_preset);
-#line 783 "rug.cpp"
-    extern int divides;
-#line 784 "rug.cpp"
-    extern int precision_increases;
 #line 787 "rug.cpp"
+    extern int divides;
+#line 788 "rug.cpp"
+    extern int precision_increases;
+#line 791 "rug.cpp"
     bool subdivide_further();
-#line 793 "rug.cpp"
+#line 797 "rug.cpp"
     void subdivide();
-#line 848 "rug.cpp"
+#line 852 "rug.cpp"
     ld modeldist(const hyperpoint& h1, const hyperpoint& h2);
-#line 940 "rug.cpp"
+#line 944 "rug.cpp"
     void addNewPoints();
-#line 970 "rug.cpp"
+#line 974 "rug.cpp"
     void physics();
-#line 1034 "rug.cpp"
+#line 1038 "rug.cpp"
     extern basic_textureinfo tinf;
-#line 1056 "rug.cpp"
+#line 1060 "rug.cpp"
     extern struct renderbuffer *glbuf;
-#line 1058 "rug.cpp"
+#line 1062 "rug.cpp"
     void prepareTexture();
-#line 1095 "rug.cpp"
+#line 1099 "rug.cpp"
     extern bool no_fog;
-#line 1097 "rug.cpp"
+#line 1101 "rug.cpp"
     extern ld lowrug;
-#line 1098 "rug.cpp"
-    extern ld hirug;
-#line 1100 "rug.cpp"
-    extern GLuint alternate_texture;
 #line 1102 "rug.cpp"
+    extern ld hirug;
+#line 1104 "rug.cpp"
+    extern GLuint alternate_texture;
+#line 1106 "rug.cpp"
     bool rug_control();
-#line 1105 "rug.cpp"
+#line 1109 "rug.cpp"
     
     struct using_rugview {
     using_rugview() { if(rug_control()) swap(View, rugView), swap(geometry, gwhere); }
     ~using_rugview() { if(rug_control()) swap(View, rugView), swap(geometry, gwhere); }
     };
     
-#line 1113 "rug.cpp"
+#line 1117 "rug.cpp"
     extern purehookset hooks_rugframe;
-#line 1115 "rug.cpp"
+#line 1119 "rug.cpp"
     void drawRugScene();
-#line 1153 "rug.cpp"
+#line 1157 "rug.cpp"
     extern transmatrix currentrot;
-#line 1155 "rug.cpp"
+#line 1159 "rug.cpp"
     void close_glbuf();
-#line 1160 "rug.cpp"
+#line 1164 "rug.cpp"
     void ensure_glbuf();
-#line 1170 "rug.cpp"
+#line 1174 "rug.cpp"
     void reopen();
-#line 1181 "rug.cpp"
+#line 1185 "rug.cpp"
     extern bool display_warning;
-#line 1183 "rug.cpp"
+#line 1187 "rug.cpp"
     void init_model();
-#line 1231 "rug.cpp"
+#line 1235 "rug.cpp"
     void reset_view();
-#line 1239 "rug.cpp"
+#line 1243 "rug.cpp"
     void init();
-#line 1246 "rug.cpp"
+#line 1250 "rug.cpp"
     void clear_model();
-#line 1254 "rug.cpp"
+#line 1258 "rug.cpp"
     void close();
-#line 1267 "rug.cpp"
+#line 1271 "rug.cpp"
     bool handlekeys(int sym, int uni);
-#line 1310 "rug.cpp"
+#line 1314 "rug.cpp"
     void finger_on(int coord, ld val);
-#line 1320 "rug.cpp"
+#line 1324 "rug.cpp"
     extern ld move_on_touch;
-#line 1322 "rug.cpp"
+#line 1326 "rug.cpp"
     void actDraw();
-#line 1370 "rug.cpp"
+#line 1374 "rug.cpp"
     shiftpoint gethyper(ld x, ld y);
-#line 1490 "rug.cpp"
+#line 1494 "rug.cpp"
     string makehelp();
-#line 1512 "rug.cpp"
+#line 1516 "rug.cpp"
     void rug_geometry_choice();
-#line 1541 "rug.cpp"
+#line 1545 "rug.cpp"
     void show();
-#line 1732 "rug.cpp"
+#line 1736 "rug.cpp"
     void select();
-#line 1737 "rug.cpp"
+#line 1741 "rug.cpp"
     void rug_save(string fname);
-#line 1777 "rug.cpp"
+#line 1781 "rug.cpp"
     void rug_load(string fname);
     }
   #endif
   #if !CAP_RUG
   namespace rug {
-#line 1932 "rug.cpp"
-    extern bool rugged;
-#line 1933 "rug.cpp"
-    extern bool renderonce;
-#line 1934 "rug.cpp"
-    extern bool rendernogl;
-#line 1935 "rug.cpp"
-    extern bool mouse_control_rug;
 #line 1936 "rug.cpp"
-    extern int texturesize;
+    extern bool rugged;
 #line 1937 "rug.cpp"
-    extern ld scale;
+    extern bool renderonce;
 #line 1938 "rug.cpp"
-    bool rug_control();
+    extern bool rendernogl;
 #line 1939 "rug.cpp"
-    bool in_crystal();
+    extern bool mouse_control_rug;
 #line 1940 "rug.cpp"
-    void reset_view();
+    extern int texturesize;
 #line 1941 "rug.cpp"
-    void close();
+    extern ld scale;
+#line 1942 "rug.cpp"
+    bool rug_control();
 #line 1943 "rug.cpp"
+    bool in_crystal();
+#line 1944 "rug.cpp"
+    void reset_view();
+#line 1945 "rug.cpp"
+    void close();
+#line 1947 "rug.cpp"
     struct using_rugview {};
     }
   #endif
 
-  // implemented in: rulegen.cpp
+  // implemented in: rulegen3.cpp
 
   namespace rulegen {
-#line 15 "rulegen.cpp"
-    extern int max_retries;
-#line 16 "rulegen.cpp"
-    extern int max_tcellcount;
-#line 17 "rulegen.cpp"
-    extern int max_adv_steps;
-#line 18 "rulegen.cpp"
-    extern int max_examine_branch;
-#line 19 "rulegen.cpp"
-    extern int max_bdata;
-#line 22 "rulegen.cpp"
-    extern int dlbonus;
-#line 25 "rulegen.cpp"
-    /** exception thrown by this algoritm in case of any problems */
-    struct rulegen_failure : hr_exception {
-    rulegen_failure(string _s) : hr_exception(_s) {}
+#line 19 "rulegen3.cpp"
+    extern map<int, shared_ptr<struct road_shortcut_trie_vertex>> road_shortcuts;
+#line 26 "rulegen3.cpp"
+    void add_road_shortcut(tcell *s, tcell *t);
+#line 59 "rulegen3.cpp"
+    extern int newcon;
+#line 61 "rulegen3.cpp"
+    void apply_road_shortcut(tcell *s);
+#line 92 "rulegen3.cpp"
+    extern map<vector<int>, int> roadsign_id;
+#line 94 "rulegen3.cpp"
+    int get_roadsign(twalker what);
+#line 224 "rulegen3.cpp"
+    extern int max_ignore_level_pre;
+#line 225 "rulegen3.cpp"
+    extern int max_ignore_level_post;
+#line 226 "rulegen3.cpp"
+    extern int max_ignore_time_pre;
+#line 227 "rulegen3.cpp"
+    extern int max_ignore_time_post;
+#line 954 "rulegen3.cpp"
+    void trace_relation(vector<int> path1, vector<int> path2, int id);
+#line 971 "rulegen3.cpp"
+    void make_path_important(tcell *s, vector<int> p);
+#line 978 "rulegen3.cpp"
+    void find_multiple_interpretation();
+#line 1090 "rulegen3.cpp"
+    extern int max_err_iter;
+#line 1092 "rulegen3.cpp"
+    void test_transducers();
+#line 1341 "rulegen3.cpp"
+    void check_upto(int lev, int t);
+#line 1394 "rulegen3.cpp"
+    void optimize();
+#line 1479 "rulegen3.cpp"
+    void check_road_shortcuts();
+#line 1492 "rulegen3.cpp"
+    void check_validity_3d();
+#line 1517 "rulegen3.cpp"
+    struct cycle {
+    vector<int> dirs;
+    vector<int> tids;
+    vector<int> rdirs;
+    bool operator < (const cycle& c2) const { return tie(dirs, tids, rdirs) < tie(c2.dirs, c2.tids, c2.rdirs); }
     };
-    
-    /** this exception is thrown if we want to restart the computation -- this is normal, but if thrown more than max_retries times, just surrender */
-    struct rulegen_retry : rulegen_failure {
-    rulegen_retry(string _s) : rulegen_failure(_s) {}
-    };
-    
-    /** this exception is thrown in case if we run into a special case that is not implemented yet */
-    struct rulegen_surrender : rulegen_failure {
-    rulegen_surrender(string _s) : rulegen_failure(_s) {}
-    };
-    
-    const int MYSTERY = 31999;
-    const int MYSTERY_DIST = 31998;
-#line 47 "rulegen.cpp"
-    extern int tcellcount;
-#line 49 "rulegen.cpp"
-    extern int tunified;
-#line 52 "rulegen.cpp"
-    struct tcell* tmove(tcell *c, int d);
-    
-    /** rulegen algorithm works on tcells which have their own map generation */
-    struct tcell {
-    /** tcells form a list */
-    tcell *next;
-    /** shape ID in arb::current */
-    int id;
-    /** degree */
-    int type;
-    /** distance from the root */
-    short dist;
-    /** cached code */
-    short code;
-    /** direction to the parent in the tree */
-    short parent_dir;
-    /** can we assume that dist is correct? if we assumed that the dist is correct but then find out it was wrong, throw an error */
-    bool is_solid;
-    bool distance_fixed;
-    /** sometimes we find out that multiple tcells represent the same actual cell -- in this case we unify them; unified_to is used for the union-find algorithm */
-    walker<tcell> unified_to;
-    int degree() { return type; }
-    connection_table<tcell> c;                           
-    tcell*& move(int d) { return c.move(d); }
-    tcell*& modmove(int d) { return c.modmove(d); }
-    tcell* cmove(int d) { return tmove(this, d); }
-    tcell* cmodmove(int d) { return tmove(this, c.fix(d)); }
-    tcell() { }
-    };
-    
-    inline void print(hstream& hs, tcell* h) { print(hs, "P", index_pointer(h)); }
-    
-    using twalker = walker<tcell>;
-#line 116 "rulegen.cpp"
-    extern tcell *first_tcell;
-#line 238 "rulegen.cpp"
-    extern vector<tcell*> t_origin;
-#line 252 "rulegen.cpp"
-    extern vector<twalker> debuglist;
-#line 447 "rulegen.cpp"
-    void look_for_shortcuts(tcell *c);
-#line 540 "rulegen.cpp"
-    using aid_t = pair<int, int>;
-    
-    struct analyzer {
-    vector<twalker> spread;
-    vector<int> parent_id;
-    vector<int> spin;
-    void add_step(int pid, int s);
-    };
-#line 561 "rulegen.cpp"
-    extern map<aid_t, analyzer> analyzers;
-#line 563 "rulegen.cpp"
-    aid_t get_aid(twalker cw);
-#line 569 "rulegen.cpp"
-    analyzer& get_analyzer(twalker cw);
-#line 582 "rulegen.cpp"
-    vector<twalker> spread(analyzer& a, twalker cw);
-#line 633 "rulegen.cpp"
-    using code_t = pair<aid_t, vector<int> >;
-    
-    struct treestate {
-    int id;
-    bool known;
-    vector<int> rules;
-    twalker giver;
-    int sid;
-    int parent_dir;
-    tcell* where_seen;
-    code_t code;
-    bool is_live;
-    bool is_possible_parent;
-    bool is_root;
-    vector<pair<int, int>> possible_parents;
-    };
-    
-    static const int C_IGNORE = 0;
-    static const int C_CHILD = 1;
-    static const int C_UNCLE = 2;
-    static const int C_EQUAL = 4;
-    static const int C_NEPHEW = 6;  
-    static const int C_PARENT = 8;
-#line 658 "rulegen.cpp"
-    extern vector<treestate> treestates;
-#line 750 "rulegen.cpp"
-    pair<int, int> get_code(tcell *c);
-#line 797 "rulegen.cpp"
-    extern int rule_root;
-#line 801 "rulegen.cpp"
-    extern int try_count;
-#line 807 "rulegen.cpp"
-    /* special codes */
-    static const int DIR_UNKNOWN = -1;
-    static const int DIR_MULTI_GO_LEFT = -2;
-    static const int DIR_MULTI_GO_RIGHT = -3;
-    static const int DIR_LEFT = -4;
-    static const int DIR_RIGHT = -5;
-    static const int DIR_PARENT = -6;
-#line 1387 "rulegen.cpp"
-    void generate_rules();
-#line 1658 "rulegen.cpp"
-    int get_arb_dir(cell *c, int dir);
-#line 1662 "rulegen.cpp"
-    hrmap *new_hrmap_rulegen_alt(heptagon *h);
-#line 1666 "rulegen.cpp"
-    hrmap *new_hrmap_rulegen();
-#line 1668 "rulegen.cpp"
-    int get_state(cell *c);
-#line 1675 "rulegen.cpp"
-    bool known();
-#line 1679 "rulegen.cpp"
-    bool prepare_rules();
-#line 1740 "rulegen.cpp"
-    void parse_treestate(arb::arbi_tiling& c, exp_parser& ep);
-#line 1780 "rulegen.cpp"
-    void verify_parsed_treestates();
-#line 1793 "rulegen.cpp"
-    void show();
+#line 1525 "rulegen3.cpp"
+    extern vector<vector<cycle>> cycle_data;
+#line 1527 "rulegen3.cpp"
+    void build_cycle_data();
+#line 1697 "rulegen3.cpp"
+    void cleanup3();
     }
 
   // implemented in: savemem.cpp
@@ -12963,161 +14384,169 @@ namespace hr {
     void fatten(vector<hyperpoint>& data, vector<glvertex>& tdata);
 #line 376 "screenshot.cpp"
     int texture_type(dqi_poly& p);
-#line 389 "screenshot.cpp"
+#line 391 "screenshot.cpp"
     void prepare(dqi_poly& p);
-#line 403 "screenshot.cpp"
+#line 405 "screenshot.cpp"
     void polygon(dqi_poly& p);
-#line 490 "screenshot.cpp"
+#line 492 "screenshot.cpp"
     void render();
-#line 521 "screenshot.cpp"
+#line 523 "screenshot.cpp"
     void take(const string& fname, const function<void()>& what IS(shot::default_screenshot_content));
     #endif
     }
   #if CAP_SHOT
   namespace shot {
-#line 640 "screenshot.cpp"
+#line 644 "screenshot.cpp"
     enum screenshot_format { png, svg, wrl, rawfile };
-#line 643 "screenshot.cpp"
-    extern int rawfile_handle;
-#line 645 "screenshot.cpp"
-    extern int shotx;
-#line 646 "screenshot.cpp"
-    extern int shoty;
 #line 647 "screenshot.cpp"
-    extern screenshot_format format;
-#line 648 "screenshot.cpp"
-    extern bool transparent;
+    extern int rawfile_handle;
 #line 649 "screenshot.cpp"
-    extern ld gamma;
+    extern int shotx;
 #line 650 "screenshot.cpp"
-    extern int shotformat;
+    extern int shoty;
 #line 651 "screenshot.cpp"
-    extern string caption;
+    extern screenshot_format format;
 #line 652 "screenshot.cpp"
+    extern bool transparent;
+#line 653 "screenshot.cpp"
+    extern ld gamma;
+#line 654 "screenshot.cpp"
+    extern int shotformat;
+#line 655 "screenshot.cpp"
+    extern string caption;
+#line 656 "screenshot.cpp"
     extern ld fade;
-#line 665 "screenshot.cpp"
+#line 669 "screenshot.cpp"
     extern int shot_aa;
-#line 667 "screenshot.cpp"
+#line 671 "screenshot.cpp"
     void default_screenshot_content();
     #if CAP_SDL
-#line 678 "screenshot.cpp"
+#line 682 "screenshot.cpp"
     SDL_Surface *empty_surface(int x, int y, bool alpha);
     #endif
     #if CAP_PNG
-#line 694 "screenshot.cpp"
+#line 689 "screenshot.cpp"
+    void output(SDL_Surface* s, const string& fname);
+#line 698 "screenshot.cpp"
+    extern hookset<bool(string, SDL_Surface*, SDL_Surface*)> hooks_postprocess;
+#line 700 "screenshot.cpp"
     void postprocess(string fname, SDL_Surface *sdark, SDL_Surface *sbright);
     #endif
-#line 731 "screenshot.cpp"
+#line 738 "screenshot.cpp"
     extern purehookset hooks_take;
-#line 767 "screenshot.cpp"
+#line 774 "screenshot.cpp"
     void take(string fname, const function<void()>& what IS(default_screenshot_content));
-#line 911 "screenshot.cpp"
+#line 923 "screenshot.cpp"
     string format_name();
-#line 918 "screenshot.cpp"
+#line 930 "screenshot.cpp"
     string format_extension();
-#line 926 "screenshot.cpp"
+#line 938 "screenshot.cpp"
     void choose_screenshot_format();
-#line 946 "screenshot.cpp"
+#line 958 "screenshot.cpp"
     void menu();
     }
   #endif
   #if CAP_ANIMATIONS
   namespace anims {
-#line 1105 "screenshot.cpp"
+#line 1117 "screenshot.cpp"
     enum eMovementAnimation {
     maNone, maTranslation, maRotation, maCircle, maParabolic, maTranslationRotation
     };
-#line 1110 "screenshot.cpp"
-    extern eMovementAnimation ma;
-#line 1112 "screenshot.cpp"
-    extern ld shift_angle, movement_angle, movement_angle_2;
-#line 1113 "screenshot.cpp"
-    extern ld normal_angle;
-#line 1114 "screenshot.cpp"
-    extern ld period;
-#line 1115 "screenshot.cpp"
-    extern int noframes;
-#line 1116 "screenshot.cpp"
-    extern ld cycle_length;
-#line 1117 "screenshot.cpp"
-    extern ld parabolic_length;
-#line 1118 "screenshot.cpp"
-    extern ld skiprope_rotation;
 #line 1122 "screenshot.cpp"
-    extern ld rug_rotation1, rug_rotation2, rug_forward, ballangle_rotation, env_ocean, env_volcano, rug_movement_angle, rug_shift_angle;
-#line 1123 "screenshot.cpp"
-    extern bool env_shmup;
+    extern eMovementAnimation ma;
 #line 1124 "screenshot.cpp"
-    extern ld rug_angle;
+    extern ld shift_angle, movement_angle, movement_angle_2;
+#line 1125 "screenshot.cpp"
+    extern ld normal_angle;
 #line 1126 "screenshot.cpp"
-    extern ld rotation_distance;
+    extern ld period;
+#line 1127 "screenshot.cpp"
+    extern int noframes;
+#line 1128 "screenshot.cpp"
+    extern ld cycle_length;
+#line 1129 "screenshot.cpp"
+    extern ld parabolic_length;
+#line 1130 "screenshot.cpp"
+    extern ld skiprope_rotation;
 #line 1132 "screenshot.cpp"
+    extern string time_formula;
+#line 1136 "screenshot.cpp"
+    extern ld rug_rotation1, rug_rotation2, rug_forward, ballangle_rotation, env_ocean, env_volcano, rug_movement_angle, rug_shift_angle;
+#line 1137 "screenshot.cpp"
+    extern bool env_shmup;
+#line 1138 "screenshot.cpp"
+    extern ld rug_angle;
+#line 1140 "screenshot.cpp"
+    extern ld rotation_distance;
+#line 1146 "screenshot.cpp"
     extern ld circle_radius;
-#line 1133 "screenshot.cpp"
+#line 1147 "screenshot.cpp"
     extern ld circle_spins;
-#line 1135 "screenshot.cpp"
+#line 1149 "screenshot.cpp"
     void moved();
-#line 1154 "screenshot.cpp"
+#line 1168 "screenshot.cpp"
     struct animated_parameter {
     ld *value;
     ld last;
     string formula;
     reaction_t reaction;
     };
-#line 1162 "screenshot.cpp"
-    extern vector<animated_parameter> aps;
-#line 1164 "screenshot.cpp"
-    void deanimate(ld &x);
-#line 1170 "screenshot.cpp"
-    void get_parameter_animation(ld &x, string &s);
 #line 1176 "screenshot.cpp"
+    extern vector<animated_parameter> aps;
+#line 1178 "screenshot.cpp"
+    void deanimate(ld &x);
+#line 1184 "screenshot.cpp"
+    void get_parameter_animation(ld &x, string &s);
+#line 1190 "screenshot.cpp"
     void animate_parameter(ld &x, string f, const reaction_t& r);
-#line 1205 "screenshot.cpp"
-    void reflect_view();
-#line 1217 "screenshot.cpp"
-    extern purehookset hooks_anim;
 #line 1219 "screenshot.cpp"
+    void reflect_view();
+#line 1231 "screenshot.cpp"
+    extern purehookset hooks_anim;
+#line 1233 "screenshot.cpp"
     void animate_rug_movement(ld t);
-#line 1228 "screenshot.cpp"
+#line 1242 "screenshot.cpp"
     void apply();
-#line 1363 "screenshot.cpp"
+#line 1377 "screenshot.cpp"
     void rollback();
     #if CAP_FILES && CAP_SHOT
-#line 1371 "screenshot.cpp"
+#line 1385 "screenshot.cpp"
     extern string animfile;
-#line 1373 "screenshot.cpp"
+#line 1387 "screenshot.cpp"
     extern string videofile;
-#line 1379 "screenshot.cpp"
+#line 1393 "screenshot.cpp"
     extern hookset<void(int, int)> hooks_record_anim;
-#line 1381 "screenshot.cpp"
+#line 1395 "screenshot.cpp"
     bool record_animation_of(reaction_t content);
-#line 1416 "screenshot.cpp"
+#line 1441 "screenshot.cpp"
     bool record_animation();
     #endif
-#line 1421 "screenshot.cpp"
+#line 1446 "screenshot.cpp"
     extern purehookset hooks_after_video;
     #if CAP_VIDEO
-#line 1424 "screenshot.cpp"
+#line 1449 "screenshot.cpp"
     bool record_video(string fname IS(videofile), bool_reaction_t rec IS(record_animation));
-#line 1454 "screenshot.cpp"
+#line 1479 "screenshot.cpp"
     bool record_video_std();
     #endif
-#line 1491 "screenshot.cpp"
+#line 1516 "screenshot.cpp"
     extern ld a, b;
-#line 1495 "screenshot.cpp"
+#line 1520 "screenshot.cpp"
     void rug_angle_options();
-#line 1508 "screenshot.cpp"
+#line 1533 "screenshot.cpp"
     void show();
-#line 1840 "screenshot.cpp"
+#line 1868 "screenshot.cpp"
     bool any_animation();
-#line 1848 "screenshot.cpp"
+#line 1876 "screenshot.cpp"
     bool any_on();
-#line 1852 "screenshot.cpp"
+#line 1880 "screenshot.cpp"
     bool center_music();
     }
   #endif
   namespace startanims {
-#line 1864 "screenshot.cpp"
+#line 1889 "screenshot.cpp"
+    extern bool enabled;
+#line 1894 "screenshot.cpp"
     struct startanim {
     string name;
     reaction_t init;
@@ -13126,13 +14555,13 @@ namespace hr {
     
     const int EXPLORE_START_ANIMATION = 2003;
     #if CAP_STARTANIM
-#line 2041 "screenshot.cpp"
+#line 2071 "screenshot.cpp"
     extern startanim *current;
-#line 2043 "screenshot.cpp"
+#line 2073 "screenshot.cpp"
     void pick();
-#line 2057 "screenshot.cpp"
+#line 2087 "screenshot.cpp"
     void display();
-#line 2066 "screenshot.cpp"
+#line 2096 "screenshot.cpp"
     void explore();
     #endif
     }
@@ -13150,8 +14579,9 @@ namespace hr {
   constexpr flagtype GF_LIGHTFOG = 4;
   constexpr flagtype GF_LEVELS   = 8;
   constexpr flagtype GF_TEXTURE_SHADED  = 16;
+  constexpr flagtype GF_NO_FOG   = 32;
   
-  constexpr flagtype GF_which    = 31;
+  constexpr flagtype GF_which    = 63;
   
   constexpr flagtype SF_PERS3        = 256;
   constexpr flagtype SF_BAND         = 512;
@@ -13163,9 +14593,9 @@ namespace hr {
   constexpr flagtype SF_BOX          = 32768;
   constexpr flagtype SF_ZFOG         = 65536;
   constexpr flagtype SF_ODSBOX       = (1<<17);
-#line 36 "shaders.cpp"
+#line 37 "shaders.cpp"
   extern bool solv_all;
-#line 39 "shaders.cpp"
+#line 40 "shaders.cpp"
   /* standard attribute bindings */
   /* taken from: https://www.opengl.org/sdk/docs/tutorials/ClockworkCoders/attributes.php */
   constexpr int aPosition = 0;
@@ -13175,23 +14605,27 @@ namespace hr {
   /* texture bindings */
   constexpr int INVERSE_EXP_BINDING = 2;
   constexpr int AIR_BINDING = 4;
-#line 50 "shaders.cpp"
+#line 51 "shaders.cpp"
   extern map<string, shared_ptr<glhr::GLprogram>> compiled_programs;
-#line 52 "shaders.cpp"
+#line 53 "shaders.cpp"
   extern map<unsigned, shared_ptr<glhr::GLprogram>> matched_programs;
-#line 63 "shaders.cpp"
+#line 64 "shaders.cpp"
   void reset_all_shaders();
-#line 69 "shaders.cpp"
+#line 70 "shaders.cpp"
   string panini_shader();
-#line 80 "shaders.cpp"
+#line 81 "shaders.cpp"
   string stereo_shader();
-#line 744 "shaders.cpp"
+#line 92 "shaders.cpp"
+  string shader_lie_log();
+#line 116 "shaders.cpp"
+  string shader_rel_log();
+#line 836 "shaders.cpp"
   void add_if(string& shader, const string& seek, const string& function);
-#line 749 "shaders.cpp"
+#line 841 "shaders.cpp"
   void add_fixed_functions(string& shader);
-#line 772 "shaders.cpp"
+#line 879 "shaders.cpp"
   flagtype get_shader_flags();
-#line 777 "shaders.cpp"
+#line 884 "shaders.cpp"
   void glapplymatrix(const transmatrix& V);
   #endif
 
@@ -13201,18 +14635,52 @@ namespace hr {
   extern bool context_fog;
 #line 7 "sky.cpp"
   extern ld camera_level;
+#line 8 "sky.cpp"
+  extern bool camera_sign;
+#line 11 "sky.cpp"
+  enum eSkyMode { skyNone, skyAutomatic, skySkybox, skyAlways };
+#line 14 "sky.cpp"
+  extern eSkyMode draw_sky;
+#line 16 "sky.cpp"
+  extern bool auto_remove_roofs;
+#line 18 "sky.cpp"
+  bool camera_over(ld x);
   #if MAXMDIM >= 4 && CAP_GL
-#line 10 "sky.cpp"
+#line 26 "sky.cpp"
   int get_skybrightness(int mul IS(1));
-#line 34 "sky.cpp"
+#line 50 "sky.cpp"
   extern struct dqi_sky *sky;
-#line 36 "sky.cpp"
+#line 52 "sky.cpp"
+  bool do_draw_skybox();
+#line 61 "sky.cpp"
   void prepare_sky();
-#line 282 "sky.cpp"
-  extern const ld star_val;
-#line 490 "sky.cpp"
+#line 74 "sky.cpp"
+  extern vector<glhr::colored_vertex> skyvertices;
+#line 75 "sky.cpp"
+  extern cell *sky_centerover;
+#line 76 "sky.cpp"
+  extern shiftmatrix sky_cview;
+#line 78 "sky.cpp"
+  void delete_sky();
+#line 83 "sky.cpp"
+  bool do_draw_sky();
+#line 100 "sky.cpp"
+  bool do_draw_stars(bool rev);
+#line 342 "sky.cpp"
+  extern bool use_euclidean_infinity;
+#line 345 "sky.cpp"
+  void be_euclidean_infinity(transmatrix& V);
+#line 360 "sky.cpp"
+  extern ld star_prob;
+#line 363 "sky.cpp"
+  extern vector<ld> stars;
+#line 365 "sky.cpp"
+  bool star_for(int i);
+#line 564 "sky.cpp"
   extern struct renderbuffer *airbuf;
-#line 492 "sky.cpp"
+#line 566 "sky.cpp"
+  void swap_if_missing(bool missing);
+#line 574 "sky.cpp"
   void make_air();
   #endif
 
@@ -13221,46 +14689,59 @@ namespace hr {
 #line 12 "sound.cpp"
   void playSound(cell *c, const string& fname, int vol = 100);
   void resetmusic();
-#line 16 "sound.cpp"
-  extern const char *musicfile;
 #line 17 "sound.cpp"
-  extern bool audio;
-#line 18 "sound.cpp"
-  extern string musiclicense;
-#line 19 "sound.cpp"
-  extern string musfname[landtypes];
-#line 20 "sound.cpp"
-  extern int musicvolume;
+  /** RogueViz may be used for situations where music does not correspond to lands, so we allow extra IDs */
+  static constexpr int MUSIC_MAX = 500;
 #line 21 "sound.cpp"
-  extern int effvolume;
+  extern const char *musicfile;
 #line 22 "sound.cpp"
-  extern bool music_available;
+  extern bool audio;
+#line 23 "sound.cpp"
+  extern string musiclicense;
 #line 24 "sound.cpp"
+  extern string musfname[MUSIC_MAX];
+#line 25 "sound.cpp"
+  extern int musicvolume;
+#line 26 "sound.cpp"
+  extern int effvolume;
+#line 27 "sound.cpp"
+  extern bool music_available;
+#line 28 "sound.cpp"
+  extern int musiclength[MUSIC_MAX];
+#line 30 "sound.cpp"
   eLand getCurrentLandForMusic();
-#line 32 "sound.cpp"
+#line 38 "sound.cpp"
   void playSeenSound(cell *c);
   #if CAP_SDLAUDIO
-#line 99 "sound.cpp"
+#line 97 "sound.cpp"
+  extern int musicpos[MUSIC_MAX];
+#line 98 "sound.cpp"
+  extern int musstart;
+#line 103 "sound.cpp"
+  extern hookset<bool(eLand&)> hooks_music;
+#line 104 "sound.cpp"
+  extern hookset<void(eLand&)> hooks_sync_music;
+#line 106 "sound.cpp"
   extern bool music_out_of_focus;
-#line 101 "sound.cpp"
+#line 108 "sound.cpp"
   void handlemusic();
-#line 145 "sound.cpp"
+#line 153 "sound.cpp"
   void resetmusic();
-#line 154 "sound.cpp"
+#line 162 "sound.cpp"
   bool loadMusicInfo(string dir);
-#line 193 "sound.cpp"
+#line 202 "sound.cpp"
   bool loadMusicInfo();
-#line 210 "sound.cpp"
+#line 219 "sound.cpp"
   void initAudio();
-#line 235 "sound.cpp"
+#line 244 "sound.cpp"
   void playSound(cell *c, const string& fname, int vol);
-#line 254 "sound.cpp"
+#line 263 "sound.cpp"
   void reuse_music_memory();
   #endif
   #if !CAP_AUDIO
-#line 305 "sound.cpp"
+#line 314 "sound.cpp"
   void playSound(cell *c, const string& fname, int vol);
-#line 306 "sound.cpp"
+#line 315 "sound.cpp"
   void resetmusic();
   #endif
 
@@ -13270,9 +14751,9 @@ namespace hr {
   int spherecells();
 #line 23 "sphere.cpp"
   extern vector<int> siblings;
-#line 182 "sphere.cpp"
+#line 184 "sphere.cpp"
   heptagon *getDodecahedron(int i);
-#line 189 "sphere.cpp"
+#line 191 "sphere.cpp"
   hrmap* new_spherical_map();
 
   // implemented in: surface.cpp
@@ -13321,50 +14802,54 @@ namespace hr {
   static const char global = 'x'; 
   /** \brief wrongmode only -- change vid.scfg.players then restart_game(rg::nothing) instead */
   static const char multi = 'm';
-  /** \brief wrongmode only -- mark achievements for special geometries/variations */
+  /** \brief wrongmode only -- mark achievements for special geometries/variations, this automatically marks the expected land_structure as lsSingle */
   static const char special_geometry = 'g';
+  /** \brief wrongmode only -- mark achievements for special geometries/variations */
+  static const char special_geometry_nicewalls = 'G';
   }
-#line 40 "system.cpp"
+#line 42 "system.cpp"
   extern bool game_active;
-#line 43 "system.cpp"
+#line 45 "system.cpp"
   extern bool autocheat;
-#line 46 "system.cpp"
+#line 48 "system.cpp"
   extern eWall canvas_default_wall;
-#line 49 "system.cpp"
-  extern int truelotus;
 #line 51 "system.cpp"
-  extern int asteroids_generated, asteroid_orbs_generated;
+  extern int truelotus;
 #line 53 "system.cpp"
-  extern time_t timerstart, savetime;
-#line 54 "system.cpp"
-  extern bool timerstopped;
+  extern int asteroids_generated, asteroid_orbs_generated;
 #line 55 "system.cpp"
-  extern int savecount;
+  extern time_t timerstart, savetime;
 #line 56 "system.cpp"
-  extern int save_turns;
+  extern bool timerstopped;
 #line 57 "system.cpp"
-  extern bool doCross;
+  extern int savecount;
+#line 58 "system.cpp"
+  extern int save_turns;
 #line 59 "system.cpp"
-  extern bool gamegen_failure;
+  extern bool doCross;
 #line 61 "system.cpp"
+  extern bool gamegen_failure;
+#line 63 "system.cpp"
   extern eLand top_land;
-#line 64 "system.cpp"
+#line 66 "system.cpp"
   bool verless(string v, string cmp);
-#line 73 "system.cpp"
+#line 75 "system.cpp"
   extern hookset<bool()> hooks_welcome_message;
-#line 76 "system.cpp"
+#line 78 "system.cpp"
   void welcomeMessage();
-#line 146 "system.cpp"
-  extern hookset<void()> hooks_initgame;
-#line 149 "system.cpp"
-  extern hookset<void()> hooks_post_initgame;
 #line 151 "system.cpp"
-  extern bool ineligible_starting_land;
+  extern hookset<void()> hooks_initgame;
 #line 154 "system.cpp"
+  extern hookset<void()> hooks_post_initgame;
+#line 156 "system.cpp"
+  extern bool ineligible_starting_land;
+#line 158 "system.cpp"
+  extern int easy_specialland;
+#line 161 "system.cpp"
   void initgame();
   #if CAP_SAVE
   namespace scores {
-#line 422 "system.cpp"
+#line 433 "system.cpp"
     /** \brief the amount of boxes reserved for each hr::score item */
     #define MAXBOX 500
     /** \brief currently used boxes in hr::score */
@@ -13376,81 +14861,89 @@ namespace hr {
     /** \brief all the data of the saved score, see applyBoxes() */
     int box[MAXBOX];
     };
-#line 436 "system.cpp"
+#line 447 "system.cpp"
     extern score save;
-#line 438 "system.cpp"
+#line 449 "system.cpp"
     extern int boxid;
-#line 441 "system.cpp"
+#line 452 "system.cpp"
     extern bool saving, loading, loadingHi;
-#line 444 "system.cpp"
+#line 455 "system.cpp"
     extern string boxname[MAXBOX];
-#line 446 "system.cpp"
+#line 457 "system.cpp"
     extern bool fakebox[MAXBOX];
-#line 448 "system.cpp"
+#line 459 "system.cpp"
     extern bool monsbox[MAXBOX];
-#line 469 "system.cpp"
+#line 480 "system.cpp"
     void applyBoxNum(int& i, string name IS(""));
-#line 545 "system.cpp"
+#line 556 "system.cpp"
     extern modecode_t saved_modecode;
-#line 548 "system.cpp"
+#line 559 "system.cpp"
     void applyBoxes();
-#line 943 "system.cpp"
+#line 954 "system.cpp"
     void saveBox();
     }
   namespace anticheat {
-#line 996 "system.cpp"
+#line 1009 "system.cpp"
     extern int certify(const string& s, int a, int b, int c, int d IS(0));
     }
   #if !CAP_CERTIFY
   namespace anticheat {
-#line 1005 "system.cpp"
+#line 1018 "system.cpp"
     extern bool tampered;
     }
   #endif
-#line 1016 "system.cpp"
+#line 1029 "system.cpp"
   void remove_emergency_save();
-#line 1027 "system.cpp"
+#line 1041 "system.cpp"
   void saveStats(bool emergency IS(false));
-#line 1156 "system.cpp"
+#line 1185 "system.cpp"
   void loadsave();
-#line 1267 "system.cpp"
+#line 1311 "system.cpp"
   void load_last_save();
   #endif
-#line 1305 "system.cpp"
+#line 1351 "system.cpp"
   void stop_game();
-#line 1344 "system.cpp"
+#line 1390 "system.cpp"
   eModel default_model();
-#line 1350 "system.cpp"
+#line 1397 "system.cpp"
   extern purehookset hooks_on_geometry_change;
-#line 1352 "system.cpp"
+#line 1399 "system.cpp"
+  void geometry_settings(bool was_default);
+#line 1405 "system.cpp"
   void set_geometry(eGeometry target);
-#line 1402 "system.cpp"
+#line 1453 "system.cpp"
   void set_variation(eVariation target);
-#line 1435 "system.cpp"
+#line 1486 "system.cpp"
   void switch_game_mode(char switchWhat);
-#line 1564 "system.cpp"
+#line 1616 "system.cpp"
   void start_game();
-#line 1609 "system.cpp"
+#line 1662 "system.cpp"
   void restart_game(char switchWhat IS(rg::nothing));
-#line 1617 "system.cpp"
+#line 1677 "system.cpp"
   void stop_game_and_switch_mode(char switchWhat IS(rg::nothing));
-#line 1622 "system.cpp"
+#line 1682 "system.cpp"
   extern purehookset hooks_clearmemory;
-#line 1624 "system.cpp"
+#line 1684 "system.cpp"
   void clearMemory();
-#line 1628 "system.cpp"
+#line 1688 "system.cpp"
   extern bool fixseed;
-#line 1629 "system.cpp"
+#line 1689 "system.cpp"
   extern int startseed;
-#line 1631 "system.cpp"
+#line 1691 "system.cpp"
   extern eLand firstland0;
-#line 1633 "system.cpp"
+#line 1693 "system.cpp"
   extern purehookset hooks_initialize;
-#line 1635 "system.cpp"
+#line 1695 "system.cpp"
+  extern bool savefile_selection;
+#line 1697 "system.cpp"
+  void select_savefile();
+#line 1717 "system.cpp"
+  void progress_warning();
+#line 1722 "system.cpp"
   void initAll();
-#line 1669 "system.cpp"
+#line 1758 "system.cpp"
   extern purehookset hooks_final_cleanup;
-#line 1671 "system.cpp"
+#line 1760 "system.cpp"
   void finishAll();
 
   // implemented in: tour.cpp
@@ -13512,9 +15005,11 @@ namespace hr {
     static const flagtype USE_SLIDE_NAME = 128;
     /** \brief do not display any help line */
     static const flagtype NOTITLE = 256;
-#line 76 "tour.cpp"
+    /** \brief always display the text, even if going back or texts are disabled */
+    static const flagtype ALWAYS_TEXT = 256;
+#line 78 "tour.cpp"
     extern vector<reaction_t> restorers;
-#line 79 "tour.cpp"
+#line 81 "tour.cpp"
     template<class T, class U> void slide_backup(T& what, U value) {
     T backup = what;
     restorers.push_back([&what, backup] { what = backup; });
@@ -13522,55 +15017,61 @@ namespace hr {
     }
     
     template<class T> void slide_backup(T& what) { slide_backup(what, what); }
-#line 88 "tour.cpp"
+#line 90 "tour.cpp"
     void on_restore(const reaction_t& t);
-#line 92 "tour.cpp"
+#line 94 "tour.cpp"
     void slide_restore_all();
-#line 99 "tour.cpp"
+#line 101 "tour.cpp"
     void slide_url(presmode mode, char key, string text, string url);
-#line 107 "tour.cpp"
+#line 108 "tour.cpp"
+    void slide_action(presmode mode, char key, string text, reaction_t act);
+#line 113 "tour.cpp"
+    void enable_canvas_backup(char canv);
+#line 123 "tour.cpp"
     void setCanvas(presmode mode, char canv);
-#line 128 "tour.cpp"
+#line 139 "tour.cpp"
     extern function<eLand(eLand)> getNext;
-#line 129 "tour.cpp"
-    extern function<bool(eLand)> quickfind;
-#line 130 "tour.cpp"
-    extern function<bool(eLand)> showland;
-#line 137 "tour.cpp"
-    extern string slidecommand;
 #line 140 "tour.cpp"
+    extern function<bool(eLand)> quickfind;
+#line 141 "tour.cpp"
+    extern function<bool(eLand)> showland;
+#line 148 "tour.cpp"
+    extern string slidecommand;
+#line 151 "tour.cpp"
     extern hookset<void(int)> hooks_slide;
-#line 143 "tour.cpp"
+#line 154 "tour.cpp"
     void presentation(presmode mode);
-#line 189 "tour.cpp"
+#line 200 "tour.cpp"
     void slidehelp();
-#line 393 "tour.cpp"
+#line 219 "tour.cpp"
+    bool next_slide();
+#line 407 "tour.cpp"
     void checkGoodLand(eLand l);
     namespace ss {
-#line 409 "tour.cpp"
+#line 423 "tour.cpp"
       extern slide *wts;
-#line 411 "tour.cpp"
+#line 425 "tour.cpp"
       extern string current_folder;
-#line 416 "tour.cpp"
+#line 430 "tour.cpp"
       using slideshow_callback = function<void(string, slide*, char)>;
-#line 419 "tour.cpp"
+#line 433 "tour.cpp"
       extern hookset<void(slideshow_callback)> hooks_extra_slideshows;
-#line 421 "tour.cpp"
+#line 435 "tour.cpp"
       void for_all_slideshows(const slideshow_callback& cb);
-#line 426 "tour.cpp"
+#line 440 "tour.cpp"
       void slideshow_menu();
-#line 436 "tour.cpp"
+#line 450 "tour.cpp"
       void showMenu();
       }
-#line 511 "tour.cpp"
+#line 525 "tour.cpp"
     void initialize_slides();
-#line 519 "tour.cpp"
+#line 533 "tour.cpp"
     void print();
-#line 534 "tour.cpp"
+#line 548 "tour.cpp"
     void start();
-#line 560 "tour.cpp"
+#line 574 "tour.cpp"
     extern slide default_slides[];
-#line 1028 "tour.cpp"
+#line 1042 "tour.cpp"
     extern slide *slides;
     }
   #endif
@@ -13607,7 +15108,7 @@ namespace hr {
 #line 30 "vr.cpp"
     bool rendering_eye();
 #line 33 "vr.cpp"
-    enum class eHeadset { none, rotation_only, reference, holonomy, model_viewing };
+    enum class eHeadset { none, rotation_only, reference, holonomy, model_viewing, holonomy_z };
     enum class eEyes { none, equidistant, truesim };
     enum class eCompScreen { none, reference, single, eyes };
 #line 38 "vr.cpp"
@@ -13624,127 +15125,133 @@ namespace hr {
     extern ld vraim_x, vraim_y, vrgo_x, vrgo_y;
 #line 48 "vr.cpp"
     extern ld pointer_length;
-#line 125 "vr.cpp"
+#line 126 "vr.cpp"
     extern transmatrix eyeproj, eyeshift;
-#line 155 "vr.cpp"
-    extern transmatrix hmd_mv_for[3];
 #line 156 "vr.cpp"
+    extern transmatrix hmd_mv_for[3];
+#line 157 "vr.cpp"
     extern transmatrix hmd_pre_for[3];
-#line 161 "vr.cpp"
+#line 162 "vr.cpp"
     extern ld pointer_distance;
-#line 164 "vr.cpp"
+#line 165 "vr.cpp"
     extern bool enabled;
-#line 167 "vr.cpp"
+#line 168 "vr.cpp"
     extern bool failed;
-#line 170 "vr.cpp"
+#line 171 "vr.cpp"
     extern string error_msg;
-#line 173 "vr.cpp"
+#line 174 "vr.cpp"
     extern int state;
-#line 176 "vr.cpp"
+#line 177 "vr.cpp"
     // use E4 when working with real-world matrices to ensure that inverses, multiplications, etc. are computed correctly
     #define E4 dynamicval<eGeometry> g(geometry, gCubeTiling)
-#line 227 "vr.cpp"
+#line 228 "vr.cpp"
     extern bool first;
-#line 229 "vr.cpp"
-    extern transmatrix hmd_at_ui;
 #line 230 "vr.cpp"
-    extern transmatrix hmd_at;
+    extern transmatrix hmd_at_ui;
 #line 231 "vr.cpp"
+    extern transmatrix hmd_at;
+#line 232 "vr.cpp"
     extern transmatrix hmd_ref_at;
-#line 233 "vr.cpp"
+#line 234 "vr.cpp"
     extern transmatrix hmd_mvp, hmd_pre, hmd_mv;
-#line 235 "vr.cpp"
+#line 236 "vr.cpp"
     extern transmatrix sm;
-#line 237 "vr.cpp"
+#line 238 "vr.cpp"
     extern int ui_xmin, ui_ymin, ui_xmax, ui_ymax;
-#line 239 "vr.cpp"
+#line 240 "vr.cpp"
     extern reaction_t change_ui_bounds;
-#line 242 "vr.cpp"
+#line 243 "vr.cpp"
     struct frustum_info {
     transmatrix pre;
     transmatrix nlp;
     bool screen;
     transmatrix proj;
     };
-#line 250 "vr.cpp"
+#line 251 "vr.cpp"
     extern vector<frustum_info> frusta;
-#line 252 "vr.cpp"
+#line 253 "vr.cpp"
     void set_ui_bounds();
-#line 261 "vr.cpp"
+#line 262 "vr.cpp"
     void size_and_draw_ui_box();
-#line 356 "vr.cpp"
+#line 357 "vr.cpp"
     extern bool need_poses;
-#line 433 "vr.cpp"
+#line 434 "vr.cpp"
     extern bool targeting_menu;
-#line 435 "vr.cpp"
+#line 436 "vr.cpp"
     void send_click();
-#line 445 "vr.cpp"
+#line 446 "vr.cpp"
     void send_release();
-#line 452 "vr.cpp"
+#line 453 "vr.cpp"
     void vr_control();
-#line 495 "vr.cpp"
+#line 496 "vr.cpp"
     void be_33(transmatrix& T);
-#line 500 "vr.cpp"
-    void apply_movement(const transmatrix& rel);
-#line 511 "vr.cpp"
+#line 508 "vr.cpp"
+    void apply_movement(const transmatrix& rel, eShiftMethod sm);
+#line 519 "vr.cpp"
     void vr_shift();
-#line 524 "vr.cpp"
+#line 573 "vr.cpp"
     extern ld absolute_unit_in_meters;
-#line 528 "vr.cpp"
+#line 577 "vr.cpp"
     eModel pmodel_3d_version();
-#line 535 "vr.cpp"
+#line 584 "vr.cpp"
     transmatrix model_to_controller(int id);
-#line 539 "vr.cpp"
+#line 588 "vr.cpp"
     hyperpoint model_location(shiftpoint h, bool& bad);
-#line 605 "vr.cpp"
+#line 654 "vr.cpp"
     extern hyperpoint vr_direction;
-#line 607 "vr.cpp"
+#line 656 "vr.cpp"
     void compute_vr_direction(int id);
-#line 614 "vr.cpp"
+#line 663 "vr.cpp"
     void compute_point(int id, shiftpoint& res, cell*& c, ld& dist);
-#line 650 "vr.cpp"
+#line 699 "vr.cpp"
     extern bool vr_clicked;
-#line 721 "vr.cpp"
+#line 770 "vr.cpp"
     extern bool always_show_hud;
-#line 722 "vr.cpp"
+#line 771 "vr.cpp"
     bool in_actual_menu();
-#line 723 "vr.cpp"
+#line 772 "vr.cpp"
     bool in_menu();
-#line 756 "vr.cpp"
+#line 805 "vr.cpp"
     void track_actions();
-#line 797 "vr.cpp"
+#line 846 "vr.cpp"
+    void get_eyes();
+#line 864 "vr.cpp"
     void start_vr();
-#line 856 "vr.cpp"
+#line 912 "vr.cpp"
     void shutdown_vr();
-#line 871 "vr.cpp"
+#line 927 "vr.cpp"
     void clear();
-#line 888 "vr.cpp"
+#line 944 "vr.cpp"
     extern ld ui_depth;
-#line 889 "vr.cpp"
+#line 945 "vr.cpp"
     extern ld ui_size;
-#line 892 "vr.cpp"
+#line 948 "vr.cpp"
     const ld ui_size_unit = 0.001;
-#line 916 "vr.cpp"
+#line 972 "vr.cpp"
     void in_vr_ui(reaction_t what);
-#line 958 "vr.cpp"
+#line 1014 "vr.cpp"
     void draw_eyes();
-#line 993 "vr.cpp"
+#line 1049 "vr.cpp"
     void gen_mv();
-#line 1021 "vr.cpp"
+#line 1076 "vr.cpp"
     extern shiftmatrix master_cview;
-#line 1023 "vr.cpp"
+#line 1078 "vr.cpp"
     void render();
-#line 1126 "vr.cpp"
+#line 1202 "vr.cpp"
     void show_vr_demos();
-#line 1274 "vr.cpp"
+#line 1350 "vr.cpp"
+    void enable_button();
+#line 1363 "vr.cpp"
+    void reference_button();
+#line 1374 "vr.cpp"
     void show_vr_settings();
-#line 1439 "vr.cpp"
+#line 1522 "vr.cpp"
     extern bool rec;
-#line 1441 "vr.cpp"
+#line 1524 "vr.cpp"
     void render_controllers();
-#line 1516 "vr.cpp"
+#line 1599 "vr.cpp"
     void submit();
-#line 1535 "vr.cpp"
+#line 1618 "vr.cpp"
     void handoff();
     #endif
     }
@@ -13851,61 +15358,59 @@ namespace hr {
     bool control(pathgen& p, int i, cellwalker& ycw);
 #line 238 "yendor.cpp"
     bool check(cell *yendor);
-#line 394 "yendor.cpp"
+#line 395 "yendor.cpp"
     void onpath();
-#line 404 "yendor.cpp"
+#line 405 "yendor.cpp"
     eLandStructure get_land_structure();
-#line 412 "yendor.cpp"
+#line 413 "yendor.cpp"
     void init(int phase);
-#line 516 "yendor.cpp"
+#line 517 "yendor.cpp"
     extern const char *chelp;
-#line 549 "yendor.cpp"
+#line 550 "yendor.cpp"
     string name(int i);
-#line 570 "yendor.cpp"
+#line 571 "yendor.cpp"
     void showMenu();
-#line 645 "yendor.cpp"
+#line 650 "yendor.cpp"
     void collected(cell* c2);
     }
   namespace tactic {
-#line 710 "yendor.cpp"
+#line 715 "yendor.cpp"
     extern bool on;
-#line 711 "yendor.cpp"
+#line 716 "yendor.cpp"
     extern int id;
-#line 724 "yendor.cpp"
+#line 729 "yendor.cpp"
     int chances(eLand l, modecode_t xc IS(modecode()));
-#line 747 "yendor.cpp"
+#line 752 "yendor.cpp"
     void record(eLand land, int score, modecode_t xc IS(modecode()));
-#line 796 "yendor.cpp"
+#line 801 "yendor.cpp"
     void showMenu();
-#line 945 "yendor.cpp"
+#line 950 "yendor.cpp"
     void start();
     }
-#line 953 "yendor.cpp"
+#line 958 "yendor.cpp"
   extern map<modecode_t, string> meaning;
-#line 981 "yendor.cpp"
+#line 986 "yendor.cpp"
   modecode_t modecode(int mode);
-#line 1010 "yendor.cpp"
+#line 1018 "yendor.cpp"
   void load_modecode_line(string s);
   namespace peace {
-#line 1023 "yendor.cpp"
+#line 1031 "yendor.cpp"
     extern bool on;
-#line 1024 "yendor.cpp"
+#line 1032 "yendor.cpp"
     extern bool hint;
-#line 1026 "yendor.cpp"
+#line 1034 "yendor.cpp"
     extern bool otherpuzzles;
-#line 1028 "yendor.cpp"
+#line 1036 "yendor.cpp"
     extern bool explore_other;
     namespace simon {
-#line 1115 "yendor.cpp"
+#line 1123 "yendor.cpp"
       void extend();
-#line 1124 "yendor.cpp"
+#line 1132 "yendor.cpp"
       void init();
-#line 1138 "yendor.cpp"
+#line 1146 "yendor.cpp"
       void restore();
       }
-#line 1145 "yendor.cpp"
-    extern bool in_minefield, in_dual;
-#line 1162 "yendor.cpp"
+#line 1153 "yendor.cpp"
     void showMenu();
     }
   }

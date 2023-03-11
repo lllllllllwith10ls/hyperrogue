@@ -1628,7 +1628,7 @@ EX namespace mapeditor {
   void allInPattern(cellwalker where) {
 
     manual_celllister cl;
-    if(!patterns::whichPattern || texture::config.tstate == texture::tsActive) {
+    if(!patterns::whichPattern) {
       editAt(where, cl);
       return;
       }
