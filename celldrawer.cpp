@@ -2688,13 +2688,13 @@ void celldrawer::add_map_effects() {
   if(c->land == laHurricane) {
     
     for(int i=0; i<c->type; i++) {
-      if(c->landparam == (c->move(i)->landparam+1)%3) {
+      if(c->landparam == (c->move(i)->landparam+1)%3 && c->move(i)->land == laHurricane) {
         ld hdir0 = currentmap->spin_angle(c, i) + M_PI;
         /* todo what if no spin_angle */
     
-        double ph1 = fractick(PURE ? 250 : 125);
+        double ph1 = fractick(PURE ? 150 : 75);
         
-        int aircol = 0xC0C0FF20;
+        int aircol = 0xC0C0FF00 | int(64 * sin(ph1 * TAU/2));
         
         
         ld hdir = hdir0;

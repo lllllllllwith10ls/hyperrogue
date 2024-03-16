@@ -171,6 +171,7 @@ EX vector<orbinfo> orbinfos = {
   {orbgenflags::S_NATIVE, laHurricane, 200, 4000, itOrbCharge},
   {orbgenflags::S_GUEST, laHurricane, 500, 0, itOrbWater},
   {orbgenflags::S_GUEST, laHurricane, 500, 0, itOrbLightning},
+  {orbgenflags::S_NATIVE, laAnt, 500, 800, itOrbReplicate},
   {orbgenflags::S_NATIVE, laCursed, 400, 1500, itOrbPurity},
   {orbgenflags::S_NAT_NT, laDice, 500, 800, itOrbLuck},
   {orbgenflags::S_GUEST, laDice, 750, 0, itOrbAir},

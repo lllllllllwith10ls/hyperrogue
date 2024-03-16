@@ -883,7 +883,7 @@ EX bool drawItemType(eItem it, cell *c, const shiftmatrix& V, color_t icol, int 
     it == itHolyGrail ? &cgi.shGrail :
     isElementalShard(it) ? &cgi.shElementalShard :
     (it == itBombEgg || it == itTrollEgg || it == itCursed) ? &cgi.shEgg :
-    (it == itFrog || it == itWhirlpool) ? &cgi.shDisk :
+    (it == itFrog || it == itWhirlpool || it == itLangton) ? &cgi.shDisk :
     it == itHunting ? &cgi.shTriangle :
     (it == itDodeca || it == itDice) ? &cgi.shDodeca :
     xch == '*' ? &cgi.shGem[ct6] : 
@@ -4456,6 +4456,8 @@ EX int ceiling_category(cell *c) {
     case laVariant:    
     case laFrog:
     case laWet:
+    case laHurricane:
+    case laPaint:
       return 2;
     
     case laBarrier: 
@@ -4481,6 +4483,7 @@ EX int ceiling_category(cell *c) {
     case laMagnetic:
     case laSwitch:
     case laEclectic:
+    case laNecro:
       return 3;
 
     case laCanvas:

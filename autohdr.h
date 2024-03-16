@@ -3880,124 +3880,124 @@ namespace hr {
 #line 4389 "graph.cpp"
   int ceiling_category(cell *c);
   #endif
-#line 4506 "graph.cpp"
+#line 4509 "graph.cpp"
   void set_detail_level(const shiftmatrix& V);
-#line 4544 "graph.cpp"
+#line 4547 "graph.cpp"
   void drawBubble(cell *c, color_t col, string s, ld size);
-#line 4552 "graph.cpp"
-  void drawFlash(cell *c);
 #line 4555 "graph.cpp"
+  void drawFlash(cell *c);
+#line 4558 "graph.cpp"
   void drawBigFlash(cell *c);
-#line 4559 "graph.cpp"
+#line 4562 "graph.cpp"
   void drawParticleSpeed(cell *c, color_t col, int speed);
-#line 4564 "graph.cpp"
+#line 4567 "graph.cpp"
   void drawParticle(cell *c, color_t col, int maxspeed IS(100));
-#line 4568 "graph.cpp"
+#line 4571 "graph.cpp"
   void drawDirectionalParticle(cell *c, int dir, color_t col, int maxspeed IS(100));
-#line 4580 "graph.cpp"
+#line 4583 "graph.cpp"
   void drawParticles(cell *c, color_t col, int qty, int maxspeed IS(100));
-#line 4584 "graph.cpp"
+#line 4587 "graph.cpp"
   void drawFireParticles(cell *c, int qty, int maxspeed IS(100));
-#line 4589 "graph.cpp"
+#line 4592 "graph.cpp"
   void fallingFloorAnimation(cell *c, eWall w IS(waNone), eMonster m IS(moNone));
-#line 4597 "graph.cpp"
+#line 4600 "graph.cpp"
   void fallingMonsterAnimation(cell *c, eMonster m, int id IS(multi::cpid));
   #if CAP_QUEUE
-#line 4657 "graph.cpp"
+#line 4660 "graph.cpp"
   void queuecircleat1(cell *c, const shiftmatrix& V, double rad, color_t col);
-#line 4696 "graph.cpp"
+#line 4699 "graph.cpp"
   void queuecircleat(cell *c, double rad, color_t col);
   #endif
-#line 4709 "graph.cpp"
+#line 4712 "graph.cpp"
   cell *forwardcell();
-#line 4720 "graph.cpp"
+#line 4723 "graph.cpp"
   extern bool draw_centerover;
-#line 4722 "graph.cpp"
+#line 4725 "graph.cpp"
   bool should_draw_mouse_cursor();
-#line 4729 "graph.cpp"
+#line 4732 "graph.cpp"
   void drawMarkers();
   #if CAP_QUEUE
-#line 4972 "graph.cpp"
+#line 4975 "graph.cpp"
   void draw_flash(struct flashdata& f, const shiftmatrix& V, bool& kill);
   #endif
-#line 5061 "graph.cpp"
+#line 5064 "graph.cpp"
   bool allowIncreasedSight();
-#line 5075 "graph.cpp"
+#line 5078 "graph.cpp"
   bool allowChangeRange();
-#line 5086 "graph.cpp"
+#line 5089 "graph.cpp"
   extern purehookset hooks_drawmap;
-#line 5088 "graph.cpp"
+#line 5091 "graph.cpp"
   extern transmatrix actual_view_transform;
-#line 5090 "graph.cpp"
+#line 5093 "graph.cpp"
   ld wall_radar(cell *c, transmatrix T, transmatrix LPe, ld max);
-#line 5111 "graph.cpp"
+#line 5114 "graph.cpp"
   extern bool nonisotropic_weird_transforms;
-#line 5113 "graph.cpp"
+#line 5116 "graph.cpp"
   void decide_lpu();
-#line 5117 "graph.cpp"
+#line 5120 "graph.cpp"
   void make_actual_view();
-#line 5151 "graph.cpp"
+#line 5154 "graph.cpp"
   shiftmatrix cview(ld base_shift IS(0));
-#line 5155 "graph.cpp"
+#line 5158 "graph.cpp"
   extern int point_direction;
-#line 5157 "graph.cpp"
+#line 5160 "graph.cpp"
   int through_wall(cell *c, hyperpoint at);
-#line 5167 "graph.cpp"
+#line 5170 "graph.cpp"
   void precise_mouseover();
-#line 5236 "graph.cpp"
+#line 5239 "graph.cpp"
   extern transmatrix Viewbase;
-#line 5238 "graph.cpp"
-  extern bool no_wall_rendering;
-#line 5240 "graph.cpp"
-  extern bool set_multi;
 #line 5241 "graph.cpp"
-  extern hyperpoint multi_point;
+  extern bool no_wall_rendering;
 #line 5243 "graph.cpp"
+  extern bool set_multi;
+#line 5244 "graph.cpp"
+  extern hyperpoint multi_point;
+#line 5246 "graph.cpp"
   void center_multiplayer_map(const vector<hyperpoint>& hs);
-#line 5255 "graph.cpp"
+#line 5258 "graph.cpp"
   void drawthemap();
-#line 5420 "graph.cpp"
+#line 5423 "graph.cpp"
   void drawmovestar(double dx, double dy);
-#line 5475 "graph.cpp"
+#line 5478 "graph.cpp"
   extern bool dronemode;
-#line 5479 "graph.cpp"
+#line 5482 "graph.cpp"
   extern int corner_centering;
-#line 5481 "graph.cpp"
+#line 5484 "graph.cpp"
   extern bool permaside;
-#line 5483 "graph.cpp"
+#line 5486 "graph.cpp"
   extern bool old_center;
-#line 5485 "graph.cpp"
+#line 5488 "graph.cpp"
   void calcparam();
-#line 5551 "graph.cpp"
+#line 5554 "graph.cpp"
   extern function<void()> wrap_drawfullmap;
-#line 5555 "graph.cpp"
+#line 5558 "graph.cpp"
   void drawfullmap();
-#line 5623 "graph.cpp"
-  extern bool just_refreshing;
-#line 5625 "graph.cpp"
-  extern int menu_darkening;
 #line 5626 "graph.cpp"
-  extern bool centered_menus;
+  extern bool just_refreshing;
 #line 5628 "graph.cpp"
+  extern int menu_darkening;
+#line 5629 "graph.cpp"
+  extern bool centered_menus;
+#line 5631 "graph.cpp"
   void gamescreen();
-#line 5731 "graph.cpp"
+#line 5734 "graph.cpp"
   void emptyscreen();
-#line 5737 "graph.cpp"
-  extern bool nohelp;
-#line 5738 "graph.cpp"
-  extern bool no_find_player;
 #line 5740 "graph.cpp"
+  extern bool nohelp;
+#line 5741 "graph.cpp"
+  extern bool no_find_player;
+#line 5743 "graph.cpp"
   void normalscreen();
-#line 5772 "graph.cpp"
-  extern vector< function<void()> > screens;
 #line 5775 "graph.cpp"
+  extern vector< function<void()> > screens;
+#line 5778 "graph.cpp"
   template<class T> void pushScreen(const T& x) { screens.push_back(x); } 
   inline void popScreen() { if(isize(screens)>1) screens.pop_back(); }
   inline void popScreenAll() { while(isize(screens)>1) popScreen(); }
   typedef void (*cfunction)();
-#line 5781 "graph.cpp"
+#line 5784 "graph.cpp"
   cfunction current_screen_cfunction();
-#line 5788 "graph.cpp"
+#line 5791 "graph.cpp"
   namespace sm {
   static const int NORMAL = 1;
   static const int MISSION = 2;
@@ -4027,19 +4027,19 @@ namespace hr {
   static const int EDIT_INSIDE_WALLS = (1<<26); // mouseover targets inside walls
   static const int DIALOG_WIDE = (1<<27); // make dialogs wide
   }
-#line 5819 "graph.cpp"
+#line 5822 "graph.cpp"
   extern int cmode;
-#line 5821 "graph.cpp"
+#line 5824 "graph.cpp"
   extern bool dont_display_minecount;
-#line 5823 "graph.cpp"
+#line 5826 "graph.cpp"
   extern color_t titlecolor;
-#line 5825 "graph.cpp"
+#line 5828 "graph.cpp"
   void drawscreen();
-#line 5952 "graph.cpp"
+#line 5955 "graph.cpp"
   void restartGraph();
-#line 5959 "graph.cpp"
+#line 5962 "graph.cpp"
   void clearAnimations();
-#line 5984 "graph.cpp"
+#line 5987 "graph.cpp"
   struct animation {
   int ltick;
   double footphase;
@@ -4057,31 +4057,31 @@ namespace hr {
   #define LAYER_SMALL 1 // for others
   #define LAYER_BOAT  2 // mark that a boat has moved
   #define LAYER_THROW 3 // for thrown items
-#line 6003 "graph.cpp"
+#line 6006 "graph.cpp"
   extern array<map<cell*, animation>, ANIMLAYERS> animations;
-#line 6005 "graph.cpp"
+#line 6008 "graph.cpp"
   int revhint(cell *c, int hint);
-#line 6010 "graph.cpp"
+#line 6013 "graph.cpp"
   transmatrix adj(const movei& m);
-#line 6015 "graph.cpp"
+#line 6018 "graph.cpp"
   transmatrix iadj(const movei& m);
-#line 6020 "graph.cpp"
+#line 6023 "graph.cpp"
   void animateMovement(const movei& m, int layer);
-#line 6043 "graph.cpp"
+#line 6046 "graph.cpp"
   void animate_item_throw(cell *from, cell *to, eItem it);
-#line 6062 "graph.cpp"
+#line 6065 "graph.cpp"
   void animateAttackOrHug(const movei& m, int layer, int phase, ld ratio, ld delta);
-#line 6074 "graph.cpp"
+#line 6077 "graph.cpp"
   void animateAttack(const movei& m, int layer);
-#line 6078 "graph.cpp"
+#line 6081 "graph.cpp"
   void animateHug(const movei& m, int layer);
-#line 6084 "graph.cpp"
+#line 6087 "graph.cpp"
   void indAnimateMovement(const movei& m, int layer);
-#line 6104 "graph.cpp"
+#line 6107 "graph.cpp"
   void commitAnimations(int layer);
-#line 6111 "graph.cpp"
+#line 6114 "graph.cpp"
   void drawBug(const cellwalker& cw, color_t col);
-#line 6121 "graph.cpp"
+#line 6124 "graph.cpp"
   bool inscreenrange(cell *c);
 
   // implemented in: textures.cpp
@@ -11755,8 +11755,8 @@ namespace hr {
 
 #line 125 "language-data.cpp"
   #if CAP_TRANS
-  #define NUMEXTRA 158
-  #define NATCHARS {"¨","°","²","´","½","À","Á","Ä","Ç","È","É","Ê","Í","Î","Ö","Ú","Ü","ß","à","á","â","ã","ä","ç","è","é","ê","ì","í","î","ï","ò","ó","ô","õ","ö","ø","ù","ú","û","ü","ý","ą","ć","Č","č","Ď","ď","Ę","ę","Ě","ě","ğ","İ","ı","Ł","ł","ń","ň","Œ","œ","Ř","ř","Ś","ś","Ş","ş","Š","š","Ť","ť","ů","Ź","ź","Ż","ż","Ž","ž","Θ","δ","λ","π","ϕ","Ё","А","Б","В","Г","Д","Е","Ж","З","И","Й","К","Л","М","Н","О","П","Р","С","Т","У","Ф","Х","Ц","Ч","Ш","Щ","Ы","Ь","Э","Ю","Я","а","б","в","г","д","е","ж","з","и","й","к","л","м","н","о","п","р","с","т","у","ф","х","ц","ч","ш","щ","ъ","ы","ь","э","ю","я","ё","ᵈ","ᶻ","’","⁻","←","→","∞","⌫","⏎","�",}
+  #define NUMEXTRA 159
+  #define NATCHARS {"¨","°","²","´","½","À","Á","Ä","Ç","È","É","Ê","Í","Î","Ö","Ú","Ü","ß","à","á","â","ã","ä","ç","è","é","ê","ì","í","î","ï","ò","ó","ô","õ","ö","ø","ù","ú","û","ü","ý","ą","ć","Č","č","Ď","ď","Ę","ę","Ě","ě","ğ","İ","ı","Ł","ł","ń","ň","Œ","œ","Ř","ř","Ś","ś","Ş","ş","Š","š","Ť","ť","ů","Ź","ź","Ż","ż","Ž","ž","Θ","δ","λ","π","ϕ","Ё","А","Б","В","Г","Д","Е","Ж","З","И","Й","К","Л","М","Н","О","П","Р","С","Т","У","Ф","Х","Ц","Ч","Ш","Щ","Ы","Ь","Э","Ю","Я","а","б","в","г","д","е","ж","з","и","й","к","л","м","н","о","п","р","с","т","у","ф","х","ц","ч","ш","щ","ъ","ы","ь","э","ю","я","ё","ᵈ","ᶻ","’","⁻","←","→","√","∞","⌫","⏎","�",}
   extern const char* natchars[NUMEXTRA];
   #endif
 #line 134 "language-data.cpp"
@@ -12299,31 +12299,31 @@ namespace hr {
   void castWeakLightningBoltFrom(cell *c);
 #line 1822 "monstermove.cpp"
   void castWeakLightningBolt(cellwalker lig);
-#line 1916 "monstermove.cpp"
+#line 1915 "monstermove.cpp"
   void specialMoves();
-#line 2119 "monstermove.cpp"
+#line 2118 "monstermove.cpp"
   void moveworms();
-#line 2129 "monstermove.cpp"
+#line 2128 "monstermove.cpp"
   void moveants();
-#line 2137 "monstermove.cpp"
+#line 2136 "monstermove.cpp"
   int getAntMove(cell *c);
-#line 2171 "monstermove.cpp"
+#line 2170 "monstermove.cpp"
   void refreshFriend(cell *c);
-#line 2180 "monstermove.cpp"
+#line 2179 "monstermove.cpp"
   void consMove(cell *c, eMonster param);
-#line 2206 "monstermove.cpp"
+#line 2205 "monstermove.cpp"
   void moveNormals(eMonster param);
-#line 2227 "monstermove.cpp"
+#line 2226 "monstermove.cpp"
   void movehex_all();
-#line 2236 "monstermove.cpp"
+#line 2235 "monstermove.cpp"
   void movemonsters();
-#line 2365 "monstermove.cpp"
+#line 2364 "monstermove.cpp"
   bool nogoSlow(cell *to, cell *from);
-#line 2371 "monstermove.cpp"
+#line 2370 "monstermove.cpp"
   void beastcrash(cell *c, cell *beast);
-#line 2409 "monstermove.cpp"
+#line 2408 "monstermove.cpp"
   void stayEffect(cell *c);
-#line 2422 "monstermove.cpp"
+#line 2421 "monstermove.cpp"
   int realstuntime(cell *c);
 
   // implemented in: netgen.cpp
@@ -12814,37 +12814,37 @@ namespace hr {
   };
 #line 80 "orbgen.cpp"
   extern vector<orbinfo> orbinfos;
-#line 180 "orbgen.cpp"
+#line 181 "orbgen.cpp"
   eItem nativeOrbType(eLand l);
-#line 200 "orbgen.cpp"
+#line 201 "orbgen.cpp"
   extern string olrDescriptions[18];
-#line 221 "orbgen.cpp"
+#line 222 "orbgen.cpp"
   eOrbLandRelation getOLR(eItem it, eLand l);
-#line 419 "orbgen.cpp"
+#line 420 "orbgen.cpp"
   int orbsUnlocked();
-#line 427 "orbgen.cpp"
+#line 428 "orbgen.cpp"
   ld orbprizefun(int tr);
-#line 433 "orbgen.cpp"
+#line 434 "orbgen.cpp"
   ld orbcrossfun(int tr);
-#line 440 "orbgen.cpp"
+#line 441 "orbgen.cpp"
   bool buildPrizeMirror(cell *c, int freq);
-#line 449 "orbgen.cpp"
+#line 450 "orbgen.cpp"
   extern cellwalker cwt;
-#line 452 "orbgen.cpp"
+#line 453 "orbgen.cpp"
   eLand getPrizeLand(cell *c IS(cwt.at));
-#line 463 "orbgen.cpp"
+#line 464 "orbgen.cpp"
   void placePrizeOrb(cell *c);
-#line 513 "orbgen.cpp"
+#line 514 "orbgen.cpp"
   int treasureForLocal();
-#line 517 "orbgen.cpp"
+#line 518 "orbgen.cpp"
   bool extra_safety_for_memory(cell *c);
-#line 527 "orbgen.cpp"
+#line 528 "orbgen.cpp"
   void placeLocalOrbs(cell *c);
-#line 568 "orbgen.cpp"
+#line 569 "orbgen.cpp"
   void placeLocalSpecial(cell *c, int outof, int loc IS(1), int priz IS(1));
-#line 577 "orbgen.cpp"
+#line 578 "orbgen.cpp"
   void placeCrossroadOrbs(cell *c);
-#line 614 "orbgen.cpp"
+#line 615 "orbgen.cpp"
   void placeOceanOrbs(cell *c);
 
   // implemented in: orbs.cpp

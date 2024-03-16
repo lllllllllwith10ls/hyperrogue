@@ -320,15 +320,15 @@ EX int barriercolor(int phase IS(0)) {
  
 EX int hurricanecolor(int phase IS(0), int type IS(0)) {
   if(type == 0) {
-    return gradient(0x4010a0, 0x8010a0, 0, sintick(1000, phase/200./M_PI)+2, 2);
+    return gradient(0x4010a0, 0x6010c0, -1, sintick(1000, phase/200./M_PI), 1);
     }
   if(type == 1) {
-    return gradient(0x1010a0, 0x1010b0, 0, sintick(1000, phase/200./M_PI)+2, 2);
+    return gradient(0x1010b0, 0x1010f0, -1, sintick(1000, phase/200./M_PI), 1);
     }
   if(type == 2) {
-    return gradient(0x1040a0, 0x1080a0, 0, sintick(1000, phase/200./M_PI)+2, 2);
+    return gradient(0x1040a0, 0x1060c0, -1, sintick(1000, phase/200./M_PI), 1);
     }
-  return 0x000000;
+  return 0xffffff;
   }
 EX int colorfulcolor(int phase) {
   phase = int(fractick(650, phase) * 600);

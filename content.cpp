@@ -1003,7 +1003,7 @@ WALL( '?', 0xFF00FF, "<temporary>", waTemporary, WF_WALL, RESERVED, 0, sgNone,  
 WALL( '?', 0xFF00FF, "<earth d", waEarthD, WF_WALL, RESERVED, 0, sgNone,  NODESC)
 WALL( '?', 0xFF00FF, "<elemental tmp>", waElementalTmp, WF_WALL, RESERVED, 0, sgNone,  NODESC)
 WALL( '?', 0xFF00FF, "<elemental d>", waElementalD, WF_WALL, RESERVED, 0, sgNone,  NODESC)
-WALL( '+', 0x009000, "green slime", waSlime1, ZERO | WF_ALCHEMY, RESERVED, 0, sgSlime1,  NODESC)
+WALL( '+', 0x00F000, "green slime", waSlime1, ZERO | WF_ALCHEMY, RESERVED, 0, sgSlime1,  NODESC)
 WALL( '+', 0xF0F000, "yellow slime", waSlime2, ZERO | WF_ALCHEMY, RESERVED, 0, sgSlime2,  NODESC)
 WALL( '#', 0x764e7c, "rosebush", waRose, WF_WALL | WF_HIGHWALL | WF_THORNY, RESERVED, 0, sgNone, roselanddesc)
 WALL( '#', 0xC0C000, "warp gate", waWarpGate, WF_WALL | WF_HIGHWALL, RESERVED, 0, sgNone,
@@ -1642,7 +1642,7 @@ ITEM( '?', 0xFFFFFF, "Painting", itPaint, IC_TREASURE, ZERO, RESERVED, osNone,
 ITEM( 'o', 0xFFFFFF, "Orb of Color", itOrbColor, IC_ORB, ZERO, RESERVED, osUtility, 
    "This orb changes the colors of cells around you, and adds color to cells."
   )
-WALL( '+', 0xF09000, "orange slime", waSlime3, ZERO | WF_ALCHEMY, RESERVED, 0, sgSlime3,  NODESC)
+WALL( '+', 0xF07000, "orange slime", waSlime3, ZERO | WF_ALCHEMY, RESERVED, 0, sgSlime3,  NODESC)
 WALL( '+', 0x700070, "purple slime", waSlime4, ZERO | WF_ALCHEMY, RESERVED, 0, sgSlime4,  NODESC)
 MONSTER( 'P', 0xFFFFFF, "Painter", moPaint, CF_FACE_UP | CF_NOBLOW | CF_SLIME | CF_IGNORE_SMELL, RESERVED, moSlime, "Acts like a slime beast from the Alchemist Lab.")
 MONSTER( 'A', 0xFFFFFF, "Artist", moArt, CF_FACE_UP | CF_NOBLOW | CF_FLYING | CF_BIRD, RESERVED, moEagle, "Leaves a trail of color behind.")
@@ -1688,7 +1688,7 @@ ITEM( '*', 0xFFFF00, "Thunder Stone", itThunderStone, IC_TREASURE, ZERO, RESERVE
   "A gem made of pure energy from the storm elementals.")
   
 ITEM( 'o', 0xBFBF00, "Orb of Charging", itOrbCharge, IC_ORB, ZERO, RESERVED, osNone, 
-    "When you have this and other orbs, all other orbs gain charge based on your orb of charging charge."
+    "When you have this and other orbs, all other orbs gain charge based on how much orb of charging you have."
     )
   NATIVE(among(m, moStormElemental) ? 2 : (among(m, moPirate, moAlbatross) ? 1 : 0))
   REQ(ITEMS(itWhirlpool, U5) ITEMS(itWindstone, U5))
@@ -1697,7 +1697,7 @@ ITEM( 'o', 0xBFBF00, "Orb of Charging", itOrbCharge, IC_ORB, ZERO, RESERVED, osN
 LAND( 0xFFFFFF, "Ant Nest",     laAnt, ZERO, itLangton, RESERVED, 
   "This land is home to many weird ants that move in a set pattern."
   )
-ITEM( '!', 0xFFFFFF, "Langton's Loop", itLangton, IC_TREASURE, ZERO, RESERVED, osNone, 
+ITEM( '!', 0xFF0000, "Langton's Loop", itLangton, IC_TREASURE, ZERO, RESERVED, osNone, 
   "This object is made of a bizzare material that can self replicate.")
 ITEM( 'o', 0xFFFFFF, "Orb of Replication", itOrbReplicate, IC_ORB, ZERO, RESERVED, osUtility, 
    "When you have this orb, all treasures you pick up are doubled."

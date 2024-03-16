@@ -212,3 +212,474 @@ cells travelled: 15
 
 
 
+HyperRogue: game statistics (version 12.1i)
+CHEATER! (cheated 2 times)
+12.1i 1678512572 1678513649 47 116 777 457255 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 629 1 2 91 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 403145297 1013 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 150 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 62040 0 61 47 74 41 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+Played on: 03/10/23 23:29:32 - 03/10/23 23:47:29 (777 turns)
+Total wealth: 47
+Total enemies killed: 116
+cells generated: 457255
+Number of cells explored, by distance from the player:
+ 562 1711 3327 5956 10402 18008 31079 53573 92298 158982
+cells travelled: 310
+
+  47x Painting
+  61x Orb of Color
+
+   1x Slime Beast
+  74x Painter
+  41x Artist
+
+
+
+HyperRogue: game statistics (version 12.1i)
+CHEATER! (cheated 7 times)
+12.1i 1678513978 1678514192 102 53 140 137795 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 295 1 7 93 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 28 0 0 0 0 0 0 0 0 0 0 0 0 4 0 0 0 0 0 22 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 110861846 51 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 150 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 72140 0 0 0 0 0 0 0 0 102 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+Played on: 03/10/23 23:52:58 - 03/10/23 23:56:32 (140 turns)
+Total wealth: 102
+Total enemies killed: 53
+cells generated: 137795
+Number of cells explored, by distance from the player:
+ 79 252 515 950 1684 2940 5773 11075 19736 34448
+cells travelled: 55
+
+ 102x Thunder Stone
+
+  28x Pirate
+  22x Albatross
+   3x Storm Elemental
+
+
+
+HyperRogue: game statistics (version 12.1i)
+CHEATER! (cheated 3 times)
+12.1i 1678514280 1678557968 1 11 57 75676 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 43743 1 3 94 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 1582091731 100 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 6 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 150 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 62040 0 0 0 0 0 0 0 0 0 0 0 0 1 3 5 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+Played on: 03/10/23 23:58:00 - 03/11/23 12:06:08 (57 turns)
+Total wealth: 1
+Total enemies killed: 11
+cells generated: 75676
+Number of cells explored, by distance from the player:
+ 44 154 320 595 1064 1865 3244 5618 9703 16740
+cells travelled: 37
+
+   1x Langton's Loop
+
+   3x Parant
+   5x Metant
+   3x Orthant
+
+
+
+HyperRogue: game statistics (version 12.1i)
+CHEATER! (cheated 2 times)
+12.1i 1678559874 1678559966 1 2 22 53759 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 92 1 2 93 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 4 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 914156285 36 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 150 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 60000 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+Played on: 03/11/23 12:37:54 - 03/11/23 12:39:26 (22 turns)
+Total wealth: 1
+Total enemies killed: 2
+cells generated: 53759
+Number of cells explored, by distance from the player:
+ 15 57 123 241 444 791 1547 2943 5238 9130
+cells travelled: 8
+
+   1x Thunder Stone
+
+   1x Pirate
+   1x Albatross
+
+
+
+HyperRogue: game statistics (version 12.1i)
+CHEATER! (cheated 3 times)
+12.1i 1678571977 1678573322 34 115 613 146289 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1272 1 3 93 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 46 0 0 0 0 0 0 0 0 0 0 0 0 4 0 0 0 0 0 53 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 1689070199 978 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 150 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 62130 0 0 0 0 0 0 0 0 34 15 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+Played on: 03/11/23 15:59:37 - 03/11/23 16:22:02 (613 turns)
+Total wealth: 34
+Total enemies killed: 115
+cells generated: 146289
+Number of cells explored, by distance from the player:
+ 430 1341 2660 4806 8438 14643 34507 74405 136751 240994
+cells travelled: 65
+
+  34x Thunder Stone
+
+  46x Pirate
+  53x Albatross
+   1x Acid Gull
+  15x Storm Elemental
+
+
+
+ACHIEVEMENT DIAMOND1 turns: 30 time: 22 at: 1678573322 ver: 12.1i c: 0 date: 03/11/23 16:22:24
+ACHIEVEMENT FEATHER1 turns: 161 time: 96 at: 1678573322 ver: 12.1i c: 0 date: 03/11/23 16:23:38
+ACHIEVEMENT FEATHER2 turns: 228 time: 121 at: 1678573322 ver: 12.1i c: 0 date: 03/11/23 16:24:03
+ACHIEVEMENT FEATHER3 turns: 349 time: 198 at: 1678573322 ver: 12.1i c: 0 date: 03/11/23 16:25:20
+HyperRogue: game statistics (version 12.1i)
+12.1i 1678573322 1678573588 33 21 500 252568 0 8 0 0 0 0 0 0 0 0 25 0 0 0 0 0 12 5 1 0 0 1 2 0 0 0 0 4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 8 0 263 1 0 13 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 633489345 1785 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 150 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 61014 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+Played on: 03/11/23 16:22:02 - 03/11/23 16:26:28 (500 turns)
+Total wealth: 33
+Total enemies killed: 21
+cells generated: 252568
+Number of cells explored, by distance from the player:
+ 430 1370 2713 4885 8548 14813 25573 44089 76828 132341
+walls melted: 12
+cells travelled: 182
+
+   8x Ice Diamond
+  25x Phoenix Feather
+
+   5x Yeti
+   1x Icewolf
+   1x Rock Troll
+   2x Goblin
+   4x Desert Man
+   8x Running Dog
+
+
+
+ACHIEVEMENT DIAMOND1 turns: 48 time: 144 at: 1678573588 ver: 12.1i c: 0 date: 03/11/23 16:28:52
+ACHIEVEMENT DIAMOND2 turns: 99 time: 172 at: 1678573588 ver: 12.1i c: 0 date: 03/11/23 16:29:20
+ACHIEVEMENT ELIXIR1 turns: 113 time: 178 at: 1678573588 ver: 12.1i c: 0 date: 03/11/23 16:29:26
+ACHIEVEMENT ELIXIR2 turns: 241 time: 235 at: 1678573588 ver: 12.1i c: 0 date: 03/11/23 16:30:23
+ACHIEVEMENT FEATHER1 turns: 275 time: 281 at: 1678573588 ver: 12.1i c: 0 date: 03/11/23 16:31:09
+ACHIEVEMENT FEATHER2 turns: 294 time: 287 at: 1678573588 ver: 12.1i c: 0 date: 03/11/23 16:31:15
+ACHIEVEMENT FEATHER3 turns: 382 time: 367 at: 1678573588 ver: 12.1i c: 0 date: 03/11/23 16:32:35
+ACHIEVEMENT WET1 turns: 445 time: 406 at: 1678573588 ver: 12.1i c: 0 date: 03/11/23 16:33:14
+ACHIEVEMENT WET2 turns: 511 time: 441 at: 1678573588 ver: 12.1i c: 0 date: 03/11/23 16:33:49
+ACHIEVEMENT JELLZ1 turns: 628 time: 521 at: 1678573588 ver: 12.1i c: 0 date: 03/11/23 16:35:09
+ACHIEVEMENT JELLZ2 turns: 712 time: 593 at: 1678573588 ver: 12.1i c: 0 date: 03/11/23 16:36:21
+ACHIEVEMENT MINE1 turns: 1198 time: 1415 at: 1678573588 ver: 12.1i c: 0 date: 03/11/23 16:50:03
+ACHIEVEMENT MINE2 turns: 1294 time: 1473 at: 1678573588 ver: 12.1i c: 0 date: 03/11/23 16:51:01
+ACHIEVEMENT DOVE1 turns: 1441 time: 1567 at: 1678573588 ver: 12.1i c: 0 date: 03/11/23 16:52:35
+ACHIEVEMENT DOVE2 turns: 1502 time: 1612 at: 1678573588 ver: 12.1i c: 0 date: 03/11/23 16:53:20
+ACHIEVEMENT WHIRL2 turns: 1775 time: 1895 at: 1678573588 ver: 12.1i c: 0 date: 03/11/23 16:58:03
+ACHIEVEMENT WHIRL1 turns: 2118 time: 2313 at: 1678573588 ver: 12.1i c: 0 date: 03/11/23 17:05:01
+ACHIEVEMENT CORAL1 turns: 2293 time: 2494 at: 1678573588 ver: 12.1i c: 0 date: 03/11/23 17:08:02
+ACHIEVEMENT CORAL2 turns: 2419 time: 2587 at: 1678573588 ver: 12.1i c: 0 date: 03/11/23 17:09:35
+ACHIEVEMENT BROWN1 turns: 2577 time: 2687 at: 1678573588 ver: 12.1i c: 0 date: 03/11/23 17:11:15
+HyperRogue: game statistics (version 12.1i)
+12.1i 1678573588 1678576650 130 235 2761 4314553 0 10 0 0 0 10 0 0 0 0 25 0 0 0 0 0 1 5 3 0 0 0 0 0 0 0 1 0 0 0 0 1 0 0 0 23 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 8 0 2868 1 0 84 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 31 10 0 0 0 0 0 0 0 0 0 0 0 4 0 10 10 0 1 18 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 10 0 13 0 0 0 1 0 0 0 0 10 0 0 17 0 0 0 0 1 1 0 0 0 0 0 0 0 0 0 0 244640286 4242 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 10 0 0 7 15 0 0 0 0 0 0 1 0 0 150 0 0 0 0 0 0 0 0 0 0 4 0 19 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 10 0 0 0 17 3 0 0 0 0 0 61041 0 0 11 28 7 0 0 0 10 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+Played on: 03/11/23 16:26:28 - 03/11/23 17:17:30 (2761 turns)
+Total wealth: 130
+Total enemies killed: 235
+cells generated: 4314553
+Number of cells explored, by distance from the player:
+ 1876 5772 11293 20265 35391 61260 196487 486217 928936 1654097
+walls melted: 1
+cells travelled: 254
+
+  10x Ice Diamond
+  10x Elixir of Life
+  25x Phoenix Feather
+  10x Bomberbird Egg
+  10x Pearl
+  10x White Dove Feather
+  10x Coral
+  10x Tasty Jelly
+   4x Tiger's Eye
+  10x Water Lily
+  11x Painting
+  10x Thunder Stone
+
+   5x Yeti
+   3x Icewolf
+   1x Hedgehog Warrior
+   1x Dormant Ivy
+  23x Slime Beast
+   8x Running Dog
+  31x Pirate
+  10x Shark
+  18x Albatross
+   1x Tame Bomberbird
+   2x Viking
+   1x Air Elemental
+   1x Striped Dog
+  13x Wind Crow
+  17x Ratling
+   1x Ratling Avenger
+   7x Red Jelly
+  15x Blue Jelly
+   3x Bronze Beast
+  19x Acid Gull
+  17x Pike
+   3x Rusałka
+  28x Painter
+   7x Artist
+   2x Storm Elemental
+
+
+
+HyperRogue: game statistics (version 12.1i)
+CHEATER! (cheated 2 times)
+12.1i 1678576756 1678579895 4 7 122 92565 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 119 1 2 94 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 1314439114 151 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 150 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 62040 0 0 0 0 0 0 0 0 0 0 0 0 4 0 3 4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+Played on: 03/11/23 17:19:16 - 03/11/23 18:11:35 (122 turns)
+Total wealth: 4
+Total enemies killed: 7
+cells generated: 92565
+Number of cells explored, by distance from the player:
+ 77 242 482 880 1556 2715 4709 8140 14048 24222
+walls melted: 3
+cells travelled: 30
+
+   4x Langton's Loop
+
+   3x Metant
+   4x Orthant
+
+
+
+ACHIEVEMENT DIAMOND1 turns: 7 time: 4 at: 1704246613 ver: 12.1i c: 0 date: 01/02/24 19:50:17
+ACHIEVEMENT DIAMOND2 turns: 97 time: 43 at: 1704246613 ver: 12.1i c: 0 date: 01/02/24 19:50:56
+ACHIEVEMENT FEATHER1 turns: 144 time: 105 at: 1704246613 ver: 12.1i c: 0 date: 01/02/24 19:51:58
+ACHIEVEMENT FEATHER2 turns: 206 time: 148 at: 1704246613 ver: 12.1i c: 0 date: 01/02/24 19:52:41
+ACHIEVEMENT ELIXIR1 turns: 268 time: 172 at: 1704246613 ver: 12.1i c: 0 date: 01/02/24 19:53:05
+ACHIEVEMENT ELIXIR2 turns: 353 time: 208 at: 1704246613 ver: 12.1i c: 0 date: 01/02/24 19:53:41
+HyperRogue: game statistics (version 12.1i)
+12.1i 1704246613 1704246946 30 31 529 506431 0 10 0 0 0 10 0 0 0 0 10 0 0 0 0 0 23 8 2 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 14 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 329 1 0 29 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 417 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 0 0 0 0 0 0 0 1 0 0 150 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 63003 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+Played on: 01/02/24 19:50:13 - 01/02/24 19:55:46 (529 turns)
+Total wealth: 30
+Total enemies killed: 31
+cells generated: 506431
+Number of cells explored, by distance from the player:
+ 411 1305 2579 4634 8098 14021 24655 43243 83981 144929
+walls melted: 23
+cells travelled: 282
+
+  10x Ice Diamond
+  10x Elixir of Life
+  10x Phoenix Feather
+
+   8x Yeti
+   2x Icewolf
+   1x Desert Man
+  14x Slime Beast
+   2x Running Dog
+   1x Viking
+   3x Red Jelly
+
+
+
+ACHIEVEMENT DIAMOND1 turns: 13 time: 5 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 19:55:52
+ACHIEVEMENT DIAMOND2 turns: 86 time: 34 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 19:56:21
+ACHIEVEMENT ELIXIR1 turns: 116 time: 65 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 19:56:52
+ACHIEVEMENT ELIXIR2 turns: 211 time: 104 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 19:57:31
+ACHIEVEMENT FEATHER1 turns: 230 time: 130 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 19:57:57
+ACHIEVEMENT FEATHER2 turns: 284 time: 153 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 19:58:20
+ACHIEVEMENT CORAL1 turns: 413 time: 230 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 19:59:37
+ACHIEVEMENT CORAL2 turns: 572 time: 349 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 20:01:36
+ACHIEVEMENT GARNET1 turns: 630 time: 378 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 20:02:05
+ACHIEVEMENT GARNET2 turns: 683 time: 418 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 20:02:45
+ACHIEVEMENT WHIRL2 turns: 957 time: 540 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 20:04:47
+ACHIEVEMENT WHIRL1 turns: 1109 time: 629 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 20:06:16
+ACHIEVEMENT BROWN1 turns: 1410 time: 810 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 20:09:17
+ACHIEVEMENT BROWN2 turns: 1639 time: 969 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 20:11:56
+ACHIEVEMENT KRAKEN1 turns: 1854 time: 1154 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 20:15:01
+ACHIEVEMENT KRAKEN2 turns: 1955 time: 1249 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 20:16:36
+ACHIEVEMENT PIRATE1 turns: 2106 time: 1343 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 20:18:10
+ACHIEVEMENT PIRATE2 turns: 2331 time: 1467 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 20:20:14
+ACHIEVEMENT COAST1 turns: 2424 time: 1515 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 20:21:02
+ACHIEVEMENT COAST2 turns: 2466 time: 1531 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 20:21:18
+ACHIEVEMENT STATUE1 turns: 2498 time: 1547 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 20:21:34
+ACHIEVEMENT GRIMOIRE1 turns: 2635 time: 1631 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 20:22:58
+ACHIEVEMENT STATUE2 turns: 2640 time: 1633 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 20:23:00
+ACHIEVEMENT GRIMOIRE2 turns: 2734 time: 1706 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 20:24:13
+ACHIEVEMENT STABBER1 turns: 2876 time: 1787 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 20:25:34
+ACHIEVEMENT FLASH1 turns: 2907 time: 1805 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 20:25:52
+ACHIEVEMENT DAISY1 turns: 2997 time: 1859 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 20:26:46
+ACHIEVEMENT DEMONSLAYER turns: 3020 time: 1877 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 20:27:04
+ACHIEVEMENT DAISY2 turns: 3063 time: 1901 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 20:27:28
+ACHIEVEMENT JELLY1 turns: 3707 time: 2623 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 20:39:30
+ACHIEVEMENT JELLY2 turns: 3842 time: 2685 at: 1704246947 ver: 12.1i c: 0 date: 01/02/24 20:40:32
+HyperRogue: game statistics (version 12.1i)
+12.1i 1704246947 1704249645 154 579 3848 228577 0 10 0 0 0 10 0 0 10 10 10 0 0 0 0 0 11 4 2 0 0 0 0 0 0 0 1 0 0 2 1 7 0 2 0 10 0 0 0 0 0 0 0 0 0 0 2 0 0 0 19 0 0 0 25 0 0 1 0 2688 1 0 18 0 0 0 0 0 0 0 0 0 14 0 0 0 0 0 0 0 0 0 110 112 0 0 0 0 0 0 0 0 0 0 0 0 0 0 10 0 2 89 18 30 10 0 0 0 0 0 0 0 0 0 4 10 10 0 0 0 13 0 0 0 0 10 0 0 0 0 0 0 29 2 5 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 10 0 0 33 1 0 0 0 1 2 0 0 0 0 0 0 0 0 0 0 237165922 2455 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 10 4 27 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 5 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 1 0 0 150 0 0 0 0 0 0 0 0 0 0 10 0 28 11 0 0 0 0 0 0 0 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 73040 0 0 10 13 6 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+Played on: 01/02/24 19:55:47 - 01/02/24 20:40:45 (3848 turns)
+Total wealth: 154
+Total enemies killed: 579
+cells generated: 228577
+Number of cells explored, by distance from the player:
+ 2692 8385 16407 29381 51320 88830 293770 734411 1395714 2487511
+walls melted: 11
+cells travelled: 90
+
+  10x Ice Diamond
+  10x Elixir of Life
+  10x Demon Daisy
+  10x Statue of Cthulhu
+  10x Phoenix Feather
+  14x Royal Jelly
+  10x Grimoire
+  10x Pirate Treasure
+  10x Amber
+  10x Pearl
+  10x Garnet
+  10x Coral
+  10x Sunken Treasure
+  10x Tiger's Eye
+  10x Painting
+
+   4x Yeti
+   2x Icewolf
+   1x Hedgehog Warrior
+   2x Active Ivy
+   1x Ivy Branch
+   7x Dormant Ivy
+   2x Dead Ivy
+  10x Slime Beast
+   2x Tentacle
+  19x Cultist
+  25x Lesser Demon
+   1x Running Dog
+ 110x Green Hyperbug
+ 112x Blue Hyperbug
+   2x Cult Leader
+  89x Pirate
+  18x Shark
+  30x Parrot
+  13x Albatross
+  29x Viking
+   2x Fjord Troll
+   5x Water Elemental
+   1x Metal Beast
+   2x Storm Troll
+  33x Ratling
+   1x False Princess
+   2x Ratling Avenger
+   4x Kraken
+  27x Kraken Tentacle
+   1x Reptile
+   2x Narcissist
+   1x Red Jelly
+  11x Bronze Beast
+  28x Acid Gull
+  13x Painter
+   6x Artist
+
+
+
+ACHIEVEMENT DIAMOND1 turns: 7 time: 3 at: 1704249646 ver: 12.1i c: 0 date: 01/02/24 20:40:49
+ACHIEVEMENT DIAMOND2 turns: 52 time: 21 at: 1704249646 ver: 12.1i c: 0 date: 01/02/24 20:41:07
+ACHIEVEMENT GOLD1 turns: 117 time: 81 at: 1704249646 ver: 12.1i c: 0 date: 01/02/24 20:42:07
+ACHIEVEMENT GOLD2 turns: 183 time: 115 at: 1704249646 ver: 12.1i c: 0 date: 01/02/24 20:42:41
+ACHIEVEMENT ELIXIR1 turns: 266 time: 154 at: 1704249646 ver: 12.1i c: 0 date: 01/02/24 20:43:20
+ACHIEVEMENT ELIXIR2 turns: 413 time: 352 at: 1704249646 ver: 12.1i c: 0 date: 01/02/24 20:46:38
+ACHIEVEMENT SPICE1 turns: 443 time: 368 at: 1704249646 ver: 12.1i c: 0 date: 01/02/24 20:46:54
+ACHIEVEMENT SPICE2 turns: 495 time: 389 at: 1704249646 ver: 12.1i c: 0 date: 01/02/24 20:47:15
+ACHIEVEMENT FEATHER1 turns: 505 time: 392 at: 1704249646 ver: 12.1i c: 0 date: 01/02/24 20:47:18
+ACHIEVEMENT FEATHER2 turns: 560 time: 448 at: 1704249646 ver: 12.1i c: 0 date: 01/02/24 20:48:14
+ACHIEVEMENT ZEBRA1 turns: 604 time: 515 at: 1704249646 ver: 12.1i c: 0 date: 01/02/24 20:49:21
+ACHIEVEMENT ZEBRA2 turns: 700 time: 631 at: 1704249646 ver: 12.1i c: 0 date: 01/02/24 20:51:17
+ACHIEVEMENT FULGUR1 turns: 829 time: 820 at: 1704249646 ver: 12.1i c: 0 date: 01/02/24 20:54:26
+ACHIEVEMENT FULGUR2 turns: 866 time: 842 at: 1704249646 ver: 12.1i c: 0 date: 01/02/24 20:54:48
+ACHIEVEMENT STABBER1 turns: 913 time: 870 at: 1704249646 ver: 12.1i c: 0 date: 01/02/24 20:55:16
+ACHIEVEMENT DOVE1 turns: 982 time: 981 at: 1704249646 ver: 12.1i c: 0 date: 01/02/24 20:57:07
+ACHIEVEMENT DOVE2 turns: 1081 time: 1082 at: 1704249646 ver: 12.1i c: 0 date: 01/02/24 20:58:48
+ACHIEVEMENT CORAL1 turns: 1125 time: 1101 at: 1704249646 ver: 12.1i c: 0 date: 01/02/24 20:59:07
+ACHIEVEMENT CORAL2 turns: 1217 time: 1166 at: 1704249646 ver: 12.1i c: 0 date: 01/02/24 21:00:12
+ACHIEVEMENT WHIRL2 turns: 1404 time: 1261 at: 1704249646 ver: 12.1i c: 0 date: 01/02/24 21:01:47
+ACHIEVEMENT WHIRL1 turns: 1905 time: 1462 at: 1704249646 ver: 12.1i c: 0 date: 01/02/24 21:05:08
+ACHIEVEMENT LIGHTNING1 turns: 2278 time: 1779 at: 1704249646 ver: 12.1i c: 0 date: 01/02/24 21:10:25
+HyperRogue: game statistics (version 12.1i)
+12.1i 1704249646 1704251466 126 233 2331 419529 0 10 10 10 0 10 0 0 0 0 10 0 0 0 0 0 11 7 3 0 0 7 2 0 0 0 1 6 0 0 0 0 0 0 0 21 0 0 0 0 0 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 1818 1 0 93 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 46 19 0 0 0 0 0 0 0 0 0 0 0 4 0 10 0 0 0 33 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 10 0 0 0 0 2 0 0 0 25 0 0 0 13 0 0 3 7 0 10 0 0 0 0 0 0 0 10 0 6 0 0 0 1 0 0 0 0 10 0 0 10 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 464542913 3981 0 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 150 0 0 0 0 0 0 0 0 0 0 0 0 5 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 62220 0 0 0 0 0 0 0 0 26 11 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+Played on: 01/02/24 20:40:46 - 01/02/24 21:11:06 (2331 turns)
+Total wealth: 126
+Total enemies killed: 233
+cells generated: 419529
+Number of cells explored, by distance from the player:
+ 1520 4782 9389 16840 29428 50917 133500 304256 584926 1036098
+walls melted: 11
+cells travelled: 192
+
+  10x Ice Diamond
+  10x Gold
+  10x Spice
+  10x Elixir of Life
+  10x Phoenix Feather
+  10x Pearl
+  10x Onyx
+  10x Fulgurite
+  10x White Dove Feather
+  10x Coral
+  26x Thunder Stone
+
+   7x Yeti
+   3x Icewolf
+   7x Rock Troll
+   2x Goblin
+   1x Hedgehog Warrior
+   6x Desert Man
+  21x Slime Beast
+   3x Seep
+   2x Running Dog
+  46x Pirate
+  19x Shark
+  33x Albatross
+   1x Viking
+   2x Air Elemental
+  25x Striped Dog
+   3x Metal Beast
+   7x Rich Metal Beast
+  13x Storm Troll
+   6x Wind Crow
+  10x Ratling
+   5x Acid Gull
+  11x Storm Elemental
+
+
+
+HyperRogue: game statistics (version 12.1i)
+CHEATER! (cheated 2 times)
+12.1i 1704316712 1704316763 3 1 61 115786 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 51 1 2 93 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 700192782 77 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 150 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 60000 0 0 0 0 0 0 0 0 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+Played on: 01/03/24 15:18:32 - 01/03/24 15:19:23 (61 turns)
+Total wealth: 3
+Total enemies killed: 1
+cells generated: 115786
+Number of cells explored, by distance from the player:
+ 50 168 347 645 1150 2014 4474 9291 16930 29706
+cells travelled: 41
+
+   3x Thunder Stone
+
+   1x Pirate
+
+
+
+HyperRogue: game statistics (version 12.1i)
+CHEATER! (cheated 3 times)
+12.1i 1710618418 1710619461 22 91 880 312601 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1043 1 3 93 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 7 0 0 0 0 0 0 0 0 0 0 0 0 4 0 0 0 0 0 9 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 1118448192 941 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 150 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 70300 0 0 0 0 0 0 0 0 12 4 0 0 10 26 19 26 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+Played on: 03/16/24 14:46:58 - 03/16/24 15:04:21 (880 turns)
+Total wealth: 22
+Total enemies killed: 91
+cells generated: 312601
+Number of cells explored, by distance from the player:
+ 556 1648 3207 5749 10056 17422 33223 62391 155082 269212
+walls melted: 1
+cells travelled: 132
+
+  12x Thunder Stone
+  10x Langton's Loop
+
+   7x Pirate
+   9x Albatross
+   4x Storm Elemental
+  26x Parant
+  19x Metant
+  26x Orthant
+
+
+
+HyperRogue: game statistics (version 12.1i)
+CHEATER! (cheated 2 times)
+12.1i 1710624735 1710629190 1 3 50 107752 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 4452 1 2 93 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 4 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 1563769408 88 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 150 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 62040 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+Played on: 03/16/24 16:32:15 - 03/16/24 17:46:30 (50 turns)
+Total wealth: 1
+Total enemies killed: 3
+cells generated: 107752
+Number of cells explored, by distance from the player:
+ 41 138 286 532 951 1670 3934 8459 15550 27392
+cells travelled: 30
+
+   1x Thunder Stone
+
+   2x Pirate
+   1x Albatross
+
+
+
