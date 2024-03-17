@@ -44,7 +44,7 @@ EX namespace brownian {
     c->landparam += val;
     }
   
-  static const int FAT = (-100); // less than 0
+  static constexpr int FAT = (-100); // less than 0
 
   void recurse(cell *c, int fatten_from) {
     int dl = getDistLimit();
@@ -161,16 +161,16 @@ EX namespace brownian {
   
     if(!hyperbolic) c->wall = waNone, c->landparam = 256;
     
-    if(c->landparam == 0 && ls::single()) c->land = laOcean;
+    if(c->landparam == 0 && (ls::single() || ls::hv_structure())) c->land = laOcean;
 
     ONEMPTY {
       if(hrand(10000) < min(250, 100 + 2 * PT(kills[moAcidBird] + kills[moBrownBug], 50)) * (25 + min(items[itBrownian], 100)) / 25 && c->landparam >= 4 && c->landparam < 24)
         c->item = itBrownian;
-      if(hrand_monster(8000) < 15 + items[itBrownian])
+      if(hrand_monster_in(laBrownian, 8000) < 15 + items[itBrownian])
         c->monst = moAcidBird;
-      else if(hrand_monster(8000) < 15)
+      else if(hrand_monster_in(laBrownian, 8000) < 15)
         c->monst = moAlbatross;
-      else if(hrand_monster(8000) < 15 + items[itBrownian]) {
+      else if(hrand_monster_in(laBrownian, 8000) < 15 + items[itBrownian]) {
         c->monst = moBrownBug;
         c->hitpoints = 3;
         }
@@ -291,7 +291,7 @@ extern array<feature, 21> features;
 
 #define VF [] (cell *c)
 
-bool hrand_var(int i) { return hrand_monster(i) < 25 + items[itVarTreasure] + yendor::hardness(); }
+bool hrand_var(int i) { return hrand_monster_in(laVariant, i) < 25 + items[itVarTreasure] + yendor::hardness(); }
 
 array<feature, 21> features {{
   feature{(color_t)(-0x202020), 5, moNecromancer, VF {
@@ -905,6 +905,12 @@ EX void ambush(cell *c, int dogs) {
     addMessage(XLAT("You are ambushed!"));
   }
 
+EX void guard_attack() {
+  addMessage(XLAT("%The1 alarms other dogs as it dies!", moHunterDog));
+  for(cell *c: dcal) if(c->monst == moHunterGuard) c->monst = moHunterDog;
+  ambush(cwt.at, 7);
+  }
+
 EX }
 
 EX namespace dice {
@@ -1197,7 +1203,8 @@ EX namespace dice {
     
     int si = dw->facesides;
 
-    if(c == lmouseover_distant) {
+    if(inHighQual) ;
+    else if(c == lmouseover_distant) {
       set<cell*> visited;
       struct celldata_t {
         cell* c;
@@ -1273,11 +1280,13 @@ EX namespace dice {
       dynamicval<eGeometry> g(geometry, gSphere);
       hyperpoint de = direct_exp(log_shift);
       S = rgpushxto0(de);
+      #if MAXMDIM >= 4
       if(GDIM == 3) {
-        for(int i=0; i<4; i++) swap(S[i][2], S[i][3]);
-        for(int i=0; i<4; i++) swap(S[2][i], S[3][i]);
+        for(int i=0; i<MAXMDIM; i++) swap(S[i][2], S[i][3]);
+        for(int i=0; i<MAXMDIM; i++) swap(S[2][i], S[3][i]);
         }
-      for(int i=0; i<4; i++) S[i][1] *= -1;
+      #endif
+      for(int i=0; i<MAXMDIM; i++) S[i][1] *= -1;
       }
     
     add_to_queue(S, val);
@@ -1348,13 +1357,19 @@ EX namespace dice {
       auto sphere_to_space = [&] (hyperpoint h) {
         if(fpp) return h;
         if(osphere) {
-          h[2] = 1 - h[2]; h[3] = 0;
+          h[2] = 1 - h[2];
+          #if MAXMDIM > 3
+          h[3] = 0;
+          #endif
           return h;
           }
         if(oeuclid) { h[2] = 1-h[2]; return h; }
         ld z = asin_auto(h[2]);
         h = zpush(-z) * h;
-        h[2] = h[3]; h[3] = 0;
+        #if MAXMDIM > 3
+        h[2] = h[3];
+        h[3] = 0;
+        #endif
         dynamicval<eGeometry> g(geometry, orig);
         return orthogonal_move(h, z);
         };

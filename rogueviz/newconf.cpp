@@ -921,7 +921,7 @@ void ncee() {
     displayButton(vid.xres - 8, 8 + vid.fsize, XLAT("(v) menu"), 'v', 16);
 
   if(algo_ticks)
-    displaystr(8, 8 + vid.fsize, 0, vid.fsize * 2, format("%d.%03d", algo_ticks/1000, algo_ticks%1000), 0xFFFFFF, 0);
+    displaystr(8, 8 + vid.fsize, 0, vid.fsize * 2, hr::format("%d.%03d", algo_ticks/1000, algo_ticks%1000), 0xFFFFFF, 0);
   
   keyhandler = [=] (int sym, int uni) {
     // dialog::handleNavigation(sym, uni);
@@ -946,7 +946,10 @@ void ncee() {
     if(uni == 's') show_mapping = !show_mapping;
     if(uni == 'g') show_mgrid = !show_mgrid;
     if(uni == 't') pushScreen(conf_shapes);
-    if(uni == 'y') dialog::editNumber(mapping_split, 0, 1, 0.05, 0.75, "", ""), dialog::dialogflags = sm::NOSCR;
+    if(uni == 'y') {
+      dialog::editNumber(mapping_split, 0, 1, 0.05, 0.75, "", "");
+      dialog::get_di().dialogflags = sm::NOSCR;
+      }
     if(uni == '-') {
       int x = (mousex - cd->xcenter - xc - x0) / siz;
       int y = (mousey - cd->ycenter - yc - y0) / siz;
@@ -974,7 +977,7 @@ void ncee() {
         fmap = genellipse(D, i * degree / slow);
         println(hlog, "i = ", i);
         for(int a=0; a<10; a++) iterate();
-        if(i >= 0) shot::take(format(rfname.c_str(), i), draw_ncee);
+        if(i >= 0) shot::take(hr::format(rfname.c_str(), i), draw_ncee);
         }
       }
     };

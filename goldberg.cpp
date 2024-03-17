@@ -234,7 +234,7 @@ EX namespace gp {
     auto& wc = get_mapping(at);
     auto wcw = get_localwalk(wc, dir);
     auto& wc1 = get_mapping(at + eudir(dir));
-    DEBB0(DF_GP, (format("  md:%02d s:%d", wc.mindir, wc.cw.spin)); )
+    DEBB0(DF_GP, (hr::format("  md:%02d s:%d", wc.mindir, wc.cw.spin)); )
     DEBB0(DF_GP, ("  connection ", at, "/", dir, " ", wc.cw+dir, "=", wcw, " ~ ", at+eudir(dir), "/", dir1, " "); )
     if(!wc1.cw.at) {
       wc1.start = wc.start;
@@ -274,6 +274,8 @@ EX namespace gp {
     if(do_adjm) {
       get_adj(wcw.at, wcw.spin) = inverse(wc.adjm) * wc1.adjm;
       get_adj(wcw1.at, wcw1.spin) = inverse(wc1.adjm) * wc.adjm;
+      if(geom3::flipped) gp_swapped.emplace(wcw.at, wcw.spin);
+      if(geom3::flipped) gp_swapped.emplace(wcw1.at, wcw1.spin);
       }
     }
 
@@ -283,6 +285,7 @@ EX namespace gp {
     }
   
   EX map<pair<cell*, int>, transmatrix> gp_adj;
+  EX set<pair<cell*, int>> gp_swapped;
   
   EX transmatrix& get_adj(cell *c, int i) { return gp_adj[make_pair(c,i)]; }
 
@@ -810,6 +813,15 @@ EX namespace gp {
     screens = g;
     }
 
+  EX bool check_whirl_set(loc xy) {
+    if(!check_limits(xy)) {
+      addMessage(XLAT("Outside of the supported limits"));
+      return false;
+      }
+    whirl_set(xy);
+    return true;
+    }
+
   string helptext() {
     return XLAT(
       "Goldberg polyhedra are obtained by adding extra hexagons to a dodecahedron. "
@@ -884,10 +896,11 @@ EX namespace gp {
       }
 
     dialog::addBreak(100);
+    int max_goldberg = (1<<GOLDBERG_BITS)/2 - 1;
     dialog::addSelItem("x", its(config.first), 'x');
-    dialog::add_action([] { dialog::editNumber(config.first, 0, 8, 1, 1, "x", helptext()); });
+    dialog::add_action([max_goldberg] { dialog::editNumber(config.first, 0, max_goldberg, 1, 1, "x", helptext()); });
     dialog::addSelItem("y", its(config.second), 'y');
-    dialog::add_action([] { dialog::editNumber(config.second, 0, 8, 1, 1, "y", helptext()); });
+    dialog::add_action([max_goldberg] { dialog::editNumber(config.second, 0, max_goldberg, 1, 1, "y", helptext()); });
     
     if(!check_limits(config))
       dialog::addInfo(XLAT("Outside of the supported limits"));
@@ -970,24 +983,24 @@ EX namespace gp {
         auto p = univ_param();
         if(S3 == 3 && !UNTRUNCATED) {
           println(hlog, "set param to ", p * loc(1,1));
-          whirl_set(p * loc(1, 1));
+          if(!check_whirl_set(p * loc(1, 1))) return;
           set_variation(eVariation::untruncated);
           start_game();
           config = human_representation(univ_param());
           }
         else if(S3 == 4 && !UNRECTIFIED) {
-          whirl_set(p * loc(1, 1));
+          if(!check_whirl_set(p * loc(1, 1))) return;
           set_variation(eVariation::unrectified);
           start_game();
           config = human_representation(univ_param());
           }
         else if(S3 == 3 && UNTRUNCATED) {
           println(hlog, "whirl_set to ", (p * loc(1,1)) / 3);
-          whirl_set((p * loc(1,1)) / 3);
+          if(!check_whirl_set((p * loc(1,1)) / 3)) return;
           config = human_representation(univ_param());
           }
         else if(S3 == 4 && UNRECTIFIED) {
-          whirl_set((p * loc(1,1)) / 2);
+          if(!check_whirl_set((p * loc(1,1)) / 2)) return;
           config = human_representation(univ_param());
           }
         });

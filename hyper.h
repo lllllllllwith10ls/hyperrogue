@@ -13,8 +13,8 @@
 #define _HYPER_H_
 
 // version numbers
-#define VER "12.1i"
-#define VERNUM_HEX 0xA929
+#define VER "13.0c"
+#define VERNUM_HEX 0xAA03
 
 #include "sysconfig.h"
 
@@ -200,6 +200,7 @@ void addMessage(string s, char spamtype = 0);
 
 #define INVERSE among(variation, eVariation::unrectified, eVariation::warped, eVariation::untruncated )
 
+#define aperiodic (cgflags & qAPERIODIC)
 #define UNRECTIFIED (variation == eVariation::unrectified)
 #define WARPED (variation == eVariation::warped)
 #define UNTRUNCATED (variation == eVariation::untruncated)
@@ -224,7 +225,7 @@ void addMessage(string s, char spamtype = 0);
 
 #define LB_YENDOR_CHALLENGE 40
 #define LB_PURE_TACTICS 41
-#define NUMLEADER 87
+#define NUMLEADER 90
 #define LB_PURE_TACTICS_SHMUP 49
 #define LB_PURE_TACTICS_COOP 50
 #define LB_RACING 81
@@ -245,11 +246,11 @@ typedef unsigned color_t;
 
 struct charstyle {
   int charid;
-  color_t skincolor, haircolor, dresscolor, swordcolor, dresscolor2, uicolor, eyecolor;
+  color_t skincolor, haircolor, dresscolor, swordcolor, dresscolor2, uicolor, eyecolor, bowcolor, bowcolor2;
   bool lefthanded;
   };
 
-enum eStereo { sOFF, sAnaglyph, sLR, sODS };
+enum eStereo { sOFF, sAnaglyph, sLR, sODS, sPanini, sStereographic, sEquirectangular, sCylindrical };
 
 enum eModel : int;
 
@@ -257,10 +258,11 @@ enum eModel : int;
 struct projection_configuration {
   eModel model;            /**< which projection, see classes.cpp */
   ld xposition, yposition; /**< move the center to another position */
-  ld scale, alpha, camera_angle, fisheye_param, twopoint_param, stretch, ballangle, ballproj, euclid_to_sphere;
+  ld scale, alpha, fisheye_param, fisheye_alpha, twopoint_param, axial_angle, stretch, ballproj, euclid_to_sphere;
   ld clip_min, clip_max;
-  ld model_orientation, halfplane_scale, model_orientation_yz;  
+  ld halfplane_scale;  
   ld collignon_parameter; 
+  ld offside, offside2;
   ld aitoff_parameter, miller_parameter, loximuthal_parameter, winkel_parameter;
   bool show_hyperboloid_flat;
   bool collignon_reflected;
@@ -286,34 +288,22 @@ struct projection_configuration {
   bool dualfocus_autoscale;
 
   int back_and_front; /* 0 = do not, 1 = do, 2 = only back */
+  struct trans23 *ptr_model_orientation;
+  struct transmatrix *ptr_ball;
+  struct transmatrix *ptr_camera;
 
-  projection_configuration() { 
-    formula = "z^2"; top_z = 5; model_transition = 1; spiral_angle = 70; spiral_x = 10; spiral_y = 7; 
-    rotational_nil = 1;
-    right_spiral_multiplier = 1;
-    any_spiral_multiplier = 1;
-    sphere_spiral_multiplier = 2;
-    spiral_cone = 360;
-    use_atan = false;
-    product_z_scale = 1;
-    aitoff_parameter = .5;
-    miller_parameter = .8;
-    loximuthal_parameter = 0;
-    winkel_parameter = .5;
-    show_hyperboloid_flat = true;
-    depth_scaling = 1;
-    vr_angle = 0;
-    hyperboloid_scaling = 1;
-    vr_zshift = 0;
-    vr_scale_factor = 1;
-    back_and_front = 0;
-    dualfocus_autoscale = false;
-    }
+  projection_configuration();
+
+  trans23& mori() { return *ptr_model_orientation; }
+  transmatrix& ball() { return *ptr_ball; }
+  transmatrix& cam() { return *ptr_camera; }
   };
 
 enum eThreatLevel { tlNoThreat, tlSpam, tlNormal, tlHighThreat };
 
 constexpr ld use_the_default_value = -20.0625;
+
+enum ePseudohedral { phOFF, phInscribed, phCircumscribed };
 
 struct videopar {
   projection_configuration projection_config, rug_config;
@@ -406,6 +396,7 @@ struct videopar {
   int cells_generated_limit; // limit on cells generated per frame
   
   eStereo stereo_mode;
+  ld stereo_param;
   ld ipd;
   ld lr_eyewidth, anaglyph_eyewidth;
   ld fov;
@@ -423,7 +414,7 @@ struct videopar {
   bool height_limits;
   ld rock_wall_ratio;
   ld human_wall_ratio;
-  bool pseudohedral; // in 3D modes
+  ePseudohedral pseudohedral;
   ld depth_bonus;   // to fiix the placement of 3D models in pseudogonal -- not working currently
 
   int tc_alpha, tc_depth, tc_camera;
@@ -561,7 +552,7 @@ public:
 
 using purehookset = hookset<void()>;
 
-static const int NOHINT = -1;
+static constexpr int NOHINT = -1;
 
 typedef function<void()> reaction_t;
 typedef function<bool()> bool_reaction_t;
@@ -575,7 +566,7 @@ typedef function<int(struct cell*)> cellfunction;
 // passable flags
 
 #define SAGEMELT .1
-#define PT(x, y) ((tactic::on || quotient == 2 || daily::on) ? (y) : inv::on ? min(2*(y),x) : (x))
+#define PT(x, y) rebalance_treasure(x, y, c->land)
 #define ROCKSNAKELENGTH 50
 #define WORMLENGTH 15
 #define PRIZEMUL 7
@@ -647,6 +638,7 @@ typedef function<int(struct cell*)> cellfunction;
 #define AF_PLAGUE            Flag(32)   // Orb of Plague (do not check adjacency)
 #define AF_PSI               Flag(33)   // Orb of the Mind
 #define AF_WEAK              Flag(34)   // Curse of Weakness
+#define AF_BOW               Flag(35)   // crossbow attack
 
 #if CAP_SDL
 
@@ -675,7 +667,7 @@ struct finalizer {
   ~finalizer() { f(); }
   };
   
-static const int MAXPLAYER = 7;
+static constexpr int MAXPLAYER = 7;
 
 #define DEFAULTCONTROL (multi::players == 1 && !shmup::on && !multi::alwaysuse)
 #define DEFAULTNOR(sym) (DEFAULTCONTROL || multi::notremapped(sym))
@@ -787,7 +779,7 @@ enum orbAction { roMouse, roKeyboard, roCheck, roMouseForce, roMultiCheck, roMul
 #endif
 #define pmodel (pconf.model)
 
-static const int DISTANCE_UNKNOWN = 127;
+static constexpr int DISTANCE_UNKNOWN = 127;
 
 template<class T, class U> int addHook(hookset<T>& m, int prio, U&& hook) {
   return m.add(prio, static_cast<U&&>(hook));
@@ -871,9 +863,9 @@ template<class T, class U> void eliminate_if(vector<T>& data, U pred) {
       data[i] = data.back(), data.pop_back(), i--;
   }
 
-template<class T> array<T, 4> make_array(T a, T b, T c, T d) { array<T,4> x; x[0] = a; x[1] = b; x[2] = c; x[3] = d; return x; }
-template<class T> array<T, 3> make_array(T a, T b, T c) { array<T,3> x; x[0] = a; x[1] = b; x[2] = c; return x; }
-template<class T> array<T, 2> make_array(T a, T b) { array<T,2> x; x[0] = a; x[1] = b; return x; }
+template<class T> constexpr array<T, 4> make_array(T a, T b, T c, T d) { return array<T,4>{a,b,c,d}; }
+template<class T> constexpr array<T, 3> make_array(T a, T b, T c) { return array<T,3>{a,b,c}; }
+template<class T> constexpr array<T, 2> make_array(T a, T b) { return array<T,2>{a,b}; }
 
 // Find in a std::map or std::unordered_map, or return null.
 template<class Map, class Key>
@@ -882,8 +874,21 @@ const typename Map::mapped_type *at_or_null(const Map& map, const Key& key) {
   return (it == map.end()) ? nullptr : &it->second;
   }
 
+int gmod(int i, int j);
+
+// vector::at(i) modulo its size (const version)
+template<class T> const T& atmod(const vector<T>& container, int index) {
+  return container[gmod(index, isize(container))];
+  }
+
+// vector::at(i) modulo its size (non-const version)
+template<class T> T& atmod(vector<T>& container, int index) {
+  return container[gmod(index, isize(container))];
+  }
+
 namespace daily {
   extern bool on;
+  extern int historical;
   extern int daily_id;
   void setup();
   void split();
@@ -933,7 +938,7 @@ template<class T> ld binsearch(ld dmin, ld dmax, const T& f, int iterations = 20
   return dmin;
   } 
 
-  static const int max_vec = (1<<14);
+  static constexpr int max_vec = (1<<14);
   extern bool needConfirmationEvenIfSaved();
 
 typedef unsigned long long flagtype;

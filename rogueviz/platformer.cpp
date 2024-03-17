@@ -24,7 +24,7 @@ Have fun!
 */
 
 namespace hr {
-
+#if CAP_TEXTURE
 namespace platformer {
 
 /* the size of a block, in pixels */
@@ -375,7 +375,7 @@ static double gtime = 0;
 
 double vel_x = 0, vel_y = 0;
 
-static const double grav = 0.1;
+static constexpr double grav = 0.1;
 
 bool map_on = false;
 
@@ -863,4 +863,5 @@ auto chk = arg::add3("-platformer", enable)
     });
 
 }
+#endif
 }

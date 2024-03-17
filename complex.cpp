@@ -215,10 +215,14 @@ EX namespace elec {
     if(c->wall == waSea || c->wall == waGrounded) return ecGrounded;
     if(c->wall == waSandstone || c->wall == waDeadTroll || 
       c->wall == waDeadTroll2 || 
-      among(c->wall, waBigTree, waSmallTree, waExplosiveBarrel, waRed1, waRed2, waRed3) ||
+      c->wall == waExplosiveBarrel ||
       c->wall == waVinePlant ||
       c->wall == waMetal || isAlchAny(c)) 
         return isElectricLand(c) ? ecConductor : ecGrounded; 
+    if(c->wall == waBigTree || c->wall == waSmallTree)
+        return ecGrounded;
+    if(among(c->wall, waRed1, waRed2, waRed3, waRubble, waDeadfloor2))
+        return ecIsolator;
     if(c->wall == waBarrier)
       return ecIsolator;
     if(c->wall == waChasm)
@@ -738,7 +742,7 @@ struct info {
       if(m == moPrincess)
         addMessage(XLAT("\"I want my revenge. Stun a guard and leave him for me!\"", m));
       else
-        addMessage(XLAT("\"That felt great. Thanks!\"", m));
+        addMessage(XLAT("\"I wouldn't say killing that guard was not pleasant...\"", m));
       }
     else if(msgid  == 2 && d >= 70 && inpalace) {
       addMessage(XLAT("\"Bring me out of here please!\"", m));
@@ -907,6 +911,9 @@ EX namespace clearing {
         c->mondir = 0;
       return;
       }
+
+    if(c->land == laClearing && ls::horodisk_structure() && celldistAlt(c) >= -1) return;
+    if(c->land == laClearing && ls::voronoi_structure() && celldistAlt(c) >= -20) return;
     
     if(!eubinary && !horo_ok()) return;
     // cell *oc = c;
@@ -1172,14 +1179,14 @@ EX namespace whirlpool {
 EX namespace mirror {
 
   #if HDR
-  static const int SPINSINGLE = 1;
-  static const int SPINMULTI = 2;
-  static const int GO = 4;
-  static const int ATTACK = 8;
+  static constexpr int SPINSINGLE = 1;
+  static constexpr int SPINMULTI = 2;
+  static constexpr int GO = 4;
+  static constexpr int ATTACK = 8;
   #endif
   
   EX bool build(cell *c) {
-    if(kite::in() || sol) return false;
+    if(aperiodic || sol) return false;
     #if CAP_GP
     if(GOLDBERG) {
       if(c == c->master->c7) {
@@ -1210,6 +1217,7 @@ EX namespace mirror {
     return false;
     }
 
+  /* int is the owner's cpid */
   EX vector<pair<int, cellwalker>> mirrors;
   #if HDR
   constexpr int LIGHTNING = -1; // passed instead of cpid
@@ -1311,7 +1319,7 @@ EX namespace mirror {
   
   EX void createMirrors(cellwalker cw, int cpid) {
   
-    if(kite::in() || sol) return;
+    if(aperiodic || sol) return;
     
     #if CAP_ARCM
     if(arcm::in()) {
@@ -1453,7 +1461,7 @@ EX namespace mirror {
         if(c2->monst) {
           c->monst = moMimic;
           eMonster m2 = c2->monst;
-          if(!peace::on && canAttack(c,moMimic,c2,m2, 0)) {
+          if(!peace::on && !bow::crossbow_mode() && canAttack(c,moMimic,c2,m2, 0)) {
             attackMonster(c2, AF_NORMAL | AF_MSG, moMimic);
             if(!fwd) produceGhost(c2, m2, moMimic);
             sideAttack(c, m.second.spin, m2, 0);
@@ -1633,8 +1641,8 @@ EX namespace mirror {
     return cw;
     }
 
-  static const int CACHESIZE = 1<<12; // must be a power of 2
-  static const int CACHEMASK = CACHESIZE-1;
+  static constexpr int CACHESIZE = 1<<12; // must be a power of 2
+  static constexpr int CACHEMASK = CACHESIZE-1;
     
   pair<cell*, cellwalker> cache[CACHESIZE];
   int nextcache;
@@ -1990,11 +1998,12 @@ EX namespace hive {
     if(ls::any_chaos() && getDistLimit() <= 5) radius = 4;
     if(getDistLimit() <= 3) radius = 3;
 
-    for(int i=(ls::any_chaos()?0:2); i<radius; i++) 
+    for(int i=(ls::any_chaos()?0:2); i<radius; i++) {
       bf += revstep;
+      if(ls::hv_structure()) moreBigStuff(bf.at);
+      }
     cell *citycenter = bf.at;
     buginfo.clear();
-    
     
     // mark the area with BFS
     bugcitycell(citycenter, 0);
@@ -2002,9 +2011,10 @@ EX namespace hive {
       buginfo_t& b(buginfo[i]);
       cell *c = b.where;
       int d = b.dist[0];
+      if(ls::hv_structure()) moreBigStuff(c);
       // ERRORS!
       if(c->land != laHive && c->land != laNone) return;
-      if(c->bardir != NODIR) return;
+      if(ls::horodisk_structure() ? c->bardir != NOBARRIERS : c->bardir != NODIR) return;
       if(c->land == laHive && c->landparam >= 100) return;
       // bfs
       if(d < radius) for(int t=0; t<c->type; t++)
@@ -2018,7 +2028,8 @@ EX namespace hive {
       int d = b.dist[0];
       if(d <= 1 && c->wall == waNone)
         c->item = itRoyalJelly;
-      preventbarriers(c);
+      if(ls::horodisk_structure()) c->bardir = NOBARRIERS2;
+      else preventbarriers(c);
       if(d == 9 || d == 6 || d == 3)
         c->barleft = eLand(d/3),
         c->barright = eLand(k);
@@ -2684,6 +2695,7 @@ EX namespace tortoise {
   EX map<cell*, int> emap;
   EX map<cell*, int> babymap;
   EX int last;
+  EX int last21tort;
   
   #if HDR
   enum tflag {
@@ -3114,6 +3126,8 @@ EX }
 
 EX namespace kraken {
 
+  EX map<cell*, bool> half_killed;
+
   EX cell *head(cell *c) {
     if(c->monst == moKrakenH) return c;
     if(c->monst == moKrakenT) return c->move(c->mondir);
@@ -3215,6 +3229,7 @@ EX namespace kraken {
       c3->monst = moNone;
       }
     c->monst = moKrakenH;
+    if(half_killed.count(c2)) { half_killed[c] = half_killed[c2]; half_killed.erase(c2); }
     vector<pair<cell*, cell*> > acells;
     acells.push_back(make_pair(c2, c));
     forCellIdEx(c3, i, c) {
@@ -3354,49 +3369,63 @@ EX namespace prairie {
   
   #define RLOW (sphere?(PURE?7:6):PURE?4:2)
   #define RHIGH (sphere?(PURE?8:9):PURE?11:13)
+
+  EX int get_val(cell *c) {
+    if(ls::hv_structure()) {
+      int a = celldistAlt(c);
+      if(a >= 2) a = 2;
+      a = gmod(18 - a, 20);
+      return a;
+      }
+    return c->LHU.fi.rval;
+    }
   
   EX bool no_worms(cell *c) {
     if(c->land != laPrairie) return false;
-    int rv = c->LHU.fi.rval;
+    int rv = get_val(c);
     return rv > RLOW+1 && rv < RHIGH-1;
     }
 
   EX bool isriver(cell *c) {
-    return c->land == laPrairie && c->LHU.fi.rval <= RHIGH && c->LHU.fi.rval >= RLOW;
+    int rv = get_val(c);
+    return c->land == laPrairie && rv <= RHIGH && rv >= RLOW;
     }
 
   bool mainriver(cell *c) {
-    return c->LHU.fi.rval <= 8 && c->LHU.fi.rval >= 7;
+    int rv = get_val(c);
+    return rv <= 8 && rv >= 7;
     }
 
   EX bool nearriver(cell *c) {
-    return c->LHU.fi.rval == RHIGH+1 || c->LHU.fi.rval == RLOW-1;
+    int rv = get_val(c);
+    return rv == RHIGH+1 || rv == RLOW-1;
     }
 
   cell *enter;
   
   bool opposite(cell *c) {
-    return (c->LHU.fi.rval ^ enter->LHU.fi.rval) & 8;
+    return (get_val(c) ^ get_val(enter)) & 8;
     }
 
   bool isleft(cell *c) {
-    return c->LHU.fi.rval & 8;
+    return get_val(c) & 8;
     }
 
   int towerleft(cell *c) { 
-    return c->LHU.fi.rval;
+    return get_val(c);
     }
   
   int towerright(cell *c) { 
-    return 15^c->LHU.fi.rval;
+    return 15^get_val(c);
     }
   
   EX cell *next(cell *c, int pv IS(1)) {
     for(int i=0; i<c->type; i++) {
       cell *c1 = createMov(c, i);
       cell *c2 = createMov(c, (i+pv+c->type)%c->type);
-      if(c1 && c1->LHU.fi.rval == c->LHU.fi.rval)
-      if(c2 && c2->LHU.fi.rval == c->LHU.fi.rval+1)
+      int rv = get_val(c);
+      if(c1 && get_val(c1) == rv)
+      if(c2 && get_val(c2) == rv+1)
       if(isNeighbor(c1,c2))
         return c1;
       }
@@ -3500,20 +3529,37 @@ EX namespace prairie {
     return true;
     }
   
+  EX void generateTreasure_here(cell *c) { 
+    int hr = hrand(100);
+    if(hr == 0 && items[itGreenGrass] >= 10 && !inv::on) {
+      c->item = itOrbBull;
+      // orbs.push_back(c); 
+      }
+    else if(hr < 1+PRIZEMUL) {
+      placePrizeOrb(c);
+      // if(c->item) orbs.push_back(c);
+      }
+    else if(!ls::hv_structure())
+      tchoices.push_back(c);
+    }
+
   EX void generateTreasure(cell *c) { 
 //    if(nearriver(c) && op
-    if(enter && nearriver(c) && opposite(c) && thisriver(c)) {
-      int hr = hrand(100);
-      if(hr == 0 && items[itGreenGrass] >= 10 && !inv::on) {
-        c->item = itOrbBull;
-        // orbs.push_back(c); 
+    if(ls::hv_structure()) {
+      if(get_val(c) == RHIGH + 1) {
+        int cd = celldist(c);
+        int min_cd = cd;
+        cell *c1;
+        c1 = c; for(int a=0; a<3; a++) { forCellEx(c2, c1) setdist(c2, 9, nullptr); c1 = next(c1); if(!c1) return; min_cd = min(min_cd, celldist(c1)); }
+        c1 = c; for(int a=0; a<3; a++) { forCellEx(c2, c1) setdist(c2, 9, nullptr); c1 = prev(c1); if(!c1) return; min_cd = min(min_cd, celldist(c1)); }
+        if(min_cd >= cd-1) forCellEx(c1, c) if(isriver(c1) && celldist(c1) < cd)
+          c->item = itGreenGrass;
         }
-      else if(hr < 1+PRIZEMUL) {
-        placePrizeOrb(c);
-        // if(c->item) orbs.push_back(c);
-        }
-      else tchoices.push_back(c);
-      } 
+      if(get_val(c) == 18 && hrand(100) < 50) c->item = itOrbSafety;
+      if(get_val(c) == 17) generateTreasure_here(c);
+      return;
+      }
+    if(enter && nearriver(c) && opposite(c) && thisriver(c)) generateTreasure_here(c);
     }
   
   EX void treasures() {
@@ -3547,7 +3593,7 @@ namespace prairie {
 
 EX namespace ca {
   EX ld prob = .2;
-  static const int MAX_NEIGHBOR = 60; /* may be larger than MAX_EDGE due to mineadj */
+  static constexpr int MAX_NEIGHBOR = 60; /* may be larger than MAX_EDGE due to mineadj */
   string carule[MAX_NEIGHBOR][2];
   
   EX eWall wlive = waFloorA;
@@ -3634,6 +3680,7 @@ EX namespace ca {
       }
     for(int i=0; i<dcs; i++) {
       cell *c = allcells[i];
+      if(c->land != laCA) continue;
       auto last = c->wall;
       c->wall = willlive[i] ? wlive : waNone;
       if(c->wall != last) {
@@ -3655,6 +3702,7 @@ auto ccm = addHook(hooks_clearmemory, 0, [] () {
   clearing::stats.clear();
   clearing::score.clear();
   tortoise::emap.clear();
+  kraken::half_killed.clear();
   tortoise::babymap.clear();
   dragon::target = NULL;
   #if CAP_FIELD
@@ -3687,6 +3735,7 @@ auto ccm = addHook(hooks_clearmemory, 0, [] () {
   addHook(hooks_removecells, 0, [] () {
     for(cell *c: removed_cells) clearing::score.erase(c);
     for(auto& am: adj_memo) am.clear();
+    for(cell *c: removed_cells) kraken::half_killed.erase(c);
     eliminate_if(heat::offscreen_heat, is_cell_removed);
     eliminate_if(heat::offscreen_fire, is_cell_removed);
     eliminate_if(princess::infos, [] (princess::info*& i) { 
@@ -3720,8 +3769,8 @@ int windcodes5676[] = {152,138,172,172,141,158,157,124,119,130,125,143,190,206,2
 EX namespace windmap {
 
   #if HDR
-  static const int NOWINDBELOW = 8;
-  static const int NOWINDFROM = 120;  
+  static constexpr int NOWINDBELOW = 8;
+  static constexpr int NOWINDFROM = 120;  
   #endif
 
   map<int, int> getid;
@@ -3759,6 +3808,7 @@ EX namespace windmap {
   EX void create() {
     if(disable_bigstuff) return;
     if(cgflags & qPORTALSPACE) return;
+    if(hat::in()) return;
     samples.clear();
     neighbors.clear();
     getid.clear();
@@ -4173,12 +4223,25 @@ EX }
 
 EX namespace dungeon {
 
+  /* use coastvalEdge normally, but celldistAlt in hv_structure */
+  int cvfun(cell *c) {
+    if(ls::hv_structure()) return celldistAltPlus(c);
+    return coastvalEdge(c);
+    }
+
   void towerError(cell *c) {
     // only care in the standard geometry -- weird ones are intentionally left buggy
-    if(!weirdhyperbolic && !sphere && !quotient) 
+    if(!weirdhyperbolic && !sphere && !quotient && !ls::hv_structure()) 
       raiseBuggyGeneration(c, "ivory tower/dungeon generation error");
     }
 
+  /** for some reason standard generate_around does not work in hv_structure */
+  void gen_around(cell *c) {
+    if(ls::hv_structure()) {
+      forCellEx(c2, c) setdist(c2, 8, c);
+      }
+    else generate_around(c);
+    }
   void buildIvoryTower(cell *c) {
     /* if(int(c->landparam) % 5 == 0) 
       c->wall = waCamelot;
@@ -4225,27 +4288,27 @@ EX namespace dungeon {
       cl.add(c);
       for(int i=0; i<isize(cl.lst); i++) {
         cell *c1 = cl.lst[i];
-        generate_around(c1);
-        if(coastvalEdge(c1) == coastvalEdge(c) - 3) {
+        gen_around(c1);
+        if(cvfun(c1) == cvfun(c) - 3) {
           if(c1->landflags == 3) cnt++;
           continue;
           }
         if(c1->landflags == 3) below++;
-        forCellEx(c2, c1) if(coastvalEdge(c2) < coastvalEdge(c1))
+        forCellEx(c2, c1) if(cvfun(c2) < cvfun(c1))
           cl.add(c2);
         }
       if(cnt) c->wall = waPlatform;
-      else if(below && coastvalEdge(c) < 3) c->wall = waPlatform;
+      else if(below && cvfun(c) < 3) c->wall = waPlatform;
       }
-    
+
     else if(true) {
-      
+
       cell *c2 = c;
       cell *c3 = c;
       
       bool rdepths[5];
       for(int i=0; i<5; i++) {
-        if(coastvalEdge(c2) == 0) { 
+        if(cvfun(c2) == 0) {
           rdepths[i] = false;
           }
         else {
@@ -4255,10 +4318,11 @@ EX namespace dungeon {
               c4 = c2->move(i);
             }
           rdepths[i] = c2 && c3 && c4 && (c2->landflags == 3 || c3->landflags == 3 || c4->landflags == 3);
-          if(c2) generate_around(c2);
-          if(c3) generate_around(c3);
-          c2 = ts::left_parent(c2, coastvalEdge);
-          c3 = ts::right_parent(c3, coastvalEdge);
+          if(c2) gen_around(c2);
+          if(c3) gen_around(c3);
+          
+          c2 = ts::left_parent(c2, cvfun);
+          c3 = ts::right_parent(c3, cvfun);
           if(!c2) { towerError(c); return; }
           if(!c3) { towerError(c); return; }
           }
@@ -4266,27 +4330,26 @@ EX namespace dungeon {
       
       if(rdepths[3]) {
         c->wall = waPlatform;
-  //        if(!c4->item) c4->item = itPalace;
         }
       else if(!rdepths[2] && !rdepths[4] && !rdepths[1]) {
         c2 = c;
         c3 = c;
-        generate_around(c);
-        cell *c4 = ts::left_of(c, coastvalEdge);
-        cell *c5 = ts::right_of(c, coastvalEdge);
+        gen_around(c);
+        cell *c4 = ts::left_of(c, cvfun);
+        cell *c5 = ts::right_of(c, cvfun);
         for(int i=0; i<3; i++) {
-          if(coastvalEdge(c2) == 0) break;
-          for(cell *cx: {c2, c3, c4, c5}) if(cx) generate_around(cx);
+          if(cvfun(c2) == 0) break;
+          for(cell *cx: {c2, c3, c4, c5}) if(cx) gen_around(cx);
 
-          if(c2 && c4 && c4->landflags == 3 && c2->landflags != 3 && c4 == ts::left_of(c2, coastvalEdge))
+          if(c2 && c4 && c4->landflags == 3 && c2->landflags != 3 && c4 == ts::left_of(c2, cvfun))
             c->wall = waLadder;
-          if(c3 && c5 && c5->landflags == 3 && c3->landflags != 3 && c5 == ts::right_of(c3, coastvalEdge))
+          if(c3 && c5 && c5->landflags == 3 && c3->landflags != 3 && c5 == ts::right_of(c3, cvfun))
             c->wall = waLadder;
-          buildEquidistant(c4); buildEquidistant(c5);
-          if(c2) c2 = ts::left_parent(c2, coastvalEdge);
-          if(c3) c3 = ts::right_parent(c3, coastvalEdge);
-          if(c4) c4 = ts::left_parent(c4, coastvalEdge);
-          if(c5) c5 = ts::right_parent(c5, coastvalEdge);
+          if(!ls::hv_structure()) { buildEquidistant(c4); buildEquidistant(c5); }
+          if(c2) c2 = ts::left_parent(c2, cvfun);
+          if(c3) c3 = ts::right_parent(c3, cvfun);
+          if(c4) c4 = ts::left_parent(c4, cvfun);
+          if(c5) c5 = ts::right_parent(c5, cvfun);
           }
         }
       }
@@ -4304,16 +4367,17 @@ EX namespace dungeon {
       
       manual_celllister cl;
       cl.add(c);
-      int d = coastvalEdge(c);
+      int d = cvfun(c);
 
       for(int i=0; i<isize(cl.lst); i++) {
         cell *c1 = cl.lst[i];
+        if(ls::hv_structure()) forCellEx(c4, c1) moreBigStuff(c4);
         generate_around(c1);
-        int d1 = d - coastvalEdge(c);
+        int d1 = d - cvfun(c);
         if(c1->landflags == 3) rdepths[d1] = true;
         if(c1->landflags == 1) switchcount++;
         if(d1 == 4) break;
-        forCellEx(c2, c1) if(coastvalEdge(c2) < coastvalEdge(c1))
+        forCellEx(c2, c1) if(cvfun(c2) < cvfun(c1))
           cl.add(c2);
         }
       }
@@ -4324,7 +4388,7 @@ EX namespace dungeon {
       cell *c3 = c;
         
       for(int i=0; i<5; i++) {
-        if(coastvalEdge(c2) == 0) { 
+        if(cvfun(c2) == 0) {
           rdepths[i] = false;
           }
         else {
@@ -4336,10 +4400,14 @@ EX namespace dungeon {
           rdepths[i] = c2 && c3 && c4 && (c2->landflags == 3 || c3->landflags == 3 || c4->landflags == 3);
           if((c2&&c2->landflags == 1) || (c3&&c3->landflags == 1) || (c4&&c4->landflags == 1))
             switchcount++;
+          if(ls::hv_structure()) {
+            forCellEx(c4, c2) moreBigStuff(c4);
+            forCellEx(c4, c3) moreBigStuff(c3);
+            }
           generate_around(c2);
           generate_around(c3);
-          c2 = ts::left_parent(c2, coastvalEdge);
-          c3 = ts::right_parent(c3, coastvalEdge);
+          c2 = ts::left_parent(c2, cvfun);
+          c3 = ts::right_parent(c3, cvfun);
           if(!c2) { towerError(c); return 0; }
           if(!c3) { towerError(c); return 0; }
           }
@@ -4375,6 +4443,7 @@ EX namespace dungeon {
     }
   
   cell *random_child(cell *c, const cellfunction& cf) {
+    if(ls::hv_structure()) forCellEx(c4, c) moreBigStuff(c4);
     generate_around(c);
     vector<cell*> children;
     forCellEx(c2, c) if(cf(c2) > cf(c)) children.push_back(c2);
@@ -4389,7 +4458,7 @@ EX namespace dungeon {
     
     if(true) {
       
-      if(coastvalEdge(c) == 1) forCellEx(c2, c)
+      if(cvfun(c) == 1) forCellEx(c2, c)
         if(c2->land != laBarrier && c2->land != laDungeon) {
           c->wall = waLadder;
           c->wparam = 3;
@@ -4398,9 +4467,10 @@ EX namespace dungeon {
       int df = dungeonFlags(c);
       
       if(df&1) {
+        if(ls::hv_structure()) forCellEx(c4, c) moreBigStuff(c4);
         generate_around(c);
-        int df1 = WDIM == 3 ? 0 : dungeonFlags(ts::left_of(c, coastvalEdge));
-        int df2 = WDIM == 3 ? 0 : dungeonFlags(ts::right_of(c, coastvalEdge));
+        int df1 = WDIM == 3 ? 0 : dungeonFlags(ts::left_of(c, cvfun));
+        int df2 = WDIM == 3 ? 0 : dungeonFlags(ts::right_of(c, cvfun));
         
         c->wparam = 0;
         if(hrand(100) < (c->landparam % 5 == 0 ? 80 : 20)) {
@@ -4420,11 +4490,11 @@ EX namespace dungeon {
   
       if(c->wparam) {
         cell *c2 = 
-          WDIM == 3 ? random_child(c, coastvalEdge) :
-          c->wparam == 1 ? ts::add(c, 1, 2, coastvalEdge) :
-          c->wparam == 2 ? ts::add(c, -1, -2, coastvalEdge) :
-          c->wparam == 3 ? ts::add(c, 1, 3, coastvalEdge) :
-          c->wparam == 4 ? ts::add(c, -1, -3, coastvalEdge) :
+          WDIM == 3 ? random_child(c, cvfun) :
+          c->wparam == 1 ? ts::add(c, 1, 2, cvfun) :
+          c->wparam == 2 ? ts::add(c, -1, -2, cvfun) :
+          c->wparam == 3 ? ts::add(c, 1, 3, cvfun) :
+          c->wparam == 4 ? ts::add(c, -1, -3, cvfun) :
           NULL;
         
         if(c2) {
@@ -4446,7 +4516,7 @@ EX namespace dungeon {
     int neargateEq = 0;
     int qup = 0;
     forCellEx(c2, c) {
-      int d = coastvalEdge(c2) - coastvalEdge(c);
+      int d = cvfun(c2) - cvfun(c);
       if(isGate(c2->wall)) {
         neargate++;
         if(d>0) neargateDown++;

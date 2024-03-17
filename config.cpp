@@ -30,6 +30,8 @@ struct supersaver {
   virtual bool affects(void* v) { return false; }
   virtual void set_default() = 0;
   virtual ~supersaver() = default;
+  virtual void swap_with(supersaver*) = 0;
+  virtual void clone(struct local_parameter_set& lps, void *value) = 0;
   };
 
 typedef vector<shared_ptr<supersaver>> saverlist;
@@ -41,43 +43,55 @@ struct setting {
   string parameter_name;
   string config_name;
   string menu_item_name;
+  bool menu_item_name_modified;
   string help_text;
   reaction_t reaction;
   char default_key;
-  cld last_value;
   bool is_editable;
+  bool needs_confirm;
+  supersaver *saver;
   virtual bool available() { if(restrict) return restrict(); return true; }
   virtual bool affects(void *v) { return false; }
-  virtual void add_as_saver() {}
+  virtual supersaver *make_saver() { return nullptr; }
+  virtual void register_saver() { saver = make_saver(); }
   void show_edit_option() { show_edit_option(default_key); }
   virtual void show_edit_option(int key) {
     println(hlog, "default called!"); }
   virtual string search_key() { 
     return parameter_name + "|" + config_name + "|" + menu_item_name + "|" + help_text;
     }
-  virtual cld get_cld() = 0;
-  explicit setting() { restrict = auto_restrict; is_editable = false; }
-  virtual void check_change() {
-    cld val = get_cld();
-    if(val != last_value) {
-      last_value = val;
-      add_to_changed(this);
-      }
-    }
+  explicit setting() { restrict = auto_restrict; is_editable = false; needs_confirm = false; }
+  virtual void check_change() { }
   reaction_t sets;
   setting *set_sets(const reaction_t& s) { sets = s; return this; }
   setting *set_extra(const reaction_t& r);
   setting *set_reaction(const reaction_t& r);
   virtual ~setting() = default;
   virtual void load_from(const string& s) {
-    println(hlog, "cannot load this parameter");
-    exit(1);
+    if(saver) { saver->load(s); return; }
+    println(hlog, "cannot load parameter: ", parameter_name, " from: ", s);
+    throw hr_exception("parameter cannot be loaded");
+    }
+  virtual bool load_from_animation(const string& s) {
+    load_from(s); return false;
+    }
+  virtual void load_as_animation(const string& s) {
+    load_from(s);
+    }
+  virtual bool anim_unchanged() { return true; }
+  virtual void anim_restore() { }
+  virtual cld get_cld() { throw hr_exception("parameter has no complex value"); }
+  virtual void set_cld_raw(cld x) { throw hr_exception("parameter has no complex value"); }
+  virtual void set_cld(cld value) {
+    auto bak = get_cld();
+    set_cld_raw(value);
+    if(value != bak && reaction) reaction();
     }
   };
 #endif
 
 setting *setting::set_extra(const reaction_t& r) {
-  auto s = sets; set_sets([s, r] { if(s) s(); dialog::extra_options = r; }); return this;
+  auto s = sets; set_sets([s, r] { if(s) s(); dialog::get_di().extra_options = r; }); return this;
   }
 
 setting *setting::set_reaction(const reaction_t& r) {
@@ -97,28 +111,113 @@ struct list_setting : setting {
     is_editable = true;
     options = o;
     this->menu_item_name = menu_item_name;
+    menu_item_name_modified = true;
     default_key = key;
     return this;
     }
   void show_edit_option(int key) override;
   };
 
+namespace anims {
+  extern void animate_setting(setting*, string);
+  }
+
 template<class T> struct enum_setting : list_setting {
-  T *value;
-  T dft;
+  T *value, last_value, dft, anim_value;
   int get_value() override { return (int) *value; }
-  void set_value(int i) override { *value = (T) i; }
+  hr::function<void(T)> set_value_to;
+  void set_value(int i) override { set_value_to((T)i); }
   bool affects(void* v) override { return v == value; }
-  void add_as_saver() override;
-  cld get_cld() override { return get_value(); }
-  void load_from(const string& s) override {
+  supersaver *make_saver() override;
+  virtual void load_from_raw(const string& s) {
+    int N = isize(options);
+    for(int i=0; i<N; i++) if(appears(options[i].first, s)) {
+      set_value_to((T)i);
+      return;
+      }
     *value = (T) parseint(s);
+    }
+  void check_change() override {
+    if(*value != last_value) {
+      last_value = *value;
+      add_to_changed(this);
+      }
+    }
+
+  void load_from(const string& s) override {
+    auto bak = *value;
+    load_from_raw(s);
+    if(*value != bak && reaction) reaction();
+    }
+  bool load_from_animation(const string& s) override {
+    if(anim_value != *value) return false;
+    load_from(s);
+    anim_value = *value;
+    return true;
+    }
+  void load_as_animation(const string& s) override {
+    load_from(s);
+    anim_value = *value;
+    anims::animate_setting(this, s);
+    }
+
+  enum_setting<T>* editable(const vector<pair<string, string> >& o, string menu_item_name, char key) {
+    list_setting::editable(o, menu_item_name, key);
+    return this;
+    }
+  enum_setting<T>* set_need_confirm() {
+    needs_confirm = true;
+    return this;
+    }
+  virtual cld get_cld() override { return get_value(); }
+  };
+
+/** transmatrix with equality, so we can construct val_setting<matrix_eq> */
+struct matrix_eq : transmatrix {
+  bool operator == (const transmatrix& t) const {
+    for(int i=0; i<MAXMDIM; i++) for(int j=0; j<MAXMDIM; j++)  if(self[i][j] != t[i][j]) return false;
+    return true;
+    }
+  bool operator != (const transmatrix& t) const {
+    return ! (self == t);
     }
   };
 
-struct float_setting : public setting {
-  ld *value;
-  ld dft;
+template<class T> struct val_setting : public setting {
+  T *value, last_value, anim_value, dft;
+
+  bool affects(void *v) override { return v == value; }
+  void check_change() override {
+    if(*value != last_value) {
+      last_value = *value;
+      add_to_changed(this);
+      }
+    }
+
+  bool anim_unchanged() override { return *value == anim_value; }
+  void anim_restore() override { *value = anim_value; if(reaction) reaction(); }
+
+  virtual void load_from_raw(const string& s) { throw hr_exception("load_from_raw not defined"); }
+
+  void load_from(const string& s) override {
+    auto bak = *value;
+    load_from_raw(s);
+    if(*value != bak && reaction) reaction();
+    }
+  bool load_from_animation(const string& s) override {
+    if(anim_value != *value) return false;
+    load_from(s);
+    anim_value = *value;
+    return true;
+    }
+  void load_as_animation(const string& s) override {
+    load_from(s);
+    anim_value = *value;
+    anims::animate_setting(this, s);
+    }
+  };
+
+struct float_setting : public val_setting<ld> {
   ld min_value, max_value, step;
   string unit;
   float_setting *editable(ld min_value, ld max_value, ld step, string menu_item_name, string help_text, char key) {
@@ -126,6 +225,7 @@ struct float_setting : public setting {
     this->min_value = min_value;
     this->max_value = max_value;
     this->menu_item_name = menu_item_name;
+    menu_item_name_modified = true;
     this->help_text = help_text;
     this->step = step;
     default_key = key;
@@ -133,11 +233,11 @@ struct float_setting : public setting {
     }
   function<void(float_setting*)> modify_me;
   float_setting *modif(const function<void(float_setting*)>& r) { modify_me = r; return this; }
-  void add_as_saver() override;
-  bool affects(void *v) override { return v == value; }
+  supersaver *make_saver() override;
   void show_edit_option(int key) override;
+  void load_from_raw(const string& s) override { *value = parseld(s); }
   cld get_cld() override { return *value; }
-  void load_from(const string& s) override;
+  void set_cld_raw(cld x) override { *value = real(x); }
   };
 
 struct float_setting_dft : public float_setting {
@@ -146,59 +246,131 @@ struct float_setting_dft : public float_setting {
   float_setting_dft* set_hint(const function<ld()>& f) { get_hint = f; return this; }
   };
 
-struct int_setting : public setting {
-  int *value;
-  int dft;
+struct int_setting : public val_setting<int> {
   int min_value, max_value;
   ld step;
-  void add_as_saver() override;
+  supersaver *make_saver() override;
   function<void(int_setting*)> modify_me;
   int_setting *modif(const function<void(int_setting*)>& r) { modify_me = r; return this; }
-  bool affects(void *v) override { return v == value; }
   void show_edit_option(int key) override;
-  cld get_cld() override { return *value; }
   int_setting *editable(int min_value, int max_value, ld step, string menu_item_name, string help_text, char key) {
     this->is_editable = true;
     this->min_value = min_value;
     this->max_value = max_value;
     this->menu_item_name = menu_item_name;
+    menu_item_name_modified = true;
     this->help_text = help_text;
     this->step = step;
     default_key = key;
     return this;
     }
 
-  void load_from(const string& s) override {
-    *value = parseint(s);
+  cld get_cld() override { return *value; }
+
+  void load_from_raw(const string& s) override { *value = parseint(s); }
+  void set_cld_raw(cld x) override { *value = (int)(real(x) + .5); }
+
+  void check_change() override {
+    if(*value != last_value) {
+      last_value = *value;
+      add_to_changed(this);
+      }
     }
   };
 
-struct bool_setting : public setting {
-  bool *value;
-  bool dft;
-  void add_as_saver() override;
+struct color_setting : public val_setting<color_t> {
+  bool has_alpha;
+  supersaver *make_saver() override;
+  void show_edit_option(int key) override;
+  color_setting *editable(string menu_item_name, string help_text, char key) {
+    this->is_editable = true;
+    this->menu_item_name = menu_item_name;
+    menu_item_name_modified = true;
+    this->help_text = help_text;
+    default_key = key;
+    return this;
+    }
+
+  void load_from_raw(const string& s) override { sscanf(s.c_str(), "%x", value); }
+  };
+
+struct matrix_setting : public val_setting<matrix_eq> {
+  int dim;
+  supersaver *make_saver() override;
+  void show_edit_option(int key) override;
+  matrix_setting *editable(string menu_item_name, string help_text, char key) {
+    this->is_editable = true;
+    this->menu_item_name = menu_item_name;
+    menu_item_name_modified = true;
+    this->help_text = help_text;
+    default_key = key;
+    return this;
+    }
+
+  void load_from_raw(const string& s) override { (transmatrix&)*value = parsematrix(s); }
+  };
+
+struct char_setting : public val_setting<char> {
+  supersaver *make_saver() override;
+  void show_edit_option(int key) override;
+
+  void load_from_raw(const string& s) override {
+    if(s == "\\0") *value = 0;
+    else sscanf(s.c_str(), "%c", value);
+    }
+  };
+
+struct bool_setting : public val_setting<bool> {
+  supersaver *make_saver() override;
   reaction_t switcher;
   bool_setting* editable(string cap, char key ) {
     is_editable = true;
-    menu_item_name = cap; default_key = key; return this; 
+    menu_item_name = cap; default_key = key;
+    menu_item_name_modified = true;
+    return this;
     } 
-  bool affects(void *v) override { return v == value; }
   void show_edit_option(int key) override;
-  cld get_cld() override { return *value ? 1 : 0; }
-  void load_from(const string& s) override {
-    *value = parseint(s);
-    }
+
+  void load_from_raw(const string& s) override { *value = parseint(s); }
+
+  cld get_cld() override { return *value; }
   };
 
-struct custom_setting : public setting {  
+struct custom_setting : public setting {
+  cld last_value;
   function<void(char)> custom_viewer;
   function<cld()> custom_value;
   function<bool(void*)> custom_affect;
+  function<void(const string&)> custom_load;
+
   void show_edit_option(int key) override { custom_viewer(key); }
-  cld get_cld() override { return custom_value(); }
+  supersaver *make_saver() override { throw hr_exception("make_saver for custom_setting"); }
   bool affects(void *v) override { return custom_affect(v); }
+  void check_change() override {
+    if(custom_value() != last_value) {
+      last_value = custom_value();
+      add_to_changed(this);
+      }
+    }
+  virtual void load_from(const string& s) override {
+    if(saver) { saver->load(s); return; }
+    if(!custom_load) {
+      println(hlog, "cannot load parameter: ", parameter_name, " from: ", s);
+      throw hr_exception("parameter cannot be loaded");
+      }
+    custom_load(s);
+    }
+  virtual cld get_cld() override { return custom_value(); }
   };
   
+struct local_parameter_set {
+  string label;
+  local_parameter_set* extends;
+  vector<pair<supersaver*, supersaver*>> swaps;
+  void pswitch();
+  local_parameter_set(string l, local_parameter_set *ext = nullptr) : label(l), extends(ext) {}
+  };
+
 #if CAP_CONFIG
 
 template<class T> struct dsaver : supersaver {
@@ -213,15 +385,16 @@ template<class T> struct dsaver : supersaver {
 
 template<class T> struct saver : dsaver<T> {};
 
-template<class T, class U, class V> void addsaver(T& i, U name, V dft) {
+template<class T, class U, class V> supersaver* addsaver(T& i, U name, V dft) {
   auto s = make_shared<saver<T>> (i);
   s->dft = dft;
   s->name = name;
   savers.push_back(s);
+  return &*s;
   }
 
-template<class T> void addsaver(T& i, string name) {
-  addsaver(i, name, i);
+template<class T> supersaver* addsaver(T& i, string name) {
+  return addsaver(i, name, i);
   }
 
 template<class T> void removesaver(T& val) {
@@ -236,6 +409,8 @@ template<class T> void set_saver_default(T& val) {
       sav->set_default();
   }
 
+template<class T, class U> supersaver *addsaverenum(T& i, U name);
+
 template<class T> struct saverenum : supersaver {
   T& val;
   T dft;
@@ -246,47 +421,86 @@ template<class T> struct saverenum : supersaver {
   void load(const string& s) override { val = (T) atoi(s.c_str()); }
   bool affects(void* v) override { return v == &val; }
   void set_default() override { dft = val; }
+  void clone(struct local_parameter_set& lps, void *value) override { addsaverenum(*(T*) value, lps.label + name); }
+  void swap_with(supersaver *s) override { swap(val, ((saverenum<T>*)s)->val); }
   };
 
-template<class T, class U> void addsaverenum(T& i, U name, T dft) {
+template<class T, class U> supersaver *addsaverenum(T& i, U name, T dft) {
   auto s = make_shared<saverenum<T>> (i);
   s->dft = dft;
   s->name = name;
   savers.push_back(s);
+  return &*s;
   }
 
-template<class T, class U> void addsaverenum(T& i, U name) {
-  addsaverenum(i, name, i);
+template<class T, class U> supersaver *addsaverenum(T& i, U name) {
+  return addsaverenum(i, name, i);
   }
 
 template<> struct saver<int> : dsaver<int> {
   explicit saver(int& val) : dsaver<int>(val) { }
   string save() override { return its(val); }
   void load(const string& s) override { val = atoi(s.c_str()); }
+  void clone(struct local_parameter_set& lps, void *value) override { addsaver(*(int*) value, lps.label + name); }
+  void swap_with(supersaver *s) override { swap(val, ((saver<int>*)s)->val); }
   };
 
 template<> struct saver<char> : dsaver<char> {
   explicit saver(char& val) : dsaver<char>(val) { }
   string save() override { return its(val); }
   void load(const string& s) override { val = atoi(s.c_str()); }
+  void clone(struct local_parameter_set& lps, void *value) override { addsaver(*(char*) value, lps.label + name); }
+  void swap_with(supersaver *s) override { swap(val, ((saver<char>*)s)->val); }
   };
 
 template<> struct saver<bool> : dsaver<bool> {
   explicit saver(bool& val) : dsaver<bool>(val) { }
   string save() override { return val ? "yes" : "no"; }
   void load(const string& s) override { val = isize(s) && s[0] == 'y'; }
+  void clone(struct local_parameter_set& lps, void *value) override { addsaver(*(bool*) value, lps.label + name); }
+  void swap_with(supersaver *s) override { swap(val, ((saver<bool>*)s)->val); }
   };
 
 template<> struct saver<unsigned> : dsaver<unsigned> {
   explicit saver(unsigned& val) : dsaver<unsigned>(val) { }
   string save() override { return itsh(val); }
   void load(const string& s) override { val = (unsigned) strtoll(s.c_str(), NULL, 16); }
+  void clone(struct local_parameter_set& lps, void *value) override { addsaver(*(unsigned*) value, lps.label + name); }
+  void swap_with(supersaver *s) override { swap(val, ((saver<unsigned>*)s)->val); }
   };
 
 template<> struct saver<string> : dsaver<string> {
   explicit saver(string& val) : dsaver<string>(val) { }
   string save() override { return val; }
   void load(const string& s) override { val = s; }
+  void clone(struct local_parameter_set& lps, void *value) override { addsaver(*(string*) value, lps.label + name); }
+  void swap_with(supersaver *s) override { swap(val, ((saver<string>*)s)->val); }
+  };
+
+template<> struct saver<matrix_eq> : supersaver {
+
+  matrix_eq& val;
+  matrix_eq dft;
+
+  explicit saver(matrix_eq& _val) : val(_val) { }
+
+  void reset() override { val = dft; }
+  bool affects(void* v) override { return v == &val; }
+  void set_default() override { dft = val; }
+  bool dosave() override { return !eqmatrix(val, dft); }
+
+  string save() override {
+    shstream ss;
+    for(int a=0; a<4; a++) for(int b=0; b<4; b++) print(ss, val[a][b], " ");
+    return ss.s;
+    }
+  void load(const string& s) override {
+    shstream ss;
+    ss.s = s;
+    for(int a=0; a<4; a++) for(int b=0; b<4; b++) scan(ss, val[a][b]);
+    }
+  void clone(struct local_parameter_set& lps, void *value) override { addsaver(*(matrix_eq*) value, lps.label + name); }
+  void swap_with(supersaver *s) override { swap(val, ((saver<matrix_eq>*)s)->val); }
   };
 
 template<> struct saver<ld> : dsaver<ld> {
@@ -296,32 +510,58 @@ template<> struct saver<ld> : dsaver<ld> {
     if(s == "0.0000000000e+000") ; // ignore!
     else val = atof(s.c_str()); 
     }
+  void clone(struct local_parameter_set& lps, void *value) override { addsaver(*(ld*) value, lps.label + name); }
+  void swap_with(supersaver *s) override { swap(val, ((saver<ld>*)s)->val); }
   };
 #endif
 #endif
 
-void float_setting::add_as_saver() { 
+supersaver *float_setting::make_saver() {
 #if CAP_CONFIG
-  addsaver(*value, config_name, dft);
+  return addsaver(*value, config_name, dft);
+#else
+  return nullptr;
 #endif
   }
 
-void int_setting::add_as_saver() { 
+supersaver *int_setting::make_saver() {
 #if CAP_CONFIG
-  addsaver(*value, config_name, dft);
+  return addsaver(*value, config_name, dft);
+#else
+  return nullptr;
 #endif
   }
 
-void bool_setting::add_as_saver() { 
+supersaver* color_setting::make_saver() {
 #if CAP_CONFIG
-  addsaver(*value, config_name, dft);
+  return addsaver(*value, config_name, dft);
+#else
+  return nullptr;
 #endif
   }
 
-void float_setting::load_from(const string& s) {
-  *value = parseld(s);
-  anims::animate_parameter(*value, s, reaction);
-  if(reaction) reaction();
+supersaver* matrix_setting::make_saver() {
+#if CAP_CONFIG
+  return addsaver(*value, config_name, dft);
+#else
+  return nullptr;
+#endif
+  }
+
+supersaver *char_setting::make_saver() {
+#if CAP_CONFIG
+  return addsaver(*value, config_name, dft);
+#else
+  return nullptr;
+#endif
+  }
+
+supersaver *bool_setting::make_saver() {
+#if CAP_CONFIG
+  return addsaver(*value, config_name, dft);
+#else
+  return nullptr;
+#endif
   }
 
 void non_editable() {
@@ -336,8 +576,8 @@ void float_setting::show_edit_option(int key) {
     add_to_changed(this);
     dialog::editNumber(*value, min_value, max_value, step, dft, XLAT(menu_item_name), help_text); 
     if(sets) sets();
-    if(reaction) dialog::reaction = reaction;
-    if(!is_editable) dialog::extra_options = non_editable;
+    if(reaction) dialog::get_di().reaction = reaction;
+    if(!is_editable) dialog::get_di().extra_options = non_editable;
     });
   }
 
@@ -350,10 +590,10 @@ void float_setting_dft::show_edit_option(int key) {
     if(*value == use_the_default_value) *value = get_hint();
     dialog::editNumber(*value, min_value, max_value, step, dft, XLAT(menu_item_name), help_text);
     if(sets) sets();
-    if(reaction) dialog::reaction = reaction;
-    if(!is_editable) dialog::extra_options = non_editable;
-    auto eo = dialog::extra_options;
-    dialog::extra_options = [eo, this] {
+    if(reaction) dialog::get_di().reaction = reaction;
+    if(!is_editable) dialog::get_di().extra_options = non_editable;
+    auto eo = dialog::get_di().extra_options;
+    dialog::get_di().extra_options = [eo, this] {
       dialog::addSelItem(XLAT("use the default value"), "", 'D');
       dialog::add_action([this] { *value = use_the_default_value; });
       if(eo) eo();
@@ -368,8 +608,8 @@ void int_setting::show_edit_option(int key) {
     add_to_changed(this);
     dialog::editNumber(*value, min_value, max_value, step, dft, XLAT(menu_item_name), help_text); 
     if(sets) sets();
-    if(reaction) dialog::reaction = reaction;
-    if(!is_editable) dialog::extra_options = non_editable;
+    if(reaction) dialog::get_di().reaction = reaction;
+    if(!is_editable) dialog::get_di().extra_options = non_editable;
     });
   }
 
@@ -380,6 +620,29 @@ void bool_setting::show_edit_option(int key) {
     switcher(); if(sets) sets();
     if(reaction) reaction();
     });
+  }
+
+void color_setting::show_edit_option(int key) {
+  dialog::addColorItem(XLAT(menu_item_name), has_alpha ? *value : addalpha(*value), key);
+  dialog::add_action([this] () {
+    dialog::openColorDialog(*value);
+    dialog::colorAlpha = has_alpha;
+    dialog::get_di().dialogflags |= sm::SIDE;
+    });
+  }
+
+void matrix_setting::show_edit_option(int key) {
+  dialog::addMatrixItem(XLAT(menu_item_name), *value, key, dim);
+  dialog::add_action([this] () {
+    dialog::editMatrix(*value, XLAT(menu_item_name), help_text, dim);
+    if(sets) sets();
+    if(reaction) dialog::get_di().reaction = reaction;
+    });
+  }
+
+void char_setting::show_edit_option(int key) {
+  string s = s0; s += value;
+  dialog::addSelItem(XLAT(menu_item_name), s, key);
   }
 
 EX float_setting *param_f(ld& val, const string p, const string s, ld dft) {
@@ -400,7 +663,7 @@ EX float_setting *param_f(ld& val, const string p, const string s, ld dft) {
   u->step = dft / 10;
   u->dft = dft;
   val = dft;
-  u->add_as_saver();
+  u->register_saver();
   auto f = &*u;
   params[u->parameter_name] = std::move(u);
   return f;
@@ -418,7 +681,7 @@ EX float_setting_dft *param_fd(ld& val, const string s, ld dft IS(use_the_defaul
   u->step = 1;
   u->dft = dft;
   val = dft;
-  u->add_as_saver();
+  u->register_saver();
   auto f = &*u;
   params[u->parameter_name] = std::move(u);
   return f;
@@ -439,6 +702,7 @@ EX int_setting *param_i(int& val, const string s, int dft) {
   u->parameter_name = param_esc(s);
   u->config_name = s;
   u->menu_item_name = s;
+  u->menu_item_name_modified = false;
   u->value = &val;
   u->last_value = dft;
   u->dft = dft;
@@ -451,7 +715,7 @@ EX int_setting *param_i(int& val, const string s, int dft) {
     u->min_value = 0;
     u->max_value = 2 * dft;
     }
-  u->add_as_saver();
+  u->register_saver();
   auto f = &*u;
   params[u->parameter_name] = std::move(u);
   return f;
@@ -464,24 +728,78 @@ EX bool_setting *param_b(bool& val, const string s, bool dft) {
   u->parameter_name = param_esc(s);
   u->config_name = s;
   u->menu_item_name = s;
+  u->menu_item_name_modified = false;
   u->value = &val;
   u->last_value = dft;
   u->dft = dft;
   u->switcher = [&val] { val = !val; };
   val = dft;
-  u->add_as_saver();
+  u->register_saver();
   auto f = &*u;
   params[u->parameter_name] = std::move(u);
   return f;
   }
 
+EX color_setting *param_color(color_t& val, const string s, bool has_alpha, color_t dft) {
+  unique_ptr<color_setting> u ( new color_setting );
+  u->parameter_name = param_esc(s);
+  u->config_name = s;
+  u->menu_item_name = s;
+  u->menu_item_name_modified = false;
+  u->value = &val;
+  u->last_value = dft;
+  u->dft = dft;
+  u->has_alpha = has_alpha;
+  val = dft;
+  u->register_saver();
+  auto f = &*u;
+  params[u->parameter_name] = std::move(u);
+  return f;
+  }
+
+EX matrix_setting *param_matrix(transmatrix& val0, const string s, int dim) {
+  matrix_eq& val = (matrix_eq&) val0;
+  unique_ptr<matrix_setting> u ( new matrix_setting );
+  u->parameter_name = param_esc(s);
+  u->config_name = s;
+  u->menu_item_name = s;
+  u->menu_item_name_modified = false;
+  u->value = &val;
+  u->last_value = val;
+  u->dft = val;
+  u->dim = dim;
+  u->register_saver();
+  auto f = &*u;
+  params[u->parameter_name] = std::move(u);
+  return f;
+  }
+
+EX char_setting *param_char(char& val, const string s, char dft) {
+  unique_ptr<char_setting> u ( new char_setting );
+  u->parameter_name = param_esc(s);
+  u->config_name = s;
+  u->menu_item_name = s;
+  u->menu_item_name_modified = false;
+  u->value = &val;
+  u->last_value = dft;
+  u->dft = dft;
+  val = dft;
+  u->register_saver();
+  auto f = &*u;
+  params[u->parameter_name] = std::move(u);
+  return f;
+  }
+
+EX color_setting *param_color(color_t& val, const string s, bool has_alpha) { return param_color(val, s, has_alpha, val); }
+
 EX bool_setting *param_b(bool& val, const string s) { return param_b(val, s, val); }
 
 #if HDR
-template<class T> void enum_setting<T>::add_as_saver() { 
+template<class T> supersaver* enum_setting<T>::make_saver() {
 #if CAP_CONFIG
-  addsaverenum(*value, config_name, dft);
+  return addsaverenum(*value, config_name, dft);
 #endif
+  return nullptr;
   }
 
 template<class T> enum_setting<T> *param_enum(T& val, const string p, const string s, T dft) {
@@ -489,12 +807,14 @@ template<class T> enum_setting<T> *param_enum(T& val, const string p, const stri
   u->parameter_name = p;
   u->config_name = s;
   u->menu_item_name = s;
+  u->menu_item_name_modified = false;
   u->value = &val;
   u->dft = dft;
   val = dft;
-  u->last_value = u->get_cld();
-  u->add_as_saver();
+  u->last_value = dft;
+  u->register_saver();
   auto f = &*u;
+  u->set_value_to = [f] (T val) { *f->value = val; };
   params[p] = std::move(u);
   return f;
   }
@@ -519,10 +839,12 @@ custom_setting* param_custom(T& val, const string& s, function<void(char)> menui
   u->parameter_name = param_esc(s);
   u->config_name = s;
   u->menu_item_name = s;
+  u->menu_item_name_modified = false;
   u->last_value = (int) val;
   u->custom_viewer = menuitem;
   u->custom_value = [&val] () { return (int) val; };
   u->custom_affect = [&val] (void *v) { return &val == v; };
+  u->custom_load = [&val] (const string& s) { val = (T) parseint(s); };
   u->default_key = key;
   u->is_editable = true;
   auto f = &*u;
@@ -567,6 +889,12 @@ struct charstyle_old {
   bool lefthanded;
   };
 
+struct charstyle_prebow {
+  int charid;
+  color_t skincolor, haircolor, dresscolor, swordcolor, dresscolor2, uicolor, eyecolor;
+  bool lefthanded;
+  };
+
 EX void hread(hstream& hs, charstyle& cs) {
   // before 0xA61A there was no eyecolor
   if(hs.get_vernum() < 0xA61A) {
@@ -576,11 +904,25 @@ EX void hread(hstream& hs, charstyle& cs) {
     cs.skincolor = cso.skincolor;
     cs.haircolor = cso.haircolor;
     cs.dresscolor = cso.dresscolor;
-    cs.swordcolor = cs.eyecolor = cso.swordcolor;
+    cs.swordcolor = cs.eyecolor = cs.bowcolor = cs.bowcolor2 = cso.swordcolor;
     if(cs.charid < 4) cs.eyecolor = 0;
     cs.dresscolor2 = cso.dresscolor2;
     cs.uicolor = cso.uicolor;
-    cs.lefthanded = cso.lefthanded;    
+    cs.lefthanded = cso.lefthanded;
+    }
+  else if(hs.get_vernum() < 0xA938) {
+    charstyle_prebow cso;
+    hread_raw(hs, cso);
+    cs.charid = cso.charid;
+    cs.skincolor = cso.skincolor;
+    cs.haircolor = cso.haircolor;
+    cs.dresscolor = cso.dresscolor;
+    cs.eyecolor = cso.eyecolor;
+    cs.swordcolor = cs.bowcolor = cs.bowcolor2 = cso.swordcolor;
+    if(cs.charid < 4) cs.eyecolor = 0;
+    cs.dresscolor2 = cso.dresscolor2;
+    cs.uicolor = cso.uicolor;
+    cs.lefthanded = cso.lefthanded;
     }
   else hread_raw(hs, cs);
   }
@@ -631,6 +973,7 @@ saverlist savers;
 #endif
 
 #if !CAP_CONFIG
+#if HDR
 template<class T, class U, class V> void addsaver(T& i, U name, V dft) {
   i = dft;
   }
@@ -639,11 +982,14 @@ template<class T, class U> void addsaver(T& i, U name) {}
 template<class T, class U> void addsaverenum(T& i, U name) {}
 template<class T, class U> void addsaverenum(T& i, U name, T dft) { i = dft; }
 #endif
+#endif
 
 EX void addsaver(charstyle& cs, string s) {
   addsaver(cs.charid, s + ".charid");
   addsaver(cs.skincolor, s + ".skincolor");
   addsaver(cs.eyecolor, s + ".eyecolor");
+  addsaver(cs.bowcolor, s + ".bowcolor");
+  addsaver(cs.bowcolor2, s + ".bowcolor2");
   addsaver(cs.haircolor, s + ".haircolor");
   addsaver(cs.dresscolor, s + ".dresscolor");
   addsaver(cs.swordcolor, s + ".swordcolor");
@@ -670,6 +1016,8 @@ EX void initcs(charstyle &cs) {
   cs.dresscolor2= 0x8080FFC0;
   cs.uicolor    = 0xFF0000FF;
   cs.eyecolor   = 0x603000FF;
+  cs.bowcolor   = 0x603000FF;
+  cs.bowcolor2  = 0xFFD500FF;
   cs.lefthanded = false;
   }
 
@@ -699,6 +1047,13 @@ EX void initConfig() {
   param_b(reg3::cubes_reg3, "cubes_reg3");
   param_f(linepatterns::tree_starter, "tree_starter")
   -> editable(0, 1, 0.05, "tree-drawing parameter", "How much of edges to draw for tree patterns (to show how the tree edges are oriented).", 't');
+
+  param_char(patterns::whichCanvas, "whichCanvas", 0);
+  param_i(patterns::rwalls, "randomwalls");
+
+  param_b(vid.grid, "grid");
+  param_b(models::desitter_projections, "desitter_projections", false);
+  param_b(nonisotropic_weird_transforms, "nonisotropic_weird_transforms", false);
 
   param_b(arb::apeirogon_consistent_coloring, "apeirogon_consistent_coloring", true)
   -> editable("apeirogon_consistent_coloring", 'c');
@@ -781,11 +1136,11 @@ EX void initConfig() {
 
   param_b(less_in_landscape, "less_in_landscape", false)
   ->editable("less items/kills in landscape", 'L')
-  -> set_sets([] { dialog::reaction_final = [] { println(hlog, "Reset"); vid.killreduction = 0; }; });
+  -> set_reaction([] { vid.killreduction = 0; });
 
   param_b(less_in_portrait, "less_in_portrait", false)
   ->editable("less items/kills in portrait", 'P')
-  -> set_sets([] { dialog::reaction_final = [] { println(hlog, "Reset"); vid.killreduction = 0; }; });
+  -> set_reaction([] { vid.killreduction = 0; });
   
   // basic graphics
   
@@ -811,7 +1166,7 @@ EX void initConfig() {
 
   param_i(menu_darkening, "menu_darkening", 2)
   -> editable(0, 8, 1, "menu map darkening", "A larger number means darker game map in the background. Set to 8 to disable the background.", 'd')
-  -> set_sets([] { dialog::bound_low(0); dialog::bound_up(8); dialog::dialogflags |= sm::DARKEN; });
+  -> set_sets([] { dialog::bound_low(0); dialog::bound_up(8); dialog::get_di().dialogflags |= sm::DARKEN; });
   param_b(centered_menus, "centered_menus", false)
   -> editable("centered menus in widescreen", 'c');
 
@@ -822,7 +1177,38 @@ EX void initConfig() {
 
   param_f(vid.binary_width, "bwidth", "binary-tiling-width", 1);
   param_custom(vid.binary_width, "binary tiling width", menuitem_binary_width, 'v');
- 
+
+  param_b(fake::multiple_special_draw, "fake_multiple", true);
+
+  param_f(hat::hat_param, "hat_param", "hat_param", 1)
+  -> editable(0, 2, 0.1, "hat/spectre/turtle parameter",
+    "Apeirodic hat tiling based on: https://arxiv.org/pdf/2303.10798.pdf\n\n"
+    "This controls the parameter discussed in Section 6. Parameter p is Tile(p, (2-p)√3), scaled so that the area is the same for every p.\n\n"
+    "Aperiodic spectre tiling based on: https://arxiv.org/abs/2305.17743\n\n"
+    "In the spectre tiling, set the parameter to 'spectre' value to make all tiles have the same shape."
+    ,
+    'v'
+    )
+  -> set_extra([] {
+      dialog::addSelItem(XLAT("chevron (periodic)"), "0", 'C');
+      dialog::add_action([] { dialog::get_ne().s = "0"; dialog::get_ne().apply_edit(); });
+      dialog::addSelItem(XLAT("hat"), "1", 'H');
+      dialog::add_action([] { dialog::get_ne().s = "1"; dialog::get_ne().apply_edit(); });
+      dialog::addSelItem(XLAT("spectre"), "3-√3", 'T');
+      dialog::add_action([] { dialog::get_ne().s = "3 - sqrt(3)"; dialog::get_ne().apply_edit(); });
+      dialog::addSelItem(XLAT("turtle"), "1.5", 'T');
+      dialog::add_action([] { dialog::get_ne().s = "1.5"; dialog::get_ne().apply_edit(); });
+      dialog::addSelItem(XLAT("comma (periodic)"), "2", ',');
+      dialog::add_action([] { dialog::get_ne().s = "2"; dialog::get_ne().apply_edit(); });
+      })
+  -> set_reaction(hat::reshape);
+
+  param_f(hat::hat_param_imag, "hat_param_imag", "hat_param_imag", 0)
+  -> editable(0, 2, 0.1, "hat parameter (imaginary)",
+    "Imaginary part of the hat parameter. This corresponds to the usual interpretation of complex numbers in Euclidean planar geometry: rather than shortened or lengthened, the edges are moved in the other dimension.", 'v'
+    )
+  -> set_reaction(hat::reshape);
+
   addsaver(vid.particles, "extra effects", 1);
   param_i(vid.framelimit, "frame limit", 999);
 
@@ -843,27 +1229,27 @@ EX void initConfig() {
   
   param_i(vid.fullscreen_x, "fullscreen_x", 1280)
   -> editable(640, 3840, 640, "fullscreen resolution to use (X)", "", 'x')
-  -> set_sets([] { dialog::bound_low(640); dialog::reaction_final = do_request_resolution_change; });
+  -> set_sets([] { dialog::bound_low(640); dialog::get_di().reaction_final = do_request_resolution_change; });
   
   param_i(vid.fullscreen_y, "fullscreen_y", 1024)
   -> editable(480, 2160, 480, "fullscreen resolution to use (Y)", "", 'x')
-  -> set_sets([] { dialog::bound_low(480); dialog::reaction_final = do_request_resolution_change; });
+  -> set_sets([] { dialog::bound_low(480); dialog::get_di().reaction_final = do_request_resolution_change; });
 
   param_i(vid.window_x, "window_x", 1280)
   -> editable(160, 3840, 160, "window resolution to use (X)", "", 'x')
-  -> set_sets([] { dialog::bound_low(160); dialog::reaction_final = do_request_resolution_change; });
+  -> set_sets([] { dialog::bound_low(160); dialog::get_di().reaction_final = do_request_resolution_change; });
 
   param_i(vid.window_y, "window_y", 1024)
   -> editable(120, 2160, 120, "window resolution to use (Y)", "", 'x')
-  -> set_sets([] { dialog::bound_low(120); dialog::reaction_final = do_request_resolution_change; });
+  -> set_sets([] { dialog::bound_low(120); dialog::get_di().reaction_final = do_request_resolution_change; });
 
   param_f(vid.window_rel_x, "window_rel_x", .9)
   -> editable(.1, 1, .1, "screen size percentage to use (X)", "", 'x')
-  -> set_sets([] { dialog::bound_low(.1); dialog::reaction_final = do_request_resolution_change; });
+  -> set_sets([] { dialog::bound_low(.1); dialog::get_di().reaction_final = do_request_resolution_change; });
 
   param_f(vid.window_rel_y, "window_rel_y", .9)
   -> editable(.1, 1, .1, "screen size percentage to use (Y)", "", 'x')
-  -> set_sets([] { dialog::bound_low(.1); dialog::reaction_final = do_request_resolution_change; });
+  -> set_sets([] { dialog::bound_low(.1); dialog::get_di().reaction_final = do_request_resolution_change; });
 
   param_b(vid.darkhepta, "mark heptagons", false);
   
@@ -885,16 +1271,16 @@ EX void initConfig() {
   param_f(geom3::euclid_embed_scale, "euclid_embed_scale", "euclid_embed_scale")
   -> editable(0, 2, 0.05, "Euclidean embedding scale", "How to scale the Euclidean map, relatively to the 3D absolute unit.", 'X')
   -> set_sets([] { dialog::bound_low(0.05); })
-  -> set_reaction(geom3::apply_settings_full);
+  -> set_reaction(geom3::apply_settings_light);
 
   param_f(geom3::euclid_embed_scale_y, "euclid_embed_scale_y", "euclid_embed_scale_y")
   -> editable(0, 2, 0.05, "Euclidean embedding scale Y/X", "This scaling factor affects only the Y coordinate.", 'Y')
   -> set_sets([] { dialog::bound_low(0.05); })
-  -> set_reaction(geom3::apply_settings_full);
+  -> set_reaction(geom3::apply_settings_light);
 
   param_f(geom3::euclid_embed_rotate, "euclid_embed_rotate", "euclid_embed_rotate")
   -> editable(0, 360, 15, "Euclidean embedding rotation", "How to rotate the Euclidean embedding, in degrees.", 'F')
-  -> set_reaction(geom3::apply_settings_full);
+  -> set_reaction(geom3::apply_settings_light);
 
   param_enum(embedded_shift_method_choice, "embedded_shift_method", "embedded_shift_method", smcBoth)
   -> editable({
@@ -946,19 +1332,24 @@ EX void initConfig() {
   
   // colors
 
-  param_f(crosshair_size, "size:crosshair");
-  addsaver(crosshair_color, "color:crosshair");
+  param_f(crosshair_size, "size:crosshair")
+  ->set_extra(draw_crosshair);
+  param_color(crosshair_color, "color:crosshair", true, crosshair_color)
+  ->set_extra(draw_crosshair);
   
-  addsaver(backcolor, "color:background");
-  addsaver(forecolor, "color:foreground");
-  addsaver(bordcolor, "color:borders");
-  addsaver(ringcolor, "color:ring");
+  param_b(mapeditor::drawplayer, "drawplayer");
+  param_color((color_t&) patterns::canvasback, "color:canvasback", false);
+
+  param_color(backcolor, "color:background", false);
+  param_color(forecolor, "color:foreground", false);
+  param_color(bordcolor, "color:borders", false);
+  param_color(ringcolor, "color:ring", true);
   param_f(vid.multiplier_ring, "mring", "mult:ring", 1);
-  addsaver(modelcolor, "color:model");
-  addsaver(periodcolor, "color:period");
-  addsaver(stdgridcolor, "color:stdgrid"); 
+  param_color(modelcolor, "color:model", true);
+  param_color(periodcolor, "color:period", true);
+  param_color(stdgridcolor, "color:stdgrid", true);
   param_f(vid.multiplier_grid, "mgrid", "mult:grid", 1);
-  addsaver(dialog::dialogcolor, "color:dialog");
+  param_color(dialog::dialogcolor, "color:dialog", false);
   for(auto& p: colortables)
     savecolortable(p.second, s0+"canvas"+p.first);
   savecolortable(distcolors, "distance");
@@ -1002,11 +1393,15 @@ EX void initConfig() {
   addsaver(vid.desaturate, "desaturate", 0);
   
   param_enum(vid.stereo_mode, "stereo_mode", "stereo-mode", vid.stereo_mode)
-    ->editable({{"OFF", ""}, {"anaglyph", ""}, {"side-by-side", ""}
-    #if CAP_ODS
-    , {"ODS", ""}
-    #endif
-    }, "stereo mode", 'm');
+    ->editable({
+    {"OFF", "linear perspective"}, {"anaglyph", "for red-cyan glasses"}, {"side-by-side", "for mobile VR"},
+    {"ODS", "for rendering 360° VR videos (implemented only in raycaster and some other parts)"},
+    {"Panini", "Projection believed to be used by Italian painters. Allows very high FOV angles while rendering more straight lines as straight than the stereographic projection."},
+    {"stereographic", "Stereographic projection allows very high FOV angles."},
+    {"equirectangular", "for rendering 360° videos (implemented only in raycaster)"},
+    {"cylindrical", "full vertical (not implemented in raycaster)"}
+    }, "stereo/high-FOV mode", 'm')
+  ->set_reaction(reset_all_shaders);
 
   param_f(vid.plevel_factor, "plevel_factor", 0.7);
 
@@ -1049,10 +1444,12 @@ EX void initConfig() {
 
   addsaver(vid.use_smart_range, "smart-range", 0);
   param_f(vid.smart_range_detail, "smart-range-detail", 8)
-  ->editable(1, 50, 1, "minimum visible cell in pixels", "", 'd');
+  ->editable(1, 50, 1, "minimum visible cell in pixels", "", 'd')
+  ->set_extra([] { add_cells_drawn('C'); });
 
   param_f(vid.smart_range_detail_3, "smart-range-detail-3", 30)
-  ->editable(1, 50, 1, "minimum visible cell in pixels", "", 'd');
+  ->editable(1, 50, 1, "minimum visible cell in pixels", "", 'd')
+  ->set_extra([] { add_cells_drawn('C'); });
 
   param_b(vid.smart_area_based, "smart-area-based", false);
   param_i(vid.cells_drawn_limit, "limit on cells drawn", 10000);
@@ -1154,10 +1551,19 @@ EX void initConfig() {
   addsaver(mouseaim_sensitivity, "mouseaim_sensitivity", 0.01);
 
   param_b(vid.consider_shader_projection, "shader-projection", true);
+  param_b(semidirect_rendering, "semidirect_rendering", false)
+  ->editable("semidirect_rendering (perspective on GPU)", 'k');
+
+  param_i(forced_center_down, "forced_center_down")
+  -> editable(0, 100, 10, "forced center down", "make the center not the actual screen center", 'd');
   
   param_b(tortoise::shading_enabled, "tortoise_shading", true);
 
-  addsaver(bounded_mine_percentage, "bounded_mine_percentage");
+  param_f(bounded_mine_percentage, "bounded_mine_freq")
+  -> editable(0, 1, 0.01, "fraction of mine in bounded minefield", "", '%')
+  -> set_reaction([] {
+    if(game_active) { stop_game(); start_game(); }
+    });
 
   param_enum(nisot::geodesic_movement, "solv_geodesic_movement", "solv_geodesic_movement", true)
   -> editable({{"Lie group", "light, camera, and objects move in lines of constant direction, in the Lie group sense"}, {"geodesics", "light, camera, and objects always take the shortest path"}}, "straight lines", 'G')
@@ -1189,6 +1595,32 @@ EX void initConfig() {
         "neon mode", 'M'
         );
 
+  param_enum(bow::weapon, "pc_class", "pc_class", bow::weapon)
+    -> editable({{"blade", "Standard Rogue weapon. Bump into a monster to hit. Most monsters attack you the same way."},
+      {"crossbow", "Hits all monsters in a straight line, but slow to reload. Press 'f' or click the crossbow icon to target."}},
+      "weapon selection", 'w')
+    -> set_need_confirm()
+    -> set_value_to = [] (bow::eWeapon wpn) { bool b = game_active; if(wpn != bow::weapon) stop_game(); bow::weapon = wpn;
+      peace::on = false; if(dual::state) dual::disable(); if(multi::players > 1 && !shmup::on) multi::players = 1;
+      if(b) start_game();
+      };
+  param_enum(bow::style, "bow_style", "bow_style", bow::style)
+    -> editable({{"bull line", "Can go in either direction on odd shapes. 3 turns to reload."},
+      {"geodesic", "Graph geodesic: any sequence of tiles is OK as long as there are no shortcuts. 4 turns to reload."},
+      {"geometric", "Approximations of geometric straight lines."}},
+      "crossbow straight line style", 'l')
+    -> set_need_confirm()
+    -> set_value_to = [] (bow::eCrossbowStyle s) { bool b = game_active; if(s != bow::style) stop_game(); bow::style = s; if(b) start_game(); };
+  param_b(bow::bump_to_shoot, "bump_to_shoot", true)->editable("bump to shoot", 'b');
+  param_enum(bow::mouse_fire_mode, "mouse_fire_mode", "mouse_fire_mode", bow::mfmPriority)
+     ->editable({{"explicit", "You need to click crossbow or be close to fire."},
+      {"priority", "Click on a faraway monster to fire if possible, or move if not."},
+      {"always", "Clicking on a faraway monster always means an attempt to fire."}},
+      "mouse auto-fire mode", 'm');
+
+  param_enum(vid.msgleft, "message_style", "message style", 2)
+    -> editable({{"centered", ""}, {"left-aligned", ""}, {"line-broken", ""}}, "message style", 'a');
+
   addsaverenum(neon_nofill, "neon_nofill");
   param_b(noshadow, "noshadow");
   param_b(bright, "bright");
@@ -1202,8 +1634,12 @@ EX void initConfig() {
   param_f(camera_rot_speed, "camrot", "camera-rot-speed", 1);
   param_f(third_person_rotation, "third_person_rotation", 0);
 
-  param_f(panini_alpha, "panini_alpha", 0);
-  param_f(stereo_alpha, "stereo_alpha", 0);
+  param_f(vid.stereo_param, "stereo_param", 0.9)
+  ->editable(-1, 1, 0.9, "stereographic/Panini parameter", "1 for full stereographic/Panini projection. Lower values reduce the effect.\n\n"
+        "HyperRogue uses "
+        "a quick implementation, so parameter values too close to 1 may "
+        "be buggy (outside of raycasting); try e.g. 0.9 instead.", 'd')
+  ->set_reaction(reset_all_shaders);
 
   callhooks(hooks_configfile);
   
@@ -1227,6 +1663,18 @@ EX void initConfig() {
   
   param_i(stamplen, "stamplen");
   param_f(anims::period, "animperiod");
+
+  addsaver(use_custom_land_list, "customland_use");
+  for(int i=0; i<landtypes; i++) {
+    custom_land_list[i] = true;
+    custom_land_treasure[i] = 100;
+    custom_land_difficulty[i] = 100;
+    custom_land_wandering[i] = 100;
+    addsaver(custom_land_list[i], "customland" + its(i) + "i", true);
+    addsaver(custom_land_treasure[i], "customland" + its(i) + "t", 100);
+    addsaver(custom_land_difficulty[i], "customland" + its(i) + "d", 100);
+    addsaver(custom_land_wandering[i], "customland" + its(i) + "w", 100);
+    }
   }
 
 EX bool inSpecialMode() {
@@ -1428,7 +1876,7 @@ EX void loadConfig() {
   geom3::apply_always3();
   polygonal::solve();
   check_cgi();
-  cgi.prepare_basics();
+  cgi.require_basics();
   }
 #endif
 
@@ -1470,57 +1918,60 @@ EX void menuitem_sightrange_bonus(char c) {
       XLAT("Roughly 42% cells are on the edge of your sight range. Reducing "
       "the sight range makes HyperRogue work faster, but also makes "
       "the game effectively harder."));
-    dialog::reaction = doOvergenerate;
+    dialog::get_di().reaction = doOvergenerate;
     dialog::bound_low(1-getDistLimit());
     dialog::bound_up(allowIncreasedSight() ? euclid ? 99 : gp::dist_2() * 5 : 0);
     });
   }
 
+EX void edit_sightrange_3d(char key, bool fog) {
+  dialog::addSelItem(fog ? XLAT("3D sight range for the fog effect") : ("3D sight range"), fts(sightranges[geometry]), key);
+  dialog::add_action([] {
+    dialog::editNumber(sightranges[geometry], 0, TAU, 0.5, M_PI, XLAT("3D sight range"),
+      XLAT(
+        "Sight range for 3D geometries is specified in the absolute units. This value also affects the fog effect.\n\n"
+        "In spherical geometries, the sight range of 2π will let you see things behind you as if they were in front of you, "
+        "and the sight range of π (or more) will let you see things on the antipodal point just as if they were close to you.\n\n"
+        "In hyperbolic geometries, the number of cells to render depends exponentially on the sight range. More cells to drawn "
+        "reduces the performance.\n\n"
+        "Sight range affects the gameplay, and monsters act iff they are visible. Monster generation takes this into account."
+        )
+      );
+    dialog::get_di().extra_options = [] { add_cells_drawn('C'); };
+    });
+  }
+
 EX void edit_sightrange() {
-  #if CAP_RUG
-  USING_NATIVE_GEOMETRY_IN_RUG;
-  #endif
   cmode = sm::SIDE;
   gamescreen();
   dialog::init("sight range settings");
   add_edit(vid.use_smart_range);
-  if(vid.use_smart_range)
-    add_edit(WDIM == 2 ? vid.smart_range_detail : vid.smart_range_detail_3);
+  int wdim = WDIM;
+  #if CAP_RUG
+  USING_NATIVE_GEOMETRY_IN_RUG;
+  #endif
+  if(vid.use_smart_range) {
+    add_edit(wdim == 2 ? vid.smart_range_detail : vid.smart_range_detail_3);
+    if(GDIM == 3) edit_sightrange_3d('r', true);
+    }
   else {
-    if(WDIM == 2) {
+    if(wdim == 2) {
       add_edit(sightrange_bonus);
-      if(GDIM == 3) {
-        dialog::addSelItem(XLAT("3D sight range for the fog effect"), fts(sightranges[geometry]), 'r');
-        dialog::add_action([] {
-          dialog::editNumber(sightranges[geometry], 0, TAU, 0.5, M_PI, XLAT("fog effect"), "");
-          });
-        }
+      if(GDIM == 3) edit_sightrange_3d('r', true);
       }
-    if(WDIM == 3) {
-      dialog::addSelItem(XLAT("3D sight range"), fts(sightranges[geometry]), 'r');
-      dialog::add_action([] {
-      dialog::editNumber(sightranges[geometry], 0, TAU, 0.5, M_PI, XLAT("3D sight range"),
-        XLAT(
-          "Sight range for 3D geometries is specified in the absolute units. This value also affects the fog effect.\n\n"
-          "In spherical geometries, the sight range of 2π will let you see things behind you as if they were in front of you, "
-          "and the sight range of π (or more) will let you see things on the antipodal point just as if they were close to you.\n\n"
-          "In hyperbolic geometries, the number of cells to render depends exponentially on the sight range. More cells to drawn "
-          "reduces the performance.\n\n"
-          "Sight range affects the gameplay, and monsters act iff they are visible. Monster generation takes this into account."
-          )
-        );
-        });
-      }
+    if(wdim == 3) edit_sightrange_3d('r', false);
     }
   #if CAP_SOLV
   if(models::is_perspective(pmodel) && sol) {
     dialog::addSelItem(XLAT("max difference in X/Y coordinates"), fts(sn::solrange_xy), 'x');
     dialog::add_action([] {
       dialog::editNumber(sn::solrange_xy, 0.01, 200, 0.1, 50, XLAT("max difference in X/Y coordinates"), solhelp()), dialog::scaleLog();
+      dialog::get_di().extra_options = [] { add_cells_drawn('C'); };
       });
     dialog::addSelItem(XLAT("max difference in Z coordinate"), fts(sn::solrange_z), 'z');
     dialog::add_action([] {
       dialog::editNumber(sn::solrange_z, 0, 20, 0.1, 6, XLAT("max difference in Z coordinates"), solhelp());
+      dialog::get_di().extra_options = [] { add_cells_drawn('C'); };
       });
     }
   #endif
@@ -1538,16 +1989,16 @@ EX void edit_sightrange() {
       dialog::editNumber(slr::shader_iterations, 0, 50, 1, 10, "", "");
       });
     }
-  if(vid.use_smart_range && WDIM == 2) {
+  if(vid.use_smart_range && wdim == 2) {
     dialog::addBoolItem_action(XLAT("area-based range"), vid.smart_area_based, 'a');
     }
-  if(vid.use_smart_range == 0 && allowChangeRange() && WDIM == 2) {
+  if(vid.use_smart_range == 0 && allowChangeRange() && wdim == 2) {
     dialog::addSelItem(XLAT("generation range bonus"), its(genrange_bonus), 'o');
     dialog::add_action([] () { genrange_bonus = sightrange_bonus; doOvergenerate(); });
     dialog::addSelItem(XLAT("game range bonus"), its(gamerange_bonus), 's');
     dialog::add_action([] () { gamerange_bonus = sightrange_bonus; doOvergenerate(); });
     }
-  if(WDIM == 3 && !vid.use_smart_range) {
+  if(wdim == 3 && !vid.use_smart_range) {
     dialog::addBoolItem_action(XLAT("sloppy range checking"), vid.sloppy_3d, 's');
     }
   if(GDIM == 3 && !vid.use_smart_range) {
@@ -1600,15 +2051,15 @@ EX void menuitem_sightrange(char c IS('c')) {
   else if(WDIM == 3)
     dialog::addSelItem(XLAT("sight range settings"), fts(sightranges[geometry]) + "au", c);
   else
-    dialog::addSelItem(XLAT("sight range settings"), format("%+d", sightrange_bonus), c);
+    dialog::addSelItem(XLAT("sight range settings"), hr::format("%+d", sightrange_bonus), c);
   dialog::add_action_push(edit_sightrange);
   }
 
 EX void sets_sfx_volume() {
 #if CAP_AUDIO
-  dialog::dialogflags = sm::NOSCR;
+  dialog::get_di().dialogflags = sm::NOSCR;
   #if ISANDROID
-  dialog::reaction = [] () {
+  dialog::get_di().reaction = [] () {
     settingsChanged = true;
     };
   #endif
@@ -1619,8 +2070,8 @@ EX void sets_sfx_volume() {
 
 EX void sets_music_volume() {
 #if CAP_AUDIO
-  dialog::dialogflags = sm::NOSCR;
-  dialog::reaction = [] () {
+  dialog::get_di().dialogflags = sm::NOSCR;
+  dialog::get_di().reaction = [] () {
     #if CAP_SDLAUDIO
     Mix_VolumeMusic(musicvolume);
     #endif
@@ -1631,7 +2082,7 @@ EX void sets_music_volume() {
   dialog::bound_low(0);
   dialog::bound_up(MIX_MAX_VOLUME);
   #if CAP_SDLAUDIO
-  dialog::extra_options = [] {
+  dialog::get_di().extra_options = [] {
     dialog::addBoolItem_action(XLAT("play music when out of focus"), music_out_of_focus, 'A');
     };
   #endif
@@ -1872,7 +2323,7 @@ EX void edit_whatever(char type, int index) {
     dialog::editNumber(whateveri[index], -10, 10, 1, 0, XLAT("whatever"), 
       "i:" + its(index));
     }
-  dialog::extra_options = [type, index] {
+  dialog::get_di().extra_options = [type, index] {
     dialog::addItem(XLAT("integer"), 'X');
     dialog::add_action( [index] { popScreen(); edit_whatever('i', index); });
     dialog::addItem(XLAT("float"), 'Y');
@@ -1952,6 +2403,8 @@ EX void configureInterface() {
       XLAT("Maximum number of messages on screen."));
     dialog::bound_low(0);
     });
+
+  add_edit(nohelp);
   
   add_edit(vid.msgleft);
   
@@ -1970,9 +2423,13 @@ EX void configureInterface() {
       "as it precisely shows the direction we are going. However, the option is available in all modes."
       ));
     dialog::bound_low(0);
-    dialog::extra_options = [] {
+    dialog::get_di().extra_options = [] {
+      draw_crosshair();
       dialog::addColorItem(XLAT("crosshair color"), crosshair_color, 'X');
-      dialog::add_action([] { dialog::openColorDialog(crosshair_color); });
+      dialog::add_action([] {
+        dialog::openColorDialog(crosshair_color);
+        dialog::get_di().extra_options = draw_crosshair;
+        });
       };
     });
 
@@ -2048,7 +2505,7 @@ EX void projectionDialog() {
     "and the Gans model is obtained by orthogonal projection. "
     "See also the conformal mode (in the special modes menu) "
     "for more models."));
-  dialog::extra_options = [] () {
+  dialog::get_di().extra_options = [] () {
     dialog::addBreak(100);
     if(GDIM == 2) dialog::addHelp(XLAT(
       "If we are viewing an equidistant g absolute units below a plane, "
@@ -2057,17 +2514,17 @@ EX void projectionDialog() {
       "tanh(g)/tanh(c) units below the center. This in turn corresponds to "
       "the Poincaré model for g=c, and Klein-Beltrami model for g=0."));
     dialog::addSelItem(sphere ? "stereographic" : "Poincaré model", "1", 'P');
-    dialog::add_action([] () { *dialog::ne.editwhat = 1; vpconf.scale = 1; dialog::ne.s = "1"; });
+    dialog::add_action([] () { *dialog::get_ne().editwhat = 1; vpconf.scale = 1; dialog::get_ne().s = "1"; });
     dialog::addSelItem(sphere ? "gnomonic" : "Klein model", "0", 'K');
-    dialog::add_action([] () { *dialog::ne.editwhat = 0; vpconf.scale = 1; dialog::ne.s = "0"; });
+    dialog::add_action([] () { *dialog::get_ne().editwhat = 0; vpconf.scale = 1; dialog::get_ne().s = "0"; });
     if(hyperbolic) {
       dialog::addSelItem("inverted Poincaré model", "-1", 'I');
-      dialog::add_action([] () { *dialog::ne.editwhat = -1; vpconf.scale = 1; dialog::ne.s = "-1"; });
+      dialog::add_action([] () { *dialog::get_ne().editwhat = -1; vpconf.scale = 1; dialog::get_ne().s = "-1"; });
       }
     dialog::addItem(sphere ? "orthographic" : "Gans model", 'O');
-    dialog::add_action([] () { vpconf.alpha = vpconf.scale = 999; dialog::ne.s = dialog::disp(vpconf.alpha); });
+    dialog::add_action([] () { vpconf.alpha = vpconf.scale = 999; dialog::get_ne().reset_str(); });
     dialog::addItem(sphere ? "towards orthographic" : "towards Gans model", 'T');
-    dialog::add_action([] () { double d = 1.1; vpconf.alpha *= d; vpconf.scale *= d; dialog::ne.s = dialog::disp(vpconf.alpha); });
+    dialog::add_action([] () { double d = 1.1; vpconf.alpha *= d; vpconf.scale *= d; dialog::get_ne().reset_str(); });
     };
   }
 
@@ -2086,71 +2543,42 @@ EX void explain_detail() {
   }
 
 EX ld max_fov_angle() {
-  auto& p = panini_alpha ? panini_alpha : stereo_alpha;
+  auto p = get_stereo_param();
   if(p >= 1 || p <= -1) return 360;
   return acos(-p) * 2 / degree;
   }
 
-EX void add_edit_fov(char key IS('f'), bool pop IS(false)) {
+EX void edit_fov_screen() {
+  dialog::editNumber(vid.fov, 1, max_fov_angle(), 1, 90, "field of view",
+    XLAT(
+      "Horizontal field of view, in angles. "
+      "This affects the Hypersian Rug mode (even when stereo is OFF) "
+      "and non-disk models.") + "\n\n" +
+    XLAT(
+      "Must be less than %1°. Panini projection can be used to get higher values.",
+      fts(max_fov_angle())
+      )
+      );
+  dialog::bound_low(1e-8);
+  dialog::bound_up(max_fov_angle() - 0.01);
+  dialog::get_di().extra_options = [] {
+    auto ptr = dynamic_cast<dialog::number_dialog*> (screens.back().target_base());
+    if(ptr && ptr->vmax != max_fov_angle()) { popScreen(); edit_fov_screen(); return; }
+    add_edit(vid.stereo_mode, 'M');
+    if(among(vid.stereo_mode, sPanini, sStereographic)) {
+      add_edit(vid.stereo_param, 'P');
+      }
+    };
+  }
+
+EX void add_edit_fov(char key IS('f')) {
 
   string sfov = fts(vid.fov) + "°";
-  if(panini_alpha || stereo_alpha) {
+  if(get_stereo_param()) {
     sfov += " / " + fts(max_fov_angle()) + "°";
     }
   dialog::addSelItem(XLAT("field of view"), sfov, key);
-  dialog::add_action([=] {
-    if(pop) popScreen();
-    dialog::editNumber(vid.fov, 1, max_fov_angle(), 1, 90, "field of view", 
-      XLAT(
-        "Horizontal field of view, in angles. "
-        "This affects the Hypersian Rug mode (even when stereo is OFF) "
-        "and non-disk models.") + "\n\n" +
-      XLAT(
-        "Must be less than %1°. Panini projection can be used to get higher values.",
-        fts(max_fov_angle())
-        )
-        );
-    dialog::bound_low(1e-8);
-    dialog::bound_up(max_fov_angle() - 0.01);
-    string quick = 
-      XLAT(
-        "HyperRogue uses "
-        "a quick implementation, so parameter values too close to 1 may "
-        "be buggy (outside of raycasting); try e.g. 0.9 instead."
-        );
-    dialog::extra_options = [quick] {
-      dialog::addSelItem(XLAT("Panini projection"), fts(panini_alpha), 'P');
-      dialog::add_action([quick] {
-        popScreen();
-        dialog::editNumber(panini_alpha, 0, 1, 0.1, 0, "Panini parameter", 
-          XLAT(
-            "The Panini projection is an alternative perspective projection "
-            "which allows very wide field-of-view values.\n\n") + quick
-            );
-        #if CAP_GL
-        dialog::reaction = reset_all_shaders;
-        #endif
-        dialog::extra_options = [] {
-          add_edit_fov('F', true);
-          };
-        });
-      dialog::addSelItem(XLAT("spherical perspective projection"), fts(stereo_alpha), 'S');
-      dialog::add_action([quick] {
-        popScreen();
-        dialog::editNumber(stereo_alpha, 0, 1, 0.1, 0, "spherical perspective parameter", 
-          XLAT(
-            "Set to 1 to get stereographic projection, "
-            "which allows very wide field-of-view values.\n\n") + quick
-            );
-        #if CAP_GL
-        dialog::reaction = reset_all_shaders;
-        #endif
-        dialog::extra_options = [] {
-          add_edit_fov('F', true);
-          };
-        });
-      };
-    });
+  dialog::add_action(edit_fov_screen);
   }
 
 bool supported_ods() {
@@ -2173,6 +2601,9 @@ EX void showStereo() {
       break;
     case sLR:
       dialog::addSelItem(XLAT("distance between images"), fts(vid.lr_eyewidth), 'd');
+      break;
+    case sPanini: case sStereographic:
+      add_edit(vid.stereo_param);
       break;
     default:
       dialog::addBreak(100);
@@ -2244,7 +2675,7 @@ EX void add_edit_wall_quality(char c) {
       );
     dialog::bound_low(1);
     dialog::bound_up(128);
-    dialog::reaction = [] {
+    dialog::get_di().reaction = [] {
       #if MAXMDIM >= 4
       if(floor_textures) {
         delete floor_textures;
@@ -2266,8 +2697,8 @@ EX void edit_levellines(char c) {
         "This feature superimposes level lines on the rendered screen. These lines depend on the Z coordinate. In 3D hyperbolic the Z coordinate is taken from the Klein model. "
         "Level lines can be used to observe the curvature: circles correspond to positive curvature, while hyperbolas correspond to negative. See e.g. the Hypersian Rug mode.")
       );
-    dialog::reaction = ray::reset_raycaster;
-    dialog::extra_options = [] {
+    dialog::get_di().reaction = ray::reset_raycaster;
+    dialog::get_di().extra_options = [] {
       dialog::addBoolItem(XLAT("disable textures"), disable_texture, 'T');
       dialog::add_action([] { ray::reset_raycaster(); disable_texture = !disable_texture; });
       dialog::addItem(XLAT("disable level lines"), 'D');
@@ -2282,7 +2713,7 @@ EX geom3::eSpatialEmbedding shown_spatial_embedding() {
   return geom3::spatial_embedding;
   }
 
-EX bool in_tpp() { return pmodel == mdDisk && pconf.camera_angle; }
+EX bool in_tpp() { return pmodel == mdDisk && !models::camera_straight; }
 
 EX void display_embedded_errors() {
   using namespace geom3;
@@ -2441,9 +2872,11 @@ EX void show3D_height_details() {
     add_edit(vid.infdeep_height);
     add_edit(vid.sun_size);
     add_edit(vid.star_size);
+    #if MAXMDIM >= 4
     add_edit(star_prob);
     add_edit(vid.height_limits);
     if(euclid && msphere) add_edit(use_euclidean_infinity);
+    #endif
 
     dialog::addBreak(100);
     dialog::addHelp(lalign(0, "absolute altitudes:\n\n"
@@ -2473,7 +2906,7 @@ EX void show3D() {
 
 #if MAXMDIM >=4
   if(WDIM == 2) {
-    dialog::addSelItem("3D style", geom3::spatial_embedding_options[shown_spatial_embedding()].first, 'E');
+    dialog::addSelItem(XLAT("3D style"), XLAT(geom3::spatial_embedding_options[shown_spatial_embedding()].first), 'E');
     dialog::add_action_push(show_spatial_embedding);
 
     display_embedded_errors();
@@ -2488,7 +2921,7 @@ EX void show3D() {
     }
   
   if(WDIM == 2) {
-    if(cgi.emb->is_euc_in_noniso()) {
+    if(cgi.emb->is_euc_scalable()) {
       add_edit(geom3::euclid_embed_scale);
       add_edit(geom3::euclid_embed_scale_y);
       add_edit(geom3::euclid_embed_rotate);
@@ -2509,7 +2942,7 @@ EX void show3D() {
     
     dialog::addBreak(50);
     add_edit(vid.wall_height);
-    dialog::addSelItem("height details", "", 'D');
+    dialog::addSelItem(XLAT("3D detailed settings"), "", 'D');
     dialog::add_action_push(show3D_height_details);
     
     if(scale_used())
@@ -2529,25 +2962,13 @@ EX void show3D() {
       dialog::editNumber(mouseaim_sensitivity, -1, 1, 0.002, 0.01, XLAT("mouse aiming sensitivity"), "set to 0 to disable");
       });
     }
-  if(true) {
-    dialog::addSelItem(XLAT("camera rotation"), fts(vpconf.camera_angle), 'S');
-    dialog::add_action([] {
-      dialog::editNumber(vpconf.camera_angle, -180, 180, 5, 0, XLAT("camera rotation"), 
-        XLAT("Rotate the camera. Can be used to obtain a first person perspective, "
-        "or third person perspective when combined with Y shift.")
-        );
-      dialog::extra_options = [] {
-        dialog::addBoolItem(XLAT("render behind the camera"), vpconf.back_and_front, 'R');
-        dialog::add_action([] { vpconf.back_and_front = !vpconf.back_and_front; });
-        };
-      });
-    }
+  if(true) add_edit(vpconf.cam());
   if(GDIM == 2) {
     dialog::addSelItem(XLAT("fixed facing"), vid.fixed_facing ? fts(vid.fixed_facing_dir) : XLAT("OFF"), 'f');
     dialog::add_action([] () { vid.fixed_facing = !vid.fixed_facing; 
       if(vid.fixed_facing) {
         dialog::editNumber(vid.fixed_facing_dir, 0, 360, 15, 90, "", "");
-        dialog::dialogflags |= sm::CENTER;
+        dialog::get_di().dialogflags |= sm::CENTER;
         }
       });
     }
@@ -2578,7 +2999,7 @@ EX void show3D() {
     dialog::addSelItem(XLAT("radar size"), fts(vid.radarsize), 'r');
     dialog::add_action([] () {
       dialog::editNumber(vid.radarsize, 0, 360, 15, 90, "", XLAT("set to 0 to disable"));
-      dialog::extra_options = [] () { draw_radar(true); };
+      dialog::get_di().extra_options = [] () { draw_radar(true); };
       });
     }
   
@@ -2605,7 +3026,7 @@ EX void show3D() {
     dialog::addSelItem(XLAT("radar range"), fts(vid.radarrange), 'R');
     dialog::add_action([] () {
       dialog::editNumber(vid.radarrange, 0, 10, 0.5, 2, "", XLAT(""));
-      dialog::extra_options = [] () { draw_radar(true); };
+      dialog::get_di().extra_options = [] () { draw_radar(true); };
       });
     }
   if(GDIM == 3) add_edit_wall_quality('W');
@@ -2647,13 +3068,13 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
   param_f(vid.eye, "eyelevel", 0)
     ->editable(-5, 5, .1, "eye level", "", 'E')
     ->set_extra([] {
-      dialog::dialogflags |= sm::CENTER;
+      dialog::get_di().dialogflags |= sm::CENTER;
       vid.tc_camera = ticks;
     
       dialog::addHelp(XLAT("In the FPP mode, the camera will be set at this altitude (before applying shifts)."));
 
       dialog::addBoolItem(XLAT("auto-adjust to eyes on the player model"), vid.auto_eye, 'O');
-      dialog::reaction = [] { vid.auto_eye = false; };
+      dialog::get_di().reaction = [] { vid.auto_eye = false; };
       dialog::add_action([] () {
         vid.auto_eye = !vid.auto_eye;
         geom3::do_auto_eye();
@@ -2661,6 +3082,17 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
       });
   
   addsaver(vid.auto_eye, "auto-eyelevel", false);
+
+  param_b(nomenukey, "nomenukey");
+  param_b(showstartmenu, "showstartmenu");
+  param_b(draw_centerover, "draw_centerover");
+
+  param_enum(nohelp, "help_messages", "help_messages", 0)
+  -> editable({
+    {"all", "all context help/welcome messages"},
+    {"none", "no context help/welcome messages"},
+    {"automatic", "I know I can press F1 for help"},
+    }, "context help", 'H');
 
   param_f(vid.creature_scale, "creature_scale", "3d-creaturescale", 1)
     ->editable(0, 1, .1, "Creature scale", "", 'C');
@@ -2680,18 +3112,46 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
   param_b(numerical_minefield, "numerical_minefield")
   ->editable("display mine counts numerically", 'n');
   param_b(dont_display_minecount, "dont_display_minecount");
+  #if MAXMDIM >= 4
   param_enum(draw_sky, "draw_sky", "draw_sky", skyAutomatic)
   -> editable({{"NO", "do not draw sky"}, {"automatic", ""}, {"skybox", "works only in Euclidean"}, {"always", "might be glitched in some settings"}}, "sky rendering", 's');
   param_b(use_euclidean_infinity, "use_euclidean_infinity", true)
   -> editable("infinite sky", 'i');
+  #endif
   param_f(linepatterns::parallel_count, "parallel_count")
     ->editable(0, 24, 1, "number of parallels drawn", "", 'n');
   param_f(linepatterns::parallel_max, "parallel_max")
     ->editable(0, TAU, 15*degree, "last parallel drawn", "", 'n');
+  param_f(linepatterns::mp_ori, "mp_ori")
+    ->editable(0, TAU, 15*degree, "parallel/meridian orientation", "", 'n');
+  param_f(linepatterns::meridian_max, "meridian_max");
+  param_f(linepatterns::meridian_count, "meridian_count");
+  param_f(linepatterns::meridian_length, "meridian_length");
+  param_f(linepatterns::meridian_prec, "meridian_prec");
+  param_f(linepatterns::meridian_prec2, "meridian_prec2");
+
+  param_f(linepatterns::dual_length, "dual_length");
+  param_matrix(linepatterns::dual_angle.v2, "dual_angle", 2);
+  param_matrix(linepatterns::dual_angle.v3, "dual_angle3", 3);
+
+  param_f(twopoint_xscale, "twopoint_xscale");
+  param_i(twopoint_xshape, "twopoint_xshape");
+  param_f(twopoint_xwidth, "twopoint_xwidth");
+  param_f(periodwidth, "periodwidth", 1);
+
+  param_b(draw_plain_floors, "draw_plain_floors", false)
+  ->editable("draw plain floors in 3D", 'p');
+  param_i(default_flooralpha, "floor_alpha")
+  ->editable(0, 255, 15, "floor alpha", "255 = opaque", 'a');
+
   param_f(vid.depth_bonus, "depth_bonus", 0)
     ->editable(-5, 5, .1, "depth bonus in pseudohedral", "", 'b');
-  param_b(vid.pseudohedral, "pseudohedral", false)
-    ->editable("make the tiles flat", 'p');
+  param_enum(vid.pseudohedral, "pseudohedral", "pseudohedral", phOFF)
+    ->editable(
+    {{"OFF", "the tiles are curved"},
+    {"inscribed", "the tiles are inscribed"},
+    {"circumscribed", "the tiles are circumscribed"}},
+    "make the tiles flat", 'p');
   param_f(vid.depth, "depth", "3D depth", 1)
     ->editable(0, 5, .1, "Ground level below the plane", "", 'd')
     ->set_extra([] {
@@ -2788,7 +3248,7 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
         );
         });
   string unitwarn =
-    "The unit this is value is given in is wall height. "
+    "The unit this value is given in is wall height. "
     "Note that, in exponentially expanding spaces, too high values could cause rendering issues. So "
     "if you want infinity, values of 5 or similar should be used -- there is no visible difference "
     "from infinity and glitches are avoided.";
@@ -2807,10 +3267,12 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
       "the sky height, which might be beyond the range visible in fog. To prevent this, "
       "the intensity of the fog effect depends on the value here rather than the actual distance. "
       "Stars are affected similarly.", '4');
+  #if MAXMDIM >= 4
   param_fd(vid.sky_height, "sky_height")
     ->set_hint([] { return geom3::to_wh(cgi.SKY); })
     ->editable(0, 10, .1, "altitude of the sky", unitwarn, '5')
     ->set_reaction(delete_sky);
+  #endif
   param_fd(vid.star_height, "star_height")
     ->set_hint([] { return geom3::to_wh(cgi.STAR); })
     ->editable(0, 10, .1, "altitude of the stars", unitwarn, '6');
@@ -2821,8 +3283,10 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
     ->editable(0, 10, .1, "sun size (relative to item sizes)", "", '8');
   param_f(vid.star_size, "star_size", "star_size", 0.75)
     ->editable(0, 10, .1, "night star size (relative to item sizes)", "", '9');
+  #if MAXMDIM >= 4
   param_f(star_prob, "star_prob", 0.3)
     ->editable(0, 1, .01, "star probability", "probability of star per tile", '*');
+  #endif
   param_b(vid.height_limits, "height_limits", true)
     ->editable("prevent exceeding recommended altitudes", 'l');
   param_b(auto_remove_roofs, "auto_remove_roofs", true)
@@ -2848,6 +3312,16 @@ EX int config3 = addHook(hooks_configfile, 100, [] {
     "Setting 1 uses the internal shape IDs, while setting 2 in tes files uses "
     "the original IDs in case if extra tile types were added to "
     "separate mirror images or different football types.", 'd');
+  param_b(debug_voronoi, "debug_voronoi")->editable(
+    "display Voronoi tie debug values", 'd');
+  param_i(horodisk_from, "horodisk_from", -2)->editable(-10, 10, 1,
+    "land size in horodisk mode",
+    "Set this to -2 to get perfect horodisks. Smaller values yield less dense horodisks, and "
+    "larger values might produce horodisks with errors or crashing into each other.", 'H');
+  param_i(randomwalk_size, "randomwalk_size", 10)->editable(2, 100, 1,
+    "land size in randomwalk mode",
+    "The average size of a land in randomwalk mode.", 'R');
+
   param_f(global_boundary_ratio, "global_boundary_ratio")
   ->editable(0, 5, 0.1, "Width of cell boundaries",
     "How wide should the cell boundaries be.", '0');
@@ -2890,6 +3364,10 @@ EX void showCustomizeChar() {
   dialog::addColorItem(XLAT("eye color"), cs.eyecolor, 'e');
   dialog::addColorItem(XLAT("weapon color"), cs.swordcolor, 'w');
   dialog::addColorItem(XLAT("hair color"), cs.haircolor, 'h');
+  if(bow::crossbow_mode()) {
+    dialog::addColorItem(XLAT("bow color"), cs.bowcolor, 'b');
+    dialog::addColorItem(XLAT("bowstring color"), cs.bowcolor2, 'c');
+    }
   
   if(cs.charid >= 1) dialog::addColorItem(XLAT("dress color"), cs.dresscolor, 'd');
   else dialog::addBreak(100);
@@ -2942,6 +3420,8 @@ EX void showCustomizeChar() {
     else if(uni == 'u') switchcolor(cs.uicolor, eyecolors);
     else if(uni == 'e') switchcolor(cs.eyecolor, eyecolors);
     else if(uni == 'l') cs.lefthanded = !cs.lefthanded;
+    else if(uni == 'b') switchcolor(cs.bowcolor, swordcolors);
+    else if(uni == 'c') switchcolor(cs.bowcolor2, eyecolors);
     else if(doexiton(sym, uni)) popScreen();
     };
   }
@@ -2976,9 +3456,9 @@ EX void edit_color_table(colortable& ct, const reaction_t& r IS(reaction_t()), b
         if(!(ct[i] & 0x1000000)) return;
         }
       dialog::openColorDialog(ct[i]); 
-      dialog::reaction = r; 
+      dialog::get_di().reaction = r; 
       dialog::colorAlpha = false;
-      dialog::dialogflags |= sm::SIDE;
+      dialog::get_di().dialogflags |= sm::SIDE;
       });
     }
 
@@ -3007,28 +3487,28 @@ EX void show_color_dialog() {
   dialog::init(XLAT("colors & aura"));
 
   dialog::addColorItem(XLAT("background"), addalpha(backcolor), 'b');
-  dialog::add_action([] () { dialog::openColorDialog(backcolor); dialog::colorAlpha = false; dialog::dialogflags |= sm::SIDE; });
+  dialog::add_action([] () { dialog::openColorDialog(backcolor); dialog::colorAlpha = false; dialog::get_di().dialogflags |= sm::SIDE; });
   
   if(WDIM == 2 && GDIM == 3 && hyperbolic)
     dialog::addBoolItem_action(XLAT("cool fog effect"), context_fog, 'B');
 
   dialog::addColorItem(XLAT("foreground"), addalpha(forecolor), 'f');
-  dialog::add_action([] () { dialog::openColorDialog(forecolor); dialog::colorAlpha = false; dialog::dialogflags |= sm::SIDE; });
+  dialog::add_action([] () { dialog::openColorDialog(forecolor); dialog::colorAlpha = false; dialog::get_di().dialogflags |= sm::SIDE; });
 
   dialog::addColorItem(XLAT("borders"), addalpha(bordcolor), 'o');
-  dialog::add_action([] () { dialog::openColorDialog(bordcolor); dialog::colorAlpha = false; dialog::dialogflags |= sm::SIDE; });
+  dialog::add_action([] () { dialog::openColorDialog(bordcolor); dialog::colorAlpha = false; dialog::get_di().dialogflags |= sm::SIDE; });
 
   dialog::addColorItem(XLAT("projection boundary"), ringcolor, 'r');
-  dialog::add_action([] () { dialog::openColorDialog(ringcolor); dialog::dialogflags |= sm::SIDE; });
+  dialog::add_action([] () { dialog::openColorDialog(ringcolor); dialog::get_di().dialogflags |= sm::SIDE; });
 
   dialog::addSelItem(XLAT("boundary width multiplier"), fts(vid.multiplier_ring), 'R');
   dialog::add_action([] () { dialog::editNumber(vid.multiplier_ring, 0, 10, 1, 1, XLAT("boundary width multiplier"), ""); });
 
   dialog::addColorItem(XLAT("projection background"), modelcolor, 'c');
-  dialog::add_action([] () { dialog::openColorDialog(modelcolor); dialog::dialogflags |= sm::SIDE; });
+  dialog::add_action([] () { dialog::openColorDialog(modelcolor); dialog::get_di().dialogflags |= sm::SIDE; });
 
   dialog::addColorItem(XLAT("standard grid color"), stdgridcolor, 'g');
-  dialog::add_action([] () { vid.grid = true; dialog::openColorDialog(stdgridcolor); dialog::dialogflags |= sm::SIDE; });
+  dialog::add_action([] () { vid.grid = true; dialog::openColorDialog(stdgridcolor); dialog::get_di().dialogflags |= sm::SIDE; });
   
   dialog::addSelItem(XLAT("grid width multiplier"), fts(vid.multiplier_grid), 'G');
   dialog::add_action([] () { dialog::editNumber(vid.multiplier_grid, 0, 10, 1, 1, XLAT("grid width multiplier"), ""); });
@@ -3038,10 +3518,10 @@ EX void show_color_dialog() {
     XLAT("In the orthogonal projection, objects on the other side of the sphere are drawn darker.")); dialog::bound_low(0); });
 
   dialog::addColorItem(XLAT("projection period"), periodcolor, 'p');
-  dialog::add_action([] () { dialog::openColorDialog(periodcolor); dialog::dialogflags |= sm::SIDE; });
+  dialog::add_action([] () { dialog::openColorDialog(periodcolor); dialog::get_di().dialogflags |= sm::SIDE; });
 
   dialog::addColorItem(XLAT("dialogs"), addalpha(dialog::dialogcolor), 'd');
-  dialog::add_action([] () { dialog::openColorDialog(dialog::dialogcolor); dialog::colorAlpha = false; dialog::dialogflags |= sm::SIDE; });
+  dialog::add_action([] () { dialog::openColorDialog(dialog::dialogcolor); dialog::colorAlpha = false; dialog::get_di().dialogflags |= sm::SIDE; });
 
   dialog::addBreak(50);
   if(specialland == laCanvas && colortables.count(patterns::whichCanvas)) {
@@ -3110,7 +3590,7 @@ EX void show_color_dialog() {
       else 
         dialog::openColorDialog(floorcolors[c->land]);
       dialog::colorAlpha = false;
-      dialog::dialogflags |= sm::SIDE;
+      dialog::get_di().dialogflags |= sm::SIDE;
       return;
       }
     else dialog::handleNavigation(sym, uni);
@@ -3238,7 +3718,7 @@ EX void configureMouse() {
   dialog::add_action([] {
     dialog::editNumber(vid.mobilecompasssize, 0, 100, 10, 20, XLAT("compass size"), XLAT("0 to disable"));
     // we need to check the moves
-    dialog::reaction = checkmove;
+    dialog::get_di().reaction = checkmove;
     dialog::bound_low(0);
     });
 
@@ -3285,9 +3765,23 @@ EX void add_edit_ptr(void *val) {
   if(found != 1) println(hlog, "found = ", found);
   }
 
+EX void add_edit_ptr(void *val, char key) {
+  int found = 0;
+  for(auto& fs: params) {
+    fs.second->check_change();
+    if(fs.second->affects(val))
+      fs.second->show_edit_option(key), found++;
+    }
+  if(found != 1) println(hlog, "found = ", found);
+  }
+
 #if HDR
 template<class T> void add_edit(T& val) {
   add_edit_ptr(&val);
+  }
+
+template<class T> void add_edit(T& val, char key) {
+  add_edit_ptr(&val, key);
   }
 #endif
 
@@ -3346,9 +3840,11 @@ EX void edit_all_settings() {
   }
 
 void list_setting::show_edit_option(int key) {
-  string opt = options[get_value()].first;
+  string opt;
+  if(get_value() < 0 || get_value() >= isize(options)) opt = its(get_value());
+  else opt = options[get_value()].first;
   dialog::addSelItem(XLAT(menu_item_name), XLAT(opt), key);
-  dialog::add_action_push([this] {
+  reaction_t screen = [this] {
     add_to_changed(this);
     cmode = sm::SIDE | sm::MAYDARK;
     gamescreen();
@@ -3361,7 +3857,11 @@ void list_setting::show_edit_option(int key) {
     if(need_list >= 2) dialog::start_list(1500, 1500, 'a');
     for(int i=0; i<q; i++) {
       dialog::addBoolItem(XLAT(options[i].first), get_value() == i, need_list >= 2 ? dialog::list_fake_key++ : 'a' + i);
-      dialog::add_action([this, i, need_list] { set_value(i); if(reaction) reaction(); if(need_list == 0) popScreen(); });
+      auto action = [this, i, need_list] { set_value(i); if(reaction) reaction(); if(need_list == 0) popScreen(); };
+      if(needs_confirm)
+        dialog::add_action_confirmed(action);
+      else
+        dialog::add_action(action);
       if(need_list == 0 && options[i].second != "") {
         dialog::addBreak(100);
         dialog::addHelp(XLAT(options[i].second));
@@ -3372,12 +3872,14 @@ void list_setting::show_edit_option(int key) {
     dialog::addBreak(100);
 
     if(need_list >= 1 && options[get_value()].second != "") {
-      dialog::addHelp(XLAT(options[get_value()].second));
+      string text = options[get_value()].second;
+      dialog::addHelp(XLAT(text));
       dialog::addBreak(100);
       }
     dialog::addBack();
     dialog::display();
-    });
+    };
+  dialog::add_action_push(screen);
   }
 
 EX void showSettings() {
@@ -3593,11 +4095,6 @@ EX int read_config_args() {
   else if(argis("-mrsv")) {
     PHASEFROM(2); shift(); reserve_limit = argi(); apply_memory_reserve();
     }
-  else if(argis("-yca")) {
-    PHASEFROM(2); 
-    shift_arg_formula(vid.yshift);
-    shift_arg_formula(pconf.camera_angle);
-    }
   else if(argis("-pside")) {
     PHASEFROM(2); 
     permaside = true;
@@ -3691,62 +4188,81 @@ EX int read_config_args() {
   else if(argis("-d:find")) {
     PHASEFROM(2); launch_dialog(find_setting);
     }
+  else if(argis("-d:param")) {
+    PHASEFROM(2);
+    shift();
+    string s = args();
+    cmode |= sm::SIDE;
+    for(auto& fs: params) if(fs.first == s) {
+      dialog::items.clear();
+      dialog::key_actions.clear();
+      fs.second->show_edit_option();
+      for(auto p: dialog::key_actions) { p.second(); return 0; }
+      println(hlog, "no key action");
+      return 0;
+      }
+    println(hlog, "unknown param to edit: ", s);
+    }
   else if(argis("-char")) {
     auto& cs = vid.cs;
     shift();
     string s = args();
-    if(s == "dodek") {
-      cs.charid = 4;
-      cs.lefthanded = false;
-      cs.skincolor = 0x202020FF;
-      cs.eyecolor = 0x20C000FF;
-      cs.haircolor = 0x202020FF;
-      cs.dresscolor =0x424242FF;
-      cs.swordcolor = 0xF73333FF;      
-      }
-    else if(s == "rudy") {
-      cs.charid = 4;
-      cs.lefthanded = false;
-      cs.skincolor = 0xA44139FF;
-      cs.eyecolor = 0xD59533FF;
-      cs.haircolor = 0xC6634AFF;
-      cs.dresscolor =0xC6634AFF;
-      cs.swordcolor = 0x3CBB33FF;      
-      }
-    else if(s == "running") {
-      cs.charid = 6;
-      cs.lefthanded = false;
-      cs.skincolor = 0xFFFFFFFF;
-      cs.eyecolor = 0xFF;
-      cs.haircolor = 0xFFFFFFFF;
-      cs.dresscolor =0xFFFFFFFF;
-      cs.swordcolor = 0xFF0000FF;
-      }
-    else if(s == "princess") {
-      cs.charid = 3;
-      cs.lefthanded = true;
-      cs.skincolor  = 0xEFD0C9FF;
-      cs.haircolor  = 0x301800FF;
-      cs.eyecolor   = 0xC000FF;
-      cs.dresscolor = 0x408040FF;
-      cs.swordcolor = 0xFFFFFFFF;
-      }
-    else if(s == "worker") {
-      cs.charid = 2;
-      cs.skincolor = 0xC77A58FF;
-      cs.haircolor = 0x502810FF;
-      cs.dresscolor = 0xC0C000FF;
-      cs.eyecolor = 0x500040FF;
-      cs.swordcolor = 0x808080FF;
-      }
-    else {
-      cs.charid = argi();
-      cs.lefthanded = cs.charid >= 10;
-      cs.charid %= 10;
-      }
+    set_char_by_name(cs, s);
     }
   else return 1;
   return 0;
+  }
+
+EX void set_char_by_name(charstyle& cs, const string& s) {
+  if(s == "dodek") {
+    cs.charid = 4;
+    cs.lefthanded = false;
+    cs.skincolor = 0x202020FF;
+    cs.eyecolor = 0x20C000FF;
+    cs.haircolor = 0x202020FF;
+    cs.dresscolor =0x424242FF;
+    cs.swordcolor = 0xF73333FF;      
+    }
+  else if(s == "rudy") {
+    cs.charid = 4;
+    cs.lefthanded = false;
+    cs.skincolor = 0xA44139FF;
+    cs.eyecolor = 0xD59533FF;
+    cs.haircolor = 0xC6634AFF;
+    cs.dresscolor =0xC6634AFF;
+    cs.swordcolor = 0x3CBB33FF;      
+    }
+  else if(s == "running") {
+    cs.charid = 6;
+    cs.lefthanded = false;
+    cs.skincolor = 0xFFFFFFFF;
+    cs.eyecolor = 0xFF;
+    cs.haircolor = 0xFFFFFFFF;
+    cs.dresscolor =0xFFFFFFFF;
+    cs.swordcolor = 0xFF0000FF;
+    }
+  else if(s == "princess") {
+    cs.charid = 3;
+    cs.lefthanded = true;
+    cs.skincolor  = 0xEFD0C9FF;
+    cs.haircolor  = 0x301800FF;
+    cs.eyecolor   = 0xC000FF;
+    cs.dresscolor = 0x408040FF;
+    cs.swordcolor = 0xFFFFFFFF;
+    }
+  else if(s == "worker") {
+    cs.charid = 2;
+    cs.skincolor = 0xC77A58FF;
+    cs.haircolor = 0x502810FF;
+    cs.dresscolor = 0xC0C000FF;
+    cs.eyecolor = 0x500040FF;
+    cs.swordcolor = 0x808080FF;
+    }
+  else {
+    cs.charid = atoi(s.c_str());
+    cs.lefthanded = cs.charid >= 10;
+    cs.charid %= 10;
+    }
   }
 
 EX int read_param_args() {
@@ -3760,7 +4276,7 @@ EX int read_param_args() {
     println(hlog, "parameter unknown: ", name);
     exit(1);
     }
-  params[name]->load_from(value);
+  params[name]->load_as_animation(value);
   return 0;
   }
 
@@ -3788,5 +4304,46 @@ auto ah_config =
   addHook(hooks_args, 0, read_param_args) + 
   addHook(hooks_args, 0, read_gamemode_args) + addHook(hooks_args, 0, read_color_args);
 #endif
+
+/* local parameter, for another game */
+
+local_parameter_set* current_lps;
+
+void local_parameter_set::pswitch() {
+  if(extends) extends->pswitch();
+  for(auto s: swaps) {
+    s.first->swap_with(s.second);
+    swap(s.first->name, s.second->name);
+    }
+  }
+
+EX void lps_enable(local_parameter_set *lps) {
+  if(lps == current_lps) return;
+  if(current_lps) current_lps->pswitch();
+  current_lps = lps;
+  if(current_lps) current_lps->pswitch();
+  }
+
+#if HDR
+//template<class T> vector<std::unique_ptr<T>> lps_of_type;
+extern vector<void*> lps_of_type;
+
+template<class T, class U> void lps_add(local_parameter_set& lps, T&val, U nvalue) {
+  int found = 0;
+  for(auto& fs: savers) {
+    if(fs->affects(&val)) {
+      found++;
+      T* nv = new T(nvalue);
+      lps_of_type.emplace_back(nv);
+      println(hlog, lps.label, " found saver: ", fs->name);
+      fs->clone(lps, nv);
+      return;
+      }
+    }
+  if(found != 1) println(hlog, lps.label, " saver not found");
+  }
+#endif
+
+vector<void*> lps_of_type;
 
 }

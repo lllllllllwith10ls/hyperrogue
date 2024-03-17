@@ -32,6 +32,7 @@ EX namespace fake {
     if(in()) return true;
     if(WDIM == 2 && standard_tiling() && (PURE || BITRUNCATED)) return true;
     if(arcm::in() && PURE) return true;
+    if(hat::in()) return true;
     if(WDIM == 2) return false;
     if(among(geometry, gBitrunc3)) return false;
     #if MAXMDIM >= 4
@@ -53,6 +54,7 @@ EX namespace fake {
       dynamicval<hrmap*> gpm(pmap, this);
       dynamicval<eGeometry> gag(actual_geometry, geometry);
       dynamicval<eGeometry> g(geometry, underlying);
+      dynamicval<int> uc(cgip->use_count, cgip->use_count+1);
       dynamicval<geometry_information*> gc(cgip, underlying_cgip);
       dynamicval<hrmap*> gu(currentmap, underlying_map);
       return t();
@@ -89,7 +91,14 @@ EX namespace fake {
 
     hyperpoint get_corner(cell *c, int cid, ld cf=3) override { 
 
-      if(arcm::in()) {
+      if(embedded_plane) {
+        geom3::light_flip(true);
+        hyperpoint h = get_corner(c, cid, cf);
+        geom3::light_flip(false);
+        return cgi.emb->base_to_actual(h);
+        }
+
+      if(arcm::in() || hat::in()) {
         return underlying_map->get_corner(c, cid, cf);
         }
 
@@ -99,6 +108,13 @@ EX namespace fake {
       }
 
     transmatrix adj(cell *c, int d) override {
+      if(embedded_plane) {
+        geom3::light_flip(true);
+        transmatrix T = adj(c, d);
+        geom3::light_flip(false);
+        return cgi.emb->base_to_actual(T);
+        }
+      if(hat::in()) return underlying_map->adj(c, d);
       if(variation == eVariation::coxeter) {
         array<int, 3> which;
         in_underlying([&which, c, d] {
@@ -535,7 +551,9 @@ EX ld compute_euclidean() {
   #if CAP_ARCM
   if(arcm::in()) return arcm::current.N * 2 / arcm::current.euclidean_angle_sum;
   #endif
+  if(underlying == gAperiodicHat) return 6;
   if(WDIM == 2) return 4 / (S7-2.) + 2;
+
 
   if(underlying == gRhombic3) return 3;
   if(underlying == gBitrunc3) return 2.55208;
@@ -551,6 +569,7 @@ EX ld around_orig() {
   if(arcm::in())
     return arcm::current.N;
   #endif
+  if(hat::in()) return 6;
   if(WDIM == 2)
     return S3;
   if(underlying == gRhombic3)
@@ -587,12 +606,16 @@ EX void compute_scale() {
   
   ginf[gFake].g = geometry_of_curvature(good - around, WDIM);
 
-  geom3::apply_always3();
   ld around_ideal = 1/(1/2. - 1./get_middle());
   
   bool have_ideal = abs(around_ideal - around) < 1e-6;
   if(underlying == gRhombic3 || underlying == gBitrunc3) have_ideal = false;
   
+  finalizer f([&] {if(vid.always3 && WDIM == 2) {
+    geom3::ginf_backup[gFake] = ginf[gFake];
+    geom3::apply_always3_to(ginf[gFake]);
+    }});
+
   if(arcm::in()) {
     ginf[gFake].tiling_name = "(" + ginf[gArchimedean].tiling_name + ")^" + fts(around / around_orig());
     return;
@@ -655,8 +678,9 @@ void set_gfake(ld _around) {
   compute_scale();
   check_cgi();
   cgi.require_basics();
-  
+
   if(currentmap) new hrmap_fake(currentmap);
+  if(hat::in()) hat::reshape();
   }
 
 EX void change_around() {
@@ -680,7 +704,7 @@ EX void change_around() {
 
     /* to compute scale */
     if(WDIM == 2)
-      cgi.prepare_basics();
+      cgi.require_basics();
     }
 
   t = scale / t;
@@ -700,45 +724,46 @@ EX void configure() {
     underlying_cgip = cgip;
     around = around_orig();
     }
-  dialog::editNumber(around, 2.01, 10, 1, around, "fake curvature", 
+  dialog::editNumber(around, 2.01, 10, 1, around, XLAT("fake curvature"), 
+    XLAT(
     "This feature lets you construct the same tiling, but "
     "from shapes of different curvature.\n\n"
     "The number you give here is (2D) vertex degree or (3D) "
-    "the number of cells around an edge.\n\n"
+    "the number of cells around an edge.\n\n")
     );
   if(fake::in())
-    dialog::reaction = change_around;
+    dialog::get_di().reaction = change_around;
   else  
-    dialog::reaction_final = change_around;
-  dialog::extra_options = [] {
+    dialog::get_di().reaction_final = change_around;
+  dialog::get_di().extra_options = [] {
     ld e = compute_euclidean();
-    dialog::addSelItem("Euclidean", fts(e), 'E');
+    dialog::addSelItem(XLAT("Euclidean"), fts(e), 'E');
     dialog::add_action([e] {
       around = e;
       popScreen();
       change_around();
       });
 
-    dialog::addSelItem("original", fts(around_orig()), 'O');
+    dialog::addSelItem(XLAT("original"), fts(around_orig()), 'O');
     dialog::add_action([] {
       around = around_orig();
       popScreen();
       change_around();
       });
 
-    dialog::addSelItem("double original", fts(2 * around_orig()), 'D');
+    dialog::addSelItem(XLAT("double original"), fts(2 * around_orig()), 'D');
     dialog::add_action([] {
       around = 2 * around_orig();
       popScreen();
       change_around();
       });
     
-    dialog::addBoolItem_action("draw all if multiple of original", multiple_special_draw, 'M');
-    dialog::addBoolItem_action("draw copies (2D only)", recursive_draw, 'C');
+    dialog::addBoolItem_action(XLAT("draw all if multiple of original"), multiple_special_draw, 'M');
+    dialog::addBoolItem_action(XLAT("draw copies (2D only)"), recursive_draw, 'C');
 
-    dialog::addBoolItem_choice("unordered", ordered_mode, 0, 'U');
-    dialog::addBoolItem_choice("pre-ordered", ordered_mode, 1, 'P');
-    dialog::addBoolItem_choice("post-ordered", ordered_mode, 2, 'Q');
+    dialog::addBoolItem_choice(XLAT("unordered"), ordered_mode, 0, 'U');
+    dialog::addBoolItem_choice(XLAT("pre-ordered"), ordered_mode, 1, 'P');
+    dialog::addBoolItem_choice(XLAT("post-ordered"), ordered_mode, 2, 'Q');
 
     };
   }

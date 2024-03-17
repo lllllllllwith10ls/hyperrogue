@@ -628,20 +628,20 @@ EX namespace patterns {
     PAT_SINGLETYPE = 't'
     };  
 
-  static const int SPF_ROT = 1;
-  static const int SPF_SYM01 = 2;
-  static const int SPF_SYM02 = 4;
-  static const int SPF_SYM03 = 8;
-  static const int SPF_CHANGEROT = 16;
-  static const int SPF_TWOCOL = 32;
-  static const int SPF_EXTRASYM = 64;
-  static const int SPF_ALTERNATE = 128;
-  static const int SPF_FOOTBALL = 256;
-  static const int SPF_FULLSYM = 512;
-  static const int SPF_DOCKS = 1024;
-  static const int SPF_NO_SUBCODES = 2048;
+  static constexpr int SPF_ROT = 1;
+  static constexpr int SPF_SYM01 = 2;
+  static constexpr int SPF_SYM02 = 4;
+  static constexpr int SPF_SYM03 = 8;
+  static constexpr int SPF_CHANGEROT = 16;
+  static constexpr int SPF_TWOCOL = 32;
+  static constexpr int SPF_EXTRASYM = 64;
+  static constexpr int SPF_ALTERNATE = 128;
+  static constexpr int SPF_FOOTBALL = 256;
+  static constexpr int SPF_FULLSYM = 512;
+  static constexpr int SPF_DOCKS = 1024;
+  static constexpr int SPF_NO_SUBCODES = 2048;
 
-  static const int SPF_SYM0123 = SPF_SYM01 | SPF_SYM02 | SPF_SYM03;
+  static constexpr int SPF_SYM0123 = SPF_SYM01 | SPF_SYM02 | SPF_SYM03;
 
   struct patterninfo {
     int id;
@@ -900,7 +900,7 @@ EX namespace patterns {
     if(IRREGULAR || arcm::in() || bt::in() || arb::in() || WDIM == 3 || currentmap->strict_tree_rules()) si.symmetries = c->type;
     else if(a46) val46(c, si, sub, pat);
     else if(a38) val38(c, si, sub, pat);
-    else if(S7 < 6 && S3 == 3 && !INVERSE && !kite::in()) valSibling(c, si, sub, pat);
+    else if(S7 < 6 && S3 == 3 && !INVERSE && !aperiodic) valSibling(c, si, sub, pat);
     else if(euc::in(2,4)) valEuclid4(c, si, sub);
     else if(euc::in(2,6)) valEuclid6(c, si, sub);
     else if(a4) val457(c, si, sub);
@@ -1287,14 +1287,14 @@ EX bool geosupport_chessboard() {
 #endif
     WARPED ? true :
     INVERSE ? false :
-    (bt::in() || kite::in()) ? 0 :
+    (bt::in() || aperiodic) ? 0 :
     (S3 >= OINF) ? true :
     (valence() % 2 == 0);
   }
 
 EX int geosupport_threecolor() {
   if(IRREGULAR) return 0;
-  if(kite::in() || bt::in()) return 0;
+  if(aperiodic || bt::in()) return 0;
   #if CAP_ARCM
   if(arcm::in() && PURE) return arcm::current.support_threecolor();
   if(arcm::in() && BITRUNCATED) return arcm::current.support_threecolor_bitruncated();
@@ -1317,7 +1317,7 @@ EX int geosupport_football() {
   // always works in bitrunc geometries
   if(BITRUNCATED) return 2;
   if(INVERSE) return 0;
-  if(bt::in() || kite::in()) return 0;
+  if(bt::in() || aperiodic) return 0;
 
 #if CAP_ARCM  
   if(arcm::in() && DUAL) return false;
@@ -1477,6 +1477,7 @@ EX bool pseudohept(cell *c) {
   if(sol) return (c->master->emeraldval % 3 == 2) && (c->master->zebraval % 3 == 2) && (c->master->distance % 2);
   if(nih) return c->master->zebraval % 3 == 2 && c->master->emeraldval % 2 == 1 && (c->master->distance % 2);
   if(kite::in()) return kite::getshape(c->master) == kite::pDart;
+  if(hat::in()) return hat::pseudohept(c);
   if(bt::in()) return bt::pseudohept(c);
   #endif
   if(S3 >= OINF) return c->master->distance % 3 == 1;
@@ -1566,6 +1567,7 @@ EX map<char, colortable> colortables = {
   {'t', {0x804040, 0x1408040, 0x404080, 0x1808040 }},
   {'c', {0x202020, 0x1C0C0C0}},
   {'F', {0x1C0C0C0, 0x202020}},
+  {'L', {0xA0FFA0, 0x60C060}},
   {'w', {0x303030, 0x1C0C0C0}},
   {'v', {0xC00000, 0xC08000, 0xC0C000, 0x00C000, 0xC0C0, 0x00C0, 0xC000C0}},
   {'j', {0x100FFFF, 0x100FF00, 0x1FFFF00, 0x1FF8000, 0x1FF0000, 0x1FF00FF}},  
@@ -1781,7 +1783,7 @@ EX namespace patterns {
   EX void edit_rwalls() {
     if(WDIM == 2) return;
     dialog::editNumber(rwalls, 0, 100, 10, 50, XLAT("probability of a wall (%)"), "");
-    dialog::reaction = [] { stop_game(); start_game(); };
+    dialog::get_di().reaction = [] { stop_game(); start_game(); };
     }  
 
   EX int generateCanvas(cell *c) {
@@ -1976,13 +1978,19 @@ EX namespace patterns {
         return c->landparam;
         }
       case 'Z': {
+        if(hat::in()) return hat::hatcolor(c, 6);
         return nearer_map(c);
         }
       case 'Y': {
+        if(hat::in()) return hat::hatcolor(c, 7);
         return furthest_map(c, 0);
         }
       case 'X': {
+        if(hat::in()) return hat::hatcolor(c, 8);
         return furthest_map(c, 1);
+        }
+      case 'L': {
+        return colortables['L'][c->master->c7 == c];
         }
       case 'W': {
         return furthest_map(c, 2);
@@ -2060,6 +2068,12 @@ EX namespace patterns {
       dialog::addSelItem(XLAT("furthest from start"), "bounded", 'Y');
       }
 
+    if(hat::in()) {
+      dialog::addSelItem(XLAT("hat in cluster"), "hat", 'Z');
+      dialog::addSelItem(XLAT("hat clusters"), "hat", 'Y');
+      dialog::addSelItem(XLAT("hat superclusters"), "hat", 'X');
+      }
+
     dialog::addSelItem(XLAT("types"), "types", 'A');
     dialog::addSelItem(XLAT("types (mark reverse)"), "types", 'R');
     dialog::addSelItem(XLAT("sides"), "sides", 'B');
@@ -2101,7 +2115,7 @@ EX namespace patterns {
           6, 0xFFFFFFFF, 0x101010FF, 0x404040FF, 0x808080FF, 0x800000FF, unsigned(linf[laCanvas].color >> 2) << 8
           }; 
         dialog::openColorDialog(c, canvasbacks);
-        dialog::reaction = [instant] () {
+        dialog::get_di().reaction = [instant] () {
           if(instant) {
             stop_game();
             whichCanvas = 'g';
@@ -2114,7 +2128,7 @@ EX namespace patterns {
             canvasback = c >> 8;
             }
           };
-        dialog::reaction_final = edit_rwalls;
+        dialog::get_di().reaction_final = edit_rwalls;
         }
       else if(uni == 'i') {
         if(instant) 
@@ -2157,8 +2171,8 @@ EX namespace patterns {
         
         dialog::edit_string(color_formula, "formula", s);
 
-        dialog::extra_options = dialog::parser_help;
-        dialog::reaction_final = [instant] () { 
+        dialog::get_di().extra_options = dialog::parser_help;
+        dialog::get_di().reaction_final = [instant] () {
           if(instant) stop_game();
           whichCanvas = 'f';
           if(instant) {
@@ -2665,6 +2679,18 @@ EX namespace linepatterns {
     return c2 > c;
     }
 
+  EX ld dual_length = 0;
+  EX trans23 dual_angle;
+
+  hyperpoint dualpoint(cell *c) {
+    if(!aperiodic) return tile_center();
+    if(dual_length && c->master->c7 == c)
+      return MirrorX * dual_angle.get() * xpush0(dual_length);
+    if(dual_length)
+      return dual_angle.get() * xpush0(dual_length);
+    return tile_center();
+    }
+
   linepattern patDual("dual grid", 0xFFFFFF00, always_available,
     ALLCELLS(
       forCellIdEx(c2, i, c) if(way(c,i)) {
@@ -2677,7 +2703,7 @@ EX namespace linepatterns {
         if((patTriRings.color & 0xFF)) {
           if(curr_dist(c2) == curr_dist(c)) continue;
           }
-        gridlinef(V, C0, V * currentmap->adj(c, i), C0, col, 2 + vid.linequality);
+        gridlinef(V, dualpoint(c), V * currentmap->adj(c, i), dualpoint(c->cmove(i)), col, 2 + vid.linequality);
         }
       )
     );
@@ -2717,9 +2743,9 @@ EX namespace linepatterns {
   
   linepattern patBigTriangles("big triangular grid", 0x00606000, always_available, 
     ALLCELLS(
-       if(is_master(c) && !meuclid) for(int i=0; i<S7; i++)
+       if(c->master->c7 == c) for(int i=0; i<S7; i++)
           if(c->master->move(i) && c->master->move(i) < c->master) {
-            gridlinef(V, C0, xspinpush0(-TAU*i/S7 - master_to_c7_angle(), cgi.tessf), col, 2 + vid.linequality);
+            gridlinef(V, C0, V, currentmap->master_relative(c, true) * currentmap->adj(c->master, i) * C0, col, 2 + vid.linequality);
             }
        )
     );
@@ -2890,7 +2916,12 @@ EX namespace linepatterns {
         }
       )
     );
-  EX linepattern patTriRings = linepattern("lines of equal distance", 0xFFFFFF00, trees_known,
+
+  bool trees_legal() {
+    return (bt::in() || trees_known()) && distances_legal(nullptr);
+    }
+
+  EX linepattern patTriRings = linepattern("lines of equal distance", 0xFFFFFF00, trees_legal,
     ALLCELLS(
       if(valence() == 3) {
         forCellIdEx(c2, i, c) {
@@ -2907,13 +2938,30 @@ EX namespace linepatterns {
         }
       )
     );
-  EX linepattern patTriTree = linepattern("tessellation tree", 0xFFFFFF00, trees_known,
+  EX linepattern patTriTree = linepattern("tessellation tree", 0xFFFFFF00, trees_legal,
     ALLCELLS(
       cell *parent = ts::right_parent(c, curr_dist);
       if(gmatrix.count(parent)) {
         hyperpoint end = tC0(currentmap->adj(c, neighborId(c, parent)));
         hyperpoint start = normalize(C0 + tree_starter * (end - C0));
         gridlinef(V, start, V, end, col, 2 + vid.linequality);
+        }
+      )
+    );
+
+  EX linepattern patTriWalls = linepattern("tessellation walls", 0xFF000000, trees_legal,
+    ALLCELLS(
+      if(gmatrix.count(c)) {
+        celldrawer cd;
+        cd.c = c;
+        cd.V = V;
+        for(int t=0; t<c->type; t++) {
+          cell *c1 = c->move(t);
+          if(!c1) continue;
+          if(c1 == ts::right_parent(c, curr_dist)) continue;
+          if(c == ts::right_parent(c1, curr_dist)) continue;
+          cd.draw_grid_edge(t, col, 2 + vid.linequality);
+          }
         }
       )
     );
@@ -2941,12 +2989,23 @@ EX namespace linepatterns {
         }
       )
     );
+  EX ld mp_ori = 0;
+  EX ld meridian_max = 180._deg;
+  EX ld meridian_count = 12;
+  EX ld meridian_length = 90._deg;
+  EX ld meridian_prec = 12;
+  EX ld meridian_prec2 = 15;
   EX linepattern patMeridians = linepattern("meridians", 0xFFFFFF00, always_available,
     ATCENTER(
-      for(int j=-180; j<=180; j+=15) {
-        for(int i=-90; i<90; i+=15) {
-          for(int k=0; k<=15; k++)
-            curvepoint(xpush(j * degree) * ypush0((i+k) * degree));
+      for(int j=0; j<meridian_count; j++) {
+        ld mj = meridian_max * (j * 2. / meridian_count - 1);
+        for(int i=0; i<meridian_prec; i++) {
+          for(int k=0; k<=meridian_prec2; k++) {
+            ld mi = i + k * 1. / meridian_prec2;
+            mi = mi * 2. / meridian_prec - 1;
+            mi *= meridian_length;
+            curvepoint(spin(mp_ori * degree) * xpush(mj) * ypush0(mi));
+            }
           queuecurve(V, col, 0, PPR::LINE).V=V;
           }
         }
@@ -2964,7 +3023,7 @@ EX namespace linepatterns {
         println(hlog, "xbase = ", xbase);
         for(int j=-180; j<180; j+=15) {
           for(int k=0; k<=15; k++) 
-            curvepoint(xpush(xbase + (j+k) * degree) * ypush0(phi));
+            curvepoint(spin(mp_ori * degree) * xpush(xbase + (j+k) * degree) * ypush0(phi));
           queuecurve(V, col, 0, PPR::LINE).V=V;
           }
         }
@@ -2991,7 +3050,7 @@ EX namespace linepatterns {
     );
   
   #if HDR
-  extern linepattern patTriTree, patTriRings, patDual;
+  extern linepattern patTriTree, patTriRings, patTriWalls, patDual;
   #endif
   
   EX vector<linepattern*> patterns = { 
@@ -2999,7 +3058,7 @@ EX namespace linepatterns {
     
     &patTree, &patAltTree, &patZebraTriangles, &patZebraLines,
     &patVine, &patPalacelike, &patPalace, &patPower, &patHorocycles,
-    &patTriRings, &patTriTree,
+    &patTriRings, &patTriTree, &patTriWalls,
     &patGoldbergTree, &patIrregularMaster, &patGoldbergSep, &patHeawood, &patArcm,
     &patCircles, &patRadii, &patMeridians, &patParallels, &patSublines, &patUltra
     };
@@ -3043,7 +3102,7 @@ EX namespace linepatterns {
           dialog::addColorItem(name, lp->color, 'a'+(id++));
           dialog::add_action([lp] () { 
             dialog::openColorDialog(lp->color, NULL);
-            dialog::dialogflags |= sm::MAYDARK | sm::SIDE;
+            dialog::get_di().dialogflags |= sm::MAYDARK | sm::SIDE;
             });
           }
         else {
@@ -3148,7 +3207,8 @@ int read_pattern_args() {
 
   else if(argis("-palgw")) shift_arg_formula(linepatterns::width);
 
-  else if(argis("-noplayer")) mapeditor::drawplayer = !mapeditor::drawplayer;
+  else if(argis("-noplayer")) mapeditor::drawplayer = false;
+  else if(argis("-drawplayer")) { shift(); mapeditor::drawplayer = argi(); }
   else if(argis("-pcol")) {
     shift();
     colortable *ct = &(colortables[patterns::whichCanvas]);

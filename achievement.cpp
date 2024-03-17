@@ -10,7 +10,7 @@
 #include "hyper.h"
 namespace hr {
 
-#define NUMLEADER 87
+#define NUMLEADER 90
 
 EX bool test_achievements = false;
 
@@ -80,7 +80,10 @@ EX const char* leadernames[NUMLEADER] = {
   "Lazurite Figurines", // 83
   "Water Lilies", // 84
   "Capon Stones", // 85
-  "Crystal Dice" // 86
+  "Crystal Dice", // 86
+  "Crossbow (bull)", // 87
+  "Crossbow (geodesic)", // 88
+  "Crossbow (geometric)", // 89
   };
 
 #define LB_STATISTICS 62
@@ -108,6 +111,7 @@ EX bool wrongMode(char flags) {
   if(cheater) return true;
   if(casual) return true;
   if(flags == rg::global) return false;
+  if(flags == rg::fail) return true;
 
   if(flags != rg::special_geometry && flags != rg::special_geometry_nicewalls) {
     if(!BITRUNCATED) return true;
@@ -130,6 +134,7 @@ EX bool wrongMode(char flags) {
   if(tour::on) return true;
 #endif
   eLandStructure dls = lsNiceWalls;
+  if(flags == rg::princess && !princess::challenge) return true;
   if(flags == rg::special_geometry || flags == rg::princess)
     dls = lsSingle;
   if(flags == rg::chaos)
@@ -157,6 +162,25 @@ EX void achievement_gain_once(const string& s, char flags IS(0)) {
     }
   got_achievements.insert(s);
   achievement_gain(s.c_str(), flags);
+  }
+
+namespace rg {
+  char check(bool b, char val = special_geometry) { return b ? val : fail; }
+  }
+
+EX char specgeom_zebra() { return rg::check(geometry == gZebraQuotient && !disksize && BITRUNCATED && firstland == laDesert); }
+EX char specgeom_lovasz() { return rg::check(geometry == gKleinQuartic && variation == eVariation::untruncated && gp::param == gp::loc(1,1) && !disksize && in_lovasz()); }
+EX char specgeom_halloween() { return rg::check((geometry == gSphere || geometry == gElliptic) && BITRUNCATED && !disksize && firstland == laHalloween); }
+EX char specgeom_heptagonal() { return rg::check(PURE && geometry == gNormal && !disksize, rg::special_geometry_nicewalls); }
+EX char specgeom_euclid_gen() { return rg::check(geometry == gEuclid && !disksize && firstland == laMirrorOld); }
+EX char specgeom_crystal1() { return rg::check(PURE && cryst && ginf[gCrystal].sides == 8 && ginf[gCrystal].vertex == 4 && !crystal::used_compass_inside && !disksize && firstland == laCamelot); }
+EX char specgeom_crystal2() { return rg::check(BITRUNCATED && cryst && ginf[gCrystal].sides == 8 && ginf[gCrystal].vertex == 3 && !crystal::used_compass_inside && !disksize && firstland == laCamelot); }
+
+EX vector<std::function<char()>> all_specgeom_checks = { specgeom_zebra, specgeom_lovasz, specgeom_halloween, specgeom_heptagonal, specgeom_crystal1, specgeom_crystal2, specgeom_euclid_gen };
+
+EX char any_specgeom() {
+  for(auto chk: all_specgeom_checks) if(chk() != rg::fail) return chk();
+  return rg::fail;
   }
 
 EX void achievement_log(const char* s, char flags) {
@@ -229,11 +253,11 @@ EX void achievement_collection2(eItem it, int q) {
   if(randomPatternsMode) return;
   LATE( achievement_collection2(it, q); )
 
-  if(it == itTreat && q == 50 && (geometry == gSphere || geometry == gElliptic) && BITRUNCATED && !disksize)
-    achievement_gain("HALLOWEEN1", rg::special_geometry);
+  if(it == itTreat && q == 50)
+    achievement_gain("HALLOWEEN1", specgeom_halloween());
 
-  if(it == itTreat && q == 100 && (geometry == gSphere || geometry == gElliptic) && BITRUNCATED && !disksize)
-    achievement_gain("HALLOWEEN2", rg::special_geometry);
+  if(it == itTreat && q == 100)
+    achievement_gain("HALLOWEEN2", specgeom_halloween());
 
   if(q == 1) {
     if(it == itDiamond) achievement_gain("DIAMOND1");
@@ -313,13 +337,10 @@ EX void achievement_collection2(eItem it, int q) {
   // 32
   if(it == itHolyGrail) {
     if(q == 1) achievement_gain("GRAIL2");
-    if(PURE && geometry == gNormal && !disksize)
-      achievement_gain("GRAILH", rg::special_geometry_nicewalls);
+    achievement_gain("GRAILH", specgeom_heptagonal());
     #if CAP_CRYSTAL
-    if(PURE && cryst && ginf[gCrystal].sides == 8 && ginf[gCrystal].vertex == 4 && !crystal::used_compass_inside && !disksize)
-      achievement_gain("GRAIL4D", rg::special_geometry);
-    if(BITRUNCATED && cryst && ginf[gCrystal].sides == 8 && ginf[gCrystal].vertex == 3 && !crystal::used_compass_inside && !disksize)
-      achievement_gain("GRAIL4D2", rg::special_geometry);
+    achievement_gain("GRAIL4D", specgeom_crystal1());
+    achievement_gain("GRAIL4D2", specgeom_crystal2());
     #endif
     if(q == 3) achievement_gain("GRAIL3");
     if(q == 8) achievement_gain("GRAIL4");
@@ -603,14 +624,18 @@ EX void achievement_count(const string& s, int current, int prev) {
     achievement_gain("LIGHTNING2");
   if(s == "LIGHTNING" && current-prev >= 10)
     achievement_gain("LIGHTNING3");
-  if(s == "MIRAGE" && current >= 35 && geometry == gEuclid && !disksize)
-    achievement_gain("MIRAGE", rg::special_geometry);
+  if(s == "MIRAGE" && current >= 35)
+    achievement_gain("MIRAGE", specgeom_euclid_gen());
   if(s == "ORB" && current >= 10)
     achievement_gain("ORB3");
   if(s == "BUG" && current >= 1000)
     achievement_gain("BUG3");
   if(s == "ELEC" && current >= 10)
     achievement_gain("ELEC3");
+  if(s == "BOWVARIETY" && current >= 2)
+    achievement_gain("BOWVARIETY1");
+  if(s == "BOWVARIETY" && current >= 6)
+    achievement_gain("BOWVARIETY2");
   }
 
 int specific_improved = 0;
@@ -654,6 +679,7 @@ EX void achievement_score(int cat, int number) {
   if(tactic::on && cat != LB_PURE_TACTICS && cat != LB_PURE_TACTICS_SHMUP && cat != LB_PURE_TACTICS_COOP) 
     return;
   if(racing::on && cat != LB_RACING) return;
+  if(bow::weapon) return;
   upload_score(cat, number);
 #endif
   }
@@ -775,6 +801,9 @@ EX void achievement_final(bool really_final) {
   if(PURE) specialcode+=4;
   if(numplayers() > 1) specialcode+=8;
   if(inv::on) specialcode+=16;
+  if(bow::crossbow_mode() && bow::style == bow::cbBull) specialcode += 32;
+  if(bow::crossbow_mode() && bow::style == bow::cbGeodesic) specialcode += 64;
+  if(bow::crossbow_mode() && bow::style == bow::cbGeometric) specialcode += 96;
   
   if(sphere && specialland == laHalloween) {
     if(specialcode) return;
@@ -801,6 +830,9 @@ EX void achievement_final(bool really_final) {
     case 8:  sid = 61; break;
     case 9:  sid = 44; break;
     case 16: sid = 69; break;
+    case 32: sid = 87; break;
+    case 64: sid = 88; break;
+    case 96: sid = 89; break;
     default: return;
     }
       
@@ -867,6 +899,7 @@ EX void achievement_victory(bool hyper) {
 #ifdef HAVE_ACHIEVEMENTS
   if(cheater) return;
   if(casual) return;
+  if(bow::weapon) return;
   if(geometry) return;
   if(CHANGED_VARIATION) return;
   if(randomPatternsMode) return;
@@ -958,6 +991,7 @@ EX string get_rich_presence_text() {
   if(inv::on) res += "OSM ";
   if(multi::players > 1) res += "multi ";
   if(casual) res += "casual ";
+  if(bow::weapon) res += bow::style == bow::cbBull ? "bow/bull " : "bow/geo ";
 
   if(cheater || among(cwt.at->land, laCanvas, laCA)) 
     return res + "(?)";

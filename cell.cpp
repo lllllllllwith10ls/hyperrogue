@@ -77,6 +77,11 @@ public:
 
   /** generate a new map that is disconnected from what we already have, disconnected from the map we have so far */
   virtual cell* gen_extra_origin(int fv) { throw hr_exception("gen_extra_origin not supported on this map"); }
+
+  transmatrix adjmod(cell *c, int i) { return adj(c, gmod(i, c->type)); }
+  transmatrix adjmod(heptagon *h, int i) { return adj(h, gmod(i, h->type)); }
+  transmatrix iadjmod(cell *c, int i) { return iadj(c, gmod(i, c->type)); }
+  transmatrix iadjmod(heptagon *h, int i) { return iadj(h, gmod(i, h->type)); }
   };
 
 /** hrmaps which are based on regular non-Euclidean 2D tilings, possibly quotient  
@@ -94,10 +99,11 @@ struct hrmap_standard : hrmap {
   ld spin_angle(cell *c, int d) override;
   double spacedist(cell *c, int i) override;
   void find_cell_connection(cell *c, int d) override;
-  virtual int shvid(cell *c) override;
-  virtual hyperpoint get_corner(cell *c, int cid, ld cf) override;
-  virtual transmatrix master_relative(cell *c, bool get_inverse) override;
-  virtual bool link_alt(heptagon *h, heptagon *alt, hstate firststate, int dir) override;
+  int shvid(cell *c) override;
+  hyperpoint get_corner(cell *c, int cid, ld cf) override;
+  transmatrix master_relative(cell *c, bool get_inverse) override;
+  bool link_alt(heptagon *h, heptagon *alt, hstate firststate, int dir) override;
+  void on_dim_change() override;
   };
 
 void clearfrom(heptagon*);
@@ -117,6 +123,11 @@ struct hrmap_hyperbolic : hrmap_standard {
   void virtualRebase(heptagon*& base, transmatrix& at) override;
   };
 #endif
+
+void hrmap_standard::on_dim_change() {
+  for(auto& p: gp::gp_swapped) swapmatrix(gp::gp_adj[p]);
+  gp::gp_swapped.clear();
+  }
 
 double hrmap::spacedist(cell *c, int i) { return hdist(tile_center(), adj(c, i) * tile_center()); }
 
@@ -402,12 +413,153 @@ EX bool is_in_disk(cell *c) {
   return *it == c;
   }
 
+bool sierpinski3(gp::loc g) {
+  int x = g.first;
+  int y = g.second;
+  set<pair<int, int>> visited;
+  while(true) {
+    if(visited.count({x,y})) return false;
+    visited.insert({x,y});
+    // if(x == -1 && y == -2) return false;
+    // if(x == -2 && y == -3) return false;
+    if(x == 0 && y == 0) return true;
+    if((x&1) == 1 && (y&1) == 1) return false;
+    x >>= 1;
+    y >>= 1;
+    // x--; y++;
+    tie(x, y) = make_pair(-x-y, x);
+    }
+  }
+
+bool sierpinski46(gp::loc g) {
+  int x = g.first;
+  int y = g.second;
+  set<pair<int, int>> visited;
+  if(S7 == 6)
+    x += 2785684, y += 289080;
+  else
+    x += 75239892, y += 7913772;
+  while(true) {
+    if(visited.count({x,y})) return false;
+    visited.insert({x,y});
+    if(x == 0 && y == 0) return true;
+    int dx = gmod(x, 3);
+    int dy = gmod(y, 3);
+    if(dx == 1 && dy == 1) return false;
+    if(S7 == 6 && dx == dy) return false;
+    x = (x-dx) / 3;
+    y = (y-dy) / 3;
+    }
+  }
+
+bool menger_sponge(euc::coord c) {
+  c[0] += 528120*9; c[1] += 438924*9; c[2] += 306712*9;
+  set<euc::coord> visited;
+  while(true) {
+    if(visited.count(c)) return false;
+    visited.insert(c);
+    if(c[0] == 0 && c[1] == 0 && c[2] == 0) return true;
+    int ones = 0;
+    for(int i=0; i<3; i++) {
+      int d = gmod(c[i], 3);
+      c[i] = (c[i] - d) / 3;
+      if(d == 1) ones++;
+      }
+    if(ones >= 2) return false;
+    }
+  }
+
+bool sierpinski_tet(euc::coord c) {
+  set<euc::coord> visited;
+  c[0] += 16 * (1+8+64+512);
+  c[1] += 16 * (1+8+64+512);
+  c[1] += 32 * (1+8+64+512);
+  c[2] += 32 * (1+8+64+512);
+  c[0] += 64 * (1+8+64+512);
+  c[1] += 64 * (1+8+64+512);
+  while(true) {
+    if(visited.count(c)) return false;
+    visited.insert(c);
+    if(c[0] == 0 && c[1] == 0 && c[2] == 0) return true;
+    int ones = 0;
+    for(int i=0; i<3; i++) {
+      int d = gmod(c[i], 2);
+      c[i] = (c[i] - d) / 2;
+      if(d == 1) ones++;
+      }
+    if(ones & 1) return false;
+    }
+  }
+
+EX bool is_in_fractal(cell *c) {
+  if(fake::in()) return FPIU(is_in_fractal(c));
+  if(mhybrid) { c = hybrid::get_where(c).first; return PIU(is_in_fractal(c)); }
+  switch(geometry) {
+    case gSierpinski3:
+      return sierpinski3(euc::full_coords2(c));
+    case gSierpinski4:
+    case gSixFlake:
+      return sierpinski46(euc::full_coords2(c));
+    case gMengerSponge:
+      return menger_sponge(euc::get_ispacemap()[c->master]);
+    case gSierpinskiTet: {
+      return sierpinski_tet(euc::get_ispacemap()[c->master]);
+      }
+    default:
+      return true;
+    }
+  }
+
+EX cell *fractal_rep(cell *c) {
+  switch(geometry) {
+    case gSierpinski3: {
+      auto co = euc::full_coords2(c);
+      co.first += 4;
+      co.first &= ~15;
+      co.first -= 4;
+      co.second += 2;
+      co.second &= ~15;
+      co.second -= 2;
+      if(co.first == -4 && co.second == -2) co.first = 0, co.second = 0;
+      return euc::get_at(euc::to_coord(co))->c7;
+      }
+    case gSierpinski4:
+    case gSixFlake: {
+      auto co = euc::full_coords2(c);
+      if(S7 == 6) co.first += 4;
+      co.first -= gmod(co.first, 9);
+      co.second -= gmod(co.second, 9);
+      return euc::get_at(euc::to_coord(co))->c7;
+      }
+    case gSierpinskiTet: {
+      auto co = euc::get_ispacemap()[c->master];
+      co[0] &=~7;
+      co[1] &=~7;
+      co[2] &=~7;
+      return euc::get_at(co)->c7;
+      }
+    case gMengerSponge: {
+      auto co = euc::get_ispacemap()[c->master];
+      for(int i=0; i<3; i++) co[i] = co[i] - gmod(co[i], 9);
+      return euc::get_at(co)->c7;
+      }
+    default:
+      throw hr_exception("unknown fractal");
+    }
+  }
+
 /** create a map in the current geometry */
 EX void initcells() {
   DEBB(DF_INIT, ("initcells"));
 
   if(embedded_plane) {
+    geom3::swap_direction = -1;
+    check_cgi();
+    for(auto& m: cgi.heptmove) swapmatrix(m);
     IPF(initcells());
+    check_cgi();
+    geom3::swap_direction = +1;
+    for(auto& m: cgi.heptmove) swapmatrix(m);
     currentmap->on_dim_change();
     return;
     }
@@ -429,6 +581,7 @@ EX void initcells() {
   else if(arcm::in()) currentmap = arcm::new_map();
   #endif
   else if(euc::in()) currentmap = euc::new_map();
+  else if(hat::in()) currentmap = hat::new_map();
   #if CAP_BT
   else if(kite::in()) currentmap = kite::new_map();
   #endif
@@ -454,17 +607,17 @@ EX void initcells() {
 
 EX void clearcell(cell *c) {
   if(!c) return;
-  DEBB(DF_MEMORY, (format("c%d %p\n", c->type, hr::voidp(c))));
+  DEBB(DF_MEMORY, (hr::format("c%d %p\n", c->type, hr::voidp(c))));
   for(int t=0; t<c->type; t++) if(c->move(t)) {
-    DEBB(DF_MEMORY, (format("mov %p [%p] S%d\n", hr::voidp(c->move(t)), hr::voidp(c->move(t)->move(c->c.spin(t))), c->c.spin(t))));
+    DEBB(DF_MEMORY, (hr::format("mov %p [%p] S%d\n", hr::voidp(c->move(t)), hr::voidp(c->move(t)->move(c->c.spin(t))), c->c.spin(t))));
     if(c->move(t)->move(c->c.spin(t)) != NULL &&
       c->move(t)->move(c->c.spin(t)) != c) {
-        DEBB(DF_MEMORY | DF_ERROR, (format("cell error: type = %d %d -> %d\n", c->type, t, c->c.spin(t))));
+        DEBB(DF_MEMORY | DF_ERROR, (hr::format("cell error: type = %d %d -> %d\n", c->type, t, c->c.spin(t))));
         if(worst_precision_error < 1e-3) exit(1);
         }
     c->move(t)->move(c->c.spin(t)) = NULL;
     }
-  DEBB(DF_MEMORY, (format("DEL %p\n", hr::voidp(c))));
+  DEBB(DF_MEMORY, (hr::format("DEL %p\n", hr::voidp(c))));
   gp::delete_mapped(c);
   destroy_cell(c);
   }
@@ -518,7 +671,7 @@ EX void clearfrom(heptagon *at) {
 //  if(q.size() > maxq) maxq = q.size();
     q.pop();
     DEBB(DF_MEMORY, ("from %p", at));
-    if(!at->c7) {
+    if(!at->c7 && !ls::voronoi_structure()) {
       heptagon *h = dynamic_cast<heptagon*> ((cdata_or_heptagon*) at->cdata);
       if(h) {
         if(h->alt != at) { DEBB(DF_MEMORY | DF_ERROR, ("alt error :: h->alt = ", h->alt, " expected ", at)); }
@@ -597,8 +750,9 @@ EX int celldist(cell *c) {
   if(mhybrid)
     return hybrid::celldistance(c, currentmap->gamestart());
   if(nil && !quotient) return DISTANCE_UNKNOWN;
+  if(hat::in()) return clueless_celldistance(currentmap->gamestart(), c);
   if(euc::in()) return celldistance(currentmap->gamestart(), c);
-  if(sphere || bt::in() || WDIM == 3 || cryst || sn::in() || kite::in() || closed_manifold) return celldistance(currentmap->gamestart(), c);
+  if(sphere || bt::in() || WDIM == 3 || cryst || sn::in() || aperiodic || closed_manifold) return celldistance(currentmap->gamestart(), c);
   #if CAP_IRR
   if(IRREGULAR) return irr::celldist(c, false);
   #endif
@@ -618,9 +772,9 @@ EX int celldist(cell *c) {
   }
 
 #if HDR
-static const int ALTDIST_BOUNDARY = 99999;
-static const int ALTDIST_UNKNOWN = 99998;
-static const int ALTDIST_ERROR = 90000;
+static constexpr int ALTDIST_BOUNDARY = 99999;
+static constexpr int ALTDIST_UNKNOWN = 99998;
+static constexpr int ALTDIST_ERROR = 90000;
 #endif
 
 EX int celldistAlt(cell *c) {
@@ -709,12 +863,12 @@ EX int updir_alt(heptagon *h) {
 
 
 #if HDR
-static const int RPV_MODULO = 5;
-static const int RPV_RAND = 0;
-static const int RPV_ZEBRA = 1;
-static const int RPV_EMERALD = 2;
-static const int RPV_PALACE = 3;
-static const int RPV_CYCLE = 4;
+static constexpr int RPV_MODULO = 5;
+static constexpr int RPV_RAND = 0;
+static constexpr int RPV_ZEBRA = 1;
+static constexpr int RPV_EMERALD = 2;
+static constexpr int RPV_PALACE = 3;
+static constexpr int RPV_CYCLE = 4;
 #endif
 
 // x mod 5 = pattern type
@@ -1298,7 +1452,7 @@ EX int celldistance(cell *c1, cell *c2) {
     return euc::cyldist(euc2_coordinates(c1), euc2_coordinates(c2));
     }
 
-  if(arcm::in() || quotient || sn::in() || (kite::in() && euclid) || experimental || sl2 || nil || arb::in()) 
+  if(arcm::in() || quotient || sn::in() || (aperiodic && euclid) || experimental || sl2 || nil || arb::in()) 
     return clueless_celldistance(c1, c2);
    
    if(S3 >= OINF) return inforder::celldistance(c1, c2);
@@ -1315,14 +1469,15 @@ EX int celldistance(cell *c1, cell *c2) {
   if(hyperbolic && WDIM == 3) return reg3::celldistance(c1, c2);
   #endif
 
-  if(INVERSE) {
+  /* if(INVERSE) {
     c1 = gp::get_mapped(c1);
     c2 = gp::get_mapped(c2);
     return UIU(celldistance(c1, c2)) / 2;
-    /* TODO */
-    }
+    // that does not seem to work
+    } */
 
   if(euclid) return clueless_celldistance(c1, c2);
+  if(INVERSE) return clueless_celldistance(c1, c2);
 
   return hyperbolic_celldistance(c1, c2);
   }
@@ -1381,7 +1536,7 @@ EX vector<cell*> build_shortest_path(cell *c1, cell *c2) {
   }
 
 EX void clearCellMemory() {
-  #if MAXMDIM >= 4 && CAP_RAY
+  #if CAP_PORTALS
   if(intra::in) {
     intra::erase_all_maps();
     return;
@@ -1431,6 +1586,7 @@ EX array<map<cell*, vector<adj_data>>, 2> adj_memo;
 
 EX bool geometry_has_alt_mine_rule() {
   if(S3 >= OINF) return false;
+  if(aperiodic) return true;
   if(WDIM == 2) return valence() > 3;
   if(WDIM == 3) return !among(geometry, gHoroHex, gCell5, gBitrunc3, gCell8, gECell8, gCell120, gECell120);
   return true;
@@ -1477,7 +1633,7 @@ EX vector<adj_data> adj_minefield_cells_full(cell *c) {
           if(hdist(h, T * h2) < 1e-6) shares = true;
         if(shares) res.emplace_back(adj_data{c1, det(T) < 0, T});
         }
-      if(shares || c == c1) forCellIdEx(c2, i, c1) {
+      if(shares || c == c1) forCellIdCM(c2, i, c1) {
         if(cl.listed(c2)) continue;
         cl.add(c2);
         M.push_back(T * currentmap->adj(c1, i));
@@ -1491,11 +1647,16 @@ EX vector<cell*> adj_minefield_cells(cell *c) {
   vector<cell*> res;
   auto ori = adj_minefield_cells_full(c);
   for(auto p: ori) res.push_back(p.c);
+  if(hat::in()) {
+    // reduce repetitions
+    sort(res.begin(), res.end());
+    res.erase(std::unique(res.begin(), res.end()), res.end());
+    }
   return res;
   }
 
 EX vector<int> reverse_directions(cell *c, int dir) {
-  if(PURE && !(kite::in() && WDIM == 2)) return reverse_directions(c->master, dir);
+  if(PURE && !(aperiodic && WDIM == 2)) return reverse_directions(c->master, dir);
   int d = c->degree();
   if(d & 1)
     return { gmod(dir + c->type/2, c->type), gmod(dir + (c->type+1)/2, c->type) };
@@ -1547,7 +1708,7 @@ EX vector<int> reverse_directions(heptagon *c, int dir) {
   }
 
 EX bool standard_tiling() {
-  return !arcm::in() && !kite::in() && !bt::in() && !arb::in() && (WDIM == 2 || !nonisotropic) && !mhybrid;
+  return !arcm::in() && !aperiodic && !bt::in() && !arb::in() && (WDIM == 2 || !nonisotropic) && !mhybrid;
   }
 
 EX int valence() {

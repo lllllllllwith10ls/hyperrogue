@@ -322,7 +322,7 @@ void set_or_configure_geometry(eGeometry g) {
       if(g == gRotSpace) {
         bool ok = true;
         if(arcm::in()) ok = PURE;
-        else if(bt::in() || kite::in()) ok = false;
+        else if(bt::in() || aperiodic) ok = false;
         else ok = PURE || BITRUNCATED;
         if(!ok) {
           addMessage(XLAT("Only works with (semi-)regular tilings"));
@@ -346,6 +346,8 @@ void set_or_configure_geometry(eGeometry g) {
 
 /** is g2 the same tiling as the current geometry (geometry)? */
 bool same_tiling(eGeometry g2) {
+  /* no quotients for fractals */
+  if(cgflags & qFRACTAL) return g2 == geometry;
   if(g2 == gCrystal)
     return S3 == 4;
   if(g2 == gFieldQuotient && (hyperbolic || (geometry == gCubeTiling && reg3::cubes_reg3)) && standard_tiling())
@@ -542,7 +544,7 @@ EX string geometry_name(eGeometryClass gc) {
   }
 
 EX string geometry_name() {
-  if(cgi.emb->is_same_in_same())
+  if(cgi.emb && cgi.emb->is_same_in_same())
     return geometry_name(geom3::mgclass());
   else if(embedded_plane && gproduct)
     return geometry_name(geom3::mgclass()) + " (x E)";
@@ -552,7 +554,7 @@ EX string geometry_name() {
     return geometry_name(ginf[geometry].cclass) + dim_name();
   else
     return geometry_name(ginf[geometry].cclass);
-  };
+  }
 
 EX void select_quotient_screen() {
   cmode = sm::SIDE | sm::MAYDARK;
@@ -602,7 +604,7 @@ EX void select_quotient_screen() {
   }
 
 EX void select_quotient() {
-  if(meuclid && !kite::in() && !arcm::in() && !reg3::cubes_reg3) {
+  if(meuclid && !aperiodic && !arcm::in() && !reg3::cubes_reg3 && !(cgflags & qFRACTAL)) {
     euc::prepare_torus3();
     pushScreen(euc::show_torus3);
     }
@@ -640,7 +642,7 @@ EX void select_quotient() {
 EX string full_geometry_name() {
   string qstring = ginf[geometry].quotient_name;
   bool variable =
-    !(mproduct || mhybrid || bt::in() || (WDIM == 3 && !reg3::in()) || kite::in() || arb::in());
+    !(mproduct || mhybrid || bt::in() || (WDIM == 3 && !reg3::in()) || aperiodic || arb::in());
   
   string fgname = XLAT(ginf[geometry].tiling_name);
   if(qstring != "none") fgname += " " + XLAT(qstring);
@@ -688,7 +690,7 @@ EX void menuitem_binary_width(char key) {
   dialog::addSelItem(XLAT("binary tiling width"), fts(vid.binary_width), key);
   dialog::add_action([] {
     dialog::editNumber(vid.binary_width, 0, 2, 0.1, 1, XLAT("binary tiling width"), "");
-    dialog::reaction = [] () {
+    dialog::get_ne().reaction = [] () {
       #if CAP_TEXTURE
       texture::config.remap();
       #endif
@@ -703,7 +705,7 @@ EX void menuitem_nilwidth(char key) {
   dialog::addSelItem(XLAT("Nil width"), fts(nilv::nilwidth), key);
   dialog::add_action([] {
     dialog::editNumber(nilv::nilwidth, 0.01, 2, 0.1, 1, XLAT("Nil width"), "");
-    dialog::reaction = ray::reset_raycaster;
+    dialog::get_ne().reaction = ray::reset_raycaster;
     dialog::bound_low(0.01);
     });
   }
@@ -717,7 +719,7 @@ EX void edit_stretch() {
       "Value of 0 means not stretched, -1 means S2xE or H2xE (works only in the limit). (Must be > -1)"
       )
     );
-  dialog::reaction = [] { if(abs(stretch::factor+1) < 1e-3) stretch::factor = -.9; ray::reset_raycaster(); };
+  dialog::get_ne().reaction = [] { if(abs(stretch::factor+1) < 1e-3) stretch::factor = -.9; ray::reset_raycaster(); };
   }
 
 #if HDR
@@ -1011,7 +1013,7 @@ EX void showEuclideanMenu() {
     dialog::addSelItem(XLAT("Z-level height factor"), fts(vid.plevel_factor), 'Z');
     dialog::add_action([] {
       dialog::editNumber(vid.plevel_factor, 0, 2, 0.1, 0.7, XLAT("Z-level height factor"), "");
-      dialog::reaction = ray::reset_raycaster;
+      dialog::get_ne().reaction = ray::reset_raycaster;
       });
     }
   else if(mhybrid) {
@@ -1022,10 +1024,16 @@ EX void showEuclideanMenu() {
     menuitem_binary_width('v');
     add_edit_wall_quality('W');
     }
+  else if(hat::in()) {
+    add_edit(hat::hat_param);
+    add_edit(hat::hat_param_imag);
+    }
   else if(nil) {
     menuitem_nilwidth('v');
     }
-  else if((WDIM == 3 || kite::in() || arb::in()) && !reg3::in() && geometry != gCubeTiling) dialog::addBreak(100);
+  else if((WDIM == 3 || aperiodic || arb::in()) && !reg3::in() && geometry != gCubeTiling) dialog::addBreak(100);
+  else if(cgclass & qFRACTAL)
+    dialog::addBreak(100);
   else 
     menuitem_change_variation('v');
 
@@ -1059,7 +1067,7 @@ EX void showEuclideanMenu() {
         );
       dialog::bound_low(0);
       dialog::bound_up(1);
-      dialog::extra_options = [] () { rots::draw_underlying(true); };
+      dialog::get_di().extra_options = [] () { rots::draw_underlying(true); };
       });
     }
   #endif
@@ -1078,11 +1086,11 @@ EX void showEuclideanMenu() {
     dialog::add_action([] {
       dialog::editNumber(bounded_mine_quantity, 0, bounded_mine_max, 1, (bounded_mine_max+5)/10, 
         XLAT("number of mines"), "");
-      dialog::reaction = [] {
+      dialog::get_ne().reaction = [] {
         if(bounded_mine_quantity < 0) bounded_mine_quantity = 0;
         if(bounded_mine_quantity > bounded_mine_max) bounded_mine_quantity = bounded_mine_max;
         };
-      dialog::reaction_final = [] {
+      dialog::get_ne().reaction_final = [] {
         bounded_mine_percentage = bounded_mine_quantity * 1. / bounded_mine_max;
         stop_game();
         start_game();
@@ -1131,7 +1139,7 @@ EX void showEuclideanMenu() {
   dialog::addTitle(XLAT("info about: %1", full_geometry_name()), 0xFFFFFF, 150);
   
   auto gd = compute_geometry_data();
-  if(WDIM == 2 && !arb::in() && !kite::in()) dialog::addSelItem(XLAT("faces per vertex"), gd.spf, 0);
+  if(WDIM == 2 && !arb::in() && !aperiodic) dialog::addSelItem(XLAT("faces per vertex"), gd.spf, 0);
   
   if(arb::in() && arb::current.comment != "") {
     dialog::addBreak(100);

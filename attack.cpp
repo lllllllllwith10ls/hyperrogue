@@ -128,8 +128,10 @@ EX bool canAttack(cell *c1, eMonster m1, cell *c2, eMonster m2, flagtype flags) 
   
   if(!(flags & AF_NOSHIELD) && ((flags & AF_NEXTTURN) ? checkOrb2 : checkOrb)(m2, itOrbShield)) return false;
   
-  if((flags & AF_STAB) && m2 != moHedge)
+  if((flags & AF_STAB) && m2 != moHedge) {
     if(!checkOrb(m1, itOrbThorns)) return false;
+    else flags |= AF_IGNORE_UNARMED;
+    }
 
   if(flags & AF_BACK) {
     if(m2 == moFlailer && !c2->stuntime) flags |= AF_IGNORE_UNARMED;
@@ -137,9 +139,9 @@ EX bool canAttack(cell *c1, eMonster m1, cell *c2, eMonster m2, flagtype flags) 
     else return false;
     }
 
-  if(flags & AF_APPROACH) {
-    if(m2 == moLancer) ;
-    else if((flags & AF_HORNS) && checkOrb(m1, itOrbHorns)) ;
+  if(flags & (AF_APPROACH | AF_HORNS)) {
+    if(m2 == moLancer && (flags & AF_APPROACH)) ;
+    else if((flags & AF_HORNS) && checkOrb(m1, itOrbHorns)) { flags |= AF_IGNORE_UNARMED; }
     else return false;
     }
   
@@ -159,7 +161,8 @@ EX bool canAttack(cell *c1, eMonster m1, cell *c2, eMonster m2, flagtype flags) 
   if(isWorm(m2) && m2 != moTentacleGhost && !isDragon(m2)) return false;
   
   // dragon can't attack itself, or player who mounted it
-  if(c1 && c2 && isWorm(c1->monst) && isWorm(c2->monst) && wormhead(c1) == wormhead(c2)
+  cell *cp = (flags & AF_BOW) ? cwt.at : c1;
+  if(cp && c2 && isWorm(cp->monst) && isWorm(c2->monst) && wormhead(cp) == wormhead(c2)
     && m1 != moTentacleGhost && m2 != moTentacleGhost)
     return false;
     
@@ -508,6 +511,8 @@ EX void killMonster(cell *c, eMonster who, flagtype deathflags IS(0)) {
     }
 #endif
   
+  if(m == moHunterGuard) ambush::guard_attack();
+
   if(m == moGolemMoved) m = moGolem;
   if(m == moKnightMoved) m = moKnight;
   if(m == moSlimeNextTurn) m = moSlime;
@@ -754,13 +759,18 @@ EX void killMonster(cell *c, eMonster who, flagtype deathflags IS(0)) {
     // a reward for killing him before he shoots!
     c->item = itOrbDragon;
     }
+  if(m == moAsteroid && !shmup::on && c->item == itNone && c->wall != waChasm) {
+    c->item = itAsteroid;
+    changes.value_add(splitrocks, 2);
+    }
+
   if(m == moOutlaw && (c->item == itNone || c->item == itRevolver) && c->wall != waChasm)
     c->item = itBounty;
   // note: an Orb appears underwater!
   if(m == moWaterElemental && c->item == itNone)
     c->item = itOrbWater;
 
-  if(m == moPirate && isOnCIsland(c) && c->item == itNone && (
+  if(m == moPirate && (isOnCIsland(c) || ls::hv_structure()) && c->item == itNone && (
       eubinary ||
       (c->master->alt && celldistAlt(c) <= 2-getDistLimit()) ||
       isHaunted(c->land)) && !cryst) {
@@ -1108,11 +1118,11 @@ EX bool should_switchplace(cell *c1, cell *c2) {
 EX bool switchplace_prevent(cell *c1, cell *c2, struct pcmove& m) {
   if(!should_switchplace(c1, c2)) return false;
   if(peace::on && (isMultitile(c2->monst) || saved_tortoise_on(c2) || isDie(c2->monst))) {
-    if(m.vmsg(miRESTRICTED)) addMessage(XLAT("Cannot switch places with %the1!", c2->monst));
+    if(m.vmsg(miRESTRICTED, siMONSTER, c2, c2->monst)) addMessage(XLAT("Cannot switch places with %the1!", c2->monst));
     return true;
     }
   if(c1->monst && c1->monst != moFriendlyIvy) {
-    if(m.vmsg(miRESTRICTED)) addMessage(XLAT("There is no room for %the1!", c2->monst));
+    if(m.vmsg(miRESTRICTED, siMONSTER, c1, c1->monst)) addMessage(XLAT("There is no room for %the1!", c2->monst));
     return true;
     }
   if(passable(c1, c2, P_ISFRIEND | (c2->monst == moTameBomberbird ? P_FLYING : 0))) return false;
@@ -1224,11 +1234,13 @@ EX void killThePlayer(eMonster m, int id, flagtype flags) {
     }
   else if(hardcore) {
     addMessage(XLAT("You are killed by %the1!", m));
+    yasc_message = XLAT("killed by %the1", m);
     killHardcorePlayer(id, flags);
     }
   else if(m == moLightningBolt && lastmovetype == lmAttack && isAlchAny(playerpos(id))) {
     addMessage(XLAT("You are killed by %the1!", m));
     addMessage(XLAT("Don't play with slime and electricity next time, okay?"));
+    yasc_message = XLAT("killed by %the1", m);
     kills[moPlayer]++;
     items[itOrbSafety] = 0;
     }
@@ -1281,6 +1293,7 @@ EX void stabbingAttack(movei mi, eMonster who, int bonuskill IS(0)) {
   for(int bb=0; bb<2; bb++) achievement_count("SLASH", numbb[bb], 0);
 
   if(peace::on) return;
+  bool out = who == moPlayer && bow::crossbow_mode();
   
   for(int t=0; t<mf->type; t++) {
     cell *c = mf->move(t);
@@ -1293,9 +1306,9 @@ EX void stabbingAttack(movei mi, eMonster who, int bonuskill IS(0)) {
     if(stabthere && c->wall == waExplosiveBarrel && markOrb(itOrbThorns))
       explodeBarrel(c);
     
-    if(stabthere && canAttack(mt,who,c,c->monst,AF_STAB)) {
+    if(stabthere && (items[itOrbThorns] || !out) && canAttack(mt,who,c,c->monst,AF_STAB)) {
       changes.ccell(c);
-      if(c->monst != moHedge) { 
+      if(c->monst != moHedge || out) {
         markOrb(itOrbThorns); if(who != moPlayer) markOrb(itOrbEmpathy);
         }
       eMonster m = c->monst;
@@ -1339,11 +1352,13 @@ EX void stabbingAttack(movei mi, eMonster who, int bonuskill IS(0)) {
       }
     }
 
-  if(!isUnarmed(who)) forCellIdEx(c, t, mt) {
+  forCellIdEx(c, t, mt) {
     if(!logical_adjacent(mt, who, c)) continue;
     eMonster mm = c->monst;
-    int flag = AF_APPROACH;
+    int flag = 0;
+    if(!isUnarmed(who) && !out) flag |= AF_APPROACH;
     if(proper(mt, backdir) && anglestraight(mt, backdir, t)) flag |= AF_HORNS;
+    if(!flag) continue;
     if(canAttack(mt,who,c,c->monst, flag)) {
       changes.ccell(c);
       if(attackMonster(c, flag | AF_MSG, who)) numlance++;
@@ -1352,7 +1367,7 @@ EX void stabbingAttack(movei mi, eMonster who, int bonuskill IS(0)) {
       }
     }
 
-  if(who == moPlayer) {
+  if(who == moPlayer && !bow::crossbow_mode()) {
     if(numsh) achievement_count("STAB", numsh, 0);
     
     if(numlance && numflail && numsh) achievement_gain_once("MELEE3");

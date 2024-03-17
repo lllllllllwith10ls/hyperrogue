@@ -46,6 +46,7 @@ EX int subclass(int i) {
 #define GLYPH_TARGET     512
 #define GLYPH_INSQUARE   1024
 #define GLYPH_INLANDSCAPE 2048
+#define GLYPH_ACTIVE 4096
 
 #if HDR
 enum eGlyphsortorder {
@@ -68,6 +69,7 @@ int& ikmerge(int i) {
 
 bool ikappear(int i) {
   if(i == itInventory && inv::on) return true;
+  if(i == itCrossbow && bow::crossbow_mode()) return true;
   return ikmerge(i);
   }
 
@@ -142,7 +144,11 @@ int glyphflags(int gid) {
   int f = 0;
   if(gid < ittypes) {
     eItem i = eItem(gid);
-    if(itemclass(i) == IC_NAI && i != itFatigue) f |= GLYPH_NONUMBER;
+    if(itemclass(i) == IC_NAI && i != itFatigue && i != itCrossbow) f |= GLYPH_NONUMBER;
+    if(i == itCrossbow) {
+      if(items[i] == 0) f |= GLYPH_NONUMBER;
+      if(bow::fire_mode) f |= GLYPH_ACTIVE;
+      }
     if(isElementalShard(i)) {
       f |= GLYPH_LOCAL | GLYPH_INSQUARE;
       if(i == localshardof(cwt.at->land)) f |= GLYPH_LOCAL2;
@@ -229,6 +235,7 @@ bool displayglyph(int cx, int cy, int buttonsize, char glyph, color_t color, int
       if(glyph == ']') bsize = bsize*1.5;
       if(glyph == 'x') bsize = bsize*1.5;
       if(it == itWarning) bsize *= 2;
+      if(it == itCrossbow) bsize *= 2;
       if(it == itBombEgg || it == itTrollEgg || it == itDodeca) bsize = bsize*3/2;
       int icol = color;
       icol -= (color & 0xFCFCFC) >> 2;
@@ -266,6 +273,7 @@ bool displayglyph(int cx, int cy, int buttonsize, char glyph, color_t color, int
   if(flags & GLYPH_LOCAL2) fl += "+";
   else if(flags & GLYPH_LOCAL) fl += "-";
   if(flags & GLYPH_DEMON) fl += "X";
+  if(flags & GLYPH_ACTIVE) fl += "A";
   if(flags & GLYPH_MARKOVER) str += "!";
 
   if(fl != "") 
@@ -325,6 +333,17 @@ void displayglyph2(int cx, int cy, int buttonsize, int i) {
       if(it == itInventory) {
         mouseovers += XLAT(" (click to use)");
         getcstat = 'i';
+        }
+      if(it == itCrossbow) {
+        if(items[it])
+          mouseovers += XLAT(" (turns to reload: %1)", its(items[it]));
+        else if(items[it] && bow::fire_mode)
+          mouseovers += XLAT(" (fire mode on / turns to reload: %1)", its(items[it]));
+        else if(bow::fire_mode)
+          mouseovers += XLAT(" (fire mode on)");
+        else
+          mouseovers += XLAT(" (click to fire)");
+        getcstat = 'f';
         }
       if(imp & GLYPH_LOCAL) mouseovers += XLAT(" (local treasure)");
       help = generateHelpForItem(it);
@@ -686,6 +705,8 @@ EX void drawStats() {
     if(peace::on) vers += " peace";
     if(racing::on) vers += " racing";
     if(daily::on) vers += " strange";
+    if(bow::weapon && bow::style == bow::cbBull) vers += " b/bull";
+    if(bow::weapon && bow::style == bow::cbGeodesic) vers += " b/geo";
     if(land_structure != default_land_structure())
       vers += land_structure_name(true);
     if(princess::challenge) vers += " Princess";

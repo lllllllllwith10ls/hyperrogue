@@ -8,22 +8,68 @@
 
 // to add: insert positions? split/merge segments? improved join?
 
+namespace rogueviz {
+namespace smoothcam {
+struct frame {
+  string title;
+  cell *where;
+  transmatrix sView;
+  transmatrix V;
+  transmatrix ori;
+  ld front_distance, up_distance;
+  ld interval;
+  map<string, ld> params;
+  };
+
+struct animation {
+  cell *start_cell;
+  transmatrix start;
+  ld start_interval;
+  vector<frame> frames;
+  };
+
+vector<string> smoothcam_params;
+}
+}
+
 namespace hr {
 
-using pcell = cell*;
+  using pcell = cell*;
 
-inline void hread(hstream& hs, transmatrix& h) { for(int i=0; i<MDIM; i++) hread(hs, h[i]); }
-inline void hwrite(hstream& hs, const transmatrix& h) { for(int i=0; i<MDIM; i++) hwrite(hs, h[i]); }
+  static void hwrite(hstream& hs, const pcell& c) {
+    hs.write<int>(mapstream::cellids[c]);
+    }
 
-inline void hwrite(hstream& hs, const pcell& c) {
-  hs.write<int>(mapstream::cellids[c]);
+  static void hread(hstream& hs, pcell& c) {
+    int32_t at = hs.get<int>();
+    c = mapstream::cellbyid[at];
+    }
+
+  static void hread(hstream& hs, transmatrix& h) { for(int i=0; i<MDIM; i++) hread(hs, h[i]); }
+  static void hwrite(hstream& hs, const transmatrix& h) { for(int i=0; i<MDIM; i++) hwrite(hs, h[i]); }
+
+  void hwrite(hstream& hs, const rogueviz::smoothcam::animation& anim) {
+    hwrite(hs, anim.start_cell, anim.start, anim.start_interval, anim.frames);
+    }
+
+  void hread(hstream& hs, rogueviz::smoothcam::animation& anim) {
+    hread(hs, anim.start_cell, anim.start, anim.start_interval, anim.frames);
+    }
+
+  void hwrite(hstream& hs, const rogueviz::smoothcam::frame& frame) {
+    hwrite(hs, frame.title, frame.where, frame.sView, frame.V, frame.ori, frame.front_distance, frame.up_distance, frame.interval);
+    for(auto pa: rogueviz::smoothcam::smoothcam_params) { hwrite(hs, frame.params.at(pa)); }
+    }
+
+  void hread(hstream& hs, rogueviz::smoothcam::frame& frame) {
+    hread(hs, frame.title, frame.where, frame.sView, frame.V, frame.ori, frame.front_distance, frame.up_distance, frame.interval);
+    for(auto pa: rogueviz::smoothcam::smoothcam_params) { hread(hs, frame.params[pa]); }
+    }
+
   }
 
-inline void hread(hstream& hs, pcell& c) {
-  int32_t at = hs.get<int>();
-  c = mapstream::cellbyid[at];
-  }
-  
+namespace rogueviz {
+
 namespace smoothcam {
 
 string smooth_camera_help = 
@@ -39,27 +85,22 @@ string smooth_camera_help =
   "as the actual position, while Y-X will be the first derivative. Thus, for example, "
   "placing two equal positions with interval 0 will force the camera to smoothly stop.";
 
-struct frame {
-  string title;
-  cell *where;
-  transmatrix sView;
-  transmatrix V;
-  transmatrix ori;
-  ld front_distance, up_distance;
-  ld interval;
-  };
-
-struct animation {
-  cell *start_cell;
-  transmatrix start;
-  ld start_interval;
-  vector<frame> frames;
-  };
-
 map<cell*, map<hyperpoint, string> > labels;
 map<cell*, vector<vector<hyperpoint> > > traces;
 
 vector<animation> anims;
+
+vector<animation> anims_backup;
+
+void backup() {
+  anims_backup = anims;
+  }
+
+void append_backup() {
+  swap(anims_backup, anims);
+  for(auto a: anims_backup) anims.push_back(a);
+  anims_backup.clear();
+  }
 
 transmatrix last_view, current_position, last_view_comp;
 cell *last_centerover;
@@ -83,8 +124,9 @@ void start_segment() {
   auto& anim = anims.back();
   anim.start_cell = centerover;
   anim.start = Id;
-  last_view = Id;
-  current_position = Id;
+  if(det(View) < 0) anim.start = MirrorX * anim.start;
+  last_view = anim.start;
+  current_position = anim.start;
   current_segment = &anim;
   }
 
@@ -138,6 +180,20 @@ transmatrix try_harder_relative_matrix(cell *at, cell *from) {
   println(hlog, "got U = ", U);
   return U;
   }
+
+frame new_frame() {
+  frame f;
+  f.title = gentitle();
+  f.where = centerover;
+  f.sView = View;
+  f.V = current_position;
+  f.ori = ortho_inverse(NLP);
+  f.front_distance = 1;
+  f.up_distance = 1;
+  f.interval = 0;
+  for(auto p: smoothcam_params) f.params[p] = real(params[p]->get_cld());
+  return f;
+  };
 
 void edit_segment(int aid) {
   cmode = sm::PANNING;
@@ -195,6 +251,12 @@ void edit_step(animation& anim, int id) {
   dialog::add_action([&f] {
     dialog::editNumber(f.up_distance, -5, 5, .1, 1, "up distance", "");
     });
+
+  char key = '1';
+  for(auto pa: smoothcam_params) {
+    dialog::addSelItem(pa, fts(f.params[pa]), key++);
+    }
+
   dialog::addItem("delete", 'd');
   dialog::add_action([&anim, id] {
     anim.frames.erase(anim.frames.begin()+id);
@@ -251,7 +313,7 @@ void edit_step(animation& anim, int id) {
   if(&anim == current_segment) {
     dialog::addItem("insert the current position before this", 'j');
     dialog::add_action([&anim, id] {
-      anim.frames.insert(anim.frames.begin() + id, frame{gentitle(), centerover, View, current_position, ortho_inverse(NLP), 1, 1, 0});
+      anim.frames.insert(anim.frames.begin() + id, new_frame());
       popScreen();
       });
     }
@@ -310,6 +372,9 @@ void snap_to_center() {
   }
 
 void show() {
+  /* might not be changed automatically */
+  if(vid.fixed_yz) spinEdge_full();
+
   cmode = side ? sm::SIDE : 0;
   gamescreen();
   draw_crosshair();
@@ -338,7 +403,7 @@ void show() {
           dist = fts(d) + "au";
         else {
           transmatrix T = f.sView * iso_inverse(View);
-          dist = fts(kz(acos_clamp(T[2][2]))) + "°/" + fts(kz(acos_clamp(T[1][1]))) + "°";
+          dist = fts(kz(acos_clamp(T[2][2])/degree)) + "°/" + fts(kz(acos_clamp(T[1][1])/degree)) + "°";
           }
         }
         
@@ -353,7 +418,7 @@ void show() {
   if(current_segment) {
     dialog::addItem("create a new position", 'a');
     dialog::add_action([] {
-      current_segment->frames.push_back(frame{gentitle(), centerover, View, current_position, ortho_inverse(NLP), 1, 1, 0});
+      current_segment->frames.push_back(new_frame());
       });
     }
 
@@ -388,10 +453,10 @@ void show() {
     last_segment = -1;
     test_t = 0;
     dialog::editNumber(test_t, 0, 100, 0.1, 0, "enter the percentage", "");
-    dialog::reaction = [] {
+    dialog::get_di().reaction = [] {
       handle_animation(test_t / 100);
       };
-    dialog::extra_options = [] {
+    dialog::get_di().extra_options = [] {
       dialog::addSelItem("current segment", its(last_segment), 'C');
       dialog::addSelItem("current front", fts(c_front_dist), 'F');
       dialog::addSelItem("current up", fts(c_up_dist), 'U');
@@ -406,10 +471,16 @@ void show() {
     animate_on = !animate_on;
     last_time = HUGE_VAL;
     });
-  
+
   if(GDIM == 2) {
     dialog::addItem("centering", 'z');
     dialog::add_action_push(snap_to_center);
+    }
+  else {
+    dialog::addItem("mirror Y view", 'Y');
+    dialog::add_action([] {
+      rotate_view(MirrorY);
+      });
     }
     
   dialog::addHelp();
@@ -507,26 +578,33 @@ void handle_animation(ld t) {
 
   transmatrix V = View;
 
-  if(embedded_plane) {
+  for(auto pa: smoothcam_params) {
+    vector<ld> values;
+    for(auto& f: anim.frames) values.push_back(f.params[pa]);
+    ld val = interpolate(values, times, t);
+    params[pa]->set_cld(val);
+    }
+
+  if(embedded_plane && embedded_shift_method_choice != smcNone) {
     hyperpoint interm = C03;
+
     for(int j=0; j<3; j++) {
       vector<ld> values;
       for(auto& f: anim.frames)
-        values.push_back(cgi.emb->actual_to_intermediate(f.V*tile_center())[j]);
+        values.push_back(cgi.emb->actual_to_intermediate(f.V*C0)[j]);
       interm[j] = interpolate(values, times, t);
       }
     transmatrix Rot = Id;
     for(int j=0; j<3; j++) for(int k=0; k<3; k++) {
       vector<ld> values;
       for(auto& f: anim.frames) {
-        transmatrix Rot = inverse(cgi.emb->map_relative_push(f.V*tile_center())) * f.V;
-        // if(j == 0 && k == 0) println(hlog, "Rot = ", kz(Rot));
+        transmatrix Rot = inverse(cgi.emb->map_relative_push(f.V*C0) * lzpush(cgi.emb->center_z())) * f.V;
         if(nisot::local_perspective_used) Rot = Rot * f.ori;
         values.push_back(Rot[j][k]);
         }
       Rot[j][k] = interpolate(values, times, t);
       }
-    View = inverse(cgi.emb->intermediate_to_actual_translation(interm)); NLP = Id;
+    View = inverse(cgi.emb->intermediate_to_actual_translation(interm) * lzpush(cgi.emb->center_z())); NLP = Id;
     fix_rotation(Rot);
     rotate_view(inverse(Rot));
     }
@@ -542,10 +620,10 @@ void handle_animation(ld t) {
           if(j == 0)
             h = tC0(f.V);
           if(j == 1) {
-            h = tC0(shift_object(f.V, f.ori, ztangent(f.front_distance), smGeodesic));
+            h = tC0(shift_object(f.V, f.ori, ztangent(f.front_distance), (hyperbolic || euclid || sphere) ? smIsotropic : smGeodesic));
             }
           if(j == 2) {
-            h = tC0(shift_object(f.V, f.ori, ctangent(1, -f.up_distance), smGeodesic));
+            h = tC0(shift_object(f.V, f.ori, ctangent(1, -f.up_distance), (hyperbolic || euclid || sphere) ? smIsotropic : smGeodesic));
             }
           prepare_for_interpolation(h);
           values.push_back(h[i]);
@@ -557,10 +635,12 @@ void handle_animation(ld t) {
       }
 
     set_view(pts[0], pts[1], pts[2]);
-    println(hlog, "V = ", View);
     c_front_dist = geo_dist(pts[0], pts[1]);
     c_up_dist = geo_dist(pts[0], pts[2]);
+    if(det(last_view_comp) < 0) View = MirrorX * View;
     }
+
+  if(vid.fixed_yz) spinEdge_full();
 
   transmatrix T = View * inverse(last_view_comp);
   last_view_comp = View;
@@ -604,22 +684,6 @@ void generate_trace() {
       }
     }
   send();
-  }
-
-void hwrite(hstream& hs, const animation& anim) {
-  hwrite(hs, anim.start_cell, anim.start, anim.start_interval, anim.frames);
-  }
-
-void hread(hstream& hs, animation& anim) {
-  hread(hs, anim.start_cell, anim.start, anim.start_interval, anim.frames);
-  }
-
-void hwrite(hstream& hs, const frame& frame) {
-  hwrite(hs, frame.title, frame.where, frame.sView, frame.V, frame.ori, frame.front_distance, frame.up_distance, frame.interval);
-  }
-
-void hread(hstream& hs, frame& frame) {
-  hread(hs, frame.title, frame.where, frame.sView, frame.V, frame.ori, frame.front_distance, frame.up_distance, frame.interval);
   }
 
 bool draw_labels(cell *c, const shiftmatrix& V) {
@@ -669,6 +733,9 @@ auto hooks = arg::add3("-smoothcam", enable_and_show)
     animate_on = true;
     last_time = HUGE_VAL;
     })
+  + arg::add3("-smoothcam-param", [] {
+    arg::shift(); smoothcam_params.push_back( arg::args() );
+    })
   + arg::add3("-smoothcam-anim-on", [] {
     animate_on = true;
     last_time = HUGE_VAL;
@@ -686,6 +753,17 @@ auto hooks = arg::add3("-smoothcam", enable_and_show)
       current_segment = &anims.back();
       }
     });
+
+void save_animation(hstream& f) {
+  if(f.vernum >= 0xA930) hwrite(f, smoothcam_params);
+  hwrite(f, anims);
+  }
+
+void load_animation(hstream& f) {
+  if(f.vernum >= 0xA930) hread(f, smoothcam_params);
+  hread(f, anims);
+  current_segment = &anims.back();
+  }
 
 auto hooksw = addHook(hooks_swapdim, 100, [] {
   last_segment = -1;

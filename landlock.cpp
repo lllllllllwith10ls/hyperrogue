@@ -81,7 +81,7 @@ EX eLand firstland = laIce;
 EX eLand specialland = laIce;
 
 #if HDR
-enum eLandStructure { lsNiceWalls, lsChaos, lsPatchedChaos, lsTotalChaos, lsChaosRW, lsWallChaos, lsSingle, lsNoWalls, lsGUARD };
+enum eLandStructure { lsNiceWalls, lsChaos, lsPatchedChaos, lsTotalChaos, lsChaosRW, lsWallChaos, lsSingle, lsNoWalls, lsHorodisks, lsVoronoi, lsGUARD };
 #endif
 
 EX eLandStructure land_structure;
@@ -95,9 +95,12 @@ EX bool std_chaos() { return land_structure == lsChaos; }
 EX bool wall_chaos() { return land_structure == lsWallChaos; }
 EX bool patched_chaos() { return land_structure == lsPatchedChaos; }
 
-EX bool any_order() { return among(land_structure, lsNiceWalls, lsNoWalls); }
+EX bool any_order() { return among(land_structure, lsNiceWalls, lsNoWalls, lsHorodisks, lsVoronoi); }
 EX bool nice_walls() { return land_structure == lsNiceWalls; }
 EX bool no_walls() { return land_structure == lsNoWalls; }
+EX bool horodisk_structure() { return land_structure == lsHorodisks; }
+EX bool voronoi_structure() { return land_structure == lsVoronoi; }
+EX bool hv_structure() { return among(land_structure, lsHorodisks, lsVoronoi); }
 
 EX bool any_nowall() { return no_walls() || std_chaos(); }
 EX bool any_wall() { return nice_walls() || wall_chaos(); }
@@ -108,6 +111,7 @@ EX int chaoticity() {
   if(land_structure == lsPatchedChaos) return 60;
   if(land_structure == lsChaos) return 40;
   if(land_structure == lsWallChaos) return 30;
+  if(land_structure == lsVoronoi) return 20;
   if(land_structure == lsSingle) return 0;
   return 10;  
   }
@@ -131,6 +135,10 @@ EX string land_structure_name(bool which) {
       return XLAT("random-walk chaos");
     case lsSingle:
       return which ? XLAT("single land: ") + XLATN(linf[specialland].name) : XLAT("single land");
+    case lsHorodisks:
+      return XLAT("horodisks");
+    case lsVoronoi:
+      return XLAT("ideal Voronoi");
     case lsNoWalls:
       return XLAT("wall-less");
     default:
@@ -151,12 +159,18 @@ EX void fix_land_structure_choice() {
     land_structure = lsNoWalls;
   if(!nice_walls_available() && land_structure == lsWallChaos)
     land_structure = lsChaos;
+  if(ls::hv_structure() && (!hyperbolic || bt::in() || quotient))
+    land_structure = lsSingle;
   if(walls_not_implemented() && among(land_structure, lsChaos, lsNoWalls))
     land_structure = lsSingle;
-  if(land_structure == lsPatchedChaos && !(stdeuc || nil || cryst || (euclid && WDIM == 3)))
+  if(land_structure == lsPatchedChaos && !(stdeuc || nil || cryst || (euclid && WDIM == 3) || aperiodic))
     land_structure = lsSingle;
   if(closed_or_bounded && !among(land_structure, lsChaosRW, lsTotalChaos, lsSingle))
     land_structure = lsSingle;
+  if(aperiodic && !among(land_structure, lsChaosRW, lsTotalChaos, lsPatchedChaos, lsSingle))
+    land_structure = lsPatchedChaos;
+  if((cgflags & qFRACTAL) && !among(land_structure, lsChaosRW, lsTotalChaos, lsPatchedChaos, lsSingle))
+    land_structure = lsPatchedChaos;
   }
 
 EX bool landUnlockedRPM(eLand n) {
@@ -168,6 +182,10 @@ EX bool landUnlockedRPM(eLand n) {
 
 EX int lands_for_hell() {
   return casual ? 40 : 9;
+  }
+
+EX int lands_for_cr3() {
+  return casual ? 20 : 9;
   }
 
 EX int variant_unlock_value() {
@@ -206,6 +224,7 @@ EX bool landUnlocked(eLand l) {
     #define ACCONLY2(x,y)
     #define ACCONLY3(x,y,z)
     #define ACCONLYF(x)
+    #define IFINGAME(land, ok, fallback) if(isLandIngame(land)) { ok } else { fallback }
     #include "content.cpp"
 
     case landtypes: return false;
@@ -227,6 +246,7 @@ EX void countHyperstoneQuest(int& i1, int& i2) {
   i1 = 0; i2 = 0;
   generateLandList(isLandIngame);
   for(eLand l: landlist) {
+    if(l == laCA) continue;
     eItem ttype = treasureType(l);
     if(!required_for_hyperstones(ttype)) continue;
     i2++; if(items[ttype] >= R10) i1++;
@@ -246,6 +266,20 @@ EX int isRandland(eLand l) {
     return 2;
   for(eLand ll: randlands) if(l == ll) return 1;
   return 0;
+  }
+
+EX int voronoi_sea_category(eLand l) {
+  if(l == laRlyeh) return rlyehComplete() ? 0 : 2;
+  if(among(l, laOcean, laWarpCoast, laLivefjord, laDocks)) return 1;
+  if(among(l, laWhirlpool, laKraken, laWarpSea, laCaribbean)) return 2;
+  return 0;
+  }
+
+EX bool voronoi_sea_incompatible(eLand l1, eLand l2) {
+  int c1 = voronoi_sea_category(l1);
+  int c2 = voronoi_sea_category(l2);
+  if(c1+c2 == 2 && c1 != c2) return true;
+  return false;
   }
 
 EX bool incompatible1(eLand l1, eLand l2) {
@@ -521,7 +555,8 @@ EX eLand getNewLand(eLand old) {
   // the intermediate lands
   if(all_unlocked || gold() >= R30) {
     tab[cnt++] = laCrossroads;
-    tab[cnt++] = geometry ? laMirrorOld : laMirror;
+    tab[cnt++] = laMirrorOld;
+    tab[cnt++] = laMirror;
     tab[cnt++] = laOcean;
     tab[cnt++] = laLivefjord;
     if(all_unlocked || kills[moVizier]) tab[cnt++] = laEmerald;
@@ -530,6 +565,11 @@ EX eLand getNewLand(eLand old) {
     tab[cnt++] = laDocks;
     }
 
+  tab[cnt++] = laHalloween;
+  tab[cnt++] = laWildWest;
+  tab[cnt++] = laAsteroids;
+  tab[cnt++] = laCA;
+
   // the advanced lands
   if(all_unlocked || gold() >= R60) {
     tab[cnt++] = laCrossroads;
@@ -537,7 +577,7 @@ EX eLand getNewLand(eLand old) {
     if(all_unlocked || rlyehComplete()) tab[cnt++] = laRlyeh;
     else if(ls::std_chaos() && (old == laWarpCoast || old == laLivefjord || old == laOcean)) 
       tab[cnt++] = laRlyeh;
-    if((all_unlocked || items[itStatue] >= U5) && ls::std_chaos())
+    if((all_unlocked || items[itStatue] >= U5) && (ls::std_chaos() || ls::horodisk_structure()))
       tab[cnt++] = laTemple;
     if(old == laCrossroads || old == laCrossroads2) tab[cnt++] = laOcean;
     if(old == laOcean) tab[cnt++] = laCrossroads;
@@ -552,12 +592,31 @@ EX eLand getNewLand(eLand old) {
     tab[cnt++] = laDual;
     tab[cnt++] = laSnakeNest;
     }
-  
+
+  if(ls::horodisk_structure()) {
+    if(gold() >= R30) {
+      tab[cnt++] = laCaribbean;
+      tab[cnt++] = laKraken;
+      tab[cnt++] = laWhirlpool;
+      }
+    if(gold() >= R60) {
+      tab[cnt++] = laRlyeh;
+      if(landUnlocked(laTemple)) tab[cnt++] = laTemple;
+      }
+    if(items[itBone] >= 10)
+      tab[cnt++] = laHaunted;
+    }
+
+  if(ls::hv_structure() && landUnlocked(laMountain)) tab[cnt++] = laMountain;
+  if(ls::hv_structure() && landUnlocked(laClearing)) tab[cnt++] = laClearing;
+  if(ls::voronoi_structure() && landUnlocked(laRlyeh) && !rlyehComplete()) LIKELY tab[cnt++] = laRlyeh;
+  if(ls::hv_structure() && landUnlocked(laTemple)) tab[cnt++] = laTemple;
+
   if(landUnlocked(laTrollheim)) {
     if(isTrollLand(old)) LIKELY tab[cnt++] = laTrollheim;
     if(old == laTrollheim) for(int i=0; i<landtypes; i++) {
       eLand l2 = eLand(i);
-      if(isTrollLand(l2)) LIKELY tab[cnt++] = l2;
+      if(isTrollLand(l2) && landUnlocked(l2)) LIKELY tab[cnt++] = l2;
       }
     }
 
@@ -573,15 +632,33 @@ EX eLand getNewLand(eLand old) {
     if(old == laCrossroads || old == laCrossroads2) tab[cnt++] = laOcean;
     if(old == laOcean) tab[cnt++] = laCrossroads2;
     }
+
+  if(ls::horodisk_structure() && tortoise::seek()) LIKELY tab[cnt++] = laTortoise;
   
+  int attempts = 0;
   eLand n = old;
   while(incompatible(n, old) || !isLandIngame(n)) {
     n = tab[hrand(cnt)];
     if(weirdhyperbolic && specialland == laCrossroads4 && isCrossroads(n))
       n = laCrossroads4;
+    attempts++; if(attempts == 2000) break;
     }
   
   return n;  
+  }
+
+EX eLand getNewLand2(vector<eLand> olds) {
+  for(int i=0;; i++) {
+    auto old = hrand_elt(olds);
+    eLand l = getNewLand(old);
+    // how bad it is
+    int err = 0;
+    for(auto o: olds) if(l == o) err += 2000;
+    for(auto o: olds) if(incompatible(l, o)) err += 1000;
+    for(auto o: olds) if(voronoi_sea_incompatible(l, o)) err += 100;
+    // we still allow bad choices if we cannot obtain a good one
+    if(err <= i) return l;
+    }
   }
 
 EX vector<eLand> land_over = {
@@ -618,13 +695,13 @@ template<class T> void generateLandList(T t) {
 
 #if HDR
 namespace lv {
-  static const flagtype appears_in_geom_exp = 1;
-  static const flagtype display_error_message = 2;
-  static const flagtype appears_in_full = 4;
-  static const flagtype appears_in_ptm = 8;
-  static const flagtype display_in_help = 16;
-  static const flagtype one_and_half = 32;
-  static const flagtype switch_to_single = 64;
+  static constexpr flagtype appears_in_geom_exp = 1;
+  static constexpr flagtype display_error_message = 2;
+  static constexpr flagtype appears_in_full = 4;
+  static constexpr flagtype appears_in_ptm = 8;
+  static constexpr flagtype display_in_help = 16;
+  static constexpr flagtype one_and_half = 32;
+  static constexpr flagtype switch_to_single = 64;
   }
 
 struct land_validity_t {
@@ -647,8 +724,15 @@ EX eLand getLandForList(cell *c) {
   return l;
   }
 
+EX bool use_custom_land_list;
+EX array<bool, landtypes> custom_land_list;
+EX array<int, landtypes> custom_land_treasure;
+EX array<int, landtypes> custom_land_difficulty;
+EX array<int, landtypes> custom_land_wandering;
+
 EX bool isLandIngame(eLand l) {
   if(isElemental(l)) l = laElementalWall;
+  if(use_custom_land_list) return custom_land_list[l];
   if(dual::state == 2 && !dual::check_side(l)) return false;
   if((eubinary || sol) && isCyclic(l) && l != specialland) return false;
   if(l == laCamelot && hyperbolic && WDIM == 3) return false;
@@ -721,6 +805,7 @@ namespace lv {
   land_validity_t not_in_shmup = {0, q0, "This land is not available in the shmup mode."}; 
   land_validity_t not_in_multi = {0, q0, "This land is not available in multiplayer."}; 
   land_validity_t single_only = {2, q0 | switch_to_single, "Available in single land mode only." };
+  land_validity_t not_in_hv = { 0, q0, "Does not work in horodisk/Voronoi mode."};
   }
 
 // old Daily Challenges should keep their validity forever
@@ -736,6 +821,124 @@ EX const int cursed_when = 386;
 
 EX const int walls_when = 388;
 
+EX void mark_tamper() { cheater++; }
+
+EX void customize_land_in_list(eLand l) {
+  cmode = sm::DARKEN; gamescreen();
+
+  dialog::init(XLATN(linf[l].name), linf[l].color);
+
+  help = generateHelpForLand(l);
+  addHelpWithTitle();
+
+  dialog::addBreak(100);
+
+  dialog::addBoolItem(XLAT("land in game"), custom_land_list[l], 'a');
+  dialog::add_action([l] {
+    custom_land_list[l] = !custom_land_list[l];
+    cheater++;
+    });
+
+  dialog::addSelItem(XLAT("treasure rate"), its(custom_land_treasure[l]), 't');
+  dialog::add_action([l] {
+    dialog::editNumber(custom_land_treasure[l], 0, 1000, 10, 100, XLAT("treasure rate in %the1", linf[l].name), "");
+    dialog::get_ne().reaction = mark_tamper;
+    });
+
+  dialog::addSelItem(XLAT("difficulty"), its(custom_land_difficulty[l]), 'd');
+  dialog::add_action([l] {
+    dialog::editNumber(custom_land_difficulty[l], 0, 1000, 10, 100, XLAT("difficulty of %the1", linf[l].name), "");
+    dialog::get_ne().reaction = mark_tamper;
+    });
+
+  dialog::addSelItem(XLAT("wandering"), its(custom_land_wandering[l]), 'w');
+  dialog::add_action([l] {
+    dialog::editNumber(custom_land_wandering[l], 0, 1000, 10, 100, XLAT("difficulty of %the1", linf[l].name), "");
+    dialog::get_ne().reaction = mark_tamper;
+    });
+
+  dialog::addBack();
+  dialog::display();
+  }
+
+EX void customize_land_list() {
+  cmode = sm::DARKEN; gamescreen();
+  dialog::init(XLAT("custom land list"));
+  if(dialog::infix != "") mouseovers = dialog::infix;
+
+  generateLandList([] (eLand l) {
+    if(!use_custom_land_list) {
+      custom_land_list[l] = isLandIngame(l);
+      custom_land_treasure[l] = 100;
+      custom_land_difficulty[l] = 100;
+      custom_land_wandering[l] = 100;
+      }
+    if(dialog::infix != "" && !dialog::hasInfix(linf[l].name)) return false;
+    if(l == laCanvas) return true;
+    return !!(land_validity(l).flags & lv::appears_in_geom_exp);
+    });
+  stable_sort(landlist.begin(), landlist.end(), [] (eLand l1, eLand l2) { return land_validity(l1).quality_level > land_validity(l2).quality_level; });
+
+  dialog::start_list(900, 900, '1');
+  for(eLand l: landlist) {
+    dialog::addBoolItem(XLAT1(linf[l].name), custom_land_list[l], dialog::list_fake_key++);
+    string s;
+    if(custom_land_treasure[l] != 100) s += "$" + its(custom_land_treasure[l]) + " ";
+    if(custom_land_difficulty[l] != 100) s += "!" + its(custom_land_difficulty[l]) + " ";
+    if(custom_land_wandering[l] != 100) s += "^" + its(custom_land_wandering[l]) + " ";
+    if(s != "") dialog::lastItem().value = s;
+    dialog::add_action_confirmed([l] {
+      if(!use_custom_land_list) {
+        stop_game();
+        use_custom_land_list = true;
+        start_game();
+        }
+      pushScreen([l] { customize_land_in_list(l); });
+      });
+    }
+  dialog::end_list();
+
+  dialog::addInfo(XLAT("press letters to search"));
+  dialog::addBoolItem("custom land list mode", use_custom_land_list, 'U');
+  dialog::add_action_confirmed([] {
+    stop_game();
+    use_custom_land_list = !use_custom_land_list;
+    start_game();
+    });
+
+  if(use_custom_land_list) {
+    dialog::addItem("disable/enable all", 'D');
+    dialog::add_action([] {
+      int qty = 0;
+      for(int i=0; i<landtypes; i++) if(custom_land_list[i]) qty++;
+      for(int i=0; i<landtypes; i++) custom_land_list[i] = !qty;
+      });
+    }
+  else dialog::addBreak(100);
+
+  dialog::addHelp();
+  dialog::add_action([] {
+    gotoHelp(XLAT(
+      "In this mode, you can choose the lands you want to be in game. You can also customize their treasure rate and difficulty.\n\n"
+      "While the game automatically selects a list of lands by default, "
+      "based on whether it thinks they work well in the currently selected tiling, "
+      "you might not agree with this selection.\n\n"
+      "Note that, often, lands are enabled or disabled for a GOOD reason! Use at your own risk.\n\n"
+      "Just click on a land to configure it. If you are not in the custom land list mode, "
+      "this will restart the game. You can change the settings during a custom game, but it counts as a cheat."
+      ));
+    });
+  dialog::addBack();
+  dialog::display();
+
+  keyhandler = [] (int sym, int uni) {
+    dialog::handleNavigation(sym, uni);
+
+    if(dialog::editInfix(uni)) dialog::list_skip = 0;
+    else if(doexiton(sym, uni)) popScreen();
+    };
+  }
+
 // check if the given land should appear in lists
 EX land_validity_t& land_validity(eLand l) {
 
@@ -743,6 +946,25 @@ EX land_validity_t& land_validity(eLand l) {
   if(euclid && quotient) stdeucx = false;
 
   using namespace lv;
+
+  if(hat::in()) {
+    if(l == laKraken) return dont_work;
+    if(l == laWineyard) return dont_work;
+    if(l == laReptile) return bad_graphics;
+    if(l == laBull) return ok;
+    if(l == laHaunted) return dont_work;
+    if(l == laHive) return not_in_full_game;
+    if(l == laRedRock) return ok;
+    if(l == laStorms) return ok;
+    if(l == laDice) return dont_work;
+    if(l == laVolcano) return dont_work;
+    if(l == laBlizzard) return dont_work;
+    if(l == laBurial) return dont_work;
+    if(l == laEclectic) return dont_work;
+    if(l == laCursed) return dont_work;
+    if(l == laElementalWall) return dont_work;
+    if(l == laDragon) return not_in_full_game;
+    }
   
   if(l == laDice && geometry == gNormal && PURE)
     return dont_work;
@@ -824,6 +1046,10 @@ EX land_validity_t& land_validity(eLand l) {
     if(l == laBurial && !shmup::on) return not_implemented;
     if(l == laMirrorOld && !shmup::on) return not_implemented;
     }
+
+  if(ls::hv_structure() && among(l, laDungeon, laEndorian, laBrownian, laPrincessQuest)) return not_in_hv;
+  if(ls::voronoi_structure() && among(l, laPrairie, laCamelot, laWhirlpool, laClearing, laHaunted, laWestWall)) return not_in_hv;
+  if(ls::horodisk_structure() && l != laCrossroads && isCrossroads(l)) return not_in_hv;
   
   if(l == laBrownian) {
     if(quotient || !hyperbolic || cryst) return dont_work;
@@ -894,7 +1120,7 @@ EX land_validity_t& land_validity(eLand l) {
     return dont_work;
 
   // mirrors do not work in kite and sol
-  if(among(l, laMirror, laMirrorOld) && (kite::in() || sol))
+  if(among(l, laMirror, laMirrorOld) && (aperiodic || sol))
     return dont_work;
   
   if(isCrossroads(l) && geometry == gBinary4)
@@ -906,12 +1132,14 @@ EX land_validity_t& land_validity(eLand l) {
   if(l == laWhirlwind && hyperbolic_not37)
     return pattern_incompatibility;
 
+  bool better_mirror = !geometry && STDVAR && !ls::hv_structure();
+
   // available only in non-standard geometries
-  if(l == laMirrorOld && !geometry && STDVAR)
+  if(l == laMirrorOld && better_mirror)
     return better_version_exists;
   
   // available only in standard geometry
-  if(l == laMirror && (geometry || NONSTDVAR))
+  if(l == laMirror && !better_mirror)
     return not_implemented; 
   
   // Halloween needs bounded world (can be big bounded)
@@ -1036,7 +1264,7 @@ EX land_validity_t& land_validity(eLand l) {
         return special_chaos;
       return not_in_chaos;
       }
-    if(arcm::in() || kite::in()) return not_implemented;
+    if(arcm::in() || aperiodic) return not_implemented;
     if(closed_or_bounded) return unbounded_only;
     if(INVERSE) return not_implemented;
     }
@@ -1196,7 +1424,7 @@ EX land_validity_t& land_validity(eLand l) {
     return great_walls_missing;
 
   // highlight Crossroads on Euclidean
-  if(euclid && !quotient && (l == laCrossroads || l == laCrossroads4) && !kite::in())
+  if(euclid && !quotient && (l == laCrossroads || l == laCrossroads4) && !aperiodic)
     return full_game; 
 
   if(sol && among(l, laCrossroads, laCrossroads4))
@@ -1264,6 +1492,13 @@ EX land_validity_t& land_validity(eLand l) {
   return ok;
   }
 
+auto ar = arg::add3("-land-info",
+  [] {
+    for(int li=0; li<landtypes; li++) {
+      eLand l = eLand(li);
+      println(hlog, dnameof(l), " : ", land_validity(l).msg);
+      }
+    });
 /*
 int checkLands() {
   for(int i=0; i<landtypes; i++) {

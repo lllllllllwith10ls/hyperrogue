@@ -453,10 +453,15 @@ EX namespace history {
     if(1) {
       // block for RAII
       dynamicval<videopar> dv(vid, vid);
-      dynamicval<ld> dr(models::rotation, 0);
+      dynamicval<trans23> dr(models::rotation, Id);
       dynamicval<bool> di(inHighQual, true);
       
       renderbuffer glbuf(bandfull, bandfull, vid.usingGL);
+      glbuf.make_surface(); if(!glbuf.srf) {
+        addMessage(XLAT("Could not create an image of that size."));
+        return;
+        }
+
       vid.xres = vid.yres = bandfull;
       glbuf.enable(); current_display->radius = bandhalf;  
       calcparam();
@@ -470,7 +475,7 @@ EX namespace history {
       auto save_band_segment = [&] {
         string fname = name_format;
         replace_str(fname, "$DATE", timebuf);
-        replace_str(fname, "$ID", format("%03d", segid++));
+        replace_str(fname, "$ID", hr::format("%03d", segid++));
         IMAGESAVE(band, fname.c_str());
 
         if(dospiral) 
@@ -480,7 +485,8 @@ EX namespace history {
         };
       
       if(!band) {
-        addMessage("Could not create an image of that size.");
+        addMessage(XLAT("Could not create an image of that size."));
+        return;
         }
       else {
   
@@ -498,10 +504,7 @@ EX namespace history {
           
           pushScreen(progress_screen);
   
-          char buf[128];
-          sprintf(buf, "#%03d", segid);
-  
-          progress(s0 + buf + " ("+its(j+bonus)+"/"+its(siz+bonus+bonus-1)+")"); */
+          progress(s0 + hr::format("#%03d (%d/%d)", segid, j+bonus, siz+bonus+bonus-1)); */
   
           // calcparam(); current_display->radius = bandhalf;
           phase = j; movetophase();
@@ -531,6 +534,10 @@ EX namespace history {
               len -= bandsegment; xpos -= bandsegment;
               seglen = min(int(len), bandsegment);
               band = SDL_CreateRGBSurface(SDL_SWSURFACE, seglen, bandfull,32,0,0,0,0);
+              if(!band) {
+                addMessage(XLAT("Could not create an image of that size."));
+                return;
+                }
               goto drawsegment;
               }  
             xpos += bwidth;      

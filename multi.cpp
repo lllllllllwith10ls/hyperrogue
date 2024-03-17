@@ -11,10 +11,10 @@ namespace hr {
 EX namespace multi {
 
   #if HDR
-  static const int MAXJOY = 8;
-  static const int MAXBUTTON = 64;
-  static const int MAXAXE = 16;
-  static const int MAXHAT = 4;
+  static constexpr int MAXJOY = 8;
+  static constexpr int MAXBUTTON = 64;
+  static constexpr int MAXAXE = 16;
+  static constexpr int MAXHAT = 4;
   
   struct config {
     char keyaction[512];
@@ -25,7 +25,7 @@ EX namespace multi {
     };
   #endif
   
-  EX config scfg;  
+  EX config scfg_default;
   EX charstyle scs[MAXPLAYER];
 
   EX bool split_screen;
@@ -75,8 +75,8 @@ EX namespace multi {
 
   EX double mdx[MAXPLAYER], mdy[MAXPLAYER]; // movement vector for the next move
   
-  static const int CMDS = 15;
-  static const int CMDS_PAN = 11;
+  static constexpr int CMDS = 15;
+  static constexpr int CMDS_PAN = 11;
 
   vector<string> playercmds_shmup = {
     "forward", "backward", "turn left", "turn right",
@@ -168,7 +168,7 @@ EX int centerplayer = -1;
 char* axeconfigs[24]; int numaxeconfigs;
 int* dzconfigs[24];
 
-string listkeys(int id) {
+string listkeys(config& scfg, int id) {
 #if CAP_SDL
   string lk = "";
   for(int i=0; i<512; i++)
@@ -236,8 +236,9 @@ struct key_configurer {
   vector<string>& shmupcmdtable;
   string caption;
   int setwhat;
+  config *which_config;
 
-  key_configurer(int sc, vector<string>& sct, const string& caption) : sc(sc), shmupcmdtable(sct), caption(caption), setwhat(0) {
+  key_configurer(int sc, vector<string>& sct, const string& caption, config& w) : sc(sc), shmupcmdtable(sct), caption(caption), setwhat(0), which_config(&w) {
     }
 
   void operator() () {
@@ -247,7 +248,7 @@ struct key_configurer {
     getcstat = ' ';
     
     for(int i=0; i<isize(shmupcmdtable); i++) if(shmupcmdtable[i][0])
-      dialog::addSelItem(XLAT(shmupcmdtable[i]), listkeys(16*sc+i),
+      dialog::addSelItem(XLAT(shmupcmdtable[i]), listkeys(*which_config, 16*sc+i),
         setwhat ? (setwhat>1 && i == (setwhat&15) ? '?' : 0) : 'a'+i);
       else dialog::addBreak(100);
   
@@ -264,7 +265,7 @@ struct key_configurer {
       if(!setwhat) dialog::handleNavigation(sym, uni);
       if(sym) {
         if(setwhat) {
-          scfg.keyaction[sym] = setwhat;
+          which_config->keyaction[sym] = setwhat;
           setwhat = 0;
           }
         else if(uni >= 'a' && uni < 'a' + isize(shmupcmdtable) && shmupcmdtable[uni-'a'][0])
@@ -282,7 +283,7 @@ struct key_configurer {
         int joyid = ev.jbutton.which;
         int button = ev.jbutton.button;
         if(joyid < 8 && button < 32)
-           scfg.joyaction[joyid][button] = setwhat;
+           which_config->joyaction[joyid][button] = setwhat;
         setwhat = 0;
         return true;
         }
@@ -297,7 +298,7 @@ struct key_configurer {
         if(ev.jhat.value == SDL_HAT_LEFT) dir = 3;
         printf("%d %d %d\n", joyid, hat, dir);
         if(joyid < 8 && hat < 4 && dir < 4) {
-          scfg.hataction[joyid][hat][dir] = setwhat;
+          which_config->hataction[joyid][hat][dir] = setwhat;
           setwhat = 0;
           return true;
           }
@@ -309,7 +310,11 @@ struct key_configurer {
   };
 
 EX reaction_t get_key_configurer(int sc, vector<string>& sct, string caption) { 
-  return key_configurer(sc, sct, caption); 
+  return key_configurer(sc, sct, caption, scfg_default);
+  }
+
+EX reaction_t get_key_configurer(int sc, vector<string>& sct, string caption, config &cfg) {
+  return key_configurer(sc, sct, caption, cfg);
   }
 
 EX reaction_t get_key_configurer(int sc, vector<string>& sct) { 
@@ -320,8 +325,9 @@ EX reaction_t get_key_configurer(int sc, vector<string>& sct) {
     sc == 5 ? XLAT("configure player 4") :
     sc == 6 ? XLAT("configure player 5") :
     sc == 7 ? XLAT("configure player 6") :
-    sc == 8 ? XLAT("configure player 7") : ""
-    ); 
+    sc == 8 ? XLAT("configure player 7") : "",
+    scfg_default
+    );
   }
 
 #if CAP_SDLJOY
@@ -329,7 +335,8 @@ struct joy_configurer {
 
   bool shmupcfg, racecfg;
   int playercfg;
-  joy_configurer(int playercfg) : playercfg(playercfg) {}
+  config& scfg;
+  joy_configurer(int playercfg, config& scfg) : playercfg(playercfg), scfg(scfg) {}
 
   void operator() () {
     dialog::init();
@@ -486,7 +493,7 @@ struct shmup_configurer {
     else if(uni == '6') pushScreen(get_key_configurer(7, cmdlist));
     else if(uni == '7') pushScreen(get_key_configurer(8, cmdlist));
   #if CAP_SDLJOY
-    else if(uni == 'j') pushScreen(joy_configurer(players));
+    else if(uni == 'j') pushScreen(joy_configurer(players, scfg_default));
   #endif
     else if(uni == 'a') multi::alwaysuse = !multi::alwaysuse;
   #if CAP_SDLJOY
@@ -515,6 +522,7 @@ EX void showConfigureMultiplayer() {
       dialog::do_if_confirmed([i] {
         stop_game();
         players = i;
+        if(multi::players > 1 && !shmup::on) bow::weapon = bow::wBlade;
         start_game();
         });
       });
@@ -577,6 +585,7 @@ void pressaction(int id) {
   }
 
 EX bool notremapped(int sym) {
+  auto& scfg = scfg_default;
   int k = scfg.keyaction[sym];
   if(k == 0) return true;
   k /= 16;
@@ -584,7 +593,31 @@ EX bool notremapped(int sym) {
   return k > multi::players;
   }
 
+EX void sconfig_savers(config& scfg, string prefix) {
+  // unfortunately we cannot use key names here because SDL is not yet initialized
+  for(int i=0; i<512; i++)
+    addsaver(scfg.keyaction[i], prefix + string("key:")+its(i));
+
+  for(int i=0; i<MAXJOY; i++) {
+    string pre = prefix +  "joystick "+cts('A'+i);
+    for(int j=0; j<MAXBUTTON; j++)
+      addsaver(scfg.joyaction[i][j], pre+"-B"+its(j));
+    for(int j=0; j<MAXAXE; j++) {
+      addsaver(scfg.axeaction[i][j], pre+" axis "+its(j));
+      addsaver(scfg.deadzoneval[i][j], pre+" deadzone "+its(j));
+      }
+    for(int j=0; j<MAXHAT; j++) for(int k=0; k<4; k++) {
+      addsaver(scfg.hataction[i][j][k], pre+" hat "+its(j)+" "+"URDL"[k]);
+      }
+    }
+  }
+
+EX void clear_config(config& scfg) {
+  for(int i=0; i<512; i++) scfg.keyaction[i] = 0;
+  }
+
 EX void initConfig() {
+  auto& scfg = scfg_default;
   
   char* t = scfg.keyaction;
   
@@ -733,26 +766,15 @@ EX void initConfig() {
   param_b(multi::two_focus, "two_focus", false)
     ->editable("auto-adjust dual-focus projections", 'f');
   addsaver(alwaysuse, "use configured keys");  
-  // unfortunately we cannot use key names here because SDL is not yet initialized
-  for(int i=0; i<512; i++)
-    addsaver(scfg.keyaction[i], string("key:")+its(i));
-  for(int i=0; i<MAXJOY; i++) {
-    string pre = "joystick "+cts('A'+i);
-    for(int j=0; j<MAXBUTTON; j++) 
-      addsaver(scfg.joyaction[i][j], pre+"-B"+its(j));
-    for(int j=0; j<MAXAXE; j++) {
-      addsaver(scfg.axeaction[i][j], pre+" axis "+its(j));
-      addsaver(scfg.deadzoneval[i][j], pre+" deadzone "+its(j));
-      }
-    for(int j=0; j<MAXHAT; j++) for(int k=0; k<4; k++) {
-      addsaver(scfg.hataction[i][j][k], pre+" hat "+its(j)+" "+"URDL"[k]);
-      }
-    }
+
   for(int i=0; i<7; i++) addsaver(multi::scs[i], "player"+its(i));
+
+  sconfig_savers(scfg, "");
   #endif
   }
 
-EX void get_actions() {
+EX void get_actions(config& scfg) {
+
   #if !ISMOBILE
   const Uint8 *keystate = SDL12_GetKeyState(NULL);
 
@@ -792,11 +814,11 @@ EX void get_actions() {
 #endif
   }
 
-EX void handleInput(int delta) {
+EX void handleInput(int delta, config &scfg) {
 #if CAP_SDL
   double d = delta / 500.;
 
-  get_actions();
+  get_actions(scfg);
 
   const Uint8 *keystate = SDL12_GetKeyState(NULL);
   if(keystate[SDLK_LCTRL] || keystate[SDLK_RCTRL]) d /= 5;
@@ -856,6 +878,8 @@ EX void handleInput(int delta) {
     }
 #endif
   }
+
+  EX void handleInput(int delta) { handleInput(delta, scfg_default); }
 
   EX int tableid[7] = {1, 2, 4, 5, 6, 7, 8};
 

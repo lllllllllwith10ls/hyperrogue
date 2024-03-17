@@ -37,6 +37,7 @@
 #include "nonisotropic.cpp"
 #include "asonov.cpp"
 #include "kite.cpp"
+#include "aperiodic-hat.cpp"
 #include "archimedean.cpp"
 #include "arbitrile.cpp"
 #include "rulegen.cpp"
@@ -125,6 +126,7 @@
 #include "inforder.cpp"
 #include "vr.cpp"
 #include "intra.cpp"
+#include "crossbow.cpp"
 
 #if CAP_ROGUEVIZ
 #include "rogueviz/rogueviz-all.cpp"
@@ -133,7 +135,7 @@
 #if CAP_DAILY
 #include "private/daily.cpp"
 #else
-namespace hr { namespace daily { bool on; } }
+namespace hr { namespace daily { bool on; int historical; } }
 #endif
 
 #include "mobile.cpp"

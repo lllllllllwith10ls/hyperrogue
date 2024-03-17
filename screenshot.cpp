@@ -29,6 +29,8 @@ EX always_false in;
   #endif
   
   EX bool in = false;
+
+  EX bool remove_out = true;
   
   ld cta(color_t col) {
     // col >>= 24;
@@ -51,13 +53,13 @@ EX always_false in;
     static int id;
     id++; id %= 10;
     if(divby == 1) {
-      sprintf(buf[id], "%d", val); return buf[id];
+      snprintf(buf[id], 20, "%d", val); return buf[id];
       }
     else if(divby <= 10) {
-      sprintf(buf[id], "%.1f", val*1./divby); return buf[id];
+      snprintf(buf[id], 20, "%.1f", val*1./divby); return buf[id];
       }
     else {
-      sprintf(buf[id], "%.2f", val*1./divby); return buf[id];
+      snprintf(buf[id], 20, "%.2f", val*1./divby); return buf[id];
       }
     }
   
@@ -76,7 +78,7 @@ EX always_false in;
       else fill = 0xFFFFFFFF;
       }
     
-    sprintf(buf, "style=\"stroke:#%06x;stroke-opacity:%.3" PLDF ";stroke-width:%" PLDF "px;fill:#%06x;fill-opacity:%.3" PLDF "\"",
+    snprintf(buf, 600, "style=\"stroke:#%06x;stroke-opacity:%.3" PLDF ";stroke-width:%" PLDF "px;fill:#%06x;fill-opacity:%.3" PLDF "\"",
       (stroke>>8) & 0xFFFFFF, cta(stroke),
       width/divby,
       (fill>>8) & 0xFFFFFF, cta(fill)
@@ -154,6 +156,14 @@ EX always_false in;
   
     if(invisible(col) && invisible(outline)) return;
     if(polyi < 2) return;
+
+    if(remove_out) {
+      int minx = polyx[0], miny = polyy[0];
+      int maxx = minx, maxy = miny;
+      for(int i=0; i<polyi; i++) if(polyx[i] < minx) minx = polyx[i]; else if(polyx[i] > maxx) maxx = polyx[i];
+      for(int i=0; i<polyi; i++) if(polyy[i] < miny) miny = polyy[i]; else if(polyy[i] > maxy) maxy = polyy[i];
+      if(maxx < 0 || maxy < 0 || minx > vid.xres || miny > vid.yres) return;
+      }
 
     startstring();
     for(int i=0; i<polyi; i++) {
@@ -782,18 +792,17 @@ EX void take(string fname, const function<void()>& what IS(default_screenshot_co
   #endif
   
   vector<bool> chg;
-  for(auto ap: anims::aps) chg.push_back(*ap.value == ap.last);
+  for(auto& ap: anims::aps) chg.push_back(ap.par->anim_unchanged());
   finalizer f([&] { 
     for(int i=0; i<isize(anims::aps); i++) 
-      if(chg[i]) *anims::aps[i].value = anims::aps[i].last;
+      if(chg[i]) anims::aps[i].par->anim_restore();
     });
   
-  if(intra::in) what();
-
-  dynamicval<videopar> v(vid, vid);
+  dynamicval<bool> vn(nohud, nohud || hide_hud);
   dynamicval<bool> v2(inHighQual, true);
   dynamicval<bool> v6(auraNOGL, true);
-  dynamicval<bool> vn(nohud, nohud || hide_hud);
+  dynamicval<videopar> v(vid, vid);
+  dynamicval<int> v7(cmode, 0);
 
   vid.smart_range_detail *= multiplier;
   darken = 0;
@@ -1055,8 +1064,8 @@ EX void menu() {
     dialog::add_action([] {
       dialog::editNumber(vid.fixed_facing_dir, 0, 360, 15, 90, XLAT("centering"), 
         XLAT("You can pick the angle. Note: the direction the PC is facing matters."));
-      dialog::reaction = fullcenter;
-      dialog::extra_options = [] () { 
+      dialog::get_di().reaction = fullcenter;
+      dialog::get_di().extra_options = [] () {
         dialog::addBoolItem(XLAT("rotate PC"), centering == eCentering::face, 'R');
         dialog::add_action([] { 
           flipplayer = false;
@@ -1121,27 +1130,33 @@ enum eMovementAnimation {
 
 EX eMovementAnimation ma;
 
-EX ld shift_angle, movement_angle, movement_angle_2;
+EX trans23 movement_angle;
 EX ld normal_angle = 90;
 EX ld period = 10000;
 EX int noframes = 30;
 EX ld cycle_length = TAU;
 EX ld parabolic_length = 1;
-EX ld skiprope_rotation;
 
 EX string time_formula = "-";
 
 int lastticks, bak_turncount;
 
-EX ld rug_rotation1, rug_rotation2, rug_forward, ballangle_rotation, env_ocean, env_volcano, rug_movement_angle, rug_shift_angle;
+EX ld rug_rotation1, rug_rotation2, rug_forward, env_ocean, env_volcano;
 EX bool env_shmup;
-EX ld rug_angle;
+EX transmatrix rug_angle = Id, rug_movement_angle = cspin(0, 1, 90._deg);
 
 EX ld rotation_distance;
 cell *rotation_center;
 transmatrix rotation_center_View;
 
-color_t circle_display_color = 0x00FF00FF;
+EX void ma_reaction() {
+  println(hlog, "ma_reaction called");
+  if(ma == maCircle) start_game();
+  rotation_center = centerover;
+  rotation_center_View = View;
+  }
+
+EX color_t circle_display_color = 0x00FF00FF;
 
 EX ld circle_radius = acosh(2.);
 EX ld circle_spins = 1;
@@ -1166,30 +1181,43 @@ EX void moved() {
 
 #if HDR
 struct animated_parameter {
-  ld *value;
-  ld last;
+  setting *par;
   string formula;
-  reaction_t reaction;
   };
 #endif
 
 EX vector<animated_parameter> aps;
 
-EX void deanimate(ld &x) {
+EX setting *find_param(void *x) {
+  for(auto& fs: params)
+    if(fs.second->affects(x))
+      return &*fs.second;
+  return nullptr;
+  }
+
+EX void deanimate(setting *p) {
   for(int i=0; i<isize(aps); i++) 
-    if(aps[i].value == &x)
+    if(aps[i].par == p)
       aps.erase(aps.begin() + (i--));
   }
 
-EX void get_parameter_animation(ld &x, string &s) {
+EX void get_parameter_animation(setting *p, string &s) {
   for(auto &ap: aps)
-    if(ap.value == &x && ap.last == x)
+    if(ap.par == p && ap.par->anim_unchanged())
       s = ap.formula;
   }
 
-EX void animate_parameter(ld &x, string f, const reaction_t& r) {
-  deanimate(x);
-  aps.emplace_back(animated_parameter{&x, x, f, r});
+EX void animate_parameter(ld &x, string f) {
+  auto par = find_param(&x);
+  if(!par) { println(hlog, "parameter not animatable"); return; }
+  deanimate(par);
+  aps.emplace_back(animated_parameter{par, f});
+  }
+
+EX void animate_setting(setting *par, string f) {
+  if(!par) { println(hlog, "parameter not animatable"); return; }
+  deanimate(par);
+  aps.emplace_back(animated_parameter{par, f});
   }
 
 int ap_changes;
@@ -1197,24 +1225,17 @@ int ap_changes;
 void apply_animated_parameters() {
   ap_changes = 0;
   for(auto &ap: aps) {
-    if(*ap.value != ap.last) continue;
     try {
-      *ap.value = parseld(ap.formula);
+      if(ap.par->load_from_animation(ap.formula))
+        ap_changes++;
       }
     catch(hr_parse_exception&) {
       continue;
-      }
-    if(*ap.value != ap.last) {
-      if(ap.reaction) ap.reaction();
-      ap_changes++;
-      ap.last = *ap.value;
       }
     }
   }
 
 bool needs_highqual;
-
-bool joukowsky_anim;
 
 EX void reflect_view() {
   if(centerover) {
@@ -1226,14 +1247,14 @@ EX void reflect_view() {
     }
   }
 
-bool clearup;
+EX bool clearup;
 
 EX purehookset hooks_anim;
 
 EX void animate_rug_movement(ld t) {
   rug::using_rugview urv;
   shift_view(
-    cspin(0, GDIM-1, rug_movement_angle * degree) * spin(rug_shift_angle * degree) * xtangent(t)
+    rug_movement_angle * xtangent(t)
     );
   }
 
@@ -1265,7 +1286,7 @@ EX void apply() {
             }
           }
         shift_view(
-          cspin(0, GDIM-1, movement_angle * degree) * spin(shift_angle * degree) * xtangent(cycle_length * t / period)
+          movement_angle.get() * xtangent(cycle_length * t / period)
           );
         moved();
         if(clearup) {
@@ -1276,25 +1297,17 @@ EX void apply() {
       break;
 
     case maRotation:
-      shift_view(ztangent(-rotation_distance));
-      if(GDIM == 3) {
-        rotate_view(spin(-movement_angle * degree));
-        rotate_view(cspin(1, 2, normal_angle * degree));
-        rotate_view(spin(-movement_angle_2 * degree));
-        }
+      if(GDIM == 3) shift_view(ztangent(-rotation_distance));
+      rotate_view(rot_inverse(movement_angle.get()));
       rotate_view(spin(TAU * t / period));
-      if(GDIM == 3) {
-        rotate_view(spin(movement_angle_2 * degree));
-        rotate_view(cspin(2, 1, normal_angle * degree));
-        rotate_view(spin(movement_angle * degree));
-        }
-      shift_view(ztangent(rotation_distance));
+      rotate_view(movement_angle.get());
+      if(GDIM == 3) shift_view(ztangent(rotation_distance));
       moved();
       break;
     
     case maTranslationRotation:
       shift_view(
-        cspin(0, GDIM-1, movement_angle * degree) * spin(shift_angle * degree) * xtangent(cycle_length * t / period)
+        movement_angle.get() * xtangent(cycle_length * t / period)
         );
       moved();
       rotate_view(cspin(0, GDIM-1, TAU * t / period));
@@ -1306,19 +1319,21 @@ EX void apply() {
     #if CAP_BT
     case maParabolic:
       reflect_view();
-      View = ypush(-shift_angle * degree) * spin(-movement_angle * degree) * View;
+      rotate_view(rot_inverse(movement_angle.get()));
       if(GDIM == 2)
         View = bt::parabolic(parabolic_length * t / period) * View;
       else
         View = bt::parabolic3(parabolic_length * t / period, 0) * View;
-      View = spin(movement_angle * degree) * ypush(shift_angle * degree) * View;
+      rotate_view(movement_angle.get());
       moved();
       break;
     #endif
     case maCircle: {
+      rotate_view(rot_inverse(movement_angle.get()));
       centerover = rotation_center;
       ld alpha = circle_spins * TAU * ticks / period;
       View = spin(-cos_auto(circle_radius)*alpha) * xpush(circle_radius) * spin(alpha) * rotation_center_View;
+      rotate_view(movement_angle.get());
       moved();
       break;
       }
@@ -1341,7 +1356,7 @@ EX void apply() {
   if(rug::rugged) {
     if(rug_rotation1) {
       rug::using_rugview rv;
-      rotate_view(cspin(1, 2, -rug_angle * degree) * cspin(0, 2, rug_rotation1 * TAU * t / period) * cspin(1, 2, rug_angle * degree));
+      rotate_view(rot_inverse(rug_angle) * cspin(0, 2, rug_rotation1 * TAU * t / period) * rug_angle);
       }
     if(rug_rotation2) {
       rug::using_rugview rv;
@@ -1351,25 +1366,7 @@ EX void apply() {
       animate_rug_movement(rug_forward * t / period);
     }
   #endif
-  pconf.skiprope += skiprope_rotation * t * TAU / period;
 
-  if(ballangle_rotation) {
-    if(models::has_orientation(vpconf.model))
-      vpconf.model_orientation += ballangle_rotation * 360 * t / period;
-    else
-      vpconf.ballangle += ballangle_rotation * 360 * t / period;
-    }
-  if(joukowsky_anim) {
-    ld t = ticks / period;
-    t = t - floor(t);
-    if(pmodel == mdBand) {
-      vpconf.model_transition = t * 4 - 1;
-      }
-    else {
-      vpconf.model_transition = t / 1.1;
-      vpconf.scale = (1 - vpconf.model_transition) / 2.;
-      }
-    }
   apply_animated_parameters();
   calcparam();
   }
@@ -1392,13 +1389,16 @@ int numturns = 0;
 
 EX hookset<void(int, int)> hooks_record_anim;
 
+EX int record_frame_id = -1;
+
 EX bool record_animation_of(reaction_t content) {
   lastticks = 0;
   ticks = 0;
   int oldturn = -1;
   for(int i=0; i<noframes; i++) {
+    record_frame_id = i;
     if(i < min_frame || i > max_frame) continue;
-    printf("%d/%d\n", i, noframes);
+    println(hlog, "record frame ",i, "/", noframes, " of ", videofile);
     callhooks(hooks_record_anim, i, noframes);
     int newticks = i * period / noframes;
     if(time_formula != "-") {
@@ -1435,6 +1435,7 @@ EX bool record_animation_of(reaction_t content) {
     shot::take(buf, content);
     }
   lastticks = ticks = SDL_GetTicks();
+  record_frame_id = -1;
   return true;
   }
 
@@ -1450,7 +1451,7 @@ EX bool record_video(string fname IS(videofile), bool_reaction_t rec IS(record_a
   
   array<int, 2> tab;
   if(pipe(&tab[0])) {
-    addMessage(format("Error: %s", strerror(errno)));
+    addMessage(hr::format("Error: %s", strerror(errno)));
     return false;
     }
   println(hlog, "tab = ", tab);
@@ -1461,7 +1462,7 @@ EX bool record_video(string fname IS(videofile), bool_reaction_t rec IS(record_a
     if(dup(tab[0]) != 0) exit(1);
     if(close(tab[1]) != 0) exit(1);
     if(close(tab[0]) != 0) exit(1);
-    string fformat = "ffmpeg -y -f rawvideo -pix_fmt bgra -s " + its(shot::shotx) + "x" + its(shot::shoty) + " -r 60 -i - -pix_fmt yuv420p -codec:v libx264 \"" + fname + "\"";    
+    string fformat = "ffmpeg -hide_banner -loglevel error -y -f rawvideo -pix_fmt bgra -s " + its(shot::shotx) + "x" + its(shot::shoty) + " -r 60 -i - -pix_fmt yuv420p -codec:v libx264 \"" + fname + "\"";
     ignore(system(fformat.c_str()));
     exit(0);
     }
@@ -1518,16 +1519,8 @@ EX ld a, b;
 ld animation_period;
 
 EX void rug_angle_options() {
-  dialog::addSelItem(XLAT("shift"), fts(rug_shift_angle) + "°", 'C');
-  dialog::add_action([] () { 
-    popScreen();
-    dialog::editNumber(rug_shift_angle, 0, 90, 15, 0, XLAT("shift"), ""); 
-    });
-  dialog::addSelItem(XLAT("movement angle"), fts(rug_movement_angle) + "°", 'M');
-  dialog::add_action([] () { 
-    popScreen();
-    dialog::editNumber(rug_movement_angle, 0, 360, 15, 0, XLAT("movement angle"), ""); 
-    });
+  add_edit(rug_angle);
+  add_edit(rug_movement_angle);
   }
 
 EX void show() {
@@ -1547,8 +1540,8 @@ EX void show() {
       dialog::editNumber(animation_period, 0, 10000, 1000, 1000, XLAT("game animation period"), 
         XLAT("Least common multiple of the animation periods of all the game objects on screen, such as rotating items.")
         );
-      dialog::reaction = [] () { animation_factor = TAU * animation_lcm / animation_period; };
-      dialog::extra_options = [] () {
+      dialog::get_di().reaction = [] () { animation_factor = TAU * animation_lcm / animation_period; };
+      dialog::get_di().extra_options = [] () {
         dialog::addItem("default", 'D');
         dialog::add_action([] () {
           animation_factor = 1;
@@ -1562,12 +1555,6 @@ EX void show() {
   dialog::addBoolItem_choice(XLAT("rotation"), ma, maRotation, '2');
   if(hyperbolic) {
     dialog::addBoolItem_choice(XLAT("parabolic"), ma, maParabolic, '3');
-    }
-  if(among(pmodel, mdJoukowsky, mdJoukowskyInverted)) {
-    dialog::addBoolItem_action(XLAT("joukowsky_anim"), joukowsky_anim, 'j');
-    }
-  if(among(pmodel, mdJoukowsky, mdJoukowskyInverted)) {
-    animator(XLAT("Möbius transformations"), skiprope_rotation, 'S');
     }
   if(!mproduct) {
     dialog::addBoolItem(XLAT("circle"), ma == maCircle, '4');
@@ -1583,7 +1570,7 @@ EX void show() {
       dialog::addSelItem(XLAT("circle radius"), fts(circle_radius), 'c');
       dialog::add_action([] () { 
         dialog::editNumber(circle_radius, 0, 10, 0.1, acosh(1.), XLAT("circle radius"), ""); 
-        dialog::extra_options = [] () {
+        dialog::get_di().extra_options = [] () {
           if(hyperbolic) {
             // area = 2pi (cosh(r)-1) 
             dialog::addSelItem(XLAT("double spin"), fts(acosh(2.)), 'A');
@@ -1615,7 +1602,7 @@ EX void show() {
         dialog::addSelItem(XLAT("cycle length"), fts(cycle_length), 'c');
         dialog::add_action([] () { 
           dialog::editNumber(cycle_length, 0, 10, 0.1, TAU, "shift", ""); 
-          dialog::extra_options = [] () {
+          dialog::get_di().extra_options = [] () {
             dialog::addSelItem(XLAT("full circle"), fts(TAU), 'A');
             dialog::add_action([] () { cycle_length = TAU; });
             dialog::addSelItem(XLAT("Zebra period"), fts(2.898149445355172), 'B');
@@ -1627,14 +1614,7 @@ EX void show() {
         }
       else 
         add_edit(parabolic_length);
-      dialog::addSelItem(XLAT("shift"), fts(shift_angle) + "°", 'C');
-      dialog::add_action([] () { 
-        dialog::editNumber(shift_angle, 0, 90, 15, 0, XLAT("shift"), ""); 
-        });
-      dialog::addSelItem(XLAT("movement angle"), fts(movement_angle) + "°", 'm');
-      dialog::add_action([] () { 
-        dialog::editNumber(movement_angle, 0, 360, 15, 0, XLAT("movement angle"), ""); 
-        });
+      add_edit(movement_angle.get());
       break;
       }
     case maRotation:
@@ -1643,10 +1623,7 @@ EX void show() {
         dialog::add_action([] () { 
           dialog::editNumber(normal_angle, 0, 360, 15, 0, XLAT("angle to screen normal"), ""); 
           });
-        dialog::addSelItem(XLAT("movement angle"), fts(movement_angle) + "°", 'm');
-        dialog::add_action([] () { 
-          dialog::editNumber(movement_angle, 0, 360, 15, 0, XLAT("movement angle"), ""); 
-          });
+        add_edit(movement_angle);
         dialog::addBreak(100);
         dialog::addSelItem(XLAT("distance from rotation center"), fts(rotation_distance), 'r');
         dialog::add_action([] () { 
@@ -1676,18 +1653,13 @@ EX void show() {
   #if CAP_RUG
   if(rug::rugged) {
     animator(XLAT("screen-relative rotation"), rug_rotation1, 'r');
-    if(rug_rotation1) { 
-      dialog::addSelItem(XLAT("angle"), fts(rug_angle) + "°", 'a');
-      dialog::add_action([] () { 
-        dialog::editNumber(rug_angle, 0, 360, 15, 0, "Rug angle", ""); 
-        });
-      }
+    if(rug_rotation1) add_edit(rug_angle);
     else dialog::addBreak(100);
     animator(XLAT("model-relative rotation"), rug_rotation2, 'r');
     animator(XLAT("automatic move speed"), rug_forward, 'M');
     dialog::add_action([] () { 
       dialog::editNumber(rug_forward, 0, 10, 1, 1, XLAT("automatic move speed"), XLAT("Move automatically without pressing any keys."));
-      dialog::extra_options = [] () {
+      dialog::get_di().extra_options = [] () {
         if(among(rug::gwhere, gSphere, gElliptic))  {
           dialog::addItem(XLAT("synchronize"), 'S');
           dialog::add_action([] () { rug_forward = TAU; popScreen(); });
@@ -1697,10 +1669,6 @@ EX void show() {
       });
     }
   #endif
-  if(models::has_orientation(vpconf.model))
-    animator(XLAT("model rotation"), ballangle_rotation, 'I');
-  else if(models::is_3d(vpconf))
-    animator(XLAT("3D rotation"), ballangle_rotation, '3');
   
   dialog::addSelItem(XLAT("animate parameters"), fts(a), 'a');
   dialog::add_action([] () {
@@ -1779,64 +1747,6 @@ int readArgs() {
     shift(); videofile = args(); record_video();
     }
 #endif
-  else if(argis("-animcircle")) {
-    PHASE(3); start_game();
-    ma = maCircle; 
-    rotation_center = centerover;
-    rotation_center_View = View;
-    shift_arg_formula(circle_spins);
-    shift_arg_formula(circle_radius);
-    shift(); circle_display_color = argcolor(24);
-    }
-  else if(argis("-animmove")) {
-    ma = maTranslation; 
-    shift_arg_formula(cycle_length);
-    shift_arg_formula(shift_angle);
-    shift_arg_formula(movement_angle);
-    }
-  else if(argis("-animmoverot")) {
-    ma = maTranslationRotation; 
-    shift_arg_formula(cycle_length);
-    shift_arg_formula(shift_angle);
-    shift_arg_formula(movement_angle);
-    }
-  else if(argis("-wallopt")) {
-    wallopt = true;
-    }
-  else if(argis("-animpar")) {
-    ma = maParabolic; 
-    shift_arg_formula(parabolic_length);
-    shift_arg_formula(shift_angle);
-    shift_arg_formula(movement_angle);
-    }
-  else if(argis("-animclear")) { clearup = true; }
-  else if(argis("-animrot")) {
-    ma = maRotation;
-    if(GDIM == 3) {
-      shift_arg_formula(movement_angle);
-      shift_arg_formula(normal_angle);
-      }
-    }
-  else if(argis("-animrotd")) {
-    start_game();
-    ma = maRotation;
-    shift_arg_formula(rotation_distance);
-    }
-  else if(argis("-animrug")) {
-    shift_arg_formula(rug_rotation1);
-    shift_arg_formula(rug_angle);
-    shift_arg_formula(rug_rotation2);
-    }
-  else if(argis("-animenv")) {
-    shift_arg_formula(env_ocean);
-    shift_arg_formula(env_volcano);
-    }
-  else if(argis("-animball")) {
-    shift_arg_formula(ballangle_rotation);
-    }
-  else if(argis("-animj")) {
-    shift(); joukowsky_anim = true;
-    }
 #endif
   else return 1;
   return 0;
@@ -1854,21 +1764,36 @@ auto animhook = addHook(hooks_frame, 100, display_animation)
     param_f(anims::cycle_length, "acycle", "animation cycle length");
     param_f(anims::parabolic_length, "aparabolic", "animation parabolic length")
       ->editable(0, 10, 1, "cells to go", "", 'c');
-    param_f(anims::rug_angle, "arugangle", "animation rug angle");
+    param_matrix(anims::rug_angle, "arugangle", 3)
+      ->editable("animation rug angle", "", 'C');
     param_f(anims::circle_radius, "acradius", "animation circle radius");
     param_f(anims::circle_spins, "acspins", "animation circle spins");
-    addsaver(anims::rug_movement_angle, "rug forward movement angle", 90);
-    addsaver(anims::rug_shift_angle, "rug forward shift angle", 0);
+    param_matrix(anims::rug_movement_angle, "rug forward movement angle", 3)
+      ->editable("rug forward movement angle", "", 'b');
+    param_matrix(anims::movement_angle.v2, "movement_angle", 2)->editable("movement angle", "", 'm');
+    param_matrix(anims::movement_angle.v3, "movement_angle_3", 3)->editable("movement angle", "", 'm');
+    param_f(rug_rotation1, "rug_rotation1");
+    param_f(rug_rotation2, "rug_rotation2");
+    param_f(rotation_distance, "rotation_distance");
+    param_f(cycle_length, "cycle_length");
+    param_f(env_ocean, "env_ocean");
+    param_f(env_volcano, "env_volcano");
+    param_b(wallopt, "wallopt");
+    param_b(clearup, "anim_clearup");
+    param_color(circle_display_color, "circle_display_color", true);
+    param_enum(anims::ma, "ma", "movement_animation", maNone)
+    -> editable({{"none", ""}, {"translation", ""}, {"rotation", ""}, {"circle", ""}, {"parabolic", ""}, {"translation+rotation", ""}}, "movement animation", 'a')
+    -> set_reaction(ma_reaction);
+
     param_f(anims::a, "a", 0);
     param_f(anims::b, "b", 0);
-    param_f(anims::movement_angle_2, "movement angle 2", 0);
     #endif
     });
 
 EX bool any_animation() {
   if(history::on) return true;
   if(ma) return true;
-  if(ballangle_rotation || rug_rotation1 || rug_rotation2) return true;
+  if(rug_rotation1 || rug_rotation2) return true;
   if(ap_changes) return true;
   return false;
   }
@@ -1915,7 +1840,7 @@ startanim null_animation { "", no_init, [] { gamescreen(); }};
 #if CAP_STARTANIM
 startanim joukowsky { "Joukowsky transform", no_init, [] {
   dynamicval<eModel> dm(pmodel, mdJoukowskyInverted);
-  dynamicval<ld> dt(pconf.model_orientation, ticks / 25.);
+  dynamicval<trans23> dt(pconf.mori(), spin( ticks / 25. * degree));
   dynamicval<int> dv(vid.use_smart_range, 2);
   dynamicval<ld> ds(pconf.scale, 1/4.);
   models::configure();
@@ -1926,11 +1851,11 @@ startanim joukowsky { "Joukowsky transform", no_init, [] {
 
 startanim bandspin { "spinning in the band model", no_init, [] {
   dynamicval<eModel> dm(pmodel, mdBand);
-  dynamicval<ld> dt(pconf.model_orientation, ticks / 25.);
+  dynamicval<trans23> dt(pconf.mori(), spin( ticks / 25. * degree));
   dynamicval<int> dv(vid.use_smart_range, 2);
   models::configure();
   gamescreen();
-  explorable([] { pmodel = mdJoukowskyInverted; pushScreen(models::model_menu); });
+  explorable([] { pmodel = mdBand; pushScreen(models::model_menu); });
   }};
 
 startanim perspective { "projection distance", no_init, [] {

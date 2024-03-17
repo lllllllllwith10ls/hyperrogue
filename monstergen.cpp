@@ -8,7 +8,7 @@
 #include "hyper.h"
 namespace hr {
 
-EX int avengers, mirrorspirits, wandering_jiangshi, jiangshi_on_screen;
+EX int avengers, mirrorspirits, wandering_jiangshi, jiangshi_on_screen, splitrocks;
 
 EX bool timerghost = true;
 EX bool gen_wandering = true;
@@ -192,7 +192,7 @@ EX int reptilemax() {
   return r;
   }
 
-bool wchance(int a, int of, int reduction = 0) {
+bool wchance_in(eLand l, int a, int of, int reduction = 0) {
   of *= 10; 
   a += yendor::hardness() + 1;
   if(isCrossroads(cwt.at->land)) 
@@ -206,6 +206,11 @@ bool wchance(int a, int of, int reduction = 0) {
   a -= reduction;
   if(a < 0) return false;
 
+  if(use_custom_land_list) {
+    of *= 100;
+    a *= custom_land_wandering[l];
+    }
+
   return hrand(a+of) < a;
   }
 
@@ -218,7 +223,7 @@ void wanderingZebra(cell *start) {
       return;
       }
     int q = 0;
-    cell *ctab[8];
+    cell *ctab[FULL_EDGE];
     for(int i=0; i<c->type; i++) {
       cell *c3 = c->move(i);
       if(c3 && c3 != c2 && c3->land == laZebra && c3->wall == waNone)
@@ -351,7 +356,7 @@ EX void wandering() {
   if(closed_or_bounded && specialland == laClearing)
     clearing::new_root();
 
-  if(cwt.at->land == laZebra && cwt.at->wall == waNone && wchance(items[itZebra], 20))
+  if(cwt.at->land == laZebra && cwt.at->wall == waNone && wchance_in(laZebra, items[itZebra], 20))
     wanderingZebra(cwt.at);
 
   bool smallbounded_generation = smallbounded || (closed_manifold && specialland == laClearing);
@@ -384,6 +389,8 @@ EX void wandering() {
     cell *c = dcal[i];
     if(!valid(c)) continue;
     if(isPlayerOn(c)) break;
+
+    auto wchance = [c] (int a, int of, int reduction = 0) { return wchance_in(c->land, a, of, reduction); };
     
     if(specialland == laStorms) {
       // place the sandstone wall completely randomly (but not on the player)
@@ -569,6 +576,12 @@ EX void wandering() {
     
     else if(c->monst || c->pathdist == PINFD) break;
     
+    else if(c->land == laAsteroids && splitrocks && canReachPlayer(c, moYeti)) {
+      c->monst = moAsteroid;
+      splitrocks--;
+      continue;
+      }
+
     else if(c->land == laAsteroids) {
       int gen = 0;
       if(asteroids_generated * 12 <= items[itAsteroid]) gen = 2;

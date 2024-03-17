@@ -27,9 +27,7 @@ EX int getgametime() {
   }
 
 EX string getgametime_s(int timespent IS(getgametime())) {
-  char buf[20];
-  sprintf(buf, "%d:%02d", timespent/60, timespent % 60);
-  return buf;
+  return hr::format("%d:%02d", timespent/60, timespent % 60);
   }
 
 EX bool display_yasc_codes;
@@ -236,9 +234,9 @@ EX hint hints[] = {
       popScreen();
       auto m = pmodel;
       pmodel = mdBand;
-      int r = models::rotation;
+      auto r = models::rotation;
       bool h = history::includeHistory;
-      models::rotation = 0;
+      models::rotation = Id;
       history::includeHistory = true;
       history::create_playerpath();
       cancel = [m,r,h] () { 
@@ -330,6 +328,7 @@ EX void showGameMenu() {
     XLAT("GAME OVER"), 
     0xC00000, 200, 100
     );
+  if(!canmove && yasc_message != "") dialog::addInfo(yasc_message);
 
   #if CAP_COMPLEX2
   bool sweeper = mine::in_minesweeper();
@@ -371,8 +370,7 @@ EX void showGameMenu() {
       }
     dialog::addInfo(XLAT("Dropped floors: %1/%2", its(score), its(all)));
     if(score == all) dialog::addInfo(XLAT("CONGRATULATIONS!"), iinf[itOrbYendor].color);
-    if(score == all && geometry == gKleinQuartic && variation == eVariation::untruncated && gp::param == gp::loc(1,1) && !disksize)
-      achievement_gain_once("LOVASZ", rg::special_geometry);      
+    if(score == all) achievement_gain_once("LOVASZ", specgeom_lovasz());
     }
   else {  
     if(0)
@@ -617,6 +615,7 @@ EX void handleKeyQuit(int sym, int uni) {
       stop_game();
       load_last_save();
       start_game();
+      restore_all_golems();
       }
     else
       gotoHelp(safety_help());
@@ -640,7 +639,8 @@ EX void handleKeyQuit(int sym, int uni) {
     popScreen();
     msgs.clear();
     if(!canmove) {
-      addMessage(XLAT("GAME OVER"));
+      if(yasc_message != "") addMessage(XLAT("GAME OVER") + ": " + yasc_message);
+      else addMessage(XLAT("GAME OVER"));
       addMessage(timeline());
       }
     }

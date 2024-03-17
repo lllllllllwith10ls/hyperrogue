@@ -39,9 +39,8 @@ EX bool doPickupItemsWithMagnetism(cell *c) {
         if(!isNeighbor(c, c4) && c3->item && !c4->item && passable(c4, c3, ZERO)) {
           changes.ccell(c3);
           changes.ccell(c4);
-          c4->item = c3->item;
-          moveEffect(movei(c3, c4, (cw+j).spin), moDeadBird);
-          c3->item = itNone;
+          moveItem(c3, c4, false);
+          moveEffect(movei(c4, c4, NODIR), moDeadBird);
           markOrb(itCurseRepulsion);
           }
         }
@@ -466,10 +465,10 @@ EX void countLocalTreasure() {
   }
 
 #if HDR
-static const int NO_TREASURE = 1;
-static const int NO_YENDOR = 2;
-static const int NO_GRAIL = 4;
-static const int NO_LOVE = 8;
+static constexpr int NO_TREASURE = 1;
+static constexpr int NO_YENDOR = 2;
+static constexpr int NO_GRAIL = 4;
+static constexpr int NO_LOVE = 8;
 #endif
 
 EX int gold(int no IS(0)) {

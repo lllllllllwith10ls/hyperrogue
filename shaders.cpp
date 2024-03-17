@@ -32,6 +32,8 @@ constexpr flagtype SF_ORIENT       = 16384;
 constexpr flagtype SF_BOX          = 32768;
 constexpr flagtype SF_ZFOG         = 65536;
 constexpr flagtype SF_ODSBOX       = (1<<17);
+
+constexpr flagtype SF_SEMIDIRECT   = (1<<18);
 #endif
 
 EX bool solv_all;
@@ -54,10 +56,12 @@ EX map<unsigned, shared_ptr<glhr::GLprogram>> matched_programs;
 
 glhr::glmatrix model_orientation_gl() {
   glhr::glmatrix s = glhr::id;
-  for(int a=0; a<GDIM; a++)
-    models::apply_orientation(s[a][1], s[a][0]);
-  if(GDIM == 3) for(int a=0; a<GDIM; a++)
-    models::apply_orientation_yz(s[a][2], s[a][1]);
+  for(int a=0; a<GDIM; a++) {
+    hyperpoint row;
+    for(int b=0; b<4; b++) row[b] = s[a][b];
+    models::ori_to_scr(row);
+    for(int b=0; b<4; b++) s[a][b] = row[b];
+    }
   return s;
   }
 
@@ -73,9 +77,15 @@ EX string panini_shader() {
     "float s = t.z;\n"
     "float l = length(t.xyz);\n"
     "t /= max(length(t.xz), 1e-2);\n"
-    "t.z += " + glhr::to_glsl(panini_alpha) + ";\n"
+    "t.z += " + glhr::to_glsl(get_stereo_param()) + ";\n"
     "t *= l;\n"
     "t.w = 1.;\n";
+  }
+
+EX string cylindrical_shader() {
+  return
+    "t /= t.w;\n"
+    "t.y = atan2(t.y, length(t.xz)) * length(t.xz) * 2. / PI;\n";
   }
 
 EX string stereo_shader() {
@@ -84,7 +94,7 @@ EX string stereo_shader() {
     "float s = t.z;\n"
     "float l = length(t.xyz);\n"
     "t /= max(l, 1e-2);\n"
-    "t.z += " + glhr::to_glsl(stereo_alpha) + ";\n"
+    "t.z += " + glhr::to_glsl(get_stereo_param()) + ";\n"
     "t *= l;\n"
     "t.w = 1.;\n";
   }
@@ -236,6 +246,11 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
     skip_t = true;
     shader_flags |= SF_DIRECT;
     }
+  else if(!vid.consider_shader_projection && semidirect_rendering && models::is_perspective(pmodel)) {
+    vmain += "// this\n";
+    distfun = "length(t.xyz)";
+    shader_flags |= SF_PERS3 | SF_SEMIDIRECT;
+    }
   else if(!vid.consider_shader_projection) {
     shader_flags |= SF_PIXELS;
     }        
@@ -276,9 +291,14 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
     }
   else if(pmodel == mdDisk && GDIM == 3 && !spherespecial && !nonisotropic && !gproduct) {
     coordinator += "t /= (t[3] + uAlpha);\n";
-    vsh += "uniform mediump float uAlpha;";
+    vsh += "uniform mediump float uAlpha;\n";
     shader_flags |= SF_DIRECT | SF_BOX | SF_ZFOG;
     treset = true;
+    }
+  else if(pmodel == mdConformalSquare && pconf.model_transition == 1) {
+    shader_flags |= SF_ORIENT | SF_DIRECT;
+    coordinator += "t = uPP * t;", vsh += "uniform mediump mat4 uPP;";
+    coordinator += "t = to_square(t);";
     }
   else if(pmodel == mdBand && hyperbolic) {
     shader_flags |= SF_BAND | SF_ORIENT | SF_BOX | SF_DIRECT;
@@ -501,14 +521,21 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
     if(shader_flags & GF_LEVELS) vmain += "vPos = t;\n";  
     if(treset) vmain += "t[3] = 1.0;\n";
     
-    if((shader_flags & SF_PERS3) && panini_alpha && !vrhr::rendering_eye()) {
+    if((shader_flags & SF_PERS3) && vid.stereo_mode == sPanini && !vrhr::rendering_eye()) {
       vmain += "t = uPP * t;", vsh += "uniform mediump mat4 uPP;";
       /* panini */
       vmain += panini_shader();
       shader_flags |= SF_ORIENT;
       }
-    else if((shader_flags & SF_PERS3) && stereo_alpha && !vrhr::rendering_eye()) {
+    else if((shader_flags & SF_PERS3) && vid.stereo_mode == sCylindrical && !vrhr::rendering_eye()) {
+      vmain += "t = uPP * t;", vsh += "uniform mediump mat4 uPP;";
+      vmain += cylindrical_shader();
+      shader_flags |= SF_ORIENT;
+      }
+    else if((shader_flags & SF_PERS3) && vid.stereo_mode == sStereographic && !vrhr::rendering_eye()) {
+      vmain += "t = uPP * t;", vsh += "uniform mediump mat4 uPP;";
       vmain += stereo_shader();
+      shader_flags |= SF_ORIENT;
       }
       
     vmain += "gl_Position = uP * t;\n";
@@ -565,7 +592,12 @@ shared_ptr<glhr::GLprogram> write_shader(flagtype shader_flags) {
 void display_data::set_projection(int ed, ld shift) {
   flagtype shader_flags = current_display->next_shader_flags;
   unsigned id;
-  id = geometry;
+  id = cgclass;
+  if(stretch::in()) id = 15;
+  id <<= 1; if(GDIM == 3) id |= 1;
+  id <<= 1; if(embedded_plane) id |= 1;
+  if(GDIM == 2 && hyperbolic && pconf.alpha < 0 && pconf.alpha > -1) id |= 1;
+  id <<= 3; id |= vid.stereo_mode;
   id <<= 6; id |= pmodel;
   if(levellines && pmodel != mdPixel) {
     shader_flags |= GF_LEVELS;
@@ -653,12 +685,14 @@ void display_data::set_projection(int ed, ld shift) {
       eyewidth_translate(ed);
     }
   
+  auto bcolor = models::is_perspective(pmodel) ? backcolor : (modelcolor >> 8);
+
   auto ortho = [&] (ld x, ld y) {
     glhr::glmatrix M = glhr::ortho(x, y, 1);
     if(shader_flags & SF_ZFOG) {
       M[2][2] = 2 / (pconf.clip_max - pconf.clip_min);
       M[3][2] = (pconf.clip_min + pconf.clip_max) / (pconf.clip_max - pconf.clip_min);
-      auto cols = glhr::acolor(darkena(backcolor, 0, 0xFF));
+      auto cols = glhr::acolor(darkena(bcolor, 0, 0xFF));
       glUniform4f(selected->uFogColor, cols[0], cols[1], cols[2], cols[3]);
       }
     else M[2][2] /= 10000;
@@ -708,7 +742,7 @@ void display_data::set_projection(int ed, ld shift) {
     }
   else if(shader_flags & SF_ODSBOX) {
     ortho(M_PI, M_PI);
-    glhr::fog_max(1/sightranges[geometry], darkena(backcolor, 0, 0xFF));
+    glhr::fog_max(1/sightranges[geometry], darkena(bcolor, 0, 0xFF));
     }
   else if(shader_flags & SF_PERS3) {
     if(vrhr::rendering()) use_mv();
@@ -728,7 +762,7 @@ void display_data::set_projection(int ed, ld shift) {
         glhr::eyeshift = glhr::tmtogl(xpush(vid.ipd * ed/2));
         }
       }
-    glhr::fog_max(1/sightranges[geometry], darkena(backcolor, 0, 0xFF));
+    glhr::fog_max(1/sightranges[geometry], darkena(bcolor, 0, 0xFF));
     }
   else {
     if(pconf.alpha > -1) {
@@ -748,8 +782,8 @@ void display_data::set_projection(int ed, ld shift) {
     }
 
   if(selected->uRotNil != -1) {
-    glUniform1f(selected->uRotCos, models::ocos);
-    glUniform1f(selected->uRotSin, models::osin);
+    glUniform1f(selected->uRotCos, pconf.mori().get()[0][0]);
+    glUniform1f(selected->uRotSin, pconf.mori().get()[1][0]);
     glUniform1f(selected->uRotNil, pconf.rotational_nil);
     }
 
@@ -765,10 +799,12 @@ void display_data::set_projection(int ed, ld shift) {
       pp = glhr::tmtogl_transpose(NLP) * pp;
 
     if(get_shader_flags() & SF_ORIENT) {
-      if(GDIM == 3) for(int a=0; a<4; a++) 
-        models::apply_orientation_yz(pp[a][1], pp[a][2]);
-      for(int a=0; a<4; a++) 
-        models::apply_orientation(pp[a][0], pp[a][1]);
+      for(int a=0; a<4; a++)  {
+        hyperpoint row;
+        for(int b=0; b<4; b++) row[b] = pp[a][b];
+        models::scr_to_ori(row);
+        for(int b=0; b<4; b++) pp[a][b] = row[b];
+        }
       }
     
     glUniformMatrix4fv(selected->uPP, 1, 0, pp.as_array());
@@ -811,20 +847,8 @@ void display_data::set_projection(int ed, ld shift) {
     glhr::projection_multiply(glhr::translate(0, 0.5, 0));
     }      
   
-  if(pconf.camera_angle && pmodel != mdPixel) {
-    ld cam = pconf.camera_angle * degree;
-
-    GLfloat cc = cos(cam);
-    GLfloat ss = sin(cam);
-    
-    GLfloat yzspin[16] = {
-      1, 0, 0, 0,
-      0, cc, ss, 0,
-      0, -ss, cc, 0,
-      0, 0, 0, 1
-      };
-    
-    glhr::projection_multiply(glhr::as_glmatrix(yzspin));
+  if(!models::camera_straight && pmodel != mdPixel) {
+    glhr::projection_multiply(glhr::tmtogl(pconf.cam()));
     }
   
   if(u_alpha) {
@@ -840,6 +864,67 @@ EX void add_if(string& shader, const string& seek, const string& function) {
 
 EX void add_fixed_functions(string& shader) {
   /* from the most complex to the simplest */
+
+  add_if(shader, "to_square",
+    "mediump vec4 to_square(mediump vec4 h) {\n"
+    "float d = length(h.xy);\n"
+    "float x = d / (h.z + 1.);\n"
+
+    "float cos_phiosqrt2 = sqrt(2.) / (x + 1./x);\n"
+    "float cos_lambda = -h.y / d;\n"
+    "float sin_lambda = h.x / d;\n"
+    "float cos_a = cos_phiosqrt2 * (sin_lambda + cos_lambda);\n"
+    "float cos_b = cos_phiosqrt2 * (sin_lambda - cos_lambda);\n"
+    "float sin_a = sqrt(1. - cos_a * cos_a);\n"
+    "float sin_b = sqrt(1. - cos_b * cos_b);\n"
+    "float cos_a_cos_b = cos_a * cos_b;\n"
+    "float sin_a_sin_b = sin_a * sin_b;\n"
+    "float sin2_m = 1.0 + cos_a_cos_b - sin_a_sin_b;\n"
+    "float sin2_n = 1.0 - cos_a_cos_b - sin_a_sin_b;\n"
+    "float sin_m = sqrt_clamp(sin2_m);\n"
+    "float cos_m = sqrt_clamp(1. - sin2_m);\n"
+    "if(sin_lambda < 0.) sin_m = -sin_m;\n"
+    "float sin_n = sqrt_clamp(sin2_n);\n"
+    "float cos_n = sqrt_clamp(1.0 - sin2_n);\n"
+    "if(cos_lambda > 0.0) sin_n = -sin_n;\n"
+    "#define divby 0.53935260118837935472\n"
+    "vec4 res = vec4(ellFaux(cos_m,sin_m,sqrt(2.)/2.) * divby, ellFaux(cos_n,sin_n,sqrt(2.)/2.) * divby, 0, 1);\n"
+    "if(x > 1.) {\n"
+    "  if(abs(res[0]) > abs(res[1])) {\n"
+    "    if(res[0] > 0.) res[0] = 2. - res[0]; else res[0] = -2. - res[0];\n"
+    "    }\n"
+    "  else {\n"
+    "    if(res[1] > 0.) res[1] = 2. - res[1]; else res[1] = -2. - res[1];\n"
+    "    }\n"
+    "  }\n"
+    "return res;\n"
+    "}\n");
+
+  add_if(shader, "sqrt_clamp", "mediump float sqrt_clamp(mediump float x) { return x >= 0. ? sqrt(x) : 0.; }\n");
+  add_if(shader, "ellFaux", "mediump float ellFaux(mediump float cos_phi, mediump float sin_phi, mediump float k) {\n"
+    "return sin_phi * ellRF(cos_phi * cos_phi, 1. - k * k * sin_phi * sin_phi, 1.);\n"
+     "}\n");
+  add_if(shader, "ellRF", "mediump float ellRF(mediump float x, mediump float y, mediump float z) {\n"
+    "float delx = 1., dely = 1., delz = 1.;\n"
+    "const float eps = 0.0025;\n"
+    "float mean;\n"
+    "while(abs(delx) > eps || abs(dely) > eps || abs(delz) > eps) {\n"
+    "  float sx = sqrt(x);\n"
+    "  float sy = sqrt(y);\n"
+    "  float sz = sqrt(z);\n"
+    "  float len = sx * (sy+sz) + sy * sz;\n"
+    "  float x = .25 * (x+len);\n"
+    "  float y = .25 * (y+len);\n"
+    "  float z = .25 * (z+len);\n"
+    "  mean = (x+y+z)/3.;\n"
+    "  delx = (mean-x) / mean;\n"
+    "  dely = (mean-y) / mean;\n"
+    "  delz = (mean-z) / mean;\n"
+    "  }\n"
+    "float e2 = delx * dely - delz * delz;\n"
+    "float e3 = delx * dely * delz;\n"
+    "return ((1.0 + (e2 / 24.0 - 0.1 - 3.0 * e3 / 44.0) * e2+ e3 / 14.) / sqrt(mean));\n"
+    "}\n");
 
   add_if(shader, "tanh", "mediump float tanh(mediump float x) { return sinh(x) / cosh(x); }\n");
   add_if(shader, "sinh", "mediump float sinh(mediump float x) { return (exp(x) - exp(-x)) / 2.0; }\n");

@@ -3,7 +3,9 @@
 /* basics */
 #include "rogueviz.cpp"
 #include "presentation.cpp"
+#if CAP_MODELS
 #include "objmodels.cpp"
+#endif
 #include "smoothcam.cpp"
 
 #include "staircase.cpp"
@@ -28,7 +30,6 @@
 #include "impossible-ring.cpp"
 #include "triangle.cpp"
 #include "sumotron.cpp"
-#include "noniso-honeycombs.cpp"
 #include "random-walk.cpp"
 #include "fifteen.cpp"
 #include "crystal-sokoban.cpp"
@@ -45,7 +46,9 @@
 #include "weirdmaze.cpp"
 
 #include "inner-maps.cpp"
+#if CAP_TEXTURE
 #include "planets.cpp"
+#endif
 #include "hyperbolic-analogs.cpp"
 
 #define RV_ALL
@@ -58,16 +61,20 @@
 #include "playing-with-impossibility.cpp"
 #include "hyperbolic-minesweeper-pres.cpp"
 #include "dhrg-pres.cpp"
+#include "noniso-honeycombs.cpp"
 #endif
 #include "highdim-demo.cpp"
 #include "horo63.cpp"
 #include "platformer.cpp"
+#if CAP_PORTALS
 #include "intra-demos.cpp"
+#endif
 #include "gobot.cpp"
 #include "extra-projections.cpp"
 #include "balloonsim.cpp"
 #include "dpgen.cpp"
 #include "antidesitter.cpp"
+#include "embedded-chess.cpp"
 
 #include "dhrg/dhrg.cpp"
 

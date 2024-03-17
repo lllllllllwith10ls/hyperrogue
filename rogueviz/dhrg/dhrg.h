@@ -12,10 +12,10 @@ using namespace hr;
 typedef long long ll;
 
 #ifndef BOXSIZE
-static const int BOXSIZE = 32;
+static constexpr int BOXSIZE = 32;
 #endif
-static const int MAXDIST = (2*BOXSIZE);
-static const int SETS = 4;
+static constexpr int MAXDIST = (2*BOXSIZE);
+static constexpr int SETS = 4;
 
 struct segment;
 
@@ -40,10 +40,13 @@ bool dhrg_animate(int sym, int uni);
 /* for logistic regression */
 struct logistic {
   ld R, T;
-  ld yes(ld d) { return 1/(1 + exp((d-R) / 2 / T)); }
-  ld no(ld d) { return 1/(1 + exp(-(d-R) / 2 / T)); }
-  ld lyes(ld d) { return log(yes(d)); }
-  ld lno(ld d) { return log(no(d)); }
+  ld yes1(ld d) { return 1/(1 + exp(d)); }
+  ld no1(ld d) { return 1/(1 + exp(-d)); }
+  ld nor(ld d) { return (d-R) / 2 / T; }
+  ld yes(ld d) { return yes1(nor(d)); }
+  ld no(ld d) { return no1(nor(d)); }
+  ld lyes(ld d) { d = nor(d); return d > 200 ? -d : log(yes1(d)); }
+  ld lno(ld d) { d = nor(d); return d < -200 ? d : log(no1(d)); }
   logistic() {}
   logistic(ld _R, ld _T) : R(_R), T(_T) {}  
   void setRT(ld _R, ld _T) { R = _R; T = _T; }

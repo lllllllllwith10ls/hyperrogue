@@ -15,9 +15,9 @@ EX namespace dialog {
 #if HDR
   #define IFM(x) (mousing?"":x)
 
-  static const int DONT_SHOW = 16;
+  static constexpr int DONT_SHOW = 16;
 
-  enum tDialogItem {diTitle, diItem, diBreak, diHelp, diInfo, diIntSlider, diSlider, diBigItem, diKeyboard, diCustom, diColorItem, diListStart, diListEnd};
+  enum tDialogItem {diTitle, diItem, diBreak, diHelp, diInfo, diIntSlider, diSlider, diBigItem, diKeyboard, diCustom, diColorItem, diListStart, diListEnd, diMatrixItem};
 
   struct item {
     tDialogItem type;
@@ -29,6 +29,7 @@ EX namespace dialog {
     double param;
     int p1, p2, p3;
     int position;
+    void *ptr;
     reaction_t customfun;
     item(tDialogItem t = diBreak);
     };
@@ -46,22 +47,52 @@ EX namespace dialog {
   const static scaler asinhic = {asinh, sinh, false};
   const static scaler asinhic100 = {[] (ld x) { return asinh(x*100); }, [] (ld x) { return sinh(x)/100; }, false};
  
-  struct numberEditor {
+  /** extendable dialog */
+  struct extdialog : funbase {
+    string title, help;
+    int dialogflags;
+    reaction_t reaction;
+    reaction_t reaction_final;
+    reaction_t extra_options;
+    virtual void draw() = 0;
+    void operator() () { draw(); }
+    virtual ~extdialog() {};
+    extdialog();
+    /** Pop screen, then call the final reaction. A bit more complex because it eeds to backup reaction_final due to popScreen */
+    void popfinal() { auto rf = std::move(reaction_final); popScreen(); if(rf) rf(); }
+    };
+
+  /** number dialog */
+  struct number_dialog : extdialog {
     ld *editwhat;
     string s;
     ld vmin, vmax, step, dft;
-    string title, help;
     scaler sc;
     int *intval; ld intbuf;
     bool animatable;
+    void draw() override;
+    void apply_edit();
+    void apply_slider();
+    string disp(ld x);
+    void reset_str() { s = disp(*editwhat); }
     };
-
-  extern numberEditor ne;
-
-  inline void scaleLog() { ne.sc = logarithmic; }
-  inline void scaleSinh() { ne.sc = asinhic; }
-  inline void scaleSinh100() { ne.sc = asinhic100; }  
 #endif
+
+  EX number_dialog& get_ne() {
+    auto ptr = dynamic_cast<number_dialog*> (screens.back().target_base());
+    if(!ptr) throw hr_exception("get_ne() called without number dialog");
+    return *ptr;
+    }
+
+  EX extdialog& get_di() {
+    auto ptr = dynamic_cast<extdialog*> (screens.back().target_base());
+    if(!ptr) throw hr_exception("get_di() called without extdialog");
+    return *ptr;
+    }
+
+  EX void scaleLog() { get_ne().sc = logarithmic; }
+  EX void scaleSinh() { get_ne().sc = asinhic; }
+  EX void scaleSinh100() { get_ne().sc = asinhic100; }
 
   EX color_t dialogcolor = 0xC0C0C0;
   EX color_t dialogcolor_clicked = 0xFF8000;
@@ -268,6 +299,39 @@ EX namespace dialog {
     it.param = value & 0xFF;
     }
 
+  ld as_degrees(transmatrix T) {
+     hyperpoint h = T * point31(1, 0, 0);
+     ld alpha = atan2(-h[1], h[0]);
+     if(alpha == 0) alpha = 0;
+     return alpha / degree;
+     }
+
+  EX void addMatrixItem(string body, transmatrix& value, int key, int dim IS(GDIM)) {
+    addSelItem(body, COLORBAR, key);
+    auto& it = items.back();
+    it.type = diMatrixItem;
+    it.ptr = &value;
+    it.value = "";
+    if(dim == 2) it.value = fts(as_degrees(value)) + "°";
+    if(dim == 3) {
+      for(int k=0; k<3; k++) {
+        if(value[k][k] != 1) continue;
+        int i=(k+1)%3;
+        int j=(i+1)%3;
+        if(i > j) swap(i, j);
+        hyperpoint h = Hypc; h[i] = 1;
+        h = value * h;
+        ld alpha = atan2(-h[j], h[i]);
+        if(alpha == 0) alpha = 0;
+        it.value = fts(alpha / degree) + "° ";
+        it.value += ('X' + i);
+        it.value += ('X' + j);
+        }
+      if(eqmatrix(value, Id)) it.value = "Id";
+      }
+    it.p1 = dim;
+    }
+
   EX void addHelp(string body) {
     item it(diHelp);
     it.body = body;
@@ -338,8 +402,6 @@ EX namespace dialog {
     }
 
   EX int dcenter, dwidth;
-
-  EX int dialogflags;
 
   EX int displayLong(string str, int siz, int y, bool measure) {
 
@@ -543,6 +605,41 @@ EX namespace dialog {
       }
     }
 
+  EX void visualize_matrix(const trans23& T, ld x, ld y, ld r, int dim, ld tsize) {
+    vector<hyperpoint> pts;
+    for(int a=0; a<dim; a++) {
+      hyperpoint h = C0; h[a] = r;
+      pts.push_back(T.get() * h);
+      }
+
+    flat_model_enabler fme;
+    initquickqueue();
+    ld pix = 1 / (2 * cgi.hcrossf / cgi.crossf);
+    shiftmatrix V = shiftless(atscreenpos(x, y, pix));
+
+    for(int i=0; i<=360; i++)
+      curvepoint(hyperpoint(r * sin(i*degree), r*cos(i*degree), 1, 1));
+    queuecurve(V, 0xFFFFFFFF, 0x202020FF, PPR::LINE);
+
+    color_t cols[3] = {0xFF8080FF, 0x80FF80FF, 0x8080FFFF};
+    for(int a=0; a<dim; a++) {
+      auto pt = pts[a]; pt[2] = 1; pt[3] = 1;
+      curvepoint(hyperpoint(0,0,1,1));
+      curvepoint(pt);
+      // queueline(V * hyperpoint(0,0,1,1), V * pt, cols[a], 0);
+      queuecurve(V, cols[a], 0, PPR::LINE);
+      }
+    if(dim == 3) for(int a=0; a<dim; a++) {
+      auto pt = pts[a]; ld val = -pt[2] * tsize / r / 5;
+      curvepoint(hyperpoint(pt[0], pt[1]+val, 1, 1));
+      curvepoint(hyperpoint(pt[0]-val, pt[1]-val*sqrt(3)/2, 1, 1));
+      curvepoint(hyperpoint(pt[0]+val, pt[1]-val*sqrt(3)/2, 1, 1));
+      curvepoint(hyperpoint(pt[0], pt[1]+val, 1, 1));
+      queuecurve(V, cols[a], cols[a] & 0xFFFFFF80, PPR::LINE);
+      }
+    quickqueue();
+    }
+
   EX void display() {
 
     callhooks(hooks_display_dialog);
@@ -694,7 +791,7 @@ EX namespace dialog {
           continue;
           }
         else list_left -= size;
-        if(list_next_key) { key_actions[list_next_key] = key_actions[I.key]; I.key = list_next_key++;  }
+        if(list_next_key) { if(key_actions.count(I.key)) key_actions[list_next_key] = key_actions[I.key]; I.key = list_next_key++;  }
         }
 
       top = tothei;
@@ -708,7 +805,7 @@ EX namespace dialog {
         displayfr(dcenter, mid, 2, dfsize * I.scale/100, I.body, I.color, 8);
         if(xthis) getcstat = I.key;
         }
-      else if(among(I.type, diItem, diBigItem, diColorItem)) {
+      else if(among(I.type, diItem, diBigItem, diColorItem, diMatrixItem)) {
         bool xthis = (mousey >= top && mousey < tothei);
         if(cmode & sm::DIALOG_STRICT_X)
           xthis = xthis && (mousex >= dcenter - dialogwidth/2 && mousex <= dcenter + dialogwidth/2);
@@ -750,8 +847,10 @@ EX namespace dialog {
             }
           else {
             int siz = dfsize * I.scale/100;
-            while(siz > 6 && textwidth(siz, I.value) >= vid.xres - valuex) siz--;
-            displayfr(valuex, mid, 2, siz, I.value, I.colorv, 0);
+            while(siz > 6 && textwidth(siz, I.value) + (I.type == diMatrixItem ? siz*3/2 : 0) >= vid.xres - valuex) siz--;
+            displayfr(valuex + (I.type == diMatrixItem ? siz*3/2 : 0), mid, 2, siz, I.value, I.colorv, 0);
+
+            if(I.type == diMatrixItem) visualize_matrix(*((transmatrix*)I.ptr), valuex + siz/2, mid, siz/2, I.p1, vid.fsize);
             }
           }
         if(xthis) getcstat = I.key;
@@ -808,7 +907,7 @@ EX namespace dialog {
     }
 
   bool isitem(item& it) {
-    return among(it.type, diItem, diBigItem, diColorItem);
+    return among(it.type, diItem, diBigItem, diColorItem, diMatrixItem);
     }
 
   EX void handle_actions(int &sym, int &uni) {
@@ -917,8 +1016,12 @@ EX namespace dialog {
   int colorp = 0;
   
   color_t *colorPointer;
+
+  struct color_dialog : extdialog {
+    void draw() override;
+    };
   
-  EX void handleKeyColor(int sym, int uni) {
+  EX void handleKeyColor(int sym, int uni, struct color_dialog& ne) {
     unsigned& color = *colorPointer;
     int shift = colorAlpha ? 0 : 8;
 
@@ -933,9 +1036,8 @@ EX namespace dialog {
       for(int i=0; i<10; i++) if(colorhistory[i] == (color << shift))
         inHistory = true;
       if(!inHistory) { colorhistory[lch] = (color << shift); lch++; lch %= 10; }
-      popScreen();
-      if(reaction) reaction();
-      if(reaction_final) reaction_final();
+      if(ne.reaction) ne.reaction();
+      ne.popfinal();
       }
     else if(uni >= '0' && uni <= '9') {
       color = colorhistory[uni - '0'] >> shift;
@@ -957,15 +1059,12 @@ EX namespace dialog {
       unsigned char* pts = (unsigned char*) &color;
       pts[colorp] += abs(shiftmul) < .6 ? 1 : 17;
       }
-    else if(doexiton(sym, uni)) {
-      popScreen();
-      if(reaction_final) reaction_final();
-      }
+    else if(doexiton(sym, uni)) ne.popfinal();
     }
   
   EX bool colorAlpha;
   
-  EX void drawColorDialog() {
+  void color_dialog::draw() {
     cmode = sm::NUMBER | dialogflags;
     if(cmode & sm::SIDE) gamescreen();
     else emptyscreen();
@@ -1024,25 +1123,131 @@ EX namespace dialog {
         getcstat = 'A' + i, inslider = true, slider_x = mousex;
       }
     
-    displayColorButton(dcenter, vid.yres/2+vid.fsize * 6, XLAT("select this color") + " : " + format(colorAlpha ? "%08X" : "%06X", color), ' ', 8, 0, color >> (colorAlpha ? ash : 0));
+    displayColorButton(dcenter, vid.yres/2+vid.fsize * 6, XLAT("select this color") + " : " + hr::format(colorAlpha ? "%08X" : "%06X", color), ' ', 8, 0, color >> (colorAlpha ? ash : 0));
 
     if(extra_options) extra_options();
     
-    keyhandler = handleKeyColor;
+    keyhandler = [this] (int sym, int uni) { return handleKeyColor(sym, uni, self); };
     }
   
   EX void openColorDialog(unsigned int& col, unsigned int *pal IS(palette)) {
+    color_dialog cd;
     colorPointer = &col; palette = pal;
     colorAlpha = true;
-    dialogflags = 0;
-    pushScreen(drawColorDialog);
-    reaction = reaction_t();
-    extra_options = reaction_t();
+    pushScreen(cd);
     }
-  
-  EX numberEditor ne;
-  
+
+  #if HDR
+  struct matrix_dialog : extdialog {
+    transmatrix *edit_matrix;
+    int dim;
+    void draw() override;
+    void large_viz();
+    };
+  #endif
+
+  void matrix_dialog::large_viz() {
+    addCustom(500, [this] {
+      int siz = dfsize * 5;
+      int mid = (top + tothei) / 2;
+      vid.linewidth *= 3;
+      visualize_matrix(*edit_matrix, dcenter, mid, siz/2, dim, vid.fsize * 2);
+      vid.linewidth /= 3;
+      });
+    }
+
+  void matrix_dialog::draw() {
+    cmode = dialogflags;
+    gamescreen();
+    init(title);
+    addHelp(help);
+    large_viz();
+    addBreak(100);
+    addItem("reset", 'r');
+    dialog::add_action([this] { *edit_matrix = Id; });
+    if(dim == 2) {
+      static ld angle;
+      angle = as_degrees(*edit_matrix);
+      addSelItem("enter angle", fts(angle) + "°", 'a');
+      dialog::add_action([this] {
+        editNumber(angle, -180, 180, 90, 0, title, help);
+        auto& ne = get_ne();
+        auto re = reaction;
+        ne.extra_options = [this] { large_viz(); };
+        ne.reaction = [re, this] { *edit_matrix = spin(angle * degree); if(re) re(); };
+        ne.reaction_final = reaction;
+        ne.animatable = false;
+        ne.dialogflags |= dialogflags;
+        });
+      }
+    if(dim == 3) {
+      transmatrix cur = *edit_matrix;
+      auto rot_but = [this, cur] (int i, int j, string title, char key) {
+        addItem(title, key);
+        dialog::add_action([i, j, title, this, cur] {
+          static ld angle; angle = 0;
+          editNumber(angle, -180, 180, 90, 0, title, XLAT("Angle to rotate by."));
+          auto& ne = get_ne();
+          auto re = reaction;
+          ne.extra_options = [this] { large_viz(); };
+          ne.reaction = [re, i, j, this, cur] { *edit_matrix = cspin(i, j, angle * degree) * cur; if(re) re(); };
+          ne.reaction_final = reaction;
+          ne.animatable = false;
+          ne.dialogflags |= dialogflags;
+          });
+        };
+      rot_but(0, 2, "rotate in XZ", 'x');
+      rot_but(1, 2, "rotate in YZ", 'y');
+      rot_but(0, 1, "rotate in XY", 'z');
+      }
+
+#if !ISMOBILE
+    addBoolItem("mouse control", dialogflags & sm::MOUSEAIM, 'm');
+    dialog::add_action([this] { dialogflags ^= sm::MOUSEAIM; });
+    if(dialogflags & sm::MOUSEAIM) {
+      *edit_matrix = cspin(0, 2, mouseaim_x) * *edit_matrix;
+      *edit_matrix = cspin(1, 2, mouseaim_y) * *edit_matrix;
+      mouseaim_x = mouseaim_y = 0;
+      }
+#endif
+
+    static string formula;
+    formula = "?";
+    anims::get_parameter_animation(anims::find_param(edit_matrix), formula);
+    addSelItem("enter formula", formula, 'f');
+    dialog::add_action([this] {
+      if(formula == "?") formula = "id";
+      anims::get_parameter_animation(anims::find_param(edit_matrix), formula);
+      dialog::edit_string(formula, "formula", XLAT("dxy(n) = rotate n degrees from x to y\n\nd-degree, r-radian, t-turn\n\nexample: dxy(30)*dyz(45)"));
+      dialog::get_di().extra_options = [this] { large_viz(); };
+      dialog::get_di().reaction = [this] {
+        try {
+          *edit_matrix = parsematrix(formula);
+          auto p = anims::find_param(edit_matrix);
+          if(p) p->load_as_animation(formula);
+          }
+        catch(hr_parse_exception&) { }
+        };
+      dialog::get_di().dialogflags |= dialogflags;
+      });
+    if(extra_options) extra_options();
+    addBack();
+    display();
+    }
+
+  EX void editMatrix(transmatrix& T, string t, string h, int dim) {
+    matrix_dialog m;
+    m.edit_matrix = &T;
+    m.title = t;
+    m.help = h;
+    m.dim = dim;
+    pushScreen(m);
+    }
+
   EX bool editingDetail() {
+    auto ptr = dynamic_cast<number_dialog*> (screens.back().target_base());
+    if(!ptr) return false;
+    auto& ne = get_ne();
     return ne.editwhat == &vid.highdetail || ne.editwhat == &vid.middetail;
     }
   
@@ -1051,32 +1256,31 @@ EX namespace dialog {
     else return int(x-.5);
     }
   
-  EX string disp(ld x) { 
+  string number_dialog::disp(ld x) {
     if(dialogflags & sm::HEXEDIT) return "0x" + itsh((unsigned long long)(x));
-    else if(ne.intval) return its(ldtoint(x)); 
-    else return fts(x); }
+    if(intval) return its(ldtoint(x));
+    return fts(x);
+    }
 
-  EX reaction_t reaction;
-  EX reaction_t reaction_final;
-  
-  EX reaction_t extra_options;
-  
-  EX void apply_slider() {
+  void number_dialog::apply_slider() {
+    auto &ne = self;
     if(ne.intval) *ne.intval = ldtoint(*ne.editwhat);
-    if(reaction) reaction();
+    if(ne.reaction) ne.reaction();
     if(ne.intval) *ne.editwhat = *ne.intval;
-    ne.s = disp(*ne.editwhat);
+    reset_str();
     #if CAP_ANIMATIONS
-    anims::deanimate(*ne.editwhat);
+    anims::deanimate(anims::find_param(ne.editwhat));
     #endif
     }
   
   EX void use_hexeditor() {
-    dialogflags |= sm::HEXEDIT;
-    ne.s = disp(*ne.editwhat);
+    auto& ne = get_ne();
+    ne.dialogflags |= sm::HEXEDIT;
+    ne.reset_str();
     }
   
-  EX void apply_edit() {
+  void number_dialog::apply_edit() {
+    auto& ne = self;
     try {
       exp_parser ep;
       ep.s = ne.s;    
@@ -1085,7 +1289,10 @@ EX namespace dialog {
       *ne.editwhat = x;
       if(ne.intval) *ne.intval = ldtoint(*ne.editwhat);
       #if CAP_ANIMATIONS
-      if(ne.animatable) anims::animate_parameter(*ne.editwhat, ne.s, reaction ? reaction : reaction_final);    
+      if(ne.animatable) {
+        auto p = anims::find_param(ne.intval ? (void*) ne.intval : (void*) ne.editwhat);
+        if(p) p->load_as_animation(ne.s);
+        }
       #endif
       if(reaction) reaction();
       }
@@ -1094,8 +1301,9 @@ EX namespace dialog {
     }
 
   EX void bound_low(ld val) {
-    auto r = reaction;
-    reaction = [r, val] () {
+    auto& ne = get_ne();
+    auto r = ne.reaction;
+    ne.reaction = [r, val, &ne] () {
       if(*ne.editwhat < val) {
         *ne.editwhat = val;
         if(ne.intval) *ne.intval = ldtoint(*ne.editwhat);
@@ -1105,8 +1313,9 @@ EX namespace dialog {
     }
 
   EX void bound_up(ld val) {
-    auto r = reaction;
-    reaction = [r, val] () {
+    auto& ne = get_ne();
+    auto r = ne.reaction;
+    ne.reaction = [r, val, &ne] () {
       if(*ne.editwhat > val) {
         *ne.editwhat = val;
         if(ne.intval) *ne.intval = ldtoint(*ne.editwhat);
@@ -1126,7 +1335,13 @@ EX namespace dialog {
   
   EX bool onscreen_keyboard = ISMOBILE;
 
-  EX void number_dialog_help() {    
+  struct number_dialog_help {
+    number_dialog *ptr;
+    void operator() ();
+    };
+
+  void number_dialog_help :: operator() () {
+    auto ne = *ptr;
     init("number dialog help");
     dialog::addBreak(100);
     dialog::addHelp(XLAT("You can enter formulas in this dialog."));
@@ -1136,7 +1351,7 @@ EX namespace dialog {
     dialog::addBreak(100);
     dialog::addHelp(XLAT("Constants and variables available:"));
     addHelp(available_constants());
-    if(ne.animatable) {
+    if(ptr && ne.animatable) {
       dialog::addBreak(100);
       dialog::addHelp(XLAT("Animations:"));
       dialog::addHelp(XLAT("a..b -- animate linearly from a to b"));
@@ -1151,16 +1366,14 @@ EX namespace dialog {
     
     #if CAP_ANIMATIONS
     dialog::addBreak(50);
-    auto f = find_edit(ne.intval ? (void*) ne.intval : (void*) ne.editwhat);
+    auto f = find_edit(!ptr ? nullptr : ne.intval ? (void*) ne.intval : (void*) ne.editwhat);
     if(f)
       dialog::addHelp(XLAT("Parameter names, e.g. '%1'", f->parameter_name));
     else
       dialog::addHelp(XLAT("Parameter names"));
     dialog::addBreak(50);
     for(auto& ap: anims::aps) {
-      string what = "?";
-      for(auto& p: params) if(p.second->affects(ap.value)) what = p.first;
-      dialog::addInfo(what + " = " + ap.formula);
+      dialog::addInfo(ap.par->parameter_name + " = " + ap.formula);
       }
     #endif
     dialog::addBreak(50);
@@ -1169,17 +1382,18 @@ EX namespace dialog {
     }
 
   EX void parser_help() {
-    ne.editwhat = nullptr;
-    ne.intval = nullptr;
+    number_dialog_help ndh;
+    ndh.ptr = nullptr;
     addItem("help", SDLK_F1);
-    add_action_push(number_dialog_help);
+    add_action_push(ndh);
     }
   
-  EX void drawNumberDialog() {
+  void number_dialog::draw() {
     cmode = sm::NUMBER | dialogflags;
     gamescreen();
-    init(ne.title);
-    addInfo(ne.s);
+    init(title);
+    addInfo(s);
+    auto& ne = self;
     if(ne.intval && ne.sc.direct == &identity_f)
       addIntSlider(int(ne.vmin), int(*ne.editwhat), int(ne.vmax), 500);
     else
@@ -1194,7 +1408,7 @@ EX namespace dialog {
     addSelItem(XLAT("default value"), disp(ne.dft), SDLK_HOME);
     add_edit(onscreen_keyboard);
     addItem("help", SDLK_F1);
-    add_action_push(number_dialog_help);
+    add_action([this] { number_dialog_help ndh; ndh.ptr = this; pushScreen(ndh); });
 
     addBreak(100);
     
@@ -1213,7 +1427,7 @@ EX namespace dialog {
     
     display();
     
-    keyhandler = [] (int sym, int uni) {
+    keyhandler = [this, &ne] (int sym, int uni) {
       handleNavigation(sym, uni);
       if((uni >= '0' && uni <= '9') || among(uni, '.', '+', '-', '*', '/', '^', '(', ')', ',', '|', 3) || (uni >= 'a' && uni <= 'z')) {
         if(uni == 3) ne.s += "pi";
@@ -1268,7 +1482,7 @@ EX namespace dialog {
           
         apply_slider();
         }
-      else if(doexiton(sym, uni)) { popScreen(); if(reaction_final) reaction_final(); }
+      else if(doexiton(sym, uni)) ne.popfinal();
       };
     }  
 
@@ -1323,9 +1537,17 @@ EX namespace dialog {
     return true;
     }
   
-  EX void editNumber(ld& x, ld vmin, ld vmax, ld step, ld dft, string title, string help) {
+  extdialog::extdialog() {
+    dialogflags = 0;
+    if(cmode & sm::SIDE) dialogflags |= sm::MAYDARK | sm::SIDE;
+    reaction = reaction_t();
+    reaction_final = reaction_t();
+    extra_options = reaction_t();
+    }
+
+  EX number_dialog& editNumber(ld& x, ld vmin, ld vmax, ld step, ld dft, string title, string help) {
+    number_dialog ne;
     ne.editwhat = &x;
-    ne.s = disp(x);
     ne.vmin = vmin;
     ne.vmax = vmax;
     ne.step = step;
@@ -1334,23 +1556,21 @@ EX namespace dialog {
     ne.help = help;
     ne.sc = identity;
     ne.intval = NULL;
-    dialogflags = 0;
-    if(cmode & sm::SIDE) dialogflags |= sm::MAYDARK | sm::SIDE;
-    cmode |= sm::NUMBER;
-    pushScreen(drawNumberDialog);
-    reaction = reaction_t();
-    reaction_final = reaction_t();
-    extra_options = reaction_t();
     ne.animatable = true;
     #if CAP_ANIMATIONS
-    anims::get_parameter_animation(x, ne.s);
+    anims::get_parameter_animation(anims::find_param(&x), ne.s);
     #endif
+    ne.reset_str();
+    pushScreen(ne);
+    return get_ne();
     }
 
-  EX void editNumber(int& x, int vmin, int vmax, ld step, int dft, string title, string help) {
-    editNumber(ne.intbuf, vmin, vmax, step, dft, title, help);
-    ne.intbuf = x; ne.intval = &x; ne.s = its(x);
-    ne.animatable = false;
+  EX number_dialog& editNumber(int& x, int vmin, int vmax, ld step, int dft, string title, string help) {
+    ld tmp;
+    auto& ne = editNumber(tmp, vmin, vmax, step, dft, title, help);
+    ne.editwhat = &ne.intbuf; ne.intbuf = x; ne.intval = &x; ne.s = its(x);
+    anims::get_parameter_animation(anims::find_param(&x), ne.s);
+    return ne;
     }
   
   EX void helpToEdit(int& x, int vmin, int vmax, int step, int dft) {
@@ -1388,7 +1608,11 @@ EX namespace dialog {
 
   bool search_mode;
 
-  EX void drawFileDialog() {
+  struct file_dialog : extdialog {
+    void draw() override;
+    };
+
+  void file_dialog::draw() {
     cmode = sm::NUMBER | dialogflags | sm::DIALOG_WIDE;
     gamescreen();
     init(filecaption);
@@ -1465,8 +1689,8 @@ EX namespace dialog {
         else {
           str1 = where + vf;
           if(s == str1) {
-            popScreen();
-            if(!file_action()) pushScreen(drawFileDialog);
+            bool ac = file_action();
+            if(ac) popScreen();
             }
           s = str1;
           }
@@ -1494,9 +1718,8 @@ EX namespace dialog {
       popScreen();
       }
     else if(sym == SDLK_RETURN || sym == SDLK_KP_ENTER) {
-      // we pop and re-push, in case if action opens something
-      popScreen();
-      if(!file_action()) pushScreen(drawFileDialog);
+      bool ac = file_action();
+      if(ac) popScreen();
       }
     else if(sym == SDLK_BACKSPACE && i) {
       s.erase(i-1, 1);
@@ -1512,11 +1735,12 @@ EX namespace dialog {
     }
 
   EX void openFileDialog(string& filename, string fcap, string ext, bool_reaction_t action) {
+    file_dialog fd;
     cfileptr = &filename;
     filecaption = fcap;
     cfileext = ext;
     file_action = action;
-    pushScreen(dialog::drawFileDialog);
+    pushScreen(fd);
     }
   
   // infix/v/vpush
@@ -1579,10 +1803,23 @@ EX namespace dialog {
     dialog::v.push_back(make_pair(s, color));
     }
   
-  int editpos = 0;
-  EX string *edited_string;
+  EX string editchecker(int sym, int uni) {
+      if(uni >= 32 && uni < 127) return string("") + char(uni);
+      return "";
+      }
 
-  EX string view_edited_string() {
+  #if HDR
+  struct string_dialog : extdialog {
+    int editpos = 0;
+    string *edited_string;
+    string view_edited_string();
+    void draw() override;
+    void start_editing(string& s);
+    bool handle_edit_string(int sym, int uni, function<string(int, int)> checker = editchecker);
+    };
+  #endif
+  
+  string string_dialog::view_edited_string() {
     string cs = *edited_string;
     if(editpos < 0) editpos = 0;
     if(editpos > isize(cs)) editpos = isize(cs);
@@ -1590,17 +1827,12 @@ EX namespace dialog {
     return cs;
     }    
   
-  EX void start_editing(string& s) {
+  void string_dialog::start_editing(string& s) {
     edited_string = &s;
     editpos = isize(s);
     }
   
-  EX string editchecker(int sym, int uni) {
-    if(uni >= 32 && uni < 127) return string("") + char(uni);
-    return "";
-    }
-
-  EX bool handle_edit_string(int sym, int uni, function<string(int, int)> checker IS(editchecker)) {
+  bool string_dialog::handle_edit_string(int sym, int uni, function<string(int, int)> checker) {
     auto& es = *edited_string;
     string u2;
     if(DKEY == SDLK_LEFT) editpos--;
@@ -1609,21 +1841,23 @@ EX namespace dialog {
       if(editpos == 0) return true;
       es.replace(editpos-1, 1, "");
       editpos--;
+      if(reaction) reaction();
       }
     else if((u2 = checker(sym, uni)) != "") {
       for(char c: u2) {
         es.insert(editpos, 1, c);
         editpos ++;
         }
+      if(reaction) reaction();
       }
     else return false;
     return true;
     }
-  
-  EX void string_edit_dialog() {
+
+  void string_dialog::draw() {
     cmode = sm::NUMBER | dialogflags;
     gamescreen();
-    init(ne.title);
+    init(title);
     addInfo(view_edited_string());
     addBreak(100);
     formula_keyboard(true);
@@ -1631,34 +1865,27 @@ EX namespace dialog {
     dialog::addBack();
     addBreak(100);
     
-    if(ne.help != "") {
-      addHelp(ne.help);
+    if(help != "") {
+      addHelp(help);
       }
 
     if(extra_options) extra_options();
     
     display();
     
-    keyhandler = [] (int sym, int uni) {
+    keyhandler = [this] (int sym, int uni) {
       handleNavigation(sym, uni);
       if(handle_edit_string(sym, uni)) ;
-      else if(doexiton(sym, uni)) {
-        popScreen();
-        if(reaction_final) reaction_final();
-        }
+      else if(doexiton(sym, uni)) popfinal();
       };
-    }  
+    }
 
   EX void edit_string(string& s, string title, string help) {
-    start_editing(s);
+    string_dialog ne;
     ne.title = title;
     ne.help = help;
-    dialogflags = 0;
-    if(cmode & sm::SIDE) dialogflags |= sm::MAYDARK | sm::SIDE;
-    cmode |= sm::NUMBER;
-    pushScreen(string_edit_dialog);
-    reaction = reaction_t();
-    extra_options = reaction_t();
+    ne.start_editing(s);
+    pushScreen(ne);
     }
 
   EX void confirm_dialog(const string& text, const reaction_t& act) {

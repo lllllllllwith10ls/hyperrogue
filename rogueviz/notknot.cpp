@@ -4,7 +4,7 @@
 
 #include "rogueviz.h"
 
-#if CAP_RAY
+#if CAP_PORTALS
 
 /** 
 
@@ -234,7 +234,7 @@ struct hrmap_notknot : hrmap {
   heptagon* at(int x, int y, int z) { 
     dynamicval<eGeometry> g(geometry, base);
     dynamicval<hrmap*> m(currentmap, euc);
-    euc::coord co = euc::basic_canonicalize({x, y, z});
+    euc::coord co = euc::basic_canonicalize(euc::coord{x, y, z});
     
     return euc::get_at(co);
     }
@@ -1429,7 +1429,13 @@ void portal_slideshow(tour::ss::slideshow_callback cb) {
        "This is a collection of portals. We start with knotted portals in Euclidean geometry, "
        "then we visit portals in other geometries, and finally, we explore portals between different "
        "geometries.\n\nLoading these may take some time, so you need to press 'r' to run them. In most slides you can also press '5' to change various parameters.",
-       [] (presmode mode) {}
+       [] (presmode mode) {
+         slide_action(mode, '9', "list of portal scenes", [=] {
+           popScreenAll();
+           ss::current_folder = get_foldername(slides[currentslide].name);
+           pushScreen(ss::showMenu);
+           });
+         }
        });
 
     auto add = [&] (string s, string text, string youtube, reaction_t act) {

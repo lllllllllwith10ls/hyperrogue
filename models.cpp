@@ -20,7 +20,7 @@ EX namespace polygonal {
   #endif
 
   #if HDR
-  static const int MSI = 120;
+  static constexpr int MSI = 120;
   #endif
 
   typedef long double xld;
@@ -108,35 +108,57 @@ EX namespace polygonal {
   EX }
 
 #if HDR
-inline bool mdAzimuthalEqui() { return among(pmodel, mdEquidistant, mdEquiarea, mdEquivolume); }
-inline bool mdBandAny() { return mdinf[pmodel].flags & mf::pseudoband; }
+inline bool mdAzimuthalEqui() { return (mdinf[pmodel].flags & mf::azimuthal) && (mdinf[pmodel].flags & (mf::equidistant | mf::equiarea | mf::equivolume) && !(mdinf[pmodel].flags & mf::twopoint)); }
+inline bool mdBandAny() { return mdinf[pmodel].flags & mf::pseudocylindrical; }
 inline bool mdPseudocylindrical() { return mdBandAny() && !(mdinf[pmodel].flags & mf::cylindrical); }
 #endif
 
+projection_configuration::projection_configuration() {
+  formula = "z^2"; top_z = 5; model_transition = 1; spiral_angle = 70; spiral_x = 10; spiral_y = 7; 
+  rotational_nil = 1;
+  right_spiral_multiplier = 1;
+  any_spiral_multiplier = 1;
+  sphere_spiral_multiplier = 2;
+  spiral_cone = 360;
+  use_atan = false;
+  product_z_scale = 1;
+  aitoff_parameter = .5;
+  miller_parameter = .8;
+  loximuthal_parameter = 0;
+  winkel_parameter = .5;
+  show_hyperboloid_flat = true;
+  depth_scaling = 1;
+  vr_angle = 0;
+  hyperboloid_scaling = 1;
+  vr_zshift = 0;
+  vr_scale_factor = 1;
+  back_and_front = 0;
+  dualfocus_autoscale = false;
+  axial_angle = 90;
+  ptr_model_orientation = new trans23;
+  ptr_ball = new transmatrix;
+  *ptr_ball = cspin(1, 2, 20._deg);
+  ptr_camera = new transmatrix; *ptr_camera = Id;
+  offside = 0; offside2 = M_PI;
+  }
+
 EX namespace models {
 
-  EX ld rotation = 0;
-  EX ld rotation_xz = 90;
-  EX ld rotation_xy2 = 90;
+  EX trans23 rotation;
   EX int do_rotate = 1;
-  EX ld ocos, osin, ocos_yz, osin_yz;
-  EX ld cos_ball, sin_ball;
-  EX bool model_straight, model_straight_yz;
+  EX bool model_straight, model_straight_yz, camera_straight;
 
-  #if HDR
-    // screen coordinates to logical coordinates: apply_orientation(x,y)
-  // logical coordinates back to screen coordinates: apply_orientation(y,x)
-  template<class A>
-  void apply_orientation(A& x, A& y) { if(!model_straight) tie(x,y) = make_pair(x*ocos + y*osin, y*ocos - x*osin); }
-  template<class A>
-  void apply_orientation_yz(A& x, A& y) { if(!model_straight_yz) tie(x,y) = make_pair(x*ocos_yz + y*osin_yz, y*ocos_yz - x*osin_yz); }
-  template<class A>
-  void apply_ball(A& x, A& y) { tie(x,y) = make_pair(x*cos_ball + y*sin_ball, y*cos_ball - x*sin_ball); }
-  #endif
+  /** screen coordinates to orientation logical coordinates */
+  EX void ori_to_scr(hyperpoint& h) { if(!model_straight) h = pconf.mori().get() * h; }
+  EX void ori_to_scr(transmatrix& h) { if(!model_straight) h = pconf.mori().get() * h; }
+
+  /** orientation logical coordinates to screen coordinates */
+  EX void scr_to_ori(hyperpoint& h) { if(!model_straight) h = iso_inverse(pconf.mori().get()) * h; }
+  EX void scr_to_ori(transmatrix& h) { if(!model_straight) h = iso_inverse(pconf.mori().get()) * h; }
 
   EX transmatrix rotmatrix() {
-    if(GDIM == 2 || gproduct) return spin(rotation * degree);
-    return spin(rotation_xy2 * degree) * cspin(0, 2, -rotation_xz * degree) * spin(rotation * degree);
+    if(gproduct) return rotation.v2;
+    return rotation.get();
     }
   
   int spiral_id = 7;
@@ -149,14 +171,9 @@ EX namespace models {
   EX transmatrix euclidean_spin;
   
   EX void configure() {
-    ld ball = -pconf.ballangle * degree;
-    cos_ball = cos(ball), sin_ball = sin(ball);
-    ocos = cos(pconf.model_orientation * degree);
-    osin = sin(pconf.model_orientation * degree);
-    ocos_yz = cos(pconf.model_orientation_yz * degree);
-    osin_yz = sin(pconf.model_orientation_yz * degree);
-    model_straight = (ocos > 1 - 1e-9);
-    model_straight_yz = GDIM == 2 || (ocos_yz > 1-1e-9);
+    model_straight = (pconf.mori().get()[0][0] > 1 - 1e-9);
+    model_straight_yz = GDIM == 2 || (pconf.mori().get()[2][2] > 1-1e-9);
+    camera_straight = eqmatrix(pconf.cam(), Id);
     if(history::on) history::apply();
     
     if(!euclid) {
@@ -188,7 +205,10 @@ EX namespace models {
   /** mdRelPerspective and mdRelOrthogonal in hyperbolic space only make sense if it is actually a de Sitter visualization */
   EX bool desitter_projections;
 
+  EX vector<bool_reaction_t> avail_checkers;
+
   EX bool model_available(eModel pm) {
+    if(pm < isize(avail_checkers) && avail_checkers[pm]) return avail_checkers[pm]();
     if(mdinf[pm].flags & mf::technical) return false;
     if(gproduct) {
       if(pm == mdPerspective) return true;
@@ -197,9 +217,10 @@ EX namespace models {
       }
     if(hyperbolic && desitter_projections && among(pm, mdRelPerspective, mdRelOrthogonal)) return true;
     if(sl2) return among(pm, mdGeodesic, mdEquidistant, mdRelPerspective, mdRelOrthogonal, mdHorocyclic, mdPerspective);
+    if(among(pm, mdRelOrthogonal, mdRelPerspective)) return false;
     if(nonisotropic) return among(pm, mdDisk, mdPerspective, mdHorocyclic, mdGeodesic, mdEquidistant, mdFisheye, mdLiePerspective, mdLieOrthogonal);
-    if(sphere && (pm == mdHalfplane || pm == mdBall))
-      return false;
+    if(sphere && pm == mdBall) return false;
+    if(sphere && (mdinf[pm].flags & mf::horocyclic)) return false;
     if(GDIM == 2 && is_perspective(pm)) return false;
     if(pm == mdGeodesic && !nonisotropic) return false;
     if(pm == mdLiePerspective && sphere) return false;
@@ -214,17 +235,14 @@ EX namespace models {
     }    
   
   EX bool has_orientation(eModel m) {
-    if(among(m, mdHorocyclic, mdLieOrthogonal, mdLiePerspective))
-      return hyperbolic || in_h2xe();
-    if(is_perspective(m) && panini_alpha) return true;
-    return
-      among(m, mdHalfplane, mdPolynomial, mdPolygonal, mdTwoPoint, mdJoukowsky, mdJoukowskyInverted, mdSpiral, mdSimulatedPerspective, mdTwoHybrid, mdHorocyclic, mdAxial, mdAntiAxial, mdQuadrant,
-        mdWerner, mdAitoff, mdHammer, mdLoximuthal, mdWinkelTripel, mdThreePoint) || mdBandAny();
+    if(is_perspective(m) && vid.stereo_mode == sPanini) return true;
+    if(nonisotropic) return false;    
+    return (mdinf[m].flags & mf::orientation);
     }
 
   /** @brief returns the broken coordinate, or zero */
   EX int get_broken_coord(eModel m) {
-    if(m == mdWerner) return 1;
+    if(mdinf[m].flags & mf::werner) return 1;
     if(sphere) return (mdinf[m].flags & mf::broken) ? 2 : 0;
     return 0;
     }
@@ -234,7 +252,7 @@ EX namespace models {
     }
   
   EX bool is_perspective(eModel m) {
-    return among(m, mdPerspective, mdGeodesic, mdLiePerspective, mdRelPerspective);
+    return mdinf[m].flags & mf::perspective;
     }
 
   EX bool is_3d(const projection_configuration& p) {
@@ -243,12 +261,12 @@ EX namespace models {
     }
   
   EX bool has_transition(eModel m) {
-    return among(m, mdJoukowsky, mdJoukowskyInverted, mdBand, mdAxial) && GDIM == 2;
+    return (mdinf[m].flags & mf::transition) && GDIM == 2;
     }
   
   EX bool product_model(eModel m) {
     if(!gproduct) return false;
-    if(among(m, mdPerspective, mdHyperboloid, mdEquidistant, mdThreePoint)) return false;
+    if(mdinf[m].flags & mf::product_special) return false;
     return true;
     }
   
@@ -270,7 +288,7 @@ EX namespace models {
       return XLAT(mdinf[m].name_spherical);
     if(euclid) 
       return XLAT(mdinf[m].name_euclidean);
-    if(hyperbolic) 
+    if(hyperbolic)
       return XLAT(mdinf[m].name_hyperbolic);
     return "?";
     }
@@ -299,7 +317,7 @@ EX namespace models {
       });
     if(spiral_id > isize(torus_zeros)) spiral_id = 0;
     dialog::editNumber(spiral_id, 0, isize(torus_zeros)-1, 1, 10, XLAT("match the period of the torus"), "");
-    dialog::reaction = [] () {
+    dialog::get_di().reaction = [] () {
       auto& co = torus_zeros[spiral_id];
       vpconf.spiral_x = co.first;
       vpconf.spiral_y = co.second;
@@ -318,7 +336,7 @@ EX namespace models {
       )
       );
     #if CAP_QUEUE && CAP_CURVE
-    dialog::extra_options = [] () {
+    dialog::get_di().extra_options = [] () {
       dialog::parser_help();
       initquickqueue();
       queuereset(mdPixel, PPR::LINE);              
@@ -334,35 +352,11 @@ EX namespace models {
       quickqueue();
       };
     #endif
-    dialog::reaction_final = [] () {
+    dialog::get_di().reaction_final = [] () {
       vpconf.model = mdFormula;
       };
     }
   
-  EX void edit_rotation(ld& which) {
-    dialog::editNumber(which, 0, 360, 90, 0, XLAT("rotation"), 
-      "This controls the automatic rotation of the world. "
-      "It affects the line animation in the history mode, and "
-      "lands which have a special direction. Note that if finding this special direction is a part of the puzzle, "
-      "it works only in the cheat mode.");
-    dialog::dialogflags |= sm::CENTER;
-    dialog::extra_options = [] () {
-      dialog::addBreak(100);
-      dialog::addBoolItem_choice("line animation only", models::do_rotate, 0, 'N');
-      dialog::addBoolItem_choice("gravity lands", models::do_rotate, 1, 'G');
-      dialog::addBoolItem_choice("all directional lands", models::do_rotate, 2, 'D');
-      if(GDIM == 3) {
-        dialog::addBreak(100);
-        dialog::addSelItem(XLAT("XY plane"), fts(models::rotation) + "°", 'A');
-        dialog::add_action([] { popScreen(); edit_rotation(models::rotation); });
-        dialog::addSelItem(XLAT("XZ plane"), fts(models::rotation_xz) + "°", 'B');
-        dialog::add_action([] { popScreen(); edit_rotation(models::rotation_xz); });
-        dialog::addSelItem(XLAT("XY plane #2"), fts(models::rotation_xy2) + "°", 'C');
-        dialog::add_action([] { popScreen(); edit_rotation(models::rotation_xy2); });
-        }
-      };
-    }
-
   EX void model_list() {
     cmode = sm::SIDE | sm::MAYDARK | sm::CENTER;
     gamescreen();
@@ -404,7 +398,7 @@ EX namespace models {
     dialog::addBreak(100);
     if(sphere && pmodel == mdBandEquiarea) {
       dialog::addBoolItem("Gall-Peters", vpconf.stretch == 2, 'O');
-      dialog::add_action([] { vpconf.stretch = 2; dialog::ne.s = "2"; });
+      dialog::add_action([] { vpconf.stretch = 2; dialog::get_ne().s = "2"; });
       }
     if(pmodel == mdBandEquiarea) {
       // y = K * sin(phi)
@@ -439,14 +433,10 @@ EX namespace models {
     if(nonisotropic && !sl2)
       dialog::addBoolItem_action(XLAT("geodesic movement in Sol/Nil"), nisot::geodesic_movement, 'G');
 
-    dialog::addBoolItem(XLAT("rotation"), do_rotate == 2, 'r');
-    if(do_rotate == 0) dialog::lastItem().value = XLAT("NEVER");
-    if(GDIM == 2)
-      dialog::lastItem().value += " " + its(rotation) + "°";
-    else
-      dialog::lastItem().value += " " + its(rotation) + "°" + its(rotation_xz) + "°" + its(rotation_xy2) + "°";
-    dialog::add_action([] { edit_rotation(rotation); });
-    
+    add_edit((GDIM == 2 || gproduct) ? rotation.v2 : rotation.v3);
+    if(do_rotate == 0) { dialog::lastItem().value = XLAT("NEVER"); dialog::lastItem().type = dialog::diItem; }
+    else { dialog::lastItem().value = ONOFF(do_rotate == 2); }
+
     bool vr_settings = vrhr::active() && set_vr_settings;
 
     if(vrhr::active()) {
@@ -474,22 +464,16 @@ EX namespace models {
       }
                                   
     if(has_orientation(vpmodel)) {
-      dialog::addSelItem(XLAT("model orientation"), fts(vpconf.model_orientation) + "°", 'l');
+      dialog::addMatrixItem(XLAT("model orientation"), vpconf.mori().get(), 'l');
       dialog::add_action([] () {
-        dialog::editNumber(vpconf.model_orientation, 0, 360, 90, 0, XLAT("model orientation"), "");
+        dialog::editMatrix(vpconf.mori().get(), XLAT("model orientation"), "", GDIM);
         });
-      if(GDIM == 3) {
-        dialog::addSelItem(XLAT("model orientation (y/z plane)"), fts(vpconf.model_orientation_yz) + "°", 'L');
-        dialog::add_action([] () {
-          dialog::editNumber(vpconf.model_orientation_yz, 0, 360, 90, 0, XLAT("model orientation (y/z plane)"), "");
-          });
-        }
       }
      
     if(among(vpmodel, mdPerspective, mdHorocyclic) && nil) {
-      dialog::addSelItem(XLAT("model orientation"), fts(vpconf.model_orientation) + "°", 'l');
+      dialog::addMatrixItem(XLAT("model orientation"), vpconf.mori().get(), 'l');
       dialog::add_action([] () {
-        dialog::editNumber(vpconf.model_orientation, 0, 360, 90, 0, XLAT("model orientation"), "");
+        dialog::editMatrix(vpconf.mori().get(), XLAT("model orientation"), "", GDIM);
         });
       dialog::addSelItem(XLAT("rotational or Heisenberg"), fts(vpconf.rotational_nil), 'L');
       dialog::add_action([] () {
@@ -570,23 +554,23 @@ EX namespace models {
       dialog::addSelItem(XLAT("polygon sides"), its(polygonal::SI), 'x');
       dialog::add_action([] () {
         dialog::editNumber(polygonal::SI, 3, 10, 1, 4, XLAT("polygon sides"), "");
-        dialog::reaction = polygonal::solve;
+        dialog::get_di().reaction = polygonal::solve;
         });
       dialog::addSelItem(XLAT("star factor"), fts(polygonal::STAR), 'y');
       dialog::add_action([]() {
         dialog::editNumber(polygonal::STAR, -1, 1, .1, 0, XLAT("star factor"), "");
-        dialog::reaction = polygonal::solve;
+        dialog::get_di().reaction = polygonal::solve;
         });
       dialog::addSelItem(XLAT("degree of the approximation"), its(polygonal::deg), 'n');
       dialog::add_action([](){
         dialog::editNumber(polygonal::deg, 2, polygonal::MSI-1, 1, 2, XLAT("degree of the approximation"), "");
-        dialog::reaction = polygonal::solve;
+        dialog::get_di().reaction = polygonal::solve;
         dialog::bound_low(0); dialog::bound_up(polygonal::MSI-1);
         });
       }
     
     if(is_3d(vpconf) && GDIM == 2 && !vr_settings) 
-      add_edit(vpconf.ballangle);     
+      add_edit(vpconf.ball());
     
     if(vr_settings) {
       dialog::addSelItem(XLAT("VR: rotate the 3D model"), fts(vpconf.vr_angle) + "°", 'B');
@@ -624,14 +608,22 @@ EX namespace models {
     if(vpmodel == mdJoukowskyInverted)
       add_edit(vpconf.dualfocus_autoscale);
     
-    if(vpmodel == mdHemisphere && euclid) 
+    if(vpmodel == mdHemisphere && euclid)
       add_edit(vpconf.euclid_to_sphere);
       
-    if(among(vpmodel, mdTwoPoint, mdSimulatedPerspective, mdTwoHybrid, mdThreePoint)) 
+    if(mdinf[vpmodel].flags & mf::twopoint)
       add_edit(vpconf.twopoint_param);
     
+    if(mdinf[vpmodel].flags & mf::axial)
+      add_edit(vpconf.axial_angle);
+
     if(vpmodel == mdFisheye) 
       add_edit(vpconf.fisheye_param);
+
+    if(vpmodel == mdFisheye2) {
+      add_edit(vpconf.fisheye_param);
+      add_edit(vpconf.fisheye_alpha);
+      }
 
     if(is_hyperboloid(vpmodel))
       add_edit(pconf.show_hyperboloid_flat);
@@ -651,6 +643,11 @@ EX namespace models {
     
     if(among(vpmodel, mdLoximuthal, mdRetroHammer, mdRetroCraig)) 
       add_edit(vpconf.loximuthal_parameter);
+
+    if(among(vpmodel, mdPolar)) {
+      add_edit(vpconf.offside);
+      add_edit(vpconf.offside2);
+      }
 
     if(among(vpmodel, mdAitoff, mdHammer, mdWinkelTripel)) 
       add_edit(vpconf.aitoff_parameter);
@@ -828,10 +825,6 @@ EX namespace models {
         shift(); vpconf.formula = args();
         }
       }
-    else if(argis("-ballangle")) { 
-      PHASEFROM(2); 
-      shift_arg_formula(vpconf.ballangle);
-      }
     else if(argis("-topz")) { 
       PHASEFROM(2); 
       shift_arg_formula(vpconf.top_z);
@@ -843,10 +836,6 @@ EX namespace models {
     else if(argis("-hp")) { 
       PHASEFROM(2); 
       shift_arg_formula(vpconf.halfplane_scale);
-      }
-    else if(argis("-mori")) { 
-      PHASEFROM(2); 
-      shift_arg_formula(vpconf.model_orientation);
       }
     else if(argis("-mets")) { 
       PHASEFROM(2); 
@@ -863,17 +852,6 @@ EX namespace models {
     else if(argis("-mnil")) { 
       PHASEFROM(2); 
       shift_arg_formula(vpconf.rotational_nil);
-      }
-    else if(argis("-mori2")) { 
-      PHASEFROM(2); 
-      shift_arg_formula(vpconf.model_orientation);
-      shift_arg_formula(vpconf.model_orientation_yz);
-      }
-    else if(argis("-crot")) { 
-      PHASEFROM(2); 
-      shift_arg_formula(models::rotation);
-      if(GDIM == 3) shift_arg_formula(models::rotation_xz);
-      if(GDIM == 3) shift_arg_formula(models::rotation_xy2);
       }
     else if(argis("-clip")) { 
       PHASEFROM(2); 
@@ -917,22 +895,6 @@ EX namespace models {
       PHASEFROM(2); 
       shift_arg_formula(vpconf.skiprope);
       }
-    else if(argis("-palpha")) { 
-      PHASEFROM(2); 
-      #if CAP_GL
-      shift_arg_formula(panini_alpha, reset_all_shaders);
-      #else
-      shift_arg_formula(panini_alpha);
-      #endif
-      }
-    else if(argis("-salpha")) { 
-      PHASEFROM(2); 
-      #if CAP_GL
-      shift_arg_formula(stereo_alpha, reset_all_shaders);
-      #else
-      shift_arg_formula(stereo_alpha);
-      #endif
-      }
     else if(argis("-zoom")) { 
       PHASEFROM(2); shift_arg_formula(vpconf.scale);
       }
@@ -967,10 +929,17 @@ EX namespace models {
       addsaver(polygonal::coefi[i], "polynomial "+its(i)+".imag");
       }
 
-    param_f(models::rotation, "rotation", "conformal rotation");
-    addsaver(models::rotation_xz, "conformal rotation_xz");
-    addsaver(models::rotation_xy2, "conformal rotation_2");
-    addsaver(models::do_rotate, "conformal rotation mode", 1);
+    auto setrot = [] {
+      dialog::get_di().dialogflags |= sm::CENTER;
+      dialog::addBreak(100);
+      dialog::addBoolItem_choice("line animation only", models::do_rotate, 0, 'N');
+      dialog::addBoolItem_choice("gravity lands", models::do_rotate, 1, 'G');
+      dialog::addBoolItem_choice("all directional lands", models::do_rotate, 2, 'D');
+      };
+
+    param_matrix(models::rotation.v2, "rotation", 2)->editable("auto rotation", "", 'r')->set_extra(setrot);
+    param_matrix(models::rotation.v3, "rotation3", 3)->editable("auto rotation in 3D", "", 'r')->set_extra(setrot);
+    param_i(models::do_rotate, "auto_rotation_mode", 1);
 
     param_f(pconf.halfplane_scale, "hp", "halfplane scale", 1);
     
@@ -981,10 +950,12 @@ EX namespace models {
       auto_restrict = [&p] { return &vpconf == &p; };
 
       addsaverenum(p.model, pp+"used model", mdDisk);
-      param_custom(pmodel, "projection|Poincare|Klein|half-plane|perspective", menuitem_projection, '1');
+      if(&p.model == &pmodel) param_custom(pmodel, "projection|Poincare|Klein|half-plane|perspective", menuitem_projection, '1');
 
-      param_f(p.model_orientation, pp+"mori", sp+"model orientation", 0);
-      param_f(p.model_orientation_yz, pp+"mori_yz", sp+"model orientation-yz", 0);
+      param_matrix(p.mori().v2, pp+"mori", 2)
+      -> editable("model orientation", "", 'o');
+      param_matrix(p.mori().v3, pp+"mori3", 3)
+      -> editable("model orientation 3D", "", 'o');
 
       param_f(p.top_z, sp+"topz", 5)
       -> editable(1, 20, .25, "maximum z coordinate to show", "maximum z coordinate to show", 'l');       
@@ -1004,11 +975,22 @@ EX namespace models {
 
       param_f(p.twopoint_param, pp+"twopoint", sp+"twopoint parameter", 1)
       -> editable(1e-3, 10, .1, "two-point parameter", "In two-point-based models, this parameter gives the distance from each of the two points to the center.", 'b')
-      -> set_sets(dialog::scaleLog)
-;
+      -> set_sets(dialog::scaleLog);
+
+      param_f(p.axial_angle, pp+"axial", sp+"axial angle", 90)
+      -> editable(1e-3, 10, .1, "angle between the axes", "In two-axe-based models, this parameter gives the angle between the two axes.", 'x')
+      -> set_sets(dialog::scaleLog);
+
       param_f(p.fisheye_param, pp+"fisheye", sp+"fisheye parameter", 1)
       -> editable(1e-3, 10, .1, "fisheye parameter", "Size of the fish eye.", 'b')
       -> set_sets(dialog::scaleLog);
+
+      param_f(p.fisheye_alpha, pp+"fishalpha", sp+"off-center parameter", 0)
+      -> editable(1e-1, 10, .1, "off-center parameter",
+        "This projection is obtained by composing gnomonic projection and inverse stereographic projection. "
+        "This parameter changes the center of the first projection (0 = gnomonic, 1 = stereographic). Use a value closer to 1 "
+        "to make the projection more conformal.",
+        'o');
 
       param_f(p.stretch, pp+"stretch", 1)
       -> editable(0, 10, .1, "vertical stretch", "Vertical stretch factor.", 's')
@@ -1033,6 +1015,12 @@ EX namespace models {
           "The Aitoff projection is obtained by multiplying the longitude by 1/2, using azimuthal equidistant projection, and then dividing X by 1/2. "
           "Hammer projection is similar but equi-area projection is used instead. "
           "Here you can change this parameter.", 'b');
+      param_f(p.offside, sp+"offside")
+      -> editable(0, TAU, TAU/10, "offside parameter",
+          "Do not center the projection on the player -- move the center offside. Useful in polar, where the value equal to offside2 can be used to center the projection on the player.", 'o');
+      param_f(p.offside2, sp+"offside2")
+      -> editable(0, TAU, TAU/10, "offside parameter II",
+          "In polar projection, what distance to display in the center. Use asinh(1) (in hyperbolic) to make it conformal in the center, and pi to have the projection extend the same distance to the left, right, and upwards.", 'O');
       param_f(p.miller_parameter, sp+"miller");
       param_f(p.loximuthal_parameter, sp+"loximuthal")
       -> editable(-90._deg, 90._deg, .1, "loximuthal parameter",
@@ -1074,23 +1062,30 @@ EX namespace models {
 
       param_i(p.back_and_front, sp+"backandfront", 0);
 
-      addsaver(p.alpha, sp+"projection", 1);
-      param_custom(p.alpha, sp+"projection", menuitem_projection_distance, 'p')
-      ->help_text = "projection distance|Gans Klein Poincare orthographic stereographic";
+      auto projsaver = addsaver(p.alpha, sp+"projection", 1);
+      if(&p.model == &pmodel) {
+        auto proj = param_custom(p.alpha, sp+"projection", menuitem_projection_distance, 'p');
+        proj->help_text = "projection distance|Gans Klein Poincare orthographic stereographic";
+        proj->saver = projsaver;
+        }
 
-      param_f(p.camera_angle, pp+"cameraangle", sp+"camera angle", 0);
-      addsaver(p.ballproj, sp+"ballproj", 1);      
+      param_matrix(p.cam(), pp+"cameraangle", 3)
+      -> editable(pp+"camera angle", "Rotate the camera. Can be used to obtain a first person perspective, "
+        "or third person perspective when combined with Y shift.", 'S')
+      -> set_extra([] {
+        dialog::addBoolItem(XLAT("render behind the camera"), vpconf.back_and_front, 'R');
+        dialog::add_action([] { vpconf.back_and_front = !vpconf.back_and_front; });
+        });
 
-      param_f(p.ballangle, pp+"ballangle", sp+"ball angle", 20)
-      -> editable(0, 90, 5, "camera rotation in 3D models", 
+      param_matrix(p.ball(), pp+"ballangle", 3)
+      -> editable("camera rotation in 3D models",
         "Rotate the camera in 3D models (ball model, hyperboloid, and hemisphere). "
         "Note that hyperboloid and hemisphere models are also available in the "
         "Hypersian Rug surfaces menu, but they are rendered differently there -- "
         "by making a flat picture first, then mapping it to a surface. "
         "This makes the output better in some ways, but 3D effects are lost. "
         "Hypersian Rug model also allows more camera freedom.",
-        'b')
-      -> unit = "°";
+        'b');
 
       string help =
         "This parameter has a bit different scale depending on the settings:\n"

@@ -22,9 +22,6 @@ EX bool spatial_graphics;
 EX bool wmspatial, wmescher, wmplain, wmblack, wmascii, wmascii3;
 EX bool mmspatial, mmhigh, mmmon, mmitem;
 
-EX ld panini_alpha = 0;
-EX ld stereo_alpha = 0;
-
 EX int detaillevel = 0;
 
 EX bool first_cell_to_draw = true;
@@ -935,6 +932,11 @@ EX bool drawItemType(eItem it, cell *c, const shiftmatrix& V, color_t icol, int 
     queuepoly(Vit * spinptick(750, 0), cgi.shTriangle, darkena(icol, 0, 255));
     }
     
+  else if(it == itCrossbow) {
+    queuepoly(Vit, cgi.shCrossbowIcon, getcs().bowcolor);
+    queuepoly(Vit, cgi.shCrossbowstringIcon, getcs().bowcolor2);
+    }
+
   else if(it == itBabyTortoise) {
     int bits = c ? tortoise::babymap[c] : tortoise::last;
     int over = c && c->monst == moTortoise;
@@ -1414,6 +1416,21 @@ EX void drawPlayer(eMonster m, cell *where, const shiftmatrix& V, color_t col, d
           queuepoly(VWPN, cgi.shTrophy, racing::trophy[multi::cpid]);
   #endif
         }
+      else if(bow::crossbow_mode() && cs.charid < 4) {
+        queuepoly(VWPN, cgi.shCrossbow, fc(314, cs.bowcolor, 3));
+        int ti = items[itCrossbow];
+        if(shmup::on) {
+          ti = shmup::getPlayer()->nextshot - shmup::curtime;
+          if(ti <= 0) ti = 0;
+          else ti = 1 + ti / 500;
+          }
+        shiftmatrix VWPN1 = VWPN, VWPN2 = VWPN;
+        if(GDIM == 3) { ld h = cgi.human_height; VWPN1 = VWPN * lzpush(-h/60); VWPN2 = VWPN * lzpush(-h/30); }
+        if(ti <= 1) queuepoly(VWPN1, cgi.shCrossbowstringLoaded, fc(314, cs.bowcolor2, 3));
+        else if(ti <= 2) queuepoly(VWPN1, cgi.shCrossbowstringSemiloaded, fc(314, cs.bowcolor2, 3));
+        else queuepoly(VWPN1, cgi.shCrossbowstringUnloaded, fc(314, cs.bowcolor2, 3));
+        if(ti == 0) queuepoly(VWPN2, cgi.shCrossbowBolt, fc(314, cs.swordcolor, 3));
+        }
       else if(items[itOrbThorns])
         queuepoly(VWPN, cgi.shHedgehogBladePlayer, items[itOrbDiscord] ? watercolor(0) : 0x00FF00FF);
       else if(!shmup::on && items[itOrbDiscord])
@@ -1525,7 +1542,24 @@ void drawMimic(eMonster m, cell *where, const shiftmatrix& V, color_t col, doubl
     const transmatrix VBS = otherbodyparts(V, darkena(col, 0, 0x40), m, footphase);
     queuepoly(VBODY * VBS, (cs.charid&1) ? cgi.shFemaleBody : cgi.shPBody,  darkena(col, 0, 0X80));
 
-    if(!shmup::on) {
+    if(bow::crossbow_mode() && cs.charid < 4) {
+      shiftmatrix VWPN = cs.lefthanded ? VBODY * VBS * lmirror() : VBODY * VBS;
+      color_t col1 = darkena(col, 0, 0x40);
+      queuepoly(VWPN, cgi.shCrossbow, col1);
+      int ti = items[itCrossbow];
+      if(shmup::on) {
+        ti = shmup::getPlayer()->nextshot - shmup::curtime;
+        if(ti <= 0) ti = 0;
+        else ti = 1 + ti / 500;
+        }
+      shiftmatrix VWPN1 = VWPN, VWPN2 = VWPN;
+      if(GDIM == 3) { ld h = cgi.human_height; VWPN1 = VWPN * lzpush(-h/60); VWPN2 = VWPN * lzpush(-h/30); }
+      if(ti <= 1) queuepoly(VWPN1, cgi.shCrossbowstringLoaded, col1);
+      else if(ti <= 2) queuepoly(VWPN1, cgi.shCrossbowstringSemiloaded, col1);
+      else queuepoly(VWPN1, cgi.shCrossbowstringUnloaded, col1);
+      if(ti == 0) queuepoly(VWPN2, cgi.shCrossbowBolt, col1);
+      }
+    else if(!shmup::on) {
       bool emp = items[itOrbEmpathy] && m != moShadow;
       if(items[itOrbThorns] && emp)
         queuepoly(VBODY * VBS, cgi.shHedgehogBladePlayer, darkena(col, 0, 0x40));
@@ -2422,8 +2456,8 @@ EX bool drawMonsterType(eMonster m, cell *where, const shiftmatrix& V1, color_t 
     case moRedTroll: {
       const shiftmatrix VBS = VBODY * otherbodyparts(V, darkena(col, 0, 0xFF), m, footphase);
       ShadowV(V, cgi.shYeti);
-      queuepoly(VBS, cgi.shYeti, darkena(col, 0, 0xC0));
-      queuepoly(VHEAD1, cgi.shPHead, darkena(0xFF8000, 0, 0XFF));
+      queuepoly(VBS, cgi.shYeti, darkena(0xFF8000, 0, 0XFF));
+      queuepoly(VHEAD1, cgi.shPHead, darkena(col, 0, 0xC0));
       queuepoly(VHEAD, cgi.shPFace, 0xFFFFFF80 | UNTRANS);
       humanoid_eyes(V, 0x000000FF, darkena(col, 0, 0xFF));
       return true;
@@ -3282,7 +3316,7 @@ EX int haveaura() {
   if(sphere && mdAzimuthalEqui()) return 0;
   if(among(pmodel, mdJoukowsky, mdJoukowskyInverted) && hyperbolic && pconf.model_transition < 1) 
     return 2;
-  if(pmodel == mdFisheye) return 1;
+  if(among(pmodel, mdFisheye, mdFisheye2)) return 1;
   return pmodel == mdDisk && (!sphere || pconf.alpha > 10) && !euclid;
   }
   
@@ -3386,7 +3420,7 @@ EX void drawaura() {
       ld hx = (x * 1. - current_display->xcenter) / rad;
       ld hy = (y * 1. - current_display->ycenter) / rad / pconf.stretch;
   
-      if(pconf.camera_angle) camrotate(hx, hy);
+      if(!models::camera_straight) camrotate(hx, hy);
       
       ld fac = sqrt(hx*hx+hy*hy);
       if(fac < 1) continue;
@@ -3443,11 +3477,12 @@ EX void drawaura() {
     ld s = sin(rr);
 
     if(joukowsky) {
-      ld c1 = c, s1 = s;
+      hyperpoint v(c, s, 0, 1);
       if(inversion)
-        models::apply_orientation(s1, c1);
+        models::ori_to_scr(v);
       else        
-        models::apply_orientation(c1, s1);
+        models::scr_to_ori(v);
+      ld c1 = v[0], s1 = v[1];
 
       ld& mt = pconf.model_transition;
       ld mt2 = 1 - mt;
@@ -3461,16 +3496,11 @@ EX void drawaura() {
     ld x = rad0 * c;
     ld y = rad0 * s;
     
-    if(pconf.camera_angle) {
-      ld z = rad0;
-
-      ld cam = pconf.camera_angle * degree;
-      GLfloat cc = cos(cam);
-      GLfloat ss = sin(cam);
-      
-      tie(y, z) = make_pair(y * cc - z * ss, z * cc + y * ss);
-      x *= rad0 / z;
-      y *= rad0 / z;
+    if(!models::camera_straight) {
+      hyperpoint p = hyperpoint(x, y, rad0, 1);
+      p = rot_inverse(pconf.cam()) * p;
+      x = p[0] * rad0 / p[2];
+      y = p[1] * rad0 / p[2];
       }
     cx[r][z][0] = x;
     cx[r][z][1] = y * pconf.stretch;
@@ -3797,6 +3827,8 @@ EX bool placeSidewall(cell *c, int i, int sidepar, const shiftmatrix& V, color_t
   else if(sidepar == SIDE_ASHA) prio = PPR::ASHALLOW;
   else if(sidepar == SIDE_BSHA) prio = PPR::BSHALLOW;
   else prio = PPR::REDWALL-2+4*(sidepar-SIDE_SLEV);
+
+  if((col & 255) < 255) prio = PPR::TRANSPARENT_WALL;
   
   if(cgi.emb->is_in_noniso()) {
     draw_shapevec(c, V, qfi.fshape->gpside[sidepar][i], col, prio);
@@ -3813,6 +3845,14 @@ EX bool placeSidewall(cell *c, int i, int sidepar, const shiftmatrix& V, color_t
     #endif
     if(currentmap->strict_tree_rules()) {
       i = rulegen::get_arb_dir(c, i);
+      }
+    if(sidepar >= SIDEPARS) {
+      println(hlog, "ERROR: sidepar >= SIDEPARS", make_pair(sidepar, SIDEPARS));
+      return false;
+      }
+    if(i >= isize(qfi.fshape->gpside[sidepar])) {
+      println(hlog, "ERROR: i >= gpside[sidepar]", make_tuple(sidepar, i, isize(qfi.fshape->gpside[sidepar])));
+      return false;
       }
     draw_shapevec(c, V2, qfi.fshape->gpside[sidepar][i], col, prio);
     return false;
@@ -4016,7 +4056,7 @@ EX int colorhash(color_t i) {
 
 EX bool isWall3(cell *c, color_t& wcol) {
   if(isWall(c)) return true;
-  if(c->wall == waChasm && c->land == laMemory) { wcol = 0x606000; return true; }
+  if(c->wall == waChasm && c->land == laMemory && (anyshiftclick || !(cgflags & qFRACTAL))) { wcol = 0x606000; return true; }
   if(c->wall == waInvisibleFloor) return false;
   // if(chasmgraph(c)) return true;
   if(among(c->wall, waMirror, waCloud, waMineUnknown, waMineMine)) return true;
@@ -4124,10 +4164,14 @@ EX ld threshold, xyz_threshold;
 
 EX bool clip_checked = false;
 
+EX bool other_stereo_mode() {
+  return vid.stereo_mode != sOFF;
+  }
+
 void make_clipping_planes() {
 #if MAXMDIM >= 4
   clip_checked = false;
-  if(!frustum_culling || PIU(sphere) || experimental || vid.stereo_mode == sODS || panini_alpha || stereo_alpha || gproduct || embedded_plane) return;
+  if(!frustum_culling || PIU(sphere) || experimental || other_stereo_mode() || gproduct || embedded_plane) return;
 
   if(WDIM == 3 && pmodel == mdPerspective && !nonisotropic && !in_s2xe())
     threshold = sin_auto(cgi.corner_bonus), xyz_threshold = 0, clip_checked = true;
@@ -4236,11 +4280,19 @@ EX void gridline(const shiftmatrix& V1, const hyperpoint h1, const shiftmatrix& 
   ld d = (c1 <= 0 || c2 <= 0) ? 99 : hdist(V1.T*h1, U2*h2);
   
   #if MAXMDIM >= 4
-  if(WDIM == 3 && fat_edges) {
+  if(GDIM == 3 && fat_edges) {
+    if(nonisotropic) {
+      auto nV1 = V1 * rgpushxto0(h1);
+      hyperpoint U2 = inverse_shift(nV1, V2*rgpushxto0(h2)) * C0;
+      auto& p = cgi.get_pipe_noniso(U2, vid.linewidth, ePipeEnd::ball);
+      queuepoly(nV1, p, col);
+      return;
+      }
+
     shiftmatrix T = V1 * rgpushxto0(h1);
     transmatrix S = rspintox(inverse_shift(T, V2) * h2);
     transmatrix U = rspintoc(inverse_shift(T*S, shiftless(C0)), 2, 1);
-    auto& p = queuepoly(T * S * U, cgi.generate_pipe(d, vid.linewidth, ePipeEnd::ball), col);
+    auto& p = queuepoly(T * S * U, cgi.get_pipe_iso(d, vid.linewidth, ePipeEnd::ball), col);
     p.intester = xpush0(d/2);
     return;
     }
@@ -4899,7 +4951,11 @@ EX void drawMarkers() {
     multi::cpid = 0;
     orbToTarget = targetRangedOrb(mouseover, roCheck);
     #if CAP_QUEUE
-    if(orbToTarget == itOrbSummon) {
+    if(bow::fire_mode) {
+      queuestr(mousex, mousey, 0, vid.fsize, "+", getcs().bowcolor >> 8);
+      orbToTarget = itNone;
+      }
+    else if(orbToTarget == itOrbSummon) {
       monsterToSummon = summonedAt(mouseover);
       queuestr(mousex, mousey, 0, vid.fsize, s0+minf[monsterToSummon].glyph, minf[monsterToSummon].color);
       queuecircleat(mouseover, 0.6, darkena(minf[monsterToSummon].color, 0, 0xFF));
@@ -5485,6 +5541,15 @@ EX bool permaside;
 
 EX bool old_center;
 
+EX ld min_scale = 1e-6;
+
+EX int forced_center_down = ISANDROID ? 2 : ISIOS ? 40 : 40;
+
+EX ld get_stereo_param() {
+  if(among(vid.stereo_mode, sPanini, sStereographic)) return vid.stereo_param;
+  return 0;
+  }
+
 EX void calcparam() {
 
   DEBBI(DF_GRAPH, ("calc param"));
@@ -5499,11 +5564,12 @@ EX void calcparam() {
   cd->xcenter = cd->xtop + cd->xsize / 2;
   cd->ycenter = cd->ytop + cd->ysize / 2;
 
-  if(pconf.scale > -1e-2 && pconf.scale < 1e-2) pconf.scale = 1;
+  if(abs(pconf.scale) < min_scale) pconf.scale = 1;
   
   ld realradius = min(cd->xsize / 2, cd->ysize / 2);
   
-  cd->scrsize = realradius - (inHighQual ? 0 : ISANDROID ? 2 : ISIOS ? 40 : 40);
+  cd->scrsize = realradius;
+  if(!inHighQual) cd->scrsize -= forced_center_down;
 
   current_display->sidescreen = permaside;
   
@@ -5545,7 +5611,7 @@ EX void calcparam() {
   cd->ycenter += cd->scrsize * pconf.yposition;
   
   ld fov = vid.fov * degree / 2;
-  cd->tanfov = sin(fov) / (cos(fov) + (panini_alpha ? panini_alpha : stereo_alpha));
+  cd->tanfov = sin(fov) / (cos(fov) + get_stereo_param());
   
   callhooks(hooks_calcparam);
   reset_projection();
@@ -5737,7 +5803,7 @@ EX void emptyscreen() {
   drawqueue();
   }
 
-EX bool nohelp;
+EX int nohelp;
 EX bool no_find_player;
 
 EX void normalscreen() {
@@ -5789,33 +5855,34 @@ EX cfunction current_screen_cfunction() {
 
 #if HDR
 namespace sm {
-  static const int NORMAL = 1;
-  static const int MISSION = 2;
-  static const int HELP = 4;
-  static const int MAP = 8;
-  static const int DRAW = 16;
-  static const int NUMBER = 32;
-  static const int SHMUPCONFIG = 64;
-  static const int OVERVIEW = 128;
-  static const int SIDE = 256;
-  static const int DOTOUR = 512;
-  static const int CENTER = 1024;
-  static const int ZOOMABLE = 4096;
-  static const int TORUSCONFIG = 8192;
-  static const int MAYDARK = 16384;
-  static const int DIALOG_STRICT_X = 32768; // do not interpret dialog clicks outside of the X region
-  static const int EXPANSION = (1<<16);
-  static const int HEXEDIT = (1<<17);
-  static const int VR_MENU = (1<<18); // always show the menu in VR
-  static const int SHOWCURSOR = (1<<19); // despite MAP/DRAW always show the cursor, no panning
-  static const int PANNING = (1<<20); // smooth scrolling works
-  static const int DARKEN = (1<<21); // darken the game background
-  static const int NOSCR = (1<<22); // do not show the game background
-  static const int AUTO_VALUES = (1<<23); // automatic place for values
-  static const int NARROW_LINES = (1<<24); // do make the lines narrower if we needed to reduce width
-  static const int EDIT_BEFORE_WALLS = (1<<25); // mouseover targets before walls
-  static const int EDIT_INSIDE_WALLS = (1<<26); // mouseover targets inside walls
-  static const int DIALOG_WIDE = (1<<27); // make dialogs wide
+  static constexpr int NORMAL = 1;
+  static constexpr int MISSION = 2;
+  static constexpr int HELP = 4;
+  static constexpr int MAP = 8;
+  static constexpr int DRAW = 16;
+  static constexpr int NUMBER = 32;
+  static constexpr int SHMUPCONFIG = 64;
+  static constexpr int OVERVIEW = 128;
+  static constexpr int SIDE = 256;
+  static constexpr int DOTOUR = 512;
+  static constexpr int CENTER = 1024;
+  static constexpr int ZOOMABLE = 4096;
+  static constexpr int TORUSCONFIG = 8192;
+  static constexpr int MAYDARK = 16384;
+  static constexpr int DIALOG_STRICT_X = 32768; // do not interpret dialog clicks outside of the X region
+  static constexpr int EXPANSION = (1<<16);
+  static constexpr int HEXEDIT = (1<<17);
+  static constexpr int VR_MENU = (1<<18); // always show the menu in VR
+  static constexpr int SHOWCURSOR = (1<<19); // despite MAP/DRAW always show the cursor, no panning
+  static constexpr int PANNING = (1<<20); // smooth scrolling works
+  static constexpr int DARKEN = (1<<21); // darken the game background
+  static constexpr int NOSCR = (1<<22); // do not show the game background
+  static constexpr int AUTO_VALUES = (1<<23); // automatic place for values
+  static constexpr int NARROW_LINES = (1<<24); // do make the lines narrower if we needed to reduce width
+  static constexpr int EDIT_BEFORE_WALLS = (1<<25); // mouseover targets before walls
+  static constexpr int EDIT_INSIDE_WALLS = (1<<26); // mouseover targets inside walls
+  static constexpr int DIALOG_WIDE = (1<<27); // make dialogs wide
+  static constexpr int MOUSEAIM = (1<<28); // mouse aiming active here
   }
 #endif
 
@@ -5883,7 +5950,7 @@ EX void drawscreen() {
   color_t col = linf[cwt.at->land].color;
   if(cwt.at->land == laRedRock) col = 0xC00000;
   if(titlecolor) col = titlecolor;
-  if(!nohelp)
+  if(nohelp != 1)
     displayfr(vid.xres/2, vid.fsize,   2, vid.fsize, mouseovers, col, 8);
 #endif
 

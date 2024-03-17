@@ -527,7 +527,7 @@ bool drawVertex(const shiftmatrix &V, cell *c, shmup::monster *m) {
   
   bool multidraw = quotient;
   
-  bool use_brm = closed_or_bounded && isize(currentmap->allcells()) <= brm_limit;
+  bool use_brm = closed_manifold && isize(currentmap->allcells()) <= brm_limit;
 
   ld hi_weight = 0;
         
@@ -809,6 +809,15 @@ void readcolor(const string& cfname) {
         vdata[getid(lab)].info = new string(buf); // replace with std::shared_ptr in C++111
       continue;
       }
+    else if(c2 == '>') {
+      char buf[600];
+      int err = fscanf(f, "%500s", buf);
+      if(err > 0) {
+        vdata[getid(lab)].name = buf;
+        for(char& ch: vdata[getid(lab)].name) if(ch == '_') ch = ' ';
+        }
+      continue;
+      }
     else {
       ungetc(c2, f);
       char buf[600];
@@ -1003,7 +1012,7 @@ void configure_edge_display() {
           dialog::addColorItem(t->name, t->color, 'a' + i);
         dialog::add_action([t] {
           dialog::openColorDialog(t->color, NULL);
-          dialog::dialogflags |= sm::MAYDARK | sm::SIDE;
+          dialog::get_di().dialogflags |= sm::MAYDARK | sm::SIDE;
           });
         break;
       case 1: case 2: {
@@ -1021,8 +1030,8 @@ void configure_edge_display() {
             static ld i;
             i = 1 / val;
             dialog::editNumber(i, 1, 1000000, 1, 500, weight_label, "");
-            dialog::reaction = [&val] () { val = i ? 1. / i : 5; };
-            dialog::scaleLog(); dialog::ne.step = .2;
+            dialog::get_di().reaction = [&val] () { val = i ? 1. / i : 5; };
+            dialog::scaleLog(); dialog::get_ne().step = .2;
             });
           }
         break;

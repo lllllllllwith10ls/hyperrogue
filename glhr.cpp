@@ -57,7 +57,7 @@ EX }
 EX void glError(const char* GLcall, const char* file, const int line) {
   GLenum errCode = glGetError();
   if(errCode!=GL_NO_ERROR) {
-    println(hlog, format("OPENGL ERROR #%i: in file %s on line %i :: %s",errCode,file, line, GLcall));
+    println(hlog, hr::format("OPENGL ERROR #%i: in file %s on line %i :: %s",errCode,file, line, GLcall));
     }
   }
 
@@ -75,7 +75,7 @@ struct glwrap {
 void glwrap::act(const char *when) {
   GLenum errCode = glGetError();
   if(errCode!=GL_NO_ERROR) {
-    println(hlog, format("GL error %i %s: %s:%i", errCode, when, msg, line));
+    println(hlog, hr::format("GL error %i %s: %s:%i", errCode, when, msg, line));
     }
   }
 
@@ -124,10 +124,13 @@ struct glmatrix {
       color[2] = b;
       color[3] = 1;
       }
-    colored_vertex(hyperpoint h, color_t col) {
-      coords = pointtogl(h);
+    void set_color(color_t col) {
       for(int i=0; i<4; i++)
         color[i] = part(col, 3-i) / 255.0;
+      }
+    colored_vertex(hyperpoint h, color_t col) {
+      coords = pointtogl(h);
+      set_color(col);
       }
     };
   
@@ -208,6 +211,14 @@ EX glmatrix tmtogl(const transmatrix& T) {
   return tmp;
   }
 
+EX transmatrix gltotm(const glmatrix& T) {
+  transmatrix tmp;
+  for(int i=0; i<4; i++)
+  for(int j=0; j<4; j++)
+    tmp[i][j] = T[i][j];
+  return tmp;
+  }
+
 EX glmatrix tmtogl_transpose(const transmatrix& T) {
   glmatrix tmp;
   for(int i=0; i<4; i++)
@@ -237,10 +248,8 @@ EX glmatrix& as_glmatrix(GLfloat o[16]) {
   return tmp;
   }
 
-#if HDR
-constexpr ld vnear_default = 1e-3;
-constexpr ld vfar_default = 1e9;
-#endif
+EX ld vnear_default = 1e-3;
+EX ld vfar_default = 1e9;
 
 EX glmatrix frustum(ld x, ld y, ld vnear IS(vnear_default), ld vfar IS(vfar_default)) {
   GLfloat frustum[16] = {
@@ -266,7 +275,7 @@ EX glmatrix translate(ld x, ld y, ld z) {
 
 // /* shaders */
 
-glmatrix projection;
+EX glmatrix projection;
 
 EX void new_projection() {
   WITHSHADER({
@@ -319,11 +328,11 @@ EX int compileShader(int type, const string& s) {
   GLint status;
 
   if(debug_gl) {
-    println(hlog, "===\n");
+    println(hlog, "=== ", full_geometry_name(), " @ ", models::get_model_name(pmodel));
     int lineno = 1;
     string cline = "";
     for(char c: s+"\n") {
-      if(c == '\n') println(hlog, format("%4d : ", lineno), cline), lineno++, cline = "";
+      if(c == '\n') println(hlog, hr::format("%4d : ", lineno), cline), lineno++, cline = "";
       else cline += c;
       }
     println(hlog, "===");
@@ -655,7 +664,10 @@ EX void full_enable(shared_ptr<GLprogram> p) {
     current_projection[0][0] = -1e8;
     }, {})
   id_modelview();
+  #if MINIMIZE_GL_CALLS
+  #else
   current_linewidth = -1;
+  #endif
   /* if(current_depthwrite) glDepthMask(GL_TRUE);
   else glDepthMask(GL_FALSE);
   if(current_depthtest) glEnable(GL_DEPTH_TEST);

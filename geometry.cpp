@@ -22,7 +22,7 @@ struct usershapelayer {
 
 extern int usershape_changes;
 
-static const int USERLAYERS = 32;
+static constexpr int USERLAYERS = 32;
 
 struct usershape { usershapelayer d[USERLAYERS]; };
 
@@ -57,15 +57,15 @@ struct hpcshape {
 #define GOLDBERG_BITS 5
 #endif
 
-static const int GOLDBERG_LIMIT = (1<<GOLDBERG_BITS);
-static const int GOLDBERG_MASK = (GOLDBERG_LIMIT-1);
+static constexpr int GOLDBERG_LIMIT = (1<<GOLDBERG_BITS);
+static constexpr int GOLDBERG_MASK = (GOLDBERG_LIMIT-1);
 
 #ifndef BADMODEL
 #define BADMODEL 0
 #endif
 
 #ifndef WINGS
-static const int WINGS = (BADMODEL ? 1 : 4);
+static constexpr int WINGS = (BADMODEL ? 1 : 4);
 #endif
 
 typedef array<hpcshape, WINGS+1> hpcshape_animated;
@@ -361,6 +361,8 @@ hpcshape
   
   hpcshape shTinyArrow;
 
+  hpcshape shCrossbow, shCrossbowBolt, shCrossbowstringLoaded, shCrossbowstringUnloaded, shCrossbowstringSemiloaded, shCrossbowIcon, shCrossbowstringIcon;
+
   hpcshape shReserved[16];
   
   int orb_inner_ring; //< for shDisk* shapes, the number of vertices in the inner ring
@@ -545,7 +547,9 @@ hpcshape
   void require_usershapes() { if(usershape_state == usershape_changes) return; usershape_state = usershape_changes; prepare_usershapes(); }
   int timestamp;
   
-  hpcshape& generate_pipe(ld length, ld width, ePipeEnd endtype = ePipeEnd::sharp);
+  hpcshape& gen_pipe(hpcshape& pipe, ePipeEnd endtype, ld ratio, const hr::function<hyperpoint(ld,ld,ld)>& f);
+  hpcshape& get_pipe_iso(ld length, ld width, ePipeEnd endtype = ePipeEnd::sharp);
+  hpcshape& get_pipe_noniso(hyperpoint target, ld width, ePipeEnd endtype = ePipeEnd::sharp);
   
   map<string, unique_ptr<gi_extension>> ext;
 
@@ -571,7 +575,7 @@ EX void add_wall(int i, const vector<hyperpoint>& h) {
  */
 
 #if HDR
-static const ld hcrossf7 = 0.620672, hexf7 = 0.378077, tessf7 = 1.090550, hexhexdist7 = 0.566256;
+static constexpr ld hcrossf7 = 0.620672, hexf7 = 0.378077, tessf7 = 1.090550, hexhexdist7 = 0.566256;
 #endif
 
 EX bool scale_used() { return (shmup::on && geometry == gNormal && BITRUNCATED) ? (cheater || autocheat) : true; }
@@ -695,7 +699,7 @@ void geometry_information::prepare_basics() {
     : hdist(xpush0(crossf), xspinpush0(TAU/S7, crossf));
   
   DEBB(DF_GEOM | DF_POLY,
-    (format("S7=%d S6=%d hexf = " LDF" hcross = " LDF" tessf = " LDF" hexshift = " LDF " hexhex = " LDF " hexv = " LDF "\n", S7, S6, hexf, hcrossf, tessf, hexshift, 
+    (hr::format("S7=%d S6=%d hexf = " LDF" hcross = " LDF" tessf = " LDF" hexshift = " LDF " hexhex = " LDF " hexv = " LDF "\n", S7, S6, hexf, hcrossf, tessf, hexshift, 
     hexhexdist, hexvdist)));  
   
   base_distlimit = ginf[geometry].distlimit[!BITRUNCATED];
@@ -1047,10 +1051,10 @@ EX namespace geom3 {
       slev = vid.rock_wall_ratio * wh / 3;
       for(int s=0; s<=3; s++)
         SLEV[s] = lev_to_factor(vid.rock_wall_ratio * wh * s/3);
-      LAKE = lev_to_factor(sgn * wh * -vid.lake_top);
-      SHALLOW = lev_to_factor(sgn * wh * -vid.lake_shallow);
-      HELLSPIKE = lev_to_factor(sgn * -(vid.lake_top+vid.lake_bottom)/2);
-      BOTTOM = lev_to_factor(sgn * -vid.lake_bottom);
+      LAKE = lev_to_factor(wh * -vid.lake_top);
+      SHALLOW = lev_to_factor(wh * -vid.lake_shallow);
+      HELLSPIKE = lev_to_factor(wh * -(vid.lake_top+vid.lake_bottom)/2);
+      BOTTOM = lev_to_factor(wh * -vid.lake_bottom);
       LOWSKY = lev_to_factor(vid.lowsky_height * wh);
       HIGH = lev_to_factor(vid.wall_height2 * wh);
       HIGH2 = lev_to_factor(vid.wall_height3 * wh);
@@ -1108,7 +1112,7 @@ EX namespace geom3 {
     if(vid.always3) swapdim(-1);
     vid.always3 = !vid.always3;
     apply_always3();
-    check_cgi(); cgi.prepare_basics();
+    check_cgi(); cgi.require_basics();
     if(vid.always3) swapdim(+1);
     }
   #endif
@@ -1116,9 +1120,9 @@ EX namespace geom3 {
   EX void switch_tpp() {
     if(dual::split(switch_fpp)) return;
     if(rug::rugged) rug::close();
-    if(pmodel == mdDisk && pconf.camera_angle) {
+    if(pmodel == mdDisk && !models::camera_straight) {
       vid.yshift = 0;
-      pconf.camera_angle = 0;
+      pconf.cam() = Id;
       pconf.xposition = 0;
       pconf.yposition = 0;
       pconf.scale = 1;      
@@ -1126,7 +1130,7 @@ EX namespace geom3 {
       }
     else {
       vid.yshift = -0.3;
-      pconf.camera_angle = -45;
+      pconf.cam() = cspin(1, 2, -45._deg);
       pconf.scale = 18/16. * vid.xres / vid.yres / multi::players;
       pconf.xposition = 0;
       pconf.yposition = -0.9;
@@ -1142,6 +1146,9 @@ EX namespace geom3 {
     #endif
     if(dual::split(switch_fpp)) return;
 
+    check_cgi();
+    cgi.require_basics();
+
     if(!changing_embedded_settings)
       View = inverse(models::rotmatrix()) * View;
 
@@ -1151,7 +1158,7 @@ EX namespace geom3 {
       auto emb = make_embed();
       emb->auto_configure();
       check_cgi();
-      cgi.prepare_basics();
+      cgi.require_basics();
       swapdim(+1);
       }
     else {
@@ -1177,7 +1184,9 @@ EX namespace geom3 {
     if(vid.always3) {
       changing_embedded_settings = true;
       geom3::switch_fpp();
+      #if MAXMDIM >= 4
       delete_sky();
+      #endif
       // not sure why this is needed...
       resetGL();
       geom3::switch_fpp();
@@ -1186,12 +1195,14 @@ EX namespace geom3 {
     }
 
   EX void apply_settings_light() {
+  #if MAXMDIM >= 4
     if(vid.always3) {
       changing_embedded_settings = true;
       geom3::switch_always3();
       geom3::switch_always3();
       changing_embedded_settings = false;
       }
+  #endif
     }
 
   EX }
@@ -1263,6 +1274,8 @@ EX string cgi_string() {
   if(nil) V("NIL", its(S7));
   
   if(bt::in()) V("BT", fts(vid.binary_width));
+  if(hat::in()) V("H", fts(hat::hat_param));
+  if(hat::in() && hat::hat_param_imag) V("HI", fts(hat::hat_param_imag));
 
   if(nil) V("NILW", fts(nilv::nilwidth));
   
@@ -1278,8 +1291,10 @@ EX string cgi_string() {
     V("ASH", ONOFF(vid.gp_autoscale_heights));
     V("LT", fts(vid.lake_top));
     V("LB", fts(vid.lake_bottom));
-    if(GDIM == 3 && vid.pseudohedral)
-      V("PS", fts(vid.depth_bonus));
+    if(GDIM == 3 && vid.pseudohedral) {
+      V("PSH", fts(vid.pseudohedral));
+      V("PSD", fts(vid.depth_bonus));
+      }
     V("LS", fts(vid.lake_shallow));
     V("SSu", fts(vid.sun_size));
     V("SSt", fts(vid.star_size));
@@ -1312,7 +1327,7 @@ EX string cgi_string() {
   return s;
   }
 
-#if MAXMDIM >= 4 && CAP_RAY
+#if CAP_PORTALS
 #define IFINTRA(x,y) x
 #else
 #define IFINTRA(x,y) y
@@ -1326,7 +1341,8 @@ EX void check_cgi() {
   if(mhybrid) hybrid::underlying_cgip->timestamp = ntimestamp;
   if(fake::in()) fake::underlying_cgip->timestamp = ntimestamp;
   #if CAP_ARCM
-  if(arcm::alt_cgip) arcm::alt_cgip->timestamp = ntimestamp;
+  if(arcm::alt_cgip[0]) arcm::alt_cgip[0]->timestamp = ntimestamp;
+  if(arcm::alt_cgip[1]) arcm::alt_cgip[1]->timestamp = ntimestamp;
   #endif
   
   int limit = 4;

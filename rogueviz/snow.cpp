@@ -20,6 +20,7 @@ namespace rogueviz {
 
 namespace snow {
 
+#if CAP_MODELS
 using rogueviz::objmodels::model;
 using rogueviz::objmodels::tf_result;
 
@@ -31,6 +32,7 @@ struct snowmodel : model {
   };
 
 vector<snowmodel> models;
+#endif
 
 ld snow_lambda = 0;
 
@@ -55,6 +57,9 @@ bool random_colors = false;
 
 /* just one snowball per cell, in the center */
 bool just_centered = false;
+
+/* do not draw snow on player cell */
+bool snow_not_player = false;
 
 int snow_shape = 0;
 
@@ -131,6 +136,8 @@ transmatrix random_snow_matrix(cell *c) {
   }
 
 bool draw_snow(cell *c, const shiftmatrix& V) {
+
+  if(c == cwt.at && snow_not_player) return false;
   
   if(!snowballs_at.count(c)) {
     auto& v = snowballs_at[c];
@@ -157,17 +164,20 @@ bool draw_snow(cell *c, const shiftmatrix& V) {
       snowball b{just_centered ? Id : random_snow_matrix(c), 0, -1, snow_color};
       if(random_colors)
         b.color = (hrand(0x1000000) << 8) | 0x808080FF;
+      #if CAP_MODELS
       if(isize(models)) {
         b.model_id = hrand(isize(models));
         if(single_objects)
           b.object_id = hrand(isize(models[b.model_id].get().objindex)-1);
         }
+      #endif
       v.emplace_back(b);
       }
     }
   
   poly_outline = 0xFF;
   for(auto& T: snowballs_at[c]) {
+    #if CAP_MODELS
     if(models.size()) {
      if(T.object_id == -1)
         models[T.model_id].render(V*T.T);
@@ -179,7 +189,9 @@ bool draw_snow(cell *c, const shiftmatrix& V) {
           }
         }
       }
-    else {
+    else 
+    #endif
+    {
       auto& p = queuepoly(V * T.T, shapeid(snow_shape), T.color);
       if(!snow_texture) p.tinf = nullptr;
       if(snow_intense) p.flags |= POLY_INTENSE;
@@ -191,6 +203,7 @@ bool draw_snow(cell *c, const shiftmatrix& V) {
 
 string cap = "non-Euclidean snowballs/";
 
+#if CAP_RVSLIDES
 void snow_slide(vector<tour::slide>& v, string title, string desc, reaction_t t) {
   using namespace tour;
   v.push_back(
@@ -203,8 +216,7 @@ void snow_slide(vector<tour::slide>& v, string title, string desc, reaction_t t)
     if(mode == pmKey) {
       using namespace anims;
       tour::slide_backup(ma, ma == maTranslation ? maNone : maTranslation);
-      tour::slide_backup<ld>(shift_angle, 0);
-      tour::slide_backup<ld>(movement_angle, 90);
+      tour::slide_backup<transmatrix>(movement_angle.v3, cspin90(0, 2));
       }
     
     if(mode == pmStart) {
@@ -219,6 +231,7 @@ void snow_slide(vector<tour::slide>& v, string title, string desc, reaction_t t)
     }}
     );
   }
+#endif
 
 void show() {
   cmode = sm::SIDE | sm::MAYDARK;
@@ -227,8 +240,7 @@ void show() {
 
   dialog::addSelItem("lambda", fts(snow_lambda), 'l');
   dialog::add_action([]() {
-    dialog::editNumber(snow_lambda, 0, 100, 1, 10, "lambda", "snowball density");
-    dialog::reaction = [] { snowballs_at.clear(); };
+    dialog::editNumber(snow_lambda, 0, 100, 1, 10, "lambda", "snowball density").reaction = [] { snowballs_at.clear(); };
     });
 
   dialog::addSelItem("size", fts(snow_shape), 's');
@@ -278,6 +290,7 @@ auto hchook = addHook(hooks_drawcell, 100, draw_snow)
   else if(argis("-snow-glitch")) {
     snow_test = true;
     }
+  #if CAP_MODELS
   else if(argis("-use-model")) {
     shift(); string s = args();
     shift(); ld scale = argf();
@@ -289,6 +302,7 @@ auto hchook = addHook(hooks_drawcell, 100, draw_snow)
       s = "/" + s;
       }
     }
+  #endif
   else return 1;
   return 0;
   })
@@ -297,8 +311,10 @@ auto hchook = addHook(hooks_drawcell, 100, draw_snow)
 + addHook(hooks_configfile, 100, [] {
     param_b(random_colors, "snow_random_colors");
     param_b(just_centered, "snow_just_centered");
+    param_b(snow_not_player, "snow_not_player");
     })
 
+#if CAP_RVSLIDES
 + addHook_rvslides(161, [] (string s, vector<tour::slide>& v) {
   if(s != "noniso") return;
   v.push_back(tour::slide{
@@ -372,7 +388,9 @@ auto hchook = addHook(hooks_drawcell, 100, draw_snow)
     snow_lambda = 3;
     });
 #endif
-  });
+  })
+#endif
+  + 0;
 
 }
 }

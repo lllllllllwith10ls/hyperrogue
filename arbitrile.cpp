@@ -365,6 +365,7 @@ EX void load_tile(exp_parser& ep, arbi_tiling& c, bool unit) {
   cc.symmetric_value = 0;
   cc.flags = 0;
   cc.repeat_value = 1;
+  cc.apeirogonal = false;
   bool is_symmetric = false;
   while(ep.next() != ')') {
     cld dist = 1;
@@ -1393,12 +1394,22 @@ EX transmatrix get_adj(arbi_tiling& c, int t, int dl, int t1, int xdl, bool xmir
 
   hyperpoint vl = sh.vertices[dl];
   hyperpoint vr = sh.vertices[dr];
+  hyperpoint xvl = xsh.vertices[xdl];
+  hyperpoint xvr = xsh.vertices[xdr];
+
+  bool emb = embedded_plane;
+  if(emb) {
+    vl = cgi.emb->actual_to_base(vl);
+    vr = cgi.emb->actual_to_base(vr);
+    xvl = cgi.emb->actual_to_base(xvl);
+    xvr = cgi.emb->actual_to_base(xvr);
+    geom3::light_flip(true);
+    }
+
   hyperpoint vm = get_midedge(sh.edges[dl], vl, vr);
       
   transmatrix rm = gpushxto0(vm);
   
-  hyperpoint xvl = xsh.vertices[xdl];
-  hyperpoint xvr = xsh.vertices[xdr];
   hyperpoint xvm = get_midedge(xsh.edges[xdl], xvl, xvr);
   
   transmatrix xrm = gpushxto0(xvm);
@@ -1428,7 +1439,12 @@ EX transmatrix get_adj(arbi_tiling& c, int t, int dl, int t1, int xdl, bool xmir
     println(hlog, hdist(vl, Res * xvr), " # ", hdist(vr, Res * xvl));
     throw hr_exception("error in arb::get_adj");
     }
-        
+
+  if(emb) {
+    Res = cgi.emb->base_to_actual(Res);
+    geom3::light_flip(false);
+    }
+
   return Res;
   }
 
@@ -1698,7 +1714,7 @@ EX void set_sliders() {
     dialog::addSelItem(sl.name, fts(sl.current), ch++);
     dialog::add_action([&] {
       dialog::editNumber(sl.current, sl.min, sl.max, 1, sl.zero, sl.name, sl.name);
-      dialog::reaction = [] { sliders_changed(false, false); };
+      dialog::get_di().reaction = [] { sliders_changed(false, false); };
       });
     }
   if(isize(current.intsliders))
@@ -1707,7 +1723,7 @@ EX void set_sliders() {
     dialog::addSelItem(sl.name, its(sl.current), ch++);
     dialog::add_action([&] {
       dialog::editNumber(sl.current, sl.min, sl.max, 1, sl.zero, sl.name, sl.name);
-      dialog::reaction = [] { sliders_changed(true, true); };
+      dialog::get_di().reaction = [] { sliders_changed(true, true); };
       });
     }
   dialog::addInfo(slider_error);

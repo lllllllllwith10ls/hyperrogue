@@ -4889,3 +4889,255 @@ Further improvements to the "3D style" (embed 2D in a 3D geometry) feature:
 
 Also fixed a bug generating Dice in some tessellations.
 
+2023-02-22 00:31 Update 12.1j:
+
+Further fixes and improvements to the "3d style" (embed 2D in a 3D geometry) feature:
+- more settings (regarding altitudes) are now configurable
+- fixed VR (correct gravity alignment and eye position computation), also added new headset setting "holonomy Z" for embedded planes (also fixed a bug causing spinning in VR)
+- fixed some minor bugs with "same curvature" and "product" embeddings
+- fixed "SL(2,R) cylinder" (it was not actually implemented)
+- full floors now used by default (also floor shape setting has other options now)
+- when you change the settings, the engine now tries to keep as much as possible (e.g., remap the camera position)
+- no shadow option now disables monster shadows
+- fixed a bug with Goldberg embeddings
+
+Other fixes:
+- fixed key conflict for the cell boundaries option
+- fixed an error computing distances in bitruncated {5,4} causing crashes
+- when you die in the racing mode, you just die without obtaining etherality (possible when you change the land e.g. to Rose Garden or Land of Storms)
+- fixed single tile pattern for texture mode in spherical geometry; also changing the pattern in texture mode no longer affects map editor pattern
+
+2023-03-23 09:34 Update 12.1k:
+Aperiodic tilings:
+- "Aperiodic Hat" tiling [ https://arxiv.org/pdf/2303.10798.pdf ]
+- adjacency rule (for Minefield) now changeable in aperiodic tilings
+- patched chaos now works in aperiodic tilings
+- nicer tile borders in aperiodic tilings
+
+New projections:
+- nicer Conformal Square projection (with transition and shader, and all 2D geometries)
+- horocyclic equal-area projection
+- change axe angle in axial-like projections
+
+Line patterns:
+- more configuration for meridian/parallel patterns
+- new linepattern "tessellation walls"
+
+Other:
+- better fog color in 3D ball model
+
+2023-03-25 09:28 Update 12.1l:
+Improvements to the "aperiodic hat":
+- better centering
+- fixed a bug creating bad tiles
+- "hat parameter" transforms continuously (as in Section 6 of https://arxiv.org/pdf/2303.10798.pdf)
+- better pseudo-heptagon assignment (for Graveyard/RRV/etc)
+- improved Jungle, Land of Storms, Palace
+- "fake curvature" works with hat now
+
+Other fixes:
+- do not display relativistic modes in model list
+- an option to not display default help (in "basic interface")
+
+2023-03-26 09:41 Update 12.1m:
+- Fixed some crashes when changing the hat parameter, embedding hat, while embedding tessellation from file, using hat with fake geometry. Also fake geometry now appears in the menu for hat.
+
+2023-03-28 22:58 Update 12.1n:
+- Aperiodic Hat fixes:
+- - fixed Frog Park (jump rules and graphics)
+- - fixed the Terracotta display (lines displayed, but they are not accurate, so cells are marked too)
+- - interesting values of the hat parameter are displayed in hat parameter config
+- - special welcome message
+
+- fixed crashes and floor graphics in Zebra in some geometries (hat, kite-and-dart)
+- Swap the Red Troll's hair & fur colors (thanks to @jlmjlm)
+- Experimental fractal geometries (experiment with geometry -> Euclidean)
+- fixed Terracotta in Euclidean disk
+
+2023-03-29 09:10 Update 12.1o:
+- fixed the orientation in the hat tiling
+- fixed bugs when regenerating a map in the hat tiling + embedding
+- fixed variation not showing in some geometries
+
+2023-05-19 01:15 Update 12.1p:
+Mostly embedding-related improvements:
+- embedding scale parameter now works in "lower curvature" (horospher) embedding (redundant, but useful)
+- better wall shading in EuclidSquare embeddings
+- many embedding-related fixes
+- "Non-Euclidean Third Dimension" demo (of embeddings) in RogueViz
+(also, the "imaginary" hat parameter)
+
+2023-05-31 02:18 Update 12.1q:
+- Aperiodic Spectre tiling [https://arxiv.org/abs/2305.17743]
+- fixed embeddings of Archimedean tilings
+- Berger sphere should now work correctly with subdivided cells
+- new options mostly for 3D visualizations: circumscribed pseudohedra (a new option in 'make the tiles flat' in 3D config), use plain non-textured floors with alpha transparency (not in menus, find setting 'draw_plain_floors' and 'floor_alpha'); 'big triangular grid' line pattern should now work in Euclidean "Goldberg"
+
+2023-07-21 09:32 Update 12.1r -- mostly minor bugfixes:
+- fixed a bug with apeirogonal tiles
+- fixed some bugs with the "ball projection" of anisotropic geometries
+- fixed stereo_alpha in some geometries
+- fixed the combinations of Archimedean, fake, and embedding
+- "pipes" (fat grid lines) for anisotropic geometries
+
+2023-08-16 09:32 Update 12.1s
+- Most angles are now specified using a special dialog (rather than degrees, or a bunch of degree values in the 3D case). This is more powerful (more intuitive in 3D cases; 3D rotations like 'camera angle' and '3D model rotation' became 3D).
+- Fixes to how hyperboloid/hemisphere/ball models are rendered
+- Minor improvements to the number dialogs (immediately visible effects, etc.) and parameter (animation formulas allowed in more places)
+- Fixed centering in multiplayer
+- Fixed a bug which caused the screen to disappear on switch-to-fpp
+- Fixed the movement in Nil geometry
+- Fixed a crash when changing sight range while in rug
+
+2023-09-15 07:48 Update 12.1t
+- fixed a crash on projection changing
+- two new land structure options: horodisk and ideal Voronoi
+
+2023-09-19 08:01 Update 12.1u
+Fixes to the Horodisk/ideal Voronoi land structures:
+- horodisk mode now has a parameter controlling perfection vs density, and is set by default to generate less dense but perfect horocycles
+- Ivory Tower, Hive, and Gal·pagos join the H/V modes (also getting some interesting modifications from standard)
+- fixed some lands (Ocean/Lost Memory/Space Rocks/Eclectic) spilling when restarted in Safety in h/v mode
+- fixed a part of generation not being executed, or being executed for the starting land rather than the actual land, in some lands (e.g. Krakens not appearing)
+- more careful land incompatibility handling in voronoi
+
+2023-09-22 13:00 Update 12.1v
+- fixed land generation becoming glitched in standard modes when Lost Mountain or Clearing becomes unlocked
+- fixed some lands not appearing in horodisk (Caribbean, Kraken, Whirlpool, Rlyeh, Temple, Haunted)
+- fixed roses and dragons not appearing in h/v
+- horocyclic variants of Warped Coast and Elemental Plains
+- the "random walk" land structure now has a parameter controlling the land size
+
+2023-10-05 14:12 Update 12.1w:
+- reverted the unintentional change which caused holes to appear in the platforms on Ivory Tower
+- fixed model color not taken into account in sphere stereographic projection
+- Prairie joins the horodisk land structure
+- fixed Hives missing in ideal Voronoi land structure
+- fixed some tiles pre-marked as mines in Minefield next to Ivory Tower in Voronoi land structure
+- fixed burial mounds not appearing in chaos/h/v land structures
+
+2023-10-29 09:13 Update 12.1x:
+- a new alternative mode where the Rogue fights with a crossbow. Currently testing, so no achievements yet.
+- friendly ghosts are now flagged as non-living (thanks to @jlm)
+
+2023-10-30 10:16 Update 12.1y:
+Updates to the crossbow mode:
+- no time passes when shooting while unstable
+- graves, shrubs, and Round Table no longer block the line of fire (but shooting through half-vines do)
+- fixed the 3D graphics
+- fixed some bugs with fire mode not disabling correctly
+- crossbows mimics no longer attack in melee, and it is also no longer possible to swing at mirrors with crossbow
+- crossbow moves are no longer considered valid moves for the checkmate rule when the crossbow is not loaded
+- improved messages
+- in fire mode, no longer display ranged orb icons on mousing
+- crossbow now shoots the targets in the logical order
+- fire mode now can be enabled even while reloading, for more consistency and examination
+- clarify that the Water Elemental special case only affects melee
+- fixed the bug which made the crossbow not pierce dragons
+- fixed the bug which made saving tortoises not possible
+- attacking guarding dogs now wakes up all other existing guarding dogs, and causes a small ambush (this fix also affects other ranged attacks)
+- fixed crossbow mode not changing the PTM/etc. scoreboards
+- mode change confirmation is now only required when actually changing a relevant option
+- new aim style 'geometric'
+
+2023-12-02 12:54 Update 12.1z:
+Gameplay (mostly crossbow modes)
+- an option to automatically shoot when clicking a tile with mouse
+- press 'f' + direction for auto fire at distant enemies in the given direction
+- bulls are now enraged by crossbow shots
+- ratlings no longer move when shooting pointlessly
+- the warped space distracts you from reloading while staying in place
+- Warped Coast/Sea now prevents crossbow bolts from moving between triangles
+- clarified that only direct melee attacks trigger Storms/Flash
+- fixed Horns in the crossbow mode; the unarmed Princess is now also able to use Empathy+Thorns and Empathy+Horns
+- reduced CR3 land requirement to 20 in casual
+
+Other
+- fixed the drawing mode on quotient spaces (including torus display)
+- fixed point recognition in rug mode
+- cleaned up high-FOV and stereo modes into one setting
+
+2023-12-27 12:54 Update 13.0:
+
+Summary post: https://zenorogue.blogspot.com/2023/12/hyperrogue-130.html
+
+Voronoi mode fixes:
+- fixed Caribbean
+- made Rlyeh and Temple appear, and Haunted and Free Fall are now unavailable
+- better land compatibility
+- fixed CR2
+- fixed Land of Storms (in Horodisk and Voronoi)
+
+Crossbow fixes:
+- in shmup, crossbow bolts now pierce multi-tile monsters, and fire-on-mouse is disabled
+- remove crossbow paths on orb use
+- pressing ESC key while in fire mode now disables the fire mode
+- geometric crossbow can now hit monsters on the edge of vision and inside walls
+- crossbow achievements and leaderboards
+- fixed false game over messages after shooting a bow
+
+other updates:
+- updated the Czech and Polish translations
+- display achievement eligiblity
+- make the Key fireproof; make tortoise if first 21/21 tile created in > 100 turns (thanks to jlm)
+
+Other fixes:
+- fixed restoring golems in casual mode
+- fixed a crash while loading races
+- fixed a bug with embedded maps (i.e., 2D maps in 3D) being destroyed when the game is restarted
+- fixed the drawing of half-vines and mirror walls in spatial
+- fixed the bug where tides may move on orb use
+- fixed Sol, NIH and SolN embeddings being always displayed as legal
+- fixed the name displayed on mouseover for slime
+
+2024-01-12 08:59 Update 13.0a:
+
+- fixed some bugs with high-FOV modes (reset shaders, show upper FOV ranges correctly, buggy two-eye rendering)
+- as a new positive, the Curse of Fatigue makes you not care about roses when very fatigued
+- changed one Prince(ss) message
+- crossbow leaderboards should be fixed
+- fixed button placement on Android once more
+- fixed mirrors in crossbow fire mode
+- the bump-to-shoot flag now actually works
+- fixed a bug in "memory saving" mode to not remove the current altmap
+- variant fisheye projection
+- fixed tides in shmup and when scrolling
+- the dipping rule no longer affects Tiger's Eyes
+- screenshots were sometimes not correctly centered
+
+2024-02-23 01:34 Update 13.0b:
+
+When you are checkmated or die, a message explaining the cause is now displayed in the quit screen and saved in the local score file.
+
+Crossbow fixes:
+- opening inventory mode when you can just shoot should be fixed
+- rusa≈Çka curses now work
+- fixed tricking Pikemen with a bow
+- while rosed, you can now only shoot when this kills a monster at point blank in the rose direction
+
+Crash fixes:
+- fixed crash when e.g. entering 'ma' as a value, or when editing some settings such as sight range bonus
+- fixed a crash when viewing help on tide tiles (thanks to jlm)
+- fixed a crash with too large band
+- fixed some cases where untruncated/unrectified/warped maps would freeze when computing distances or crash due to trees are not known
+
+Gameplay fixes:
+- restarting a race now resets pause counter
+- World Turtle kills are recorded (thanks to jlm)
+- boat can go thru non-adjacent using Orb of Warp in shmup
+- fixed the items (key, OoY, baby tortoise) moved by the Orb of Chaos and Curse of Repulsion
+- fixed the Yard bug (graveless graveyard when you somehow used Orb of Safety in the Haunted Woods strip)
+- Trollheim no longer generates adjacent non-unlocked troll lands
+- alternative land unlock rules when monster/item requested is not available due to geometry etc
+
+Other:
+- in Goldberg variation, x/y limit is now based on what the engine allows, and 'dual of current' no longer can circumvent the limits
+- New projection: polar coordinates
+
+2024-02-24 09:54 Update 13.0c:
+
+- fixed the off-by-one error in thehelp line displayed for tides and lava
+- fixed a bug with rusalka-cursing the first tile when you shoot
+- when you press ESC in the gameover screen, the YASC message is displayed
+- special YASC message for pinches, and being on the Round Table
+- in YASC messages, mention the knights blocking the way, and also mention their names

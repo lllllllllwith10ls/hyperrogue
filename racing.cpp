@@ -26,8 +26,8 @@ int TWIDTH;
 
 EX ld race_advance = 0;
 
-static const int LENGTH = 250;
-static const int DROP = 1;
+static constexpr int LENGTH = 250;
+static constexpr int DROP = 1;
 
 EX int ghosts_to_show = 5;
 EX int ghosts_to_save = 10;
@@ -59,7 +59,7 @@ uchar angle_to_uchar(ld x) { return frac_to_uchar(x / TAU); }
 ld uchar_to_frac(uchar x) { return x / 256.; }
 transmatrix spin_uchar(uchar x) { return spin(uchar_to_frac(x) * TAU); }
 
-static const ld distance_multiplier = 4;
+static constexpr ld distance_multiplier = 4;
 
 struct ghostmoment {
   int step;
@@ -88,6 +88,7 @@ string ghost_prefix = "default";
 void hread(hstream& hs, ghostmoment& m) {
   int id;
   hread(hs, m.step, id, m.alpha, m.distance, m.beta, m.footphase);
+  if(id < 0 || id >= isize(mapstream::cellbyid)) throw hr_exception("error reading a ghost moment");
   m.where_cell = mapstream::cellbyid[id];
   }
 
@@ -698,7 +699,7 @@ EX void reset_race() {
 
 bool inrec = false;
 
-EX ld race_angle = 90;
+EX trans23 race_angle = cspin90(0, 1);
 
 EX bool force_standard_centering() {
   return nonisotropic || mhybrid || quotient || closed_or_bounded;
@@ -793,7 +794,7 @@ EX bool set_view() {
     }
   if(GDIM == 3 && WDIM == 2)
     View = spin180() * cspin(2, 1, 90._deg + shmup::playerturny[multi::cpid]) * spin270() * View;
-  else if(GDIM == 2) View = spin(race_angle * degree) * View;
+  else if(GDIM == 2) View = race_angle.v2 * View;
   return true;
   }
 
@@ -846,7 +847,8 @@ auto hook =
     })
 + addHook(hooks_configfile, 100, [] {
     param_f(racing::race_advance, "race_advance");
-    param_f(racing::race_angle, "race_angle");
+    param_matrix(racing::race_angle.v2, "race_angle", 2);
+    param_matrix(racing::race_angle.v3, "race_angle3", 3);
     param_i(racing::ghosts_to_show, "race_ghosts_to_show");
     param_i(racing::ghosts_to_save, "race_ghosts_to_save");
     param_b(racing::guiding, "race_guiding");
@@ -923,7 +925,7 @@ EX void load_official_track() {
 void track_chooser(bool official) {
   cmode = sm::NOSCR;
   gamescreen();
-  dialog::init(XLAT(official ? "Official tracks" : "Generate a racing track"));
+  dialog::init(official ? XLAT("play on an official track") : XLAT("generate a random track"));
   
   map<char, eLand> landmap;
   
@@ -966,12 +968,12 @@ void race_projection() {
   
   dialog::init(XLAT("racing projections"));
 
-  dialog::addBoolItem(XLAT("Poincaré disk model"), pmodel == mdDisk && !pconf.camera_angle, '1');
+  dialog::addBoolItem(XLAT("Poincaré disk model"), pmodel == mdDisk && models::camera_straight, '1');
   dialog::add_action([] () {
     pmodel = mdDisk;
     race_advance = 0;
     vid.yshift = 0;
-    pconf.camera_angle = 0;
+    pconf.cam() = Id;
     pconf.xposition = 0;
     pconf.yposition = 0;
     pconf.scale = 1;
@@ -982,10 +984,10 @@ void race_projection() {
   dialog::addBoolItem(XLAT("band"), pmodel == mdBand, '2');
   dialog::add_action([] () {
     pmodel = mdBand;
-    pconf.model_orientation = race_angle;
+    pconf.mori() = race_angle;
     race_advance = 1;
     vid.yshift = 0;
-    pconf.camera_angle = 0;
+    pconf.cam() = Id;
     pconf.xposition = 0;
     pconf.yposition = 0;
     pconf.scale = 1;
@@ -996,10 +998,10 @@ void race_projection() {
   dialog::addBoolItem(XLAT("half-plane"), pmodel == mdHalfplane, '3');
   dialog::add_action([] () {
     pmodel = mdHalfplane;
-    pconf.model_orientation = race_angle + 90;
+    pconf.mori() = race_angle * spin90();
     race_advance = 0.5;
     vid.yshift = 0;
-    pconf.camera_angle = 0;
+    pconf.cam() = Id;
     pconf.xposition = 0;
     pconf.yposition = 0;
     pconf.scale = 1;
@@ -1007,12 +1009,12 @@ void race_projection() {
     vid.smart_range_detail = 3;
     });
 
-  dialog::addBoolItem(XLAT("third-person perspective"), pmodel == mdDisk && pconf.camera_angle, '4');
+  dialog::addBoolItem(XLAT("third-person perspective"), pmodel == mdDisk && !models::camera_straight, '4');
   dialog::add_action([] () {
     pmodel = mdDisk;
     race_advance = 0;
     vid.yshift = -0.3;
-    pconf.camera_angle = -45;
+    pconf.cam() = cspin(1, 2, -45._deg);
     pconf.scale = 18/16. * vid.xres / vid.yres / multi::players;
     pconf.xposition = 0;
     pconf.yposition = -0.9;
@@ -1035,11 +1037,12 @@ void race_projection() {
   else dialog::addBreak(100);
         
   if(GDIM == 2) {
-    dialog::addSelItem(XLAT("race angle"), fts(race_angle), 'a');
-    dialog::add_action([] () { 
-      dialog::editNumber(race_angle, 0, 360, 15, 90, XLAT("race angle"), "");
-      int q = pconf.model_orientation - race_angle;
-      dialog::reaction = [q] () { pconf.model_orientation = race_angle + q; };
+    dialog::addMatrixItem(XLAT("race angle"), race_angle.get(), 'a');
+    dialog::add_action([] () {
+      dialog::editMatrix(race_angle.get(), XLAT("model orientation"), "", GDIM);
+      auto q = rot_inverse(race_angle) * pconf.mori();
+      auto last = dialog::get_ne().reaction;
+      dialog::get_ne().reaction = [q, last] () { last(); pconf.mori() = race_angle * q; };
       });
     }
 

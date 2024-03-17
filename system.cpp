@@ -11,30 +11,32 @@ namespace hr {
 #if HDR
 /** \brief This namespace has constants used as parameters in functions such as restart_game and wrongmode. */
 namespace rg {
-  static const char nothing = 0;
-  static const char peace = 'P';
-  static const char inv = 'i';
-  static const char chaos = 'C';
-  static const char tactic = 't';
-  static const char tour = 'T';
-  static const char yendor = 'y';
-  static const char shmup = 's';
-  static const char randpattern = 'r';
-  static const char princess = 'p';
-  static const char daily = 'd';
-  static const char daily_off = 'D';
-  static const char racing = 'R';
-  static const char dualmode = 'U';
-  static const char heptagons = '7';
+  static constexpr char nothing = 0;
+  static constexpr char peace = 'P';
+  static constexpr char inv = 'i';
+  static constexpr char chaos = 'C';
+  static constexpr char tactic = 't';
+  static constexpr char tour = 'T';
+  static constexpr char yendor = 'y';
+  static constexpr char shmup = 's';
+  static constexpr char randpattern = 'r';
+  static constexpr char princess = 'p';
+  static constexpr char daily = 'd';
+  static constexpr char daily_off = 'D';
+  static constexpr char racing = 'R';
+  static constexpr char dualmode = 'U';
+  static constexpr char heptagons = '7';
   
   /** \brief wrongmode only -- marks 'global' achievements not related to the current mode */
-  static const char global = 'x'; 
+  static constexpr char global = 'x'; 
   /** \brief wrongmode only -- change vid.scfg.players then restart_game(rg::nothing) instead */
-  static const char multi = 'm';
+  static constexpr char multi = 'm';
   /** \brief wrongmode only -- mark achievements for special geometries/variations, this automatically marks the expected land_structure as lsSingle */
-  static const char special_geometry = 'g';
+  static constexpr char special_geometry = 'g';
   /** \brief wrongmode only -- mark achievements for special geometries/variations */
-  static const char special_geometry_nicewalls = 'G';
+  static constexpr char special_geometry_nicewalls = 'G';
+  /** \brief wrongmode only -- specgeom returns 'fail' if the special geometry is not correct */
+  static constexpr char fail = 'X';
   }
 #endif
 
@@ -77,6 +79,7 @@ EX hookset<bool()> hooks_welcome_message;
 /** \brief Print the welcome message during the start of game. Depends on the current mode and other settings. */
 EX void welcomeMessage() {
   if(callhandlers(false, hooks_welcome_message)) return;
+  if(nohelp == 1) return;
   if(embedded_plane) return IPF(welcomeMessage());
 #if CAP_TOUR
   else if(tour::on) return; // displayed by tour
@@ -131,6 +134,10 @@ EX void welcomeMessage() {
     addMessage(XLAT("Welcome to the Heptagonal Mode!"));
   else if(cheater || autocheat)
     addMessage(XLAT("Welcome to HyperRogue! (cheat mode on)"));
+  else if(hat::in())
+    addMessage(XLAT("Welcome to HatRogue!"));
+  else if(bow::crossbow_mode())
+    addMessage(XLAT("Welcome to HyperRanger!"));
   else
     addMessage(XLAT("Welcome to HyperRogue!"));
 
@@ -140,6 +147,7 @@ EX void welcomeMessage() {
       addMessage(XLAT(lv.msg));
     }
 
+  if(nohelp == 2) return;
 #if ISMAC
   addMessage(XLAT("Press F1 or right-shift-click things for help."));
 #elif !ISMOBILE
@@ -188,11 +196,13 @@ EX void initgame() {
 
   if(firstland == laOceanWall) firstland = laOcean; 
   if(firstland == laHauntedWall) firstland = laGraveyard; 
+  if(firstland == laHauntedBorder) firstland = laGraveyard;
   if(firstland == laHaunted && !tactic::on) firstland = laGraveyard;
   if(firstland == laMercuryRiver) firstland = laTerracotta;
-  if(firstland == laMountain && !tactic::on) firstland = laJungle;
+  if(firstland == laMountain && !tactic::on && !ls::hv_structure()) firstland = laJungle;
   if(firstland == laPrincessQuest) firstland = laPalace;
   if(firstland == laMemory) firstland = laIce;
+  if(!ls::hv_structure())
   if((isGravityLand(firstland) && !isCyclic(firstland)) || (firstland == laOcean && !safety && !yendor::on)) {
     firstland = weirdhyperbolic ? laCrossroads4 : laCrossroads;
     easy_specialland = 3;
@@ -213,6 +223,8 @@ EX void initgame() {
   clearing::imputed = 0;
   rosephase = 0;
   shmup::count_pauses = 0;
+
+  splitrocks = 0;
 
   if(firstland == laElementalWall) cwt.at->land = randomElementalLand();
   
@@ -277,7 +289,7 @@ EX void initgame() {
     princess::generating = false;
     }
 
-  if(cwt.at->land == laCrossroads2) {
+  if(cwt.at->land == laCrossroads2 && !ls::hv_structure()) {
     cell *c = cwt.at;
     if(mhybrid) { c = hybrid::get_where(c).first; PIU( c->cmove(0) ); }
     c->landparam = 12;
@@ -368,6 +380,7 @@ EX void initgame() {
     sagephase = 0; hardcoreAt = 0;
     timerstopped = false;
     savecount = 0; savetime = 0;
+    tortoise::last21tort = 0;
     cheater = 0;
     if(autocheat) cheater = 1;
     if(!wfc::use_eclectic) cheater = 1;
@@ -433,13 +446,15 @@ EX namespace scores {
 /** \brief the amount of boxes reserved for each hr::score item */
 #define MAXBOX 500
 /** \brief currently used boxes in hr::score */
-#define POSSCORE 425
+#define POSSCORE 431
 /** \brief a struct to keep local score from an earlier game */
 struct score {
   /** \brief version used */
   string ver;
   /** \brief all the data of the saved score, see applyBoxes() */
   int box[MAXBOX];
+  /** \brief yasc message */
+  string yasc_message;
   };
 #endif
 
@@ -555,6 +570,12 @@ void applyBoxM(eMonster m, bool f = false) {
 
 EX modecode_t saved_modecode;
 
+template<class T> void applyBoxEnum(T& i, string name IS("")) {
+  int ii = (int) i;
+  applyBoxNum(ii, name);
+  i = (T) ii;
+  }
+
 /** \brief Call applyBox for all the required values. This will save the values if hr::scores::saving==true, load if hr::scores::loading==true, load into highscores if hr::scores::loadingHi==true */
 EX void applyBoxes() {
   invorb.clear();
@@ -577,17 +598,19 @@ EX void applyBoxes() {
   
   for(int i=0; i<43; i++) {
     if(loading) kills[i] = 0;
-    bool fake = 
-      i == moLesserM || i == moNone || i == moWolfMoved || i == moTentacletail ||
-      i == moIvyNext;
     if(i == moWormtail) applyBoxM(moCrystalSage);
     else if(i == moWormwait) applyBoxM(moFireFairy);
     else if(i == moTentacleEscaping) applyBoxM(moMiner);
+    else if(i == moREMOVED) applyBoxI(itFatigue);
     else if(i == moGolemMoved) applyBoxM(moIllusion);
+    else if(i == moTentacletail) applyBoxI(itSnake);
     else if(i == moTentaclewait) applyBoxOrb(itOrbThorns);
     else if(i == moGreater) applyBoxOrb(itOrbDragon);
     else if(i == moGreaterM) applyBoxOrb(itOrbIllusion);
-    else applyBoxM(eMonster(i), fake);
+    else if(i == moLesserM) applyBoxM(moFriendlyGhost);
+    else if(i == moWolfMoved) applyBoxM(moWorldTurtle);
+    else if(i == moNone) applyBoxNum(kills[i], "icewalls melted");
+    else applyBoxM(eMonster(i));
     }
     
   if(saving) {
@@ -603,7 +626,7 @@ EX void applyBoxes() {
   if(saving) savecount--;
   applyBoxNum(cheater, "number of cheats");
   
-  fakebox[boxid] = true;
+  fakebox[boxid] = false;
   if(saving) applyBoxSave(items[itOrbSafety] ? safetyland : cwt.at->land, "@safetyland");
   else if(loading) firstland = safetyland = eLand(applyBoxLoad("@safetyland"));
   else lostin = eLand(save.box[boxid++]);
@@ -736,9 +759,7 @@ EX void applyBoxes() {
   if(loadingHi) applyBoxI(itLotus);
   else applyBoxNum(truelotus, "lotus/escape");
   
-  int v = int(variation);
-  applyBoxNum(v, "variation"); 
-  variation = eVariation(v);
+  applyBoxEnum(variation, "variation");
   applyBoxI(itRose);
   applyBoxOrb(itOrbBeauty);
   applyBoxI(itCoral);
@@ -748,9 +769,7 @@ EX void applyBoxes() {
   applyBoxM(moFalsePrincess);
   applyBoxM(moRoseLady);
   applyBoxM(moRoseBeauty);
-  int ls = (int) land_structure;
-  applyBoxNum(ls, "land structure");
-  land_structure = (eLandStructure) ls;
+  applyBoxEnum(land_structure, "land structure");
   applyBoxNum(multi::players, "shmup players");
   if(multi::players < 1 || multi::players > MAXPLAYER)
     multi::players = 1;
@@ -946,6 +965,15 @@ EX void applyBoxes() {
   applyBoxI(itCurseWater, true);
   list_invorb();
 
+  applyBoxEnum(bow::weapon, "weapon choice");
+  applyBoxEnum(bow::style, "crossbow style");
+
+  applyBoxOrb(itOrbFish);
+  list_invorb();
+
+  applyBoxNum(items[itCrossbow]);
+  applyBoxNum(items[itRevolver]);
+
   if(POSSCORE != boxid) printf("ERROR: %d boxes\n", boxid);
   if(isize(invorb)) { println(hlog, "ERROR: Orbs not taken into account"); exit(1); }
   }
@@ -1140,6 +1168,7 @@ EX void saveStats(bool emergency IS(false)) {
     anticheat::save(f);
 
     fprintf(f, "\n");
+    if(yasc_message != "") fprintf(f, "YASC %s\n", yasc_message.c_str());
     }
   fprintf(f, "Played on: %s - %s (%d %s)\n", sbuf, buf, turncount, 
     shmup::on ? "knives" : "turns");
@@ -1430,7 +1459,7 @@ EX void set_geometry(eGeometry target) {
     if(DUAL && geometry != gArchimedean && !mhybrid)
       variation = ginf[geometry].default_variation;
     #if CAP_BT
-    if(bt::in() || WDIM == 3 || kite::in() || arb::in()) if(!mhybrid) variation = eVariation::pure;
+    if(bt::in() || WDIM == 3 || aperiodic || arb::in()) if(!mhybrid) variation = eVariation::pure;
     #endif
     if(S3 >= OINF) variation = eVariation::pure;
     if(INVERSE && !mhybrid) variation = gp::variation_for(gp::param);
@@ -1464,7 +1493,7 @@ EX void set_variation(eVariation target) {
       return;
       }
     if(target != eVariation::pure) {
-      if(bt::in() || sol || kite::in() || WDIM == 3) if(!mproduct) geometry = gNormal;
+      if(bt::in() || sol || aperiodic || WDIM == 3) if(!mproduct) geometry = gNormal;
       }
     auto& cd = ginf[gCrystal];
     if(target == eVariation::bitruncated && cryst && cd.sides == 8 && cd.vertex == 4) {
@@ -1491,12 +1520,14 @@ EX void switch_game_mode(char switchWhat) {
       tactic::on = yendor::on = princess::challenge = 
       randomPatternsMode = inv::on = false;
       racing::on = false;
+      bow::weapon = bow::wBlade;
       break;
     
     case rg::dualmode:
       stop_tour(); tour::on = false;
       racing::on = false;
       yendor::on = tactic::on = princess::challenge = false;
+      bow::weapon = bow::wBlade;
       if(!dual::state) dual::enable();
       else dual::disable();
       break;
@@ -1579,6 +1610,7 @@ EX void switch_game_mode(char switchWhat) {
       shmup::on = !shmup::on;
       princess::challenge = false;
       if(!shmup::on) racing::on = false;
+      if(!shmup::on && multi::players > 1) bow::weapon = bow::wBlade;
       break;
     
     case rg::randpattern:
@@ -1665,6 +1697,7 @@ EX void restart_game(char switchWhat IS(rg::nothing)) {
   if(switchWhat == rg::nothing && racing::on) {
     racing::restore_goals();
     racing::reset_race();
+    shmup::count_pauses = 0;
     return;
     }
   #endif
@@ -1719,6 +1752,15 @@ EX void progress_warning() {
     addMessage(XLAT("Your progress will not be saved."));
   }
 
+EX void restore_all_golems() {
+  if(!shmup::on) {
+    restoreGolems(items[itOrbLife], moGolem); items[itOrbLife] = 0;
+    restoreGolems(items[itOrbFriend], moTameBomberbird); items[itOrbFriend] = 0;
+    restoreGolems(kills[moPrincessMoved], moPrincess, princess::saveHP); kills[moPrincessMoved] = 0;
+    restoreGolems(kills[moPrincessArmedMoved], moPrincessArmed, princess::saveArmedHP); kills[moPrincessArmedMoved] = 0;
+    }
+  }
+
 EX void initAll() {
   callhooks(hooks_initialize);
   init_floorcolors();
@@ -1743,13 +1785,7 @@ EX void initAll() {
   if(IRREGULAR) irr::auto_creator();
 #endif
   start_game();
-  
-  if(!shmup::on) {
-    restoreGolems(items[itOrbLife], moGolem); items[itOrbLife] = 0;
-    restoreGolems(items[itOrbFriend], moTameBomberbird); items[itOrbFriend] = 0;
-    restoreGolems(kills[moPrincessMoved], moPrincess, princess::saveHP); kills[moPrincessMoved] = 0;
-    restoreGolems(kills[moPrincessArmedMoved], moPrincessArmed, princess::saveArmedHP); kills[moPrincessArmedMoved] = 0;
-    }
+  restore_all_golems();
   
   firstland = firstland0;
   polygonal::solve();
@@ -1773,6 +1809,28 @@ EX void finishAll() {
   callhooks(hooks_final_cleanup);
   }
 
+string modheader = "# HyperRogue saved game mode file";
+
+EX void save_mode_to_file(const string& fname) {
+  shstream ss;
+  save_mode_data(ss);
+  string s = as_hexstring(ss.s);
+  fhstream f(fname, "w");
+  println(f, modheader);
+  println(f, s);
+  }
+
+EX void load_mode_from_file(const string& fname) {
+  fhstream f(fname, "r");
+  string header = scanline(f);
+  if(header[0] != '#') throw hstream_exception();
+  string hex = scanline(f);
+  shstream ss;
+  ss.s = from_hexstring(hex + "00");
+  stop_game();
+  load_mode_data_with_zero(ss);
+  start_game();
+  }
 
 auto cgm = addHook(hooks_clearmemory, 40, [] () {
   pathq.clear();
@@ -1786,6 +1844,10 @@ auto cgm = addHook(hooks_clearmemory, 40, [] () {
   crush_next.clear(); 
   crush_now.clear();
   rosemap.clear();
+  hv_land.clear();
+  bow::bowpath.clear();
+  bow::clear_bowpath();
+  bow::fire_mode = false;
   for(auto &am: adj_memo) am.clear();
   }) + 
 addHook(hooks_gamedata, 0, [] (gamedata* gd) {

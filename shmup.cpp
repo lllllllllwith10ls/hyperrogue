@@ -263,6 +263,7 @@ void killMonster(monster* m, eMonster who_kills, flagtype flags = 0) {
   if(m->dead) return;
   m->dead = true;
   if(isPlayer(m) && m->fragoff < curtime) {
+    yasc_message = XLAT("killed by %the1", who_kills);
     if(multi::cpid == m->pid)
       multi::suicides[multi::cpid]++;
     else if(multi::cpid >= 0)
@@ -439,8 +440,10 @@ void shootBullet(monster *m) {
   }
 
 EX void killThePlayer(eMonster m) {
-  if(cpid >= 0 && cpid < MAXPLAYER && pc[cpid])
+  if(cpid >= 0 && cpid < MAXPLAYER && pc[cpid]) {
+    yasc_message = XLAT("killed by %the1", m);
     pc[cpid]->dead = true;
+    }
   }
 
 monster *playerCrash(monster *who, shiftpoint where) {
@@ -720,7 +723,7 @@ bool noncrashable(monster *m, monster *by) {
 int bulltime[MAXPLAYER];
 
 // set to P_MIRRORWALL to allow the PCs to go through mirrors
-static const int reflectflag = P_MIRRORWALL;
+static constexpr int reflectflag = P_MIRRORWALL;
 
 void movePlayer(monster *m, int delta) {
 
@@ -1148,7 +1151,7 @@ void movePlayer(monster *m, int delta) {
         }
       else if(
         (blown ? !passable(c2, m->base, P_ISPLAYER | P_BLOW) : !passable(c2, m->base, P_ISPLAYER | P_MIRROR | reflectflag)) && 
-        !(isWatery(c2) && m->inBoat && !nonAdjacent(m->base,c2)))
+        !(isWatery(c2) && m->inBoat && (!nonAdjacent(m->base,c2) || markOrb(itOrb37))))
         go = false;
       
       }
@@ -1238,6 +1241,7 @@ void movePlayer(monster *m, int delta) {
 
       if(c2->wall == waMineMine && !markOrb(itOrbAether) && !markOrb(itOrbWinter)) {
         items[itOrbLife] = 0;
+        if(!m->dead) yasc_message = XLAT("stepped on a mine");
         m->dead = true;
         }
       #if CAP_COMPLEX2
@@ -1283,14 +1287,25 @@ void movePlayer(monster *m, int delta) {
     }
 
   if(!markOrb(itOrbAether)) {
-    if(m->base->wall == waChasm || m->base->wall == waClosedGate)
+    if(m->base->wall == waChasm) {
+      if(!m->dead) yasc_message = XLAT("fell into %the1", m->base->wall);
       m->dead = true;
+      }
 
-    if(isWatery(m->base) && !m->inBoat && !markOrb(itOrbFish))
+    if(m->base->wall == waClosedGate) {
+      if(!m->dead) yasc_message = XLAT("killed by %the1", m->base->wall);
       m->dead = true;
+      }
 
-    if(isFireOrMagma(m->base) && !markOrb(itOrbWinter))
+    if(isWatery(m->base) && !m->inBoat && !markOrb(itOrbFish)) {
+      if(!m->dead) yasc_message = XLAT("drowned in %the1", m->base->wall);
       m->dead = true;
+      }
+
+    if(isFireOrMagma(m->base) && !markOrb(itOrbWinter)) {
+      if(!m->dead) yasc_message = XLAT("burnt in %the1", m->base->wall);
+      m->dead = true;
+      }
     }
 
   landvisited[m->base->land] = true;
@@ -1378,7 +1393,7 @@ void movePlayer(monster *m, int delta) {
       }
     
     playerfire[cpid] = true;
-    m->nextshot = curtime + (250 + 250 * players);
+    m->nextshot = curtime + (250 + 250 * players) * (bow::crossbow_mode() ? 4 : 1);
     
     turncount++;    
     shootBullet(m);
@@ -1732,7 +1747,7 @@ void moveBullet(monster *m, int delta) {
     (markOrb(itCurseWeakness) && (markOrb(itOrbEmpathy) ? isPlayerOrImage(ptype) : ptype == moPlayer));
       
   if(m->type != moTongue && !(godragon || (c2==m->base && m->type == moArrowTrap) || passable(c2, m->base, P_BULLET | P_MIRRORWALL))) {
-    m->dead = true;
+    if(!bow::crossbow_mode()) m->dead = true;
     if(!weak && (!isDie(c2->monst) || slayer))
       killMonster(c2, m->get_parenttype());
     // cell *c = m->base;
@@ -1740,12 +1755,14 @@ void moveBullet(monster *m, int delta) {
       if(c2->wall == waBigTree) {
         addMessage(XLAT("You start chopping down the tree."));
         c2->wall = waSmallTree;
+        m->dead = true;
         }
       else if(c2->wall == waSmallTree) {
         addMessage(XLAT("You chop down the tree."));
         c2->wall = waNone;
+        m->dead = true;
         }
-      else if(isActivable(c2)) 
+      else if(isActivable(c2))
         activateActiv(c2, true);
       else if(c2->wall == waExplosiveBarrel)
         explodeBarrel(c2);
@@ -1813,14 +1830,19 @@ void moveBullet(monster *m, int delta) {
         m2->stunoff = curtime + 600;
         continue;
         }
+
+      bool deadval = (bow::crossbow_mode() && m->type == moBullet) ? false : true;
+
       // multi-HP monsters
       if((m2->type == moPalace || m2->type == moFatGuard || m2->type == moSkeleton ||
         m2->type == moVizier || isMetalBeast(m2->type) || m2->type == moTortoise || m2->type == moBrownBug || 
         m2->type == moReptile || m2->type == moSalamander || m2->type == moTerraWarrior) && m2->hitpoints > 1 && !slayer) {
         m2->rebasePat(spin_towards(m2->pat, m->ori, nat0 * C0, 0, 1), m2->base);
-        if(m2->type != moSkeleton && !isMetalBeast(m2->type) && m2->type != moReptile && m2->type != moSalamander && m2->type != moBrownBug) 
-          m2->hitpoints--;
-        m->dead = true;
+        if(m2->type != moSkeleton && !isMetalBeast(m2->type) && m2->type != moReptile && m2->type != moSalamander && m2->type != moBrownBug) {
+          if(!(bow::crossbow_mode() && m2->stunoff > curtime))
+            m2->hitpoints--;
+          }
+        m->dead = deadval;
         if(m2->type == moVizier) ;
         else if(m2->type == moFatGuard)
           m2->stunoff = curtime + 600;
@@ -1844,27 +1866,27 @@ void moveBullet(monster *m, int delta) {
       // Raiders are unaffected
       if((m2->type == moCrusher || m2->type == moPair || m2->type == moMonk ||
         m2->type == moAltDemon || m2->type == moHexDemon) && conv) {
-        m->dead = true;
+        m->dead = deadval;
         continue;
         }
       if(m2->type == moGreater && conv) {
-        m->dead = true;
+        m->dead = deadval;
         continue;
         }
       if(m2->type == moRoseBeauty && conv && !markOrb(itOrbBeauty)) {
-        m->dead = true;
+        m->dead = deadval;
         continue;
         }
       if(m2->type == moDraugr && conv) {
-        m->dead = true;
+        m->dead = deadval;
         continue;
         }
       if(m2->type == moButterfly && conv) {
-        m->dead = true;
+        m->dead = deadval;
         continue;
         }
       if(isBull(m2->type) && conv) {
-        m->dead = true;
+        m->dead = deadval;
         // enrage herd bulls, awaken sleeping bulls
         m2->type = moRagingBull;
         continue;
@@ -1878,7 +1900,7 @@ void moveBullet(monster *m, int delta) {
         m->set_parent(m2);
         continue;
         }
-      m->dead = true;
+      m->dead = deadval;
       if(m->type == moFireball) makeflame(m->base, 20, false);
       // Orb of Winter protects from fireballs
       if(m->type == moFireball && ((isPlayer(m2) && markOrb(itOrbWinter)) || m2->type == moWitchWinter)) 
@@ -2243,8 +2265,10 @@ void moveMonster(monster *m, int delta) {
   
   if(!peace::on) 
   for(int i=0; i<players; i++) 
-    if(crashintomon == pc[i]) 
+    if(crashintomon == pc[i]) {
+      yasc_message = XLAT("killed by %the1", m->type);
       pc[i]->dead = true;
+      }
 
   if(peace::on) ; 
 
@@ -2717,6 +2741,7 @@ EX void turn(int delta) {
         terracotta::check();
         #endif
         heat::processfires();
+        advance_tides();
         if(havewhat&HF_WHIRLPOOL) whirlpool::move();
         if(havewhat&HF_WHIRLWIND) whirlwind::move();
         #if CAP_COMPLEX2
@@ -2972,13 +2997,13 @@ auto hooksw = addHook(hooks_swapdim, 100, [] {
   });
 #endif
     
-}
-
-shiftmatrix at_missile_level(const shiftmatrix& T) {
+EX shiftmatrix at_missile_level(const shiftmatrix& T) {
   if(WDIM == 3) return T;
   if(GDIM == 3) return orthogonal_move(T, cgi.BODY);
   return at_smart_lof(T, 1.15);
   }
+
+EX }
 
 bool celldrawer::draw_shmup_monster() {
   using namespace shmup;
@@ -3103,6 +3128,10 @@ bool celldrawer::draw_shmup_monster() {
         else if(peace::on) {
           queuepolyat(at_missile_level(view), cgi.shDisk, col, PPR::MISSILE);
           ShadowV(view, cgi.shPHead);
+          }
+        else if(bow::crossbow_mode()) {
+          queuepoly(at_missile_level(view), cgi.shTrapArrow, col);
+          ShadowV(view, cgi.shTrapArrow);
           }
         else {
           shiftmatrix t = view * spin(curtime / 50.0);

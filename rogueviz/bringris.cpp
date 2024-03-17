@@ -61,6 +61,12 @@ namespace subquotient {
 
 namespace bringris {
 
+local_parameter_set lps_bringris("bringris:");
+local_parameter_set lps_bringris_explore("bringris:explore:", &lps_bringris);
+local_parameter_set lps_bringris_play("bringris:play:", &lps_bringris);
+
+multi::config scfg_bringris;
+
 struct bgeometry {
   string name;
   string cap;
@@ -1180,12 +1186,10 @@ void draw_screen(int xstart, bool show_next) {
   
   if(explore) {
     gamescreen();
-    mouseaim_sensitivity = 0.01;
-    camera_speed = 2;
-    smooth_scrolling = true;
+    lps_enable(&lps_bringris_explore);
     }
   else {  
-    mouseaim_sensitivity = 0;
+    lps_enable(&lps_bringris_play);
     NLP = Id;
     View = pView;
     if(nil) {
@@ -1346,7 +1350,7 @@ void settings_menu() {
   dialog::addItem("visuals & Virtual Reality", 'v');
   dialog::add_action_push(visual_menu);
   dialog::addItem("configure keys", 'k');
-  dialog::add_action_push(multi::get_key_configurer(1, move_names, "Bringris keys"));
+  dialog::add_action_push(multi::get_key_configurer(1, move_names, "Bringris keys", scfg_bringris));
 
   #if CAP_AUDIO
   add_edit(effvolume);
@@ -1612,7 +1616,7 @@ void run() {
       explore = false;
 
     if(state == tsFalling && !paused) {
-      multi::handleInput(0);
+      multi::handleInput(0, scfg_bringris);
       bool consumed = false;
       for(int i=0; i<bmLast; i++)
         if(multi::actionspressed[16+i] && !multi::lactionpressed[16+i]) {
@@ -1623,7 +1627,10 @@ void run() {
       }
 
     dialog::handleNavigation(sym, uni);
-    if(in_menu && sym == 'q' && !ISWEB) exit(0);
+    if(in_menu && sym == 'q' && !ISWEB) {
+      in_bringris = false;
+      quitmainloop = true;
+      }
     if(sym == '-') {
       if(!which_pointer) {
         int ax = mousex * 3 / xstart;
@@ -1748,7 +1755,7 @@ void run() {
       perfect_linewidth = 0;
       shot::shot_aa = 2;
       vid.linewidth *= 2;
-      shot::take(format("bringris-%04d.png", id++), [] { draw_screen(vid.xres, false); });
+      shot::take(hr::format("bringris-%04d.png", id++), [] { draw_screen(vid.xres, false); });
       vid.linewidth /= 2;
       }
     #endif
@@ -1965,27 +1972,14 @@ void create_game() {
   camera_level = well_size + max_piece + camera;
   
   playermoved = false;
-  ray::want_use = 2;
-  ray::exp_decay_poly = 200;
   ray::max_iter_current() = solnil ? 600 : 200;
-  ray::fixed_map = true;
-  mapeditor::drawplayer = false;
-  // sightranges[geometry] = 1;
-  
-    
-  vid.fov = 90;
-  vid.plevel_factor = 0.5;
-  // vid.grid = true;
 
-  mouseaim_sensitivity = 0;  
-  
   start_new_game();
   state = tsPreGame;
-
-  vid.axes3 = false;
   }
 
 void init_all() {
+  lps_enable(&lps_bringris);
   enable_bgeom();
   vid.texture_step = 8;
   showstartmenu = false;
@@ -2038,16 +2032,12 @@ int args() {
   }
 
 void change_default_key(int key, int val) {
-  char* t = multi::scfg.keyaction;
+  char* t = scfg_bringris.keyaction;
   t[key] = val;
-  set_saver_default(t[key]);
   }
 
 void default_config() {
-  for(int i=0; i<512; i++)
-    if(multi::scfg.keyaction[i] >= 16 && multi::scfg.keyaction[i] < 32)
-      change_default_key(i, 0);
-  
+  clear_config(scfg_bringris);
   change_default_key('s', 16 + 0);
   change_default_key('a', 16 + 1);
   change_default_key('w', 16 + 2);
@@ -2057,18 +2047,39 @@ void default_config() {
   change_default_key(' ', 16 + 6);
   change_default_key('\r',16 + 7);
   change_default_key('p', 16 + 8);
+  sconfig_savers(scfg_bringris, "bringris");
 
-  addsaver(bgeom, "bringris-geometry");
-  addsaver(use_raycaster, "bringris-ray");
-  addsaver(draw_per_level, "draw-per-level");
-  addsaver(use_equidistant, "bringris-equidistant");
-  addsaver(flashes, "bringris-flashes");
+  param_i(bgeom, "bringris-geometry", 0);
+  lps_add(lps_bringris, ray::want_use, ray::want_use);
+  #if CAP_VR
+  lps_add(lps_bringris, vrhr::hsm, vrhr::hsm);
+  lps_add(lps_bringris, vrhr::eyes, vrhr::eyes);
+  #endif
+
+  lps_add(lps_bringris, ray::exp_decay_poly, 200);
+  lps_add(lps_bringris, ray::fixed_map, true);
+  lps_add(lps_bringris, mapeditor::drawplayer, false);
+
+  lps_add(lps_bringris, vid.fov, 90);
+  lps_add(lps_bringris, vid.plevel_factor, 0.5);
+  lps_add(lps_bringris, vid.axes3, false);
+
+  lps_add(lps_bringris_explore, mouseaim_sensitivity, 0.01);
+  lps_add(lps_bringris_explore, camera_speed, 2);
+  lps_add(lps_bringris_explore, smooth_scrolling, true);
+
+  lps_add(lps_bringris_play, mouseaim_sensitivity, 0);
+
+  param_b(use_raycaster, "bringris-ray");
+  param_i(draw_per_level, "draw-per-level");
+  param_b(use_equidistant, "bringris-equidistant");
+  param_b(flashes, "bringris-flashes");
   }
 
 auto hooks = 
     addHook(hooks_args, 100, args)
   + addHook(hooks_frame, 100, bringris_frame)
-  + addHook(hooks_configfile, 100, default_config)
+  + addHook(hooks_configfile, 300, default_config)
   + addHook(dialog::hooks_display_dialog, 100, [] () {
       if(dialog::items[0].body == "Bringris keys") {
         dialog::addBreak(200);

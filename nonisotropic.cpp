@@ -786,28 +786,31 @@ EX namespace nilv {
     }
 
   hyperpoint christoffel(const hyperpoint Position, const hyperpoint Velocity, const hyperpoint Transported, ld model = model_used) {
-    /* to do: write these formulas in model */
-    if(model == nmHeis) {
-      ld x = Position[0];
-      return point3(
-        x * Velocity[1] * Transported[1] - 0.5 * (Velocity[1] * Transported[2] + Velocity[2] * Transported[1]),
-        -.5 * x * (Velocity[1] * Transported[0] + Velocity[0] * Transported[1]) + .5 * (Velocity[2] * Transported[0] + Velocity[0] * Transported[2]),
-        -.5 * (x*x-1) * (Velocity[1] * Transported[0] + Velocity[0] * Transported[1]) + .5 * x * (Velocity[2] * Transported[0] + Velocity[0] * Transported[2])
-        );
-      }
-    else {
-      hyperpoint P = Position;
-      hyperpoint V = Velocity;
-      hyperpoint T = Transported;
-      convert_ref(P, model_used, nmHeis);
-      convert_tangent_ref(P, V, model_used, nmHeis);
-      convert_tangent_ref(P, T, model_used, nmHeis);
-      auto res = christoffel(P, V, T, nmHeis);
-      convert_tangent_ref(P, res, nmHeis, model_used);
-      // this is acceleration, not tangent, so:
-      res[2] += (model_used-nmHeis) * V[0] * V[1];
-      return res;
-      }
+    hyperpoint c; c[3] = 0;
+    ld x = Position[0]; ld y = Position[1];
+    auto mu = model;
+    c[ 0 ] = 0
+     + Velocity[ 0 ] * Transported[ 1 ] * ( y*(mu - 1)/4 )
+     + Velocity[ 1 ] * Transported[ 0 ] * ( y*(mu - 1)/4 )
+     + Velocity[ 1 ] * Transported[ 1 ] * ( x*(mu + 1)/2 )
+     + Velocity[ 1 ] * Transported[ 2 ] * ( -1/2. )
+     + Velocity[ 2 ] * Transported[ 1 ] * ( -1/2. );
+    c[ 1 ] = 0
+     + Velocity[ 0 ] * Transported[ 0 ] * ( y*(1 - mu)/2 )
+     + Velocity[ 0 ] * Transported[ 1 ] * ( -x*(mu + 1)/4 )
+     + Velocity[ 0 ] * Transported[ 2 ] * ( 1/2. )
+     + Velocity[ 1 ] * Transported[ 0 ] * ( -x*(mu + 1)/4 )
+     + Velocity[ 2 ] * Transported[ 0 ] * ( 1/2. );
+    c[ 2 ] = 0
+     + Velocity[ 0 ] * Transported[ 0 ] * ( x*y*(1 - mu*mu)/4 )
+     + Velocity[ 0 ] * Transported[ 1 ] * ( -mu*mu*x*x/8 + mu*mu*y*y/8 - mu*x*x/4 - mu*y*y/4 + mu/2 - x*x/8 + y*y/8 )
+     + Velocity[ 0 ] * Transported[ 2 ] * ( x*(mu + 1)/4 )
+     + Velocity[ 1 ] * Transported[ 0 ] * ( -mu*mu*x*x/8 + mu*mu*y*y/8 - mu*x*x/4 - mu*y*y/4 + mu/2 - x*x/8 + y*y/8 )
+     + Velocity[ 1 ] * Transported[ 1 ] * ( x*y*(mu*mu - 1)/4 )
+     + Velocity[ 1 ] * Transported[ 2 ] * ( y*(1 - mu)/4 )
+     + Velocity[ 2 ] * Transported[ 0 ] * ( x*(mu + 1)/4 )
+     + Velocity[ 2 ] * Transported[ 1 ] * ( y*(1 - mu)/4 );
+    return c;
     }
 
   EX hyperpoint formula_exp(hyperpoint v) {
@@ -904,13 +907,8 @@ EX namespace nilv {
   #if HDR
   struct mvec : array<int, 3> {
     /** these are in nmHeis */
-    
-    mvec() { }
-  
-    mvec(int x, int y, int z) { 
-      auto& a = *this;
-      a[0] = x; a[1] = y; a[2] = z;
-      }
+    explicit mvec() = default;
+    constexpr explicit mvec(int x, int y, int z) : array<int, 3>{{x, y, z}} {}
     mvec inverse() {  
       auto& a = *this;
       return mvec(-a[0], -a[1], -a[2]+a[1] * a[0]); 
@@ -922,7 +920,7 @@ EX namespace nilv {
     };
   #endif
 
-  static const mvec mvec_zero = mvec(0, 0, 0);
+  static constexpr mvec mvec_zero = mvec(0, 0, 0);
 
   EX ld nilwidth = 1;
       
@@ -1388,8 +1386,8 @@ EX namespace hybrid {
       return PIU( currentmap->full_shvid(c1) );
       }
 
-    virtual transmatrix spin_to(cell *c, int d, ld bonus) override { if(d >= c->type-2) return Id; c = get_where(c).first; return fix4( in_underlying([&] { return currentmap->spin_to(c, d, bonus); }) ); }
-    virtual transmatrix spin_from(cell *c, int d, ld bonus) override { if(d >= c->type-2) return Id; c = get_where(c).first; return fix4( in_underlying([&] { return currentmap->spin_from(c, d, bonus); }) ); }
+    transmatrix spin_to(cell *c, int d, ld bonus) override { if(d >= c->type-2) return Id; c = get_where(c).first; return fix4_f( in_underlying([&] { return currentmap->spin_to(c, d, bonus); }) ); }
+    transmatrix spin_from(cell *c, int d, ld bonus) override { if(d >= c->type-2) return Id; c = get_where(c).first; return fix4_f( in_underlying([&] { return currentmap->spin_from(c, d, bonus); }) ); }
 
     subcellshape& get_cellshape(cell *c) override {      
       int id = full_shvid(c);
@@ -1623,7 +1621,7 @@ EX namespace hybrid {
         start_game();
         };
       };
-    dialog::extra_options = [=] () { 
+    dialog::get_di().extra_options = [=] () {
       if(rotspace) {
         int e_steps = cgi.psl_steps / gcd(cgi.single_step, cgi.psl_steps); 
         bool ubounded = PIU(closed_manifold);
@@ -1642,7 +1640,7 @@ EX namespace hybrid {
         dialog::addSelItem( XLAT("non-periodic"), its(0), 'N');
         dialog::add_action(set_s(0, true));
         }
-      dialog::reaction_final = set_s(s, false);
+      dialog::get_di().reaction_final = set_s(s, false);
       };
     }
 
@@ -1702,7 +1700,7 @@ EX namespace product {
         }
       }
 
-    virtual transmatrix ray_iadj(cell *c, int i) override {
+    transmatrix ray_iadj(cell *c, int i) override {
       if(i == c->type-2) return (cpush(2, +cgi.plevel));
       if(i == c->type-1) return (cpush(2, -cgi.plevel));
       transmatrix T;
@@ -1752,7 +1750,7 @@ EX namespace product {
 
   EX bool validate_spin() {
     if(mproduct) return hybrid::in_underlying_geometry(validate_spin);
-    if(kite::in()) return false;
+    if(aperiodic) return false;
     if(!quotient && !arcm::in()) return true;
     map<cell*, cellwalker> cws;
     manual_celllister cl;
@@ -1784,7 +1782,7 @@ EX namespace product {
       dialog::editNumber(s, 0, 16, 1, 0, XLAT("rotation", "Z"), 
         XLAT("Works if the underlying space is symmetric.")
         );
-      dialog::reaction_final = [] {
+      dialog::get_di().reaction_final = [] {
         if(s == cspin) return;
         stop_game();
         cspin = s;

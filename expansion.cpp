@@ -113,8 +113,8 @@ void expansion_analyzer::preliminary_grouping() {
       for(int v: rulegen::treestates[i].rules)
         if(v >= 0) children[i].push_back(v);
     }
-  else if(reg3::exact_rules()) {
 #if MAXMDIM >= 4
+  else if(reg3::exact_rules()) {
     rootid = reg3::rule_get_root(0);
     auto& chi = reg3::rule_get_children();
     auto& chpos = reg3::rule_get_childpos();
@@ -128,8 +128,8 @@ void expansion_analyzer::preliminary_grouping() {
         children[i].push_back(ck);
       k++;
       }
-#endif
     }
+#endif
   else {
     sample_id(currentmap->gamestart());
     // queue for, do not change to range-based for
@@ -145,7 +145,9 @@ void expansion_analyzer::preliminary_grouping() {
   }
 
 void expansion_analyzer::reduce_grouping() {
+  #if MAXMDIM >= 4
   if(reg3::exact_rules()) return;
+  #endif
   if(currentmap->strict_tree_rules()) return;
   int old_N = N;
   vector<int> grouping;
@@ -239,7 +241,11 @@ bool expansion_analyzer::verify(int id) {
 
 int expansion_analyzer::valid(int v, int step) {
   if(step < 0) return 0;
+  #if MAXMDIM >= 4
+  int more = 5;
+  #else
   int more = reg3::exact_rules() ? 1 : 5;
+  #endif
   #if CAP_GMP == 0
   if(get_descendants(step+v+v+more).approx_int() >= bignum::BASE) return 0;
   typedef ld val;
@@ -392,16 +398,19 @@ int type_in_quick(expansion_analyzer& ea, cell *c, const cellfunction& f) {
   }
 
 EX bool sizes_known() {
+  #if MAXMDIM >= 4
   if(reg3::exact_rules()) return true;
+  #endif
   if(closed_manifold) return false;
   // Castle Anthrax is infinite
   if(bt::in()) return false;
   // not implemented
   if(arcm::in()) return false;
-  if(kite::in()) return false;
+  if(aperiodic) return false;
   if(currentmap->strict_tree_rules()) return true;
   if(arb::in()) return false;
-  return true;  
+  if(INVERSE) return false;
+  return true;
   }
 
 EX bool trees_known() {
@@ -439,16 +448,27 @@ EX bool mod_allowed() {
   return cheater || autocheat || arcm::in() || arb::in() || tour::on;
   }
 
+EX bool distances_legal(cell *c) {
+  if(mod_allowed()) return true;
+  switch(distance_from) {
+    case dfPlayer:
+      return true;
+    case dfStart:
+      return bt::in();
+    case dfWorld:
+      return c && among(c->land, laOcean, laIvoryTower, laEndorian, laDungeon, laTemple, laWhirlpool, laCanvas);
+    }
+  return false;
+  }
+
 EX int curr_dist(cell *c) {
+  if(!distances_legal(c)) return 0;
   switch(distance_from) {
     case dfPlayer:
       return c->cpdist < INFD ? c->cpdist : celldistance(cwt.at, c);
     case dfStart:
-      if(!mod_allowed()) return 0;
       return celldist(c);
     case dfWorld:
-      if(!mod_allowed() && !among(c->land, laOcean, laIvoryTower, laEndorian, laDungeon, laTemple, laWhirlpool, laCanvas))
-        return 0;
       if((isCyclic(c->land) || among(c->land, laCanvas, laCaribbean, laStorms, laRlyeh))) {
         if(eubinary || c->master->alt) return celldistAlt(c);
         return UNKNOWN;
@@ -534,6 +554,15 @@ EX namespace ts {
     if(pid == -1) return c->cmove(id);
     return c->cmodmove(pid + (valence() == 3 ? 2 : 1) + id);
     }
+
+  EX cell *get_child(cell *c, const cellfunction& cf, int v) {
+    for(int i=0; i<c->type; i++) if(cf(c->cmodmove(i+v)) <= cf(c) && cf(c->cmodmove(i)) > cf(c))
+      return c->cmodmove(i);
+    return nullptr;
+    }
+
+  EX cell *right_child(cell *c, const cellfunction& cf) { return get_child(c, cf, -1); }
+  EX cell *left_child(cell *c, const cellfunction& cf) { return get_child(c, cf, 1); }
 
   #if HDR
   inline cell *left_parent(cell *c, const cellfunction& cf) { return verified_add(c, 1, 0, cf); }
@@ -790,7 +819,7 @@ void expansion_analyzer::view_distances_dialog() {
     scrolling_distances = false;
     dialog::editNumber(last_distance, 0, 3000, 1, 0, XLAT("display distances up to"), "");
     dialog::bound_low(0);
-    dialog::extra_options = [] {
+    dialog::get_di().extra_options = [] {
       add_edit(auto_extend);
       };
     });
@@ -1060,7 +1089,7 @@ EX int hyperbolic_celldistance(cell *c1, cell *c2) {
       else {
         if(cl1 == cr2 || cr1 == cl2) found_distance = d;
         }
-      }    
+      }
     
     if(d >= found_distance) {
       if(sl_used == sibling_limit && IRREGULAR) { 

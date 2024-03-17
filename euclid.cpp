@@ -12,8 +12,8 @@ EX namespace euc {
 
   #if HDR
   struct coord : array<int, 3> {
-    coord() {}
-    coord(int x, int y, int z) { self[0] = x; self[1] = y; self[2] = z; }
+    explicit coord() = default;
+    constexpr explicit coord(int x, int y, int z) : array<int,3> {{x,y,z}} {}
     coord& operator += (coord b) { for(int i: {0,1,2}) self[i] += b[i]; return self; }
     coord& operator -= (coord b) { for(int i: {0,1,2}) self[i] -= b[i]; return self; }
     coord operator + (coord b) const { coord a = self; return a += b; }
@@ -32,7 +32,7 @@ EX namespace euc {
   EX const coord eutester = coord(3,7,0);
   EX intmatrix euzeroall = make_array<coord>(euzero, euzero, euzero);
 
-  static const intmatrix main_axes = make_array<coord>(coord(1,0,0), coord(0,1,0), coord(0,0,1));
+  static constexpr intmatrix main_axes = make_array<coord>(coord(1,0,0), coord(0,1,0), coord(0,0,1));
   
   EX vector<coord> get_shifttable() {
     static const coord D0 = main_axes[0];
@@ -46,10 +46,12 @@ EX namespace euc {
 
     switch(g) {
       case gCubeTiling:
+      case gMengerSponge:
         shifttable = { +D0, +D1, +D2 };
         break;
       
       case gRhombic3:
+      case gSierpinskiTet:
         shifttable = { D0+D1, D0+D2, D1+D2, D1-D2, D0-D2, D0-D1 };
         break;
       
@@ -58,10 +60,13 @@ EX namespace euc {
         break;
       
       case gEuclid:
+      case gSierpinski3:
+      case gSixFlake:
         shifttable = { D0, D1, D1-D0, -D0, -D1, D0-D1 };
         break;
 
       case gEuclidSquare:
+      case gSierpinski4:
         shifttable = { D0, D1, -D0, -D1 };
         break;
       
@@ -137,7 +142,7 @@ EX namespace euc {
     map<gp::loc, struct cdata> eucdata;
     
     void compute_tmatrix() {
-      cgi.prepare_basics();
+      cgi.require_basics();
       shifttable = get_shifttable();
       tmatrix.resize(S7);
       for(int i=0; i<S7; i++) tmatrix[i] = eumove(shifttable[i]);
@@ -256,8 +261,11 @@ EX namespace euc {
         bool draw = drawcell_subs(c, V * spin(master_to_c7_angle()));
         if(in_wallopt() && isWall3(c) && isize(dq::drawqueue) > 1000 && !hybrid::pmap) continue;
   
-        if(draw) for(int i=0; i<S7; i++)
-          dq::enqueue_by_matrix(h->move(i), optimized_shift(V * adj(h, i)));
+        if(draw) for(int i=0; i<S7; i++) {
+          auto V1 = V * adj(h, i);
+          if(geom3::apply_break_cylinder && cgi.emb->break_cylinder(V, V1)) continue;
+          dq::enqueue_by_matrix(h->move(i), optimized_shift(V1));
+          }
         }
       }
     
@@ -955,7 +963,7 @@ EX namespace euc {
       dialog::addItem("special manifolds", 'S');
       dialog::add_action([] {
         dialog::editNumber(quotient_size, 1, 12, 1, 2, "special manifold size", "");
-        dialog::extra_options = [] {
+        dialog::get_di().extra_options = [] {
           auto q = quotient_size;
           torus_config_option(XLAT("third-turn space"), 'A', make_third_turn(q,0,q));
           torus_config_option(XLAT("quarter-turn space"), 'B', make_quarter_turn(q,0,q));
@@ -1038,7 +1046,7 @@ EX namespace euc {
               "not implemented.)"
               )
               );
-            dialog::extra_options = show_fundamental;
+            dialog::get_di().extra_options = show_fundamental;
             });
           }
         }
@@ -1359,6 +1367,7 @@ EX void generate() {
 EX bool in() { 
   if(fake::in()) return FPIU(in()); 
   if(geometry == gCubeTiling && (reg3::cubes_reg3 || !PURE)) return false;
+  if(cgflags & qEXPERIMENTAL) return false;
   return meuclid && standard_tiling();
   }
 

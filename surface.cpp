@@ -191,7 +191,7 @@ bool flag_clamp_max(ld& coord, ld maxv) {
   }
 
 bool flag_clamp(ld& coord, ld minv, ld maxv) {
-  return flag_clamp_min(coord, minv) & flag_clamp_max(coord, maxv);
+  return flag_clamp_min(coord, minv) && flag_clamp_max(coord, maxv);
   }
 
 bool flag_clamp_sym(ld& coord, ld v) {
@@ -209,13 +209,13 @@ bool inbound(ld& x, ld& y) {
       return flag_clamp(x, 90._deg, M_PI);
     
     case dsTractricoid:
-      return flag_clamp_min(x, 0) & flag_clamp_sym(y, M_PI);
+      return flag_clamp_min(x, 0) && flag_clamp_sym(y, M_PI);
     
     case dsKuen: 
-      return flag_clamp(x, 0, M_PI) & flag_clamp(y, 0, TAU);
+      return flag_clamp(x, 0, M_PI) && flag_clamp(y, 0, TAU);
     
     case dsHyperlike:
-      return flag_clamp_sym(x, M_PI) & flag_clamp_sym(y, hyperlike_bound());
+      return flag_clamp_sym(x, M_PI) && flag_clamp_sym(y, hyperlike_bound());
     
     default: 
       return true;
@@ -757,7 +757,7 @@ EX void show_surfaces() {
       dialog::editNumber(hyper_b, -1, 1, .05, 1, XLAT("parameter"),
         XLAT("Controls the inner radius.")
         );
-      dialog::reaction = [] () {
+      dialog::get_ne().reaction = [] () {
         if(sh == dsHyperlike) run_shape(sh);
         };
       }
@@ -772,7 +772,7 @@ EX void show_surfaces() {
       dialog::editNumber(precision, 1, 10000, 0, 100, XLAT("precision"),
         XLAT("Computing these models involves integrals and differential equations, which are currently solved numerically. This controls the precision.")
         );
-      dialog::ne.step = .1;
+      dialog::get_ne().step = .1;
       dialog::scaleLog();
       }
     else if(uni == 'c') {

@@ -90,7 +90,7 @@ EX namespace geom3 {
         ans += " torus";
       }
     if(among(sp, seSol, seNIH, seSolN)) {
-      if((meuclid && !PURE) && !bt::in()) ans += " pure or bin";
+      if((meuclid && !PURE) || !bt::in()) ans += " pure or bin";
       }
     return ans;
     }
@@ -102,6 +102,7 @@ EX namespace geom3 {
   EX bool auto_configure = true;
   EX bool flat_embedding = false;
   EX bool inverted_embedding = false;
+  EX bool apply_break_cylinder = true;
 
   EX ld euclid_embed_scale_mean() { return euclid_embed_scale * sqrt(euclid_embed_scale_y); }
   EX void set_euclid_embed_scale(ld x) { euclid_embed_scale = x; euclid_embed_scale_y = 1; euclid_embed_rotate = 0; }
@@ -131,13 +132,30 @@ EX namespace geom3 {
   
   EX geometry_information* unflipped;
 
+  EX void light_flip_geom() {
+    indenter ind(2);
+    swap(ginf[geometry].g, geom3::ginf_backup[geometry].g);
+    swap(ginf[geometry].flags, geom3::ginf_backup[geometry].flags);
+    if(fake::in()) {
+      // println(hlog, "warning: flipping while still in fake");
+      FPIU(light_flip_geom());
+      }
+    // hyperbolic arcm needs gNormal for cdata. Also swap gSphere and gEuclid for compute_geometry
+    else if(arcm::in()) {
+      dynamicval<eGeometry> g(geometry, gNormal); light_flip_geom();
+      geometry = gSphere; light_flip_geom();
+      geometry = gEuclid; light_flip_geom();
+      }
+    }
+
   EX void light_flip(bool f) {
     if(f != flipped) {
+      if(!flipped) cgip->use_count++;
       if(!flipped) unflipped = cgip;
-      swap(ginf[geometry].g, geom3::ginf_backup[geometry].g);
-      swap(ginf[geometry].flags, geom3::ginf_backup[geometry].flags);
-      if(!flipped) cgip = unflipped;
+      light_flip_geom();
       flipped = f;
+      if(!flipped) cgip = unflipped;
+      if(!flipped) cgip->use_count--;
       }
     }
   
@@ -164,40 +182,43 @@ EX namespace geom3 {
       }
     if(vid.always3 && ginf_backup.empty()) {
       ginf_backup = ginf;
-      for(geometryinfo& gi: ginf) {
-        auto &g = gi.g;
-        if(vid.always3 && g.gameplay_dimension == 2 && g.graphical_dimension == 2) {
-          /* same-in-same by default */
-          auto og = g;
-          g.graphical_dimension++;
-          g.homogeneous_dimension++;
-          g.sig[3] = g.sig[2];
-          g.sig[2] = g.sig[1];
+      for(geometryinfo& gi: ginf)
+        apply_always3_to(gi);
+      }
+    }
 
-          bool ieuclid = g.kind == gcEuclid;
-          bool isphere = g.kind == gcSphere;
-          bool ieuc_or_binary = ieuclid || (gi.flags & qBINARY);
+  EX void apply_always3_to(geometryinfo& gi) {
+    auto &g = gi.g;
+    if(vid.always3 && g.gameplay_dimension == 2 && g.graphical_dimension == 2) {
+      /* same-in-same by default */
+      auto og = g;
+      g.graphical_dimension++;
+      g.homogeneous_dimension++;
+      g.sig[3] = g.sig[2];
+      g.sig[2] = g.sig[1];
 
-          if(spatial_embedding == seProduct && !ieuclid) g = giProduct, g.sig[2] = og.sig[2];
-          if(spatial_embedding == seProductH && ieuclid) g = giProductH;
-          if(spatial_embedding == seProductS && ieuclid) g = giProductS;
-          if(spatial_embedding == seLowerCurvature) g = (isphere ? giEuclid3 : giHyperb3);
-          if(spatial_embedding == seMuchLowerCurvature) g = giHyperb3;
-          if(spatial_embedding == seNil && ieuclid) g = giNil;
-          if(spatial_embedding == seCliffordTorus && ieuclid) g = giSphere3;
-          if(spatial_embedding == seSol && ieuc_or_binary) g = giSol;
-          if(spatial_embedding == seNIH && ieuc_or_binary) g = giNIH;
-          if(spatial_embedding == seSolN && ieuc_or_binary) g = giSolN;
-          if(spatial_embedding == seSL2 && ieuclid) g = giSL2;
-          if(spatial_embedding == seCylinderH && ieuclid) g = giHyperb3;
-          if(spatial_embedding == seCylinderHE && ieuclid) g = giProductH;
-          if(spatial_embedding == seCylinderHoro && ieuclid) g = giProductH;
-          if(spatial_embedding == seCylinderNil && ieuclid) g = giNil;
-          if(spatial_embedding == seCylinderSL2 && ieuclid) g = giSL2;
-          
-          g.gameplay_dimension = 2;
-          }
-        }
+      bool ieuclid = g.kind == gcEuclid;
+      bool isphere = g.kind == gcSphere;
+      bool ieuc_or_binary = ieuclid || (gi.flags & qBINARY);
+
+      if(spatial_embedding == seProduct && !ieuclid) g = giProduct, g.sig[2] = og.sig[2];
+      if(spatial_embedding == seProductH && ieuclid) g = giProductH;
+      if(spatial_embedding == seProductS && ieuclid) g = giProductS;
+      if(spatial_embedding == seLowerCurvature) g = (isphere ? giEuclid3 : giHyperb3);
+      if(spatial_embedding == seMuchLowerCurvature) g = giHyperb3;
+      if(spatial_embedding == seNil && ieuclid) g = giNil;
+      if(spatial_embedding == seCliffordTorus && ieuclid) g = giSphere3;
+      if(spatial_embedding == seSol && ieuc_or_binary) g = giSol;
+      if(spatial_embedding == seNIH && ieuc_or_binary) g = giNIH;
+      if(spatial_embedding == seSolN && ieuc_or_binary) g = giSolN;
+      if(spatial_embedding == seSL2 && ieuclid) g = giSL2;
+      if(spatial_embedding == seCylinderH && ieuclid) g = giHyperb3;
+      if(spatial_embedding == seCylinderHE && ieuclid) g = giProductH;
+      if(spatial_embedding == seCylinderHoro && ieuclid) g = giProductH;
+      if(spatial_embedding == seCylinderNil && ieuclid) g = giNil;
+      if(spatial_embedding == seCylinderSL2 && ieuclid) g = giSL2;
+
+      g.gameplay_dimension = 2;
       }
     }
 
@@ -279,6 +300,7 @@ EX }
     virtual bool is_same_in_same() { return false; }
     virtual bool is_sph_in_low() { return false; }
     virtual bool is_hyp_in_solnih() { return false; }
+    virtual bool is_euc_scalable() { return false; }
     virtual bool is_euc_in_hyp() { return false; }
     virtual bool is_euc_in_sph() { return false; }
     virtual bool is_euc_in_nil() { return false; }
@@ -301,6 +323,10 @@ EX }
     
     void prepare_lta();
     void auto_configure();
+    virtual ~embedding_method() {}
+
+    /* should we break cylinder between M1 and M2 */
+    virtual bool break_cylinder(const shiftmatrix& M1, const shiftmatrix& M2) { return false; }
     };
 
   #endif
@@ -372,9 +398,11 @@ struct emb_none : embedding_method {
     return rgpushxto0(i);
     }
   hyperpoint flatten(hyperpoint a) override {
-    if(gproduct) return a / exp(zlevel(a));
+    if(gproduct || GDIM == 2) return a / exp(zlevel(a));
     return embedding_method::flatten(a);
     }
+
+  hyperpoint normalize_flat(hyperpoint a) override { return normalize(a); }
 
   transmatrix base_to_actual(const transmatrix& T) override { return T; }
   hyperpoint base_to_actual(hyperpoint h) override { return h; }
@@ -492,7 +520,7 @@ struct emb_actual : embedding_method {
 /** embed in the 3D variant of the same geometry */
 
 struct emb_same_in_same : emb_actual {
-  virtual bool is_same_in_same() override { return true; }
+  bool is_same_in_same() override { return true; }
   transmatrix intermediate_to_actual_translation(hyperpoint i) override { return rgpushxto0(logical_to_actual(i)); }
   hyperpoint actual_to_intermediate(hyperpoint a) override { return actual_to_logical(a); }
   hyperpoint orthogonal_move(const hyperpoint& h, ld z) override {
@@ -513,9 +541,9 @@ struct emb_same_in_same : emb_actual {
   transmatrix actual_to_base(const transmatrix &T0) override {
     auto T = T0;
     for(int i=0; i<4; i++) T[i][2] = T[i][3], T[i][3] = 0;
-    for(int i=0; i<4; i++) T[2][i] = T[3][i], T[i][3] = 0;
+    for(int i=0; i<4; i++) T[2][i] = T[3][i], T[3][i] = 0;
     T[3][3] = 1;
-    fixmatrix(T);
+    if(MDIM == 3) fixmatrix(T); else IPF(fixmatrix(T));
     for(int i=0; i<MDIM; i++) for(int j=0; j<MDIM; j++) if(isnan(T[i][j])) return Id;
     return T;
     }    
@@ -573,7 +601,7 @@ struct emb_same_in_same : emb_actual {
 /** embed in the product geometry */
 
 struct emb_product_embedding : emb_actual {
-  virtual bool is_product_embedding() override { return true; }
+  bool is_product_embedding() override { return true; }
   transmatrix intermediate_to_actual_translation(hyperpoint i) override { return rgpushxto0(logical_to_actual(i)); }
   hyperpoint actual_to_intermediate(hyperpoint a) override { return actual_to_logical(a); }
   hyperpoint flatten(hyperpoint h) override { h /= exp(zlevel(h)); return h; }
@@ -601,9 +629,19 @@ struct emb_product_embedding : emb_actual {
     }
   };
 
+struct emb_euc_scalable : emb_actual {
+  bool is_euc_scalable() override { return true; }
+  transmatrix get_lti() override {
+    transmatrix lti = Id;
+    lti[0][0] *= geom3::euclid_embed_scale;
+    lti[1][1] *= geom3::euclid_embed_scale * geom3::euclid_embed_scale_y;
+    return logical_scaled_to_intermediate * cspin(0, 1, geom3::euclid_embed_rotate * degree) * lti;
+    }
+  };
+
 /** embed Euclidean plane as horosphere */
 
-struct emb_euc_in_hyp : emb_actual {
+struct emb_euc_in_hyp : emb_euc_scalable {
   bool is_euc_in_hyp() override { return true; }
   hyperpoint actual_to_intermediate(hyperpoint a) override { return deparabolic13(a); }
   transmatrix intermediate_to_actual_translation(hyperpoint i) override { return parabolic13_at(i); }
@@ -611,14 +649,19 @@ struct emb_euc_in_hyp : emb_actual {
     geom3::light_flip(true);
     hyperpoint mov = T * C02;
     transmatrix U = gpushxto0(mov) * T;
+    mov = logical_to_intermediate * mov;
     geom3::light_flip(false);
     for(int i=0; i<4; i++) U[i][3] = U[3][i] = i == 3;
     return parabolic13(mov[0], mov[1]) * U;
     }
   hyperpoint base_to_actual(hyperpoint h) override {
+    h = logical_to_intermediate * h;
     h[3] = h[2]; h[2] = 0; return parabolic13(h[0], h[1]) * C0;
     }
-  hyperpoint actual_to_base(hyperpoint h) override { return deparabolic13(h); }
+  hyperpoint actual_to_base(hyperpoint h) override {
+    hyperpoint h1 = deparabolic13(h); h1[2] = 1;
+    return intermediate_to_logical * h1;
+    }
   transmatrix actual_to_base(const transmatrix& T) override { hyperpoint h = deparabolic13(T * C0); return eupush(h[0], h[1]); }
   ld anim_center_z() override { return vid.depth; }
   };
@@ -631,8 +674,8 @@ struct emb_sphere_in_low : emb_actual {
     return map_relative_push(logical_to_actual(i)) * zpush(-1);
     }
   hyperpoint actual_to_intermediate(hyperpoint a) override { return actual_to_logical(a); }
-  ld center_z() { return 1; }
-  transmatrix map_relative_push(hyperpoint a) {
+  ld center_z() override { return 1; }
+  transmatrix map_relative_push(hyperpoint a) override {
     ld z = hdist0(a);
     geom3::light_flip(true);
     auto h1 = normalize(a);
@@ -695,7 +738,7 @@ struct emb_sphere_in_low : emb_actual {
 
 /** abstract class for embeddings of Euclidean plane; these embeddings are not isotropic */
 
-struct emb_euclid_noniso : emb_actual {
+struct emb_euclid_noniso : emb_euc_scalable {
   bool is_euc_in_noniso() override { return true; }
   bool is_in_noniso() override { return true; }
   transmatrix base_to_actual(const transmatrix &T) override {
@@ -714,13 +757,6 @@ struct emb_euclid_noniso : emb_actual {
     return h1;
     }
   transmatrix actual_to_base(const transmatrix& T) override { hyperpoint h = actual_to_base(T * tile_center()); return eupush(h[0], h[1]);  }
-
-  transmatrix get_lti() override {
-    transmatrix lti = Id;
-    lti[0][0] *= geom3::euclid_embed_scale;
-    lti[1][1] *= geom3::euclid_embed_scale * geom3::euclid_embed_scale_y;
-    return logical_scaled_to_intermediate * cspin(0, 1, geom3::euclid_embed_rotate * degree) * lti;
-    }
   };
 
 struct emb_euc_in_product : emb_euclid_noniso {
@@ -734,7 +770,7 @@ struct emb_euc_in_product : emb_euclid_noniso {
     return hyperpoint(bx, by, bz, 1);
     }
   transmatrix get_lsti() override { return cspin90(2, 1); }
-  transmatrix intermediate_to_actual_translation(hyperpoint i) {
+  transmatrix intermediate_to_actual_translation(hyperpoint i) override {
     return zpush(i[2]) * xpush(i[0]) * ypush(i[1]);
     }
   };
@@ -771,6 +807,12 @@ struct emb_euc_in_sl2 : emb_euclid_noniso {
   transmatrix get_lsti() override { return cspin90(2, 1); }
   };
 
+bool break_dims(const shiftmatrix& M1, const shiftmatrix& M2, int i, int j) {
+  transmatrix uM1 = current_display->radar_transform * unshift(M1);
+  transmatrix uM2 = current_display->radar_transform * unshift(M2);
+  return uM1[j][j] < 0 && uM2[j][j] < 0 && uM1[i][j] * uM2[i][j] < 0;
+  }
+
 /* for both seCylinderH and seCylinderE. Possibly actually works for CliffordTorus too */
 struct emb_euc_cylinder : emb_euclid_noniso {
   bool is_cylinder() override { return true; }
@@ -787,6 +829,7 @@ struct emb_euc_cylinder : emb_euclid_noniso {
   transmatrix intermediate_to_actual_translation(hyperpoint i) override {
     return xpush(i[0]) * cspin(1, 2, i[1]) * zpush(i[2]);
     }
+  bool break_cylinder(const shiftmatrix& M1, const shiftmatrix& M2) override { return break_dims(M1, M2, 1, 2); }
   };
 
 struct emb_euc_cylinder_he : emb_euc_cylinder {
@@ -802,6 +845,7 @@ struct emb_euc_cylinder_he : emb_euc_cylinder {
   transmatrix intermediate_to_actual_translation(hyperpoint i) override {
     return zpush(i[2]) * cspin(1, 0, i[1]) * xpush(i[0]);
     }
+  bool break_cylinder(const shiftmatrix& M1, const shiftmatrix& M2) override { return break_dims(M1, M2, 1, 0); }
   };
 
 struct emb_euc_cylinder_twisted : emb_euc_cylinder {
@@ -826,6 +870,7 @@ struct emb_euc_cylinder_nil : emb_euc_cylinder_twisted {
   transmatrix intermediate_to_actual_translation(hyperpoint i) override {
     return zpush(i[2]) * cspin(1, 0, i[1]) * xpush(i[0]);
     }
+  bool break_cylinder(const shiftmatrix& M1, const shiftmatrix& M2) override { return break_dims(M1, M2, 1, 0); }
   };
 
 struct emb_euc_cylinder_horo : emb_euc_cylinder {
@@ -844,6 +889,7 @@ struct emb_euc_cylinder_horo : emb_euc_cylinder {
   transmatrix get_lsti() override {
     return cspin90(0, 2);
     }
+  bool break_cylinder(const shiftmatrix& M1, const shiftmatrix& M2) override { return false; }
   };
 
 struct emb_euc_cylinder_sl2 : emb_euc_cylinder_twisted {
@@ -860,13 +906,14 @@ struct emb_euc_cylinder_sl2 : emb_euc_cylinder_twisted {
   transmatrix intermediate_to_actual_translation(hyperpoint i) override {
     return cspin(2, 3, i[2]) * cspin(0, 1, i[2] + i[1]) * xpush(i[0]);
     }
+  bool break_cylinder(const shiftmatrix& M1, const shiftmatrix& M2) override { return break_dims(M1, M2, 0, 1); }
   };
 
 /** Clifford torus */
 struct emb_euc_in_sph : emb_euclid_noniso {
   bool is_euc_in_sph() override { return true; }
   ld center_z() override { return 1; }
-  virtual ld height_limit(ld sign) { return sign < 0 ? 0 : 90._deg; }
+  // ld height_limit(ld sign) override { return sign < 0 ? 0 : 90._deg; }
   hyperpoint actual_to_intermediate(hyperpoint a) override { 
     ld tx = hypot(a[0], a[2]);
     ld ty = hypot(a[1], a[3]);
@@ -878,6 +925,7 @@ struct emb_euc_in_sph : emb_euclid_noniso {
   transmatrix intermediate_to_actual_translation(hyperpoint i) override {
     return cspin(0, 2, i[0]) * cspin(1, 3, i[1]) * cspin(2, 3, i[2]);
     }
+  bool break_cylinder(const shiftmatrix& M1, const shiftmatrix& M2) override { return break_dims(M1, M2, 0, 2) || break_dims(M1, M2, 1, 3); }
   };
 
 /* todo model change */
@@ -955,7 +1003,7 @@ void embedding_method::prepare_lta() {
   intermediate_to_logical_scaled = inverse(logical_scaled_to_intermediate);
   logical_to_intermediate = get_lti();
   intermediate_to_logical = inverse(logical_to_intermediate);
-  if(MDIM == 3) {
+  if(MDIM == 3 && MAXMDIM == 4) {
     // just in case
     for(int i=0; i<4; i++)
       intermediate_to_logical_scaled[i][3] = intermediate_to_logical_scaled[3][i] = intermediate_to_logical[3][i] = intermediate_to_logical[i][3] = i == 3;
@@ -1014,42 +1062,62 @@ EX transmatrix unswap_spin(transmatrix T) {
 
 /** rotate by alpha degrees in the XY plane */
 EX transmatrix spin(ld alpha) {
+  #if MAXMDIM == 3
+  return cspin(0, 1, alpha);
+  #else
   if(cgi.emb->no_spin()) return Id;
   return cgi.emb->logical_scaled_to_intermediate * cspin(0, 1, alpha) * cgi.emb->intermediate_to_logical_scaled;
+  #endif
   }
 
 /** rotate by 90 degrees in the XY plane */
 EX transmatrix spin90() {
+  #if MAXMDIM == 3
+  return cspin90(0, 1);
+  #else
   if(cgi.emb->no_spin()) return Id;
   return cgi.emb->logical_scaled_to_intermediate * cspin90(0, 1) * cgi.emb->intermediate_to_logical_scaled;
+  #endif
   }
 
 /** rotate by 180 degrees in the XY plane */
 EX transmatrix spin180() {
+  #if MAXMDIM == 3
+  return cspin180(0, 1);
+  #else
   if(cgi.emb->no_spin()) return Id;
   return cgi.emb->logical_scaled_to_intermediate * cspin180(0, 1) * cgi.emb->intermediate_to_logical_scaled;
+  #endif
   }
 
 /** rotate by 270 degrees in the XY plane */
 EX transmatrix spin270() {
+  #if MAXMDIM == 3
+  return cspin90(1, 0);
+  #else
   if(cgi.emb->no_spin()) return Id;
   return cgi.emb->logical_scaled_to_intermediate * cspin90(1, 0) * cgi.emb->intermediate_to_logical_scaled;
+  #endif
   }
 
 EX transmatrix lzpush(ld z) {
+  #if MAXMDIM >= 4
   auto &lti = cgi.emb->logical_scaled_to_intermediate;
   if(lti[0][2]) return cpush(0, lti[0][2] * z);
   if(lti[1][2]) return cpush(1, lti[1][2] * z);
+  #endif
   return cpush(2, z);
   }
 
 EX transmatrix lxpush(ld alpha) {
+  #if MAXMDIM >= 4
   if(embedded_plane) {
     geom3::light_flip(true);
     auto t = cpush(0, alpha);
     geom3::light_flip(false);
     return cgi.emb->base_to_actual(t);
     }
+  #endif
   return cpush(0, alpha);
   }
 
@@ -1161,6 +1229,7 @@ struct embedded_matrix_data {
   transmatrix saved;
   hyperpoint logical_coordinates;
   transmatrix rotation;
+  ld old_height;
   };
 
 map<transmatrix*, embedded_matrix_data> mdata;
@@ -1169,31 +1238,35 @@ EX void swapmatrix_iview(transmatrix& ori, transmatrix& V) {
   indenter id(2);
   if(geom3::swap_direction == -1) {
     auto& data = mdata[&V];
-    data.logical_coordinates = cgi.emb->intermediate_to_logical * cgi.emb->actual_to_intermediate(V*tile_center());
+    data.logical_coordinates = cgi.emb->intermediate_to_logical * cgi.emb->actual_to_intermediate(V*C0);
+
     auto tl = cgi.emb->intermediate_to_actual_translation(cgi.emb->logical_to_intermediate * data.logical_coordinates);
-    auto itl = inverse(tl);
+    auto itl = inverse(tl * lzpush(cgi.emb->center_z()));
     data.rotation = itl * V;
 
-    data.logical_coordinates[2] = ilerp(cgi.FLOOR, cgi.WALL, data.logical_coordinates[2]);
+    auto& lc = data.logical_coordinates;
+    data.logical_coordinates[2] = ilerp(cgi.FLOOR, cgi.WALL, lc[2]);
 
     if(nisot::local_perspective_used) data.rotation = data.rotation * ori;
     swapmatrix(V);
 
     data.rotation = cgi.emb->intermediate_to_logical_scaled * data.rotation;
     data.saved = V;
+    data.old_height = vid.wall_height;
     }
   if(geom3::swap_direction == 1) {
     if(!mdata.count(&V)) { swapmatrix(V); ori = Id; return; }
     auto& data = mdata[&V];
     if(!eqmatrix(data.saved, V)) { swapmatrix(V); ori = Id; return; }
     auto lc = data.logical_coordinates;
-    lc[2] = lerp(cgi.FLOOR, cgi.WALL, lc[2]);
+    lc[2] = lerp(cgi.FLOOR, cgi.WALL, lc[2]) + cgi.emb->center_z();
     V = cgi.emb->intermediate_to_actual_translation( cgi.emb->logical_to_intermediate * lc );
     ori = Id;
     auto rot = data.rotation;
     rot = cgi.emb->logical_scaled_to_intermediate * rot;
     if(nisot::local_perspective_used) ori = ori * rot;
     else V = V * rot;
+    if(vid.wall_height * data.old_height < 0) V = MirrorY * V;
     }
   }
 
@@ -1292,6 +1365,7 @@ void embedding_method::auto_configure() {
   }
 
 EX void invoke_embed(geom3::eSpatialEmbedding se) {
+  #if MAXMDIM >= 4
   if(GDIM == 3) { if(geom3::auto_configure) geom3::switch_fpp(); else geom3::switch_always3(); }
   if(in_tpp()) geom3::switch_tpp();
   if(se != geom3::seNone) {
@@ -1300,6 +1374,7 @@ EX void invoke_embed(geom3::eSpatialEmbedding se) {
     delete_sky();
     if(vid.usingGL) resetGL();
     }
+  #endif
   }
 
 geom3::eSpatialEmbedding embed_by_name(string ss) {
@@ -1314,7 +1389,9 @@ geom3::eSpatialEmbedding embed_by_name(string ss) {
   return seNone;
   }
 
+#if CAP_COMMANDLINE
 auto ah_embed = arg::add2("-seo", [] { arg::shift(); invoke_embed(embed_by_name(arg::args())); })
   + arg::add2("-never-invert", [] { never_invert = true; });
+#endif
 
 }

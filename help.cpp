@@ -218,6 +218,7 @@ EX void buildHelpText() {
   }
 
 EX string standard_help() {
+  if(nohelp == 2) return "";
   return XLAT("Press F1 or right click for help");
   }
 
@@ -239,7 +240,8 @@ EX void buildCredits() {
     "Kojiguchi Kazuki, baconcow, Alan, SurelyYouJest, hotdogPi, DivisionByZero, xXxWeedGokuxXx, jpystynen, Dmitry Marakasov, Alexandre Moine, Arthur O'Dwyer, "
     "Triple_Agent_AAA, bluetailedgnat, Allalinor, Shitford, KittyTac, Christopher King, KosGD, TravelDemon, Bubbles, rdococ, frozenlake, MagmaMcFry, "
     "Snakebird Priestess, roaringdragon2, Stopping Dog, bengineer8, Sir Light IJIJ, ShadeBlade, Saplou, shnourok, Ralith, madasa, 6% remaining, Chimera245, Remik Pi, alien foxcat thing, "
-    "Piotr Grochowski, Ann, still-flow, tyzone, Paradoxica, LottieRatWorld, aismallard, albatross, EncodedSpirit, Jacob Mandelson, CrashTuvai, cvoight"
+    "Piotr Grochowski, Ann, still-flow, tyzone, Paradoxica, LottieRatWorld, aismallard, albatross, EncodedSpirit, Jacob Mandelson, CrashTuvai, cvoight, jennlbw, Kali Ranya, spiritbackup, Dylan, L_Lord, AntiRogue, "
+    "masonlgreen, A human"
     );
 #ifdef EXTRALICENSE
   help += EXTRALICENSE;
@@ -409,7 +411,7 @@ EX string generateHelpForItem(eItem it) {
      help += XLAT("You can press 'g' or click them in the list to drop a Dead Orb.");
 #endif
    if(it == itOrbLightning || it == itOrbFlash)
-     help += XLAT("\n\nThis Orb is triggered on your first attack or illegal move.");
+     help += XLAT("\n\nThis Orb is triggered on your first direct melee attack or illegal move.");
    if(it == itOrbShield)
      help += XLAT("\n\nThis Orb protects you from attacks, scents, and insulates you "
        "from electricity. It does not let you go through deadly terrain, but "
@@ -585,8 +587,7 @@ EX string generateHelpForWall(eWall w) {
 void buteol(string& s, int current, int req) {
   int siz = isize(s);
   if(s[siz-1] == '\n') s.resize(siz-1);
-  char buf[100]; sprintf(buf, " (%d/%d)", current, req);
-  s += buf; s += "\n";
+  s += hr::format(" (%d/%d)\n", current, req);
   }
 
 EX string generateHelpForMonster(eMonster m) {
@@ -703,6 +704,7 @@ void add_reqs(eLand l, string& s) {
     #define ACCONLY2(z,x) s += XLAT("Accessible only from %the1 or %the2.\n", z, x);
     #define ACCONLY3(z,y,x) s += XLAT("Accessible only from %the1, %2, or %3.\n", z, y, x);
     #define ACCONLYF(z) s += XLAT("Accessible only from %the1 (until finished).\n", z);
+    #define IFINGAME(land, ok, fallback) if(isLandIngame(land)) { ok } else { s += XLAT("Alternative rule when %the1 is not in the game:\n", land); fallback }
     #include "content.cpp"
 
     case landtypes: return;
@@ -880,9 +882,10 @@ EX void describeMouseover() {
       if(shmup::on)
         out += " (" + its(c->landparam)+")";
       else {
-        bool b = c->landparam >= tide[(turncount-1) % tidalsize];
+        calcTidalPhase();
+        bool b = c->landparam >= tide[turncount % tidalsize];
         int t = 1;
-        for(; t < 1000 && b == (c->landparam >= tide[(turncount+t-1) % tidalsize]); t++) ;
+        for(; t < 1000 && b == (c->landparam >= tide[(turncount+t) % tidalsize]); t++) ;
         if(b)
           out += " (" + turnstring(t) + XLAT(" to surface") + ")";
         else 
@@ -891,7 +894,7 @@ EX void describeMouseover() {
       }
     #if CAP_FIELD
     else if(c->land == laVolcano) {
-      int id = lavatide(c, -1)/4;
+      int id = lavatide(c, 0)/4;
       if(id < 96/4)
         out += " (" + turnstring(96/4-id) + XLAT(" to go cold") + ")";
       else
@@ -929,7 +932,7 @@ EX void describeMouseover() {
       }
 
     if(buggyGeneration) {
-      char buf[80]; sprintf(buf, " %p H=%d M=%d", hr::voidp(c), c->landparam, c->mpdist); out += buf;
+      out += hr::format(" %p H=%d M=%d", hr::voidp(c), c->landparam, c->mpdist);
       }
     
     if(randomPatternsMode)
@@ -964,7 +967,12 @@ EX void describeMouseover() {
     if(c->wall && !(c->wall == waChasm && c->land == laDual && ctof(c)) &&
       !(c->land == laMemory) &&
       !((c->wall == waFloorA || c->wall == waFloorB) && c->item)) { 
-      out += ", "; out += XLAT1(winf[c->wall].name); 
+
+      eWall w = c->wall;
+      if(isAlch(w))
+        w = conditional_flip_slime(mousing ? det(mouseoverV.T) < 0 : det(View) < 0, w);
+
+      out += ", "; out += XLAT1(winf[w].name);
       
       if(c->wall == waRose) out += " (" + its(7-rosephase) + ")";
       if(c->wall == waTerraWarrior) out += " (" + its(c->wparam) + ")";
@@ -1081,16 +1089,7 @@ EX void describeMouseover() {
   #endif
   }
 
-EX void showHelp() {
-  cmode = sm::HELP | sm::DOTOUR | sm::DARKEN;
-  getcstat = SDLK_ESCAPE;
-  if(help == "HELPFUN") {
-    help_delegate();
-    return;
-    }
-
-  gamescreen();
-  string help2;
+EX void addHelpWithTitle() {
   if(help[0] == '@') {
     int iv = help.find("\t");
     int id = help.find("\n");
@@ -1101,6 +1100,19 @@ EX void showHelp() {
     dialog::init("help", forecolor, 120, 100);
     dialog::addHelp(help);
     }
+  }
+
+EX void showHelp() {
+  cmode = sm::HELP | sm::DOTOUR | sm::DARKEN;
+  getcstat = SDLK_ESCAPE;
+  if(help == "HELPFUN") {
+    help_delegate();
+    return;
+    }
+
+  gamescreen();
+  string help2;
+  addHelpWithTitle();
   
   bool in_list = false;
 

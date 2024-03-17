@@ -181,7 +181,7 @@ void game_menu() {
   dialog::add_action([] { current.T = Id; vctrV = Id; });
 
   dialog::addItem("configure keys", 'k');
-  dialog::add_action_push(multi::get_key_configurer(1, move_names, "Relative Hell keys"));
+  dialog::add_action_push(multi::get_key_configurer(1, move_names, "Relative Hell keys", scfg_ads));
 
   #if CAP_AUDIO
   add_edit(effvolume);
@@ -232,7 +232,7 @@ void pick_the_game() {
   dialog::addBreak(100);
 
   dialog::addBigItem("de Sitter space", '2');
-  dialog::add_action([] { popScreen(); run_ds_game(); clearMessages(); });
+  dialog::add_action([] { popScreen(); run_ds_game_std(); clearMessages(); });
   dialog::addInfo(XLAT("avoid energy balls, but do not let the main star run away!"));
 
   dialog::addBreak(100);

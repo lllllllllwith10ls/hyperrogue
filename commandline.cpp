@@ -112,14 +112,15 @@ EX namespace arg {
     return strtoll(argcs(), NULL, 16);
     }
   
+  int parameter_id;
+
   EX void shift_arg_formula(ld& x, const reaction_t& r IS(reaction_t())) {
-    shift(); ld old = x; x = argf(); 
-    #if CAP_ANIMATIONS
-    anims::animate_parameter(x, args(), r); 
-    #endif
-    if(old != x && r) r();
+    shift();
+    auto par = anims::find_param(&x);
+    if(!par) par = param_f(x, "tmp_parameter_" + its(parameter_id++))->set_reaction(r);
+    par->load_as_animation(args());
     }
-  
+
   #if HDR
 
   // an useful macro
@@ -175,7 +176,14 @@ int arg::readCommon() {
   else if(argis("-nogui")) { PHASE(1); noGUI = true; }
 #ifndef EMSCRIPTEN
 #if CAP_SDL
-  else if(argis("-font")) { PHASE(1); shift(); fontpath = args(); }
+  else if(argis("-font")) { PHASE(1); shift(); fontpath = args();
+    #ifdef FONTCONFIG
+    font_to_find = "";
+    #endif
+    }
+#ifdef FONTCONFIG
+  else if(argis("-find-font")) { PHASE(1); shift(); font_to_find = args(); }
+#endif
 #endif
 #endif
 
@@ -252,24 +260,18 @@ int arg::readCommon() {
   else if(argis("-draw")) {
     PHASE(3); start_game(); drawscreen();
     }
-  else if(argis("-rotate")) {
+  else if(argis("-sview")) {
     PHASE(3);  start_game();
-    shift(); ld a = argf();
-    shift(); ld b = argf();
-    View = View * spin(TAU * a / b);
     playermoved = false;
+    transmatrix T = View;
+    shift(); View = parsematrix(args());
+    println(hlog, "View is set to ", View);
+    current_display->which_copy = View * inverse(T) * current_display->which_copy;
     }
   else if(argis("-rotate-up")) {
     start_game();
     shiftmatrix S = ggmatrix(cwt.at->master->move(0)->c7);
     View = spin90() * spintox(S.T*C0) * View;
-    playermoved = false;
-    }
-  else if(argis("-rotate3")) {
-    PHASE(3);  start_game();
-    shift(); ld a = argf();
-    shift(); ld b = argf();
-    View = View * cspin(1, 2, TAU * a / b);
     playermoved = false;
     }
   else if(argis("-face-vertex")) {
@@ -282,16 +284,21 @@ int arg::readCommon() {
     PHASE(3);  start_game();
     View = cspin90(0, 2);
     }
-  else if(argis("-grotate")) {
-    PHASE(3);  start_game();
-    shift(); int i = argi();
+  else if(argis("-center-vertex")) {
+    PHASE(3); shift(); int i = argi();
     shift(); int j = argi();
-    shift(); View = View * cspin(i, j, argf());
-    playermoved = false;
-    }
-  else if(argis("-cview")) {
-    PHASE(3);  start_game();
-    View = Id;
+    shift(); int k = argi();
+    start_game();
+    auto fh = currentmap->get_cellshape(cwt.at).faces[j][k];
+    hyperpoint h = View * fh;
+    if(i == 0) {
+      shift_view_to(shiftless(h));
+      playermoved = false;
+      }
+    if(i == 1) {
+      rotate_view(spintox(h));
+      rotate_view(cspin90(0, 2));
+      }
     }
   else if(argis("-exit")) {
     PHASE(3);
@@ -328,38 +335,58 @@ int arg::readCommon() {
     clearMessages();
     }
 
+  else if(argis("-save-mode")) {
+    save_mode_to_file(shift_args());
+    }
+
+  else if(argis("-load-mode")) {
+    try {
+      load_mode_from_file(shift_args());
+      }
+    catch(hstream_exception& e) {
+      println(hlog, "exception!");
+      }
+    }
+
 // informational
   else if(argis("-version") || argis("-v")) {
     printf("HyperRogue version " VER "\n");
     exit(0);
     }
   else if(argis("-L")) {
-    printf("Treasures:\n");
+    printf("+ Treasures:\n");
+    int qty = 0;
     for(int i=1; i<ittypes; i++) 
       if(itemclass(eItem(i)) == IC_TREASURE)
-        printf("    %s\n", iinf[i].name);
+        printf("    %s\n", iinf[i].name), qty++;
+    printf("    total = %d\n", qty); qty = 0;
     printf("\n");
-    printf("Orbs:\n");
+    printf("+ Orbs:\n");
     for(int i=1; i<ittypes; i++) 
       if(itemclass(eItem(i)) == IC_ORB)
-        printf("    %s\n", iinf[i].name);
+        printf("    %s\n", iinf[i].name), qty++;
+    printf("    total = %d\n", qty); qty = 0;
     printf("\n");
-    printf("Other items:\n");
+    printf("+ Other items:\n");
     for(int i=1; i<ittypes; i++) 
       if(itemclass(eItem(i)) == IC_OTHER)
-        printf("    %s\n", iinf[i].name);
+        printf("    %s\n", iinf[i].name), qty++;
+    printf("    total = %d\n", qty); qty = 0;
     printf("\n");
-    printf("Monsters:\n");
+    printf("+ Monsters:\n");
     for(int i=1; i<motypes; i++) 
-      printf("    %s\n", minf[i].name);
+      printf("    %s\n", minf[i].name), qty++;
+    printf("    total = %d\n", qty); qty = 0;
     printf("\n");
-    printf("Lands:\n");
-    for(int i=1; i<landtypes; i++) 
-      printf("    %s\n", linf[i].name);
+    printf("+ Lands:\n");
+    for(int i=1; i<landtypes; i++)
+      printf("    %s\n", linf[i].name), qty++;
+    printf("    total = %d\n", qty); qty = 0;
     printf("\n");
-    printf("Walls:\n");
+    printf("+ Walls:\n");
     for(int i=0; i<walltypes; i++) 
-      printf("    %s\n", winf[i].name);
+      printf("    %s\n", winf[i].name), qty++;
+    printf("    total = %d\n", qty); qty = 0;
     printf("\n");
     exit(0);
     }

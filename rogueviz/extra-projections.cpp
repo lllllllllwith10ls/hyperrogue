@@ -24,16 +24,23 @@ template<class T> void makeband_complex(shiftpoint H, hyperpoint& ret, const T& 
 
 template<class T> void add_complex(const char *name, flagtype flag, const T& f) {
   int q = isize(mdinf);
-  mdinf.emplace_back(modelinfo{name, name, name, mf::euc_boring | mf::broken | flag, 0, 0, 0, 0, 0, nullptr});
+  mdinf.emplace_back(modelinfo{name, name, name, mf::euc_boring | mf::broken | flag});
   while(isize(extra_projections) < q) extra_projections.emplace_back();
   extra_projections.emplace_back([f] (shiftpoint& H_orig, hyperpoint& H, hyperpoint& ret) {
     makeband_complex(H_orig, ret, f);
     });
   }
 
+template<class T> void add_extra(const char *name, flagtype flag, const T& f) {
+  int q = isize(mdinf);
+  mdinf.emplace_back(modelinfo{name, name, name, mf::euc_boring | mf::broken | flag});
+  while(isize(extra_projections) < q) extra_projections.emplace_back();
+  extra_projections.emplace_back(f);
+  }
+
 template<class T> void add_band(const char *name, flagtype flag, const T& f) {
   int q = isize(mdinf);
-  mdinf.emplace_back(modelinfo{name, name, name, mf::euc_boring | mf::broken | flag, 0, 0, 0, 0, 0, nullptr});
+  mdinf.emplace_back(modelinfo{name, name, name, mf::euc_boring | mf::broken | flag});
   while(isize(extra_projections) < q) extra_projections.emplace_back();
   extra_projections.emplace_back([f] (shiftpoint& H_orig, hyperpoint& H, hyperpoint& ret) {
     makeband_f(H_orig, ret, f);
@@ -180,6 +187,50 @@ void add_extra_projections() {
     ay *= i;
     x = ax;
     y = ay;
+    });
+
+  add_extra("double horocyclic", mf::horocyclic | mf::orientation | mf::axial, [] (shiftpoint& H_orig, hyperpoint& H, hyperpoint& ret) {
+    make_axial(H, ret, [] (hyperpoint h) { return deparabolic13(cspin90(1,0)*h)[1]; });
+    });
+
+  add_extra("azimuthal cylindrical", mf::cylindrical | mf::azimuthal | mf::orientation, [] (shiftpoint& H_orig, hyperpoint& H, hyperpoint& ret) {
+    find_zlev(H);
+    models::scr_to_ori(H);
+
+    ld x, y;
+    y = asin_auto(H[1]);
+    x = asin_auto_clamp(H[0] / cos_auto(y));
+
+    if(sphere) {
+      if(H[LDIM] < 0 && x > 0) x = M_PI - x;
+      else if(H[LDIM] < 0 && x <= 0) x = -M_PI - x;
+      }
+    x += H_orig.shift;
+
+    ret[0] = x;
+    ret[1] = H[1] / H[0] * x;
+    if(GDIM == 2) ret[2] = H[2] / H[0] * x;
+    ret[LDIM] = 1;
+    models::ori_to_scr(ret);
+    });
+
+  add_extra("point-ideal-point equidistant", mf::horocyclic | mf::orientation, [] (shiftpoint& H_orig, hyperpoint& H, hyperpoint& ret) {
+    find_zlev(H);
+    models::scr_to_ori(H);
+
+    ld d0 = hdist0(H);
+    ld x = deparabolic13(H)[0];
+    ld y2 = d0*d0 - x*x;
+    ld y = y2 > 0 ? sqrt(y2) : 0;
+
+    ret[0] = x;
+    if(GDIM == 2) ret[1] = H[1] > 0 ? y : -y;
+    else if(GDIM == 3) {
+      ld r = hypot(H[1], H[2]);
+      if(r == 0) ret[1] = ret[2] = 0;
+      else ret[1] = y * H[1] / r, ret[2] = y * H[2] / r;
+      }
+    models::ori_to_scr(ret);
     });
   }
 

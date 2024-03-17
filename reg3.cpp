@@ -79,6 +79,19 @@ EX void make_vertices_only(vector<hyperpoint>& vo, const vector<vector<hyperpoin
   }
 EX }
 
+// you may need to disable this to revert to old behavior (e.g., to make old recordings work)
+EX bool fix_stretch = true;
+
+transmatrix sfix_rgpushxto0(hyperpoint h) {
+  if(fix_stretch && stretch::applicable() && !fake::in()) return stretch::translate(h);
+  return rgpushxto0(h);
+  }
+
+transmatrix sfix_gpushxto0(hyperpoint h) {
+  if(fix_stretch && stretch::applicable() && !fake::in()) return stretch::itranslate(h);
+  return gpushxto0(h);
+  }
+
 #if MAXMDIM >= 4
 void subcellshape::compute_sub() {
   hyperpoint gres = Hypc;
@@ -90,8 +103,8 @@ void subcellshape::compute_sub() {
     gres += res;
     }
   cellcenter = normalize(gres);
-  to_cellcenter = rgpushxto0(cellcenter);
-  from_cellcenter = gpushxto0(cellcenter);
+  to_cellcenter = sfix_rgpushxto0(cellcenter);
+  from_cellcenter = sfix_gpushxto0(cellcenter);
   compute_common();
   }
 
@@ -1579,7 +1592,7 @@ EX namespace reg3 {
       ld err;
       
       for(auto& p2: altmap[alt]) if((err = intval(tC0(p2.second), hT)) < 1e-3) {
-        if(err > worst_error1) println(hlog, format("worst_error1 = %lg", double(worst_error1 = err)));
+        if(err > worst_error1) println(hlog, hr::format("worst_error1 = %lg", double(worst_error1 = err)));
         // println(hlog, "YES found in ", isize(altmap[alt]));
         if(DEB) println(hlog, "-> found ", p2.first);
         int fb = 0;
@@ -1594,7 +1607,7 @@ EX namespace reg3 {
         for(int d2=0; d2<S7; d2++) {
           hyperpoint back = p2.second * tC0(cgi.adjmoves[d2]);
           if((err = intval(back, old)) < 1e-3) {
-            if(err > worst_error2) println(hlog, format("worst_error2 = %lg", double(worst_error2 = err)));
+            if(err > worst_error2) println(hlog, hr::format("worst_error2 = %lg", double(worst_error2 = err)));
             if(p2.first->move(d2)) println(hlog, "error: repeated edge");
             p2.first->c.connect(d2, parent, d, false);
             fix_distances(p2.first, parent);
@@ -2189,7 +2202,7 @@ EX namespace reg3 {
       return relative_matrix_recursive(h2, h1);
       }
     
-    virtual bool link_alt(heptagon *h, heptagon *alt, hstate firststate, int dir) override {
+    bool link_alt(heptagon *h, heptagon *alt, hstate firststate, int dir) override {
       return ruleset_link_alt(h, alt, firststate, dir);
       }
     };
@@ -2406,7 +2419,7 @@ EX namespace reg3 {
           println(f, "face ", t, " ", id++, " ", isize(fa));
           for(auto& h: fa) {
             auto h1 = kleinize(h);
-            println(f, format("%.20f %.20f %.20f", h1[0], h1[1], h1[2]));
+            println(f, hr::format("%.20f %.20f %.20f", h1[0], h1[1], h1[2]));
             }
           }
         println(f);
@@ -2421,7 +2434,7 @@ EX namespace reg3 {
           transmatrix T = quotient_map->adj(c, i);
           for(int i=0; i<4; i++) {
             for(int j=0; j<4; j++) {
-              print(f, format("%.20f", T[i][j]), j == 3 ? "\n" : " ");
+              print(f, hr::format("%.20f", T[i][j]), j == 3 ? "\n" : " ");
               }
             }
           println(f);
@@ -2907,6 +2920,8 @@ EX }
 EX namespace reg3 {
 EX bool in() { return false; }
 EX bool in_rule() { return false; }
+EX bool cubes_reg3;
+EX bool exact_rules() { return false; }
 EX }
 #endif
 

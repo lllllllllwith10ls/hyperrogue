@@ -129,6 +129,8 @@ struct exp_parser {
 
   cld parse(int prio = 0);
 
+  transmatrix parsematrix(int prio = 0);
+
   ld rparse(int prio = 0) { return validate_real(parse(prio)); }
   int iparse(int prio = 0) { return int(floor(rparse(prio) + .5)); }
 
@@ -187,6 +189,8 @@ vector<pair<ld, ld>> exp_parser::parse_with_reps() {
     }
   return vals;
   }
+
+ld bmousexs, bmouseys;
 
 cld exp_parser::parse(int prio) {
   cld res;
@@ -388,8 +392,16 @@ cld exp_parser::parse(int prio) {
     else if(number == "psl_steps") res = cgi.psl_steps;
     else if(number == "single_step") res = cgi.single_step;
     else if(number == "step") res = hdist0(tC0(currentmap->adj(cwt.at, 0)));
-    else if(number == "edgelen") res = hdist(get_corner_position(cwt.at, 0), get_corner_position(cwt.at, 1));
+    else if(number == "edgelen") { start_game(); res = hdist(get_corner_position(cwt.at, 0), get_corner_position(cwt.at, 1)); }
     else if(number == "mousey") res = mousey;
+    else if(number == "mousexs") {
+      if(!inHighQual) bmousexs = (1. * mousex - current_display->xcenter) / current_display->radius;
+      res = bmousexs;
+      }
+    else if(number == "mouseys") {
+      if(!inHighQual) bmouseys = (1. * mousey - current_display->ycenter) / current_display->radius;
+      res = bmouseys;
+      }
     else if(number == "random") res = randd();
     else if(number == "mousez") res = cld(mousex - current_display->xcenter, mousey - current_display->ycenter) / cld(current_display->radius, 0);
     else if(number == "shot") res = inHighQual ? 1 : 0;
@@ -460,10 +472,87 @@ cld exp_parser::parse(int prio) {
   return res;
   }
 
+int coord_id(char ch) {
+  if(ch == 'x') return 0;
+  if(ch == 'y') return 1;
+  if(ch == 'z') return 2;
+  if(ch == 'w') return 3;
+  if(ch == 't') return MDIM-1;
+  return -1;
+  }
+
+ld angle_unit(char ch) {
+  if(ch == 'r') return 1;
+  if(ch == 'd') return degree;
+  if(ch == 't') return TAU;
+  if(ch == 'l') return -1;
+  return 0;
+  }
+
+transmatrix exp_parser::parsematrix(int prio) {
+  skip_white();
+  transmatrix res;
+  if(s[at] && s[at+1] && s[at+2] && s[at+3] == '(') {
+    ld unit = angle_unit(s[at]);
+    int c0 = coord_id(s[at+1]);
+    int c1 = coord_id(s[at+2]);
+    if(c0 >= 0 && c1 >= 0 && c0 != c1 && unit) {
+      at += 4;
+      ld angle = validate_real(parsepar());
+      if(unit == -1) res = lorentz(c0, c1, angle);
+      else res = cspin(c0, c1, unit * angle);
+      goto mulwhile;
+      }
+    }
+  if(eat("inv(")) {
+    res = parsematrix();
+    force_eat(")");
+    res = inverse(res);
+    }
+  else if(next() == '(') {
+    at++;
+    res = parsematrix(); 
+    force_eat(")");
+    }
+  else {
+    string token = next_token();
+    if(token == "id") res = Id;
+    else if(token == "view") res = View;
+    else if(token == "mori") res = pconf.mori().get();
+    else throw hr_parse_exception("unknown matrix: " + token);
+    }
+  mulwhile:
+  while(true) {
+    skip_white();
+    if(next() == '*' && prio <= 20) at++, res = res * parsematrix(30);
+    else break;
+    }
+  return res;
+  }
+
 EX ld parseld(const string& s) {
   exp_parser ep;
   ep.s = s;
   return ep.rparse();
+  }
+
+EX transmatrix parsematrix(const string& s) {
+  exp_parser ep;
+  ep.s = s;
+  return ep.parsematrix();
+  }
+
+EX trans23 parsematrix23(const string& s) {
+  trans23 t;
+  #if MAXMDIM == 3
+  t.v2 = t.v3 = parsematrix(s);
+  #else
+  auto& dim = cginf.g.homogeneous_dimension;
+  dynamicval<int> d1(dim, dim);
+  dim = 3; t.v2 = parsematrix(s);
+  dim = 4; t.v3 = parsematrix(s);
+  #endif
+  return t;
   }
 
 EX int parseint(const string& s) {
@@ -484,8 +573,8 @@ EX string available_constants() {
 
 #if HDR
 struct bignum {
-  static const int BASE = 1000000000;
-  static const long long BASE2 = BASE * (long long)BASE;
+  static constexpr int BASE = 1000000000;
+  static constexpr long long BASE2 = BASE * (long long)BASE;
   vector<int> digits;
   bignum() {}
   bignum(int i) : digits() { digits.push_back(i); }

@@ -607,7 +607,7 @@ int hdist(heptagon *h1, heptagon *h2) {
 // - compute celldists for all the cells in these three heptagons, by bfs, based on the 'parent' heptagons adjacent to h
 // - record the computed distances for h, but not for its siblings
 
-static const int NODISTANCE = 2000000000;
+static constexpr int NODISTANCE = 2000000000;
 
 map<heptagon*, heptagon*> last_on_horocycle;
 
@@ -683,7 +683,7 @@ void compute_horocycle(heptagon *alt) {
   heptagon *master = last_on_horocycle[alt];
   // printf("computing horocycle, master distance = %d [M=%p, A=%p]\n", master->alt->distance, hr::voidp(master), hr::voidp(alt));
   
-  static const int LOOKUP = 16;
+  static constexpr int LOOKUP = 16;
   set<heptagon*> hs[LOOKUP];
   hs[0].insert(master);
   set<heptagon*> region;
@@ -873,7 +873,7 @@ void show_gridmaker() {
   dialog::addSelItem(XLAT("density"), fts(density), 'd');
   dialog::add_action([] {
     dialog::editNumber(density, 1, 10, .1, 4, XLAT("density"), XLAT(irrhelp));
-    dialog::reaction = [] () {
+    dialog::get_di().reaction = [] () {
       int s = cellcount;
       if(density < 1) density = 1;
       cellcount = int(isize(currentmap->allcells()) * density + .5);
@@ -888,7 +888,7 @@ void show_gridmaker() {
       "The smallest allowed ratio of edge length to median edge length. "
       "Tilings with low values are easier to generate, but tend to be more ugly."
       ));
-    dialog::reaction = [] () {
+    dialog::get_di().reaction = [] () {
       println(hlog, "quality = ", density);
       if(runlevel > 4) runlevel = 4;
       };
@@ -931,7 +931,7 @@ void show_gridmaker() {
   dialog::add_action([] () { 
     dialog::editNumber(bitruncations_requested, 0, 5, 1, 1, XLAT("bitruncation const"),
       XLAT("Bitruncation introduces some regularity, allowing more sophisticated floor tilings and textures."));
-    dialog::reaction = [] () {
+    dialog::get_di().reaction = [] () {
       if(bitruncations_requested > bitruncations_performed && runlevel > 5) runlevel = 5;
       if(bitruncations_requested < bitruncations_performed) runlevel = 0;
       };

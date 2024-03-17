@@ -14,27 +14,23 @@ string buildScoreDescription() {
   time_t timer;
   timer = time(NULL);
   char buf[128]; strftime(buf, 128, "%c", localtime(&timer));
-  char buf2[128];
   
   s += XLAT("HyperRogue for Android");
   s += " ( " VER "), http://www.roguetemple.com/z/hyper/\n";
   s += XLAT("Date: %1 time: %2 s ", buf, getgametime_s());
   s += XLAT("distance: %1\n", its(celldist(cwt.at)));
-  // s += buf2;
   if(cheater) s += XLAT("Cheats: ") + its(cheater) + "\n";
   s += XLAT("Score: ") + its(gold());
 
   for(int i=0; i<ittypes; i++) if(items[i]) {
     string t = XLATN(iinf[i].name);
-    sprintf(buf2, " %s (%d)", t.c_str(), items[i]);
-    s += buf2;
+    s += hr::format(" %s (%d)", t.c_str(), items[i]);
     }
   s += "\n";
   s += XLAT("Kills: ") + its(tkills());
   for(int i=1; i<motypes; i++) if(kills[i]) {
     string t = XLATN(minf[i].name);
-    sprintf(buf2, " %s (%d)", t.c_str(), kills[i]);
-    s += buf2;
+    s += hr::format(" %s (%d)", t.c_str(), kills[i]);
     }
   s += "\n";
 
@@ -93,6 +89,11 @@ void handleclick(MOBPAR_FORMAL) {
           if(c) centerover = c;
           }
         targetRangedOrb(centerover, roKeyboard);
+        getcstat = 0;
+        }
+
+      else if(statkeys && getcstat == 'f') {
+        bow::switch_fire_mode();
         getcstat = 0;
         }
 
@@ -293,6 +294,8 @@ EX void mobile_draw(MOBPAR_FORMAL) {
   if(lclicked && !clicked && !inmenu) handleclick(MOBPAR_ACTUAL);
 
   if(inmenu && !clicked && !lclicked) inmenu = false;
+
+  if(!clicked && !lclicked) invslider = false;
   
   bool keyreact = lclicked && !clicked;
 
@@ -306,6 +309,7 @@ EX void mobile_draw(MOBPAR_FORMAL) {
 #endif
   
   if(inslider) keyreact = true;
+  if(invslider || getcstat == PSEUDOKEY_LIST_SLIDER) keyreact = true;
 
 #if CAP_ANDROIDSHARE
   if(getcstat == 's'-96 && keyreact) {

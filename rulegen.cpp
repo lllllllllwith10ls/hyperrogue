@@ -59,39 +59,39 @@ EX int states_premini = 0;
 
 #if HDR
 /** change some flags -- they usually make it worse */
-static const flagtype w_numerical = Flag(1); /*< build trees numerically */
-static const flagtype w_near_solid = Flag(2); /*< solid's pre-parent is also solid */
-static const flagtype w_no_shortcut = Flag(3); /*< generate no shortcuts */
-static const flagtype w_no_restart = Flag(4); /*< do not restart at powers of two */
-static const flagtype w_no_sidecache = Flag(5); /*< do not cache get_side */
-static const flagtype w_no_relative_distance = Flag(6); /*< do not build relative distances into codes */
-static const flagtype w_examine_once = Flag(7); /*< restart after first conflict found in analysis */
-static const flagtype w_examine_all = Flag(8); /*< focus on all conflicts found in analysis even if we know them */
-static const flagtype w_conflict_all = Flag(9); /*< full extension in case of conflicts */
-static const flagtype w_parent_always = Flag(10); /*< always consider the full parent rule */
-static const flagtype w_parent_reverse = Flag(11); /*< reverse paths in parent_dir */
-static const flagtype w_parent_side = Flag(12); /*< allow side paths in parent_dir */
-static const flagtype w_parent_never = Flag(13); /*< never consider the full parent rule */
-static const flagtype w_always_clean = Flag(14); /*< restart following phases after any distance errors */
-static const flagtype w_single_origin = Flag(15); /*< consider only one origin */
-static const flagtype w_slow_side = Flag(16); /*< do not try get_side optimization */
-static const flagtype w_bfs = Flag(17); /*< compute distances using BFS */
-static const flagtype w_numerical_fix = Flag(18); /*< when doing numerical, find out filled vertices */
-static const flagtype w_known_structure = Flag(19); /*< do flagless first, then use the known distances from there (handled in ruletest) */
-static const flagtype w_known_distances = Flag(20); /*< with, use the actual distances */
-static const flagtype w_no_smart_shortcuts = Flag(21); /*< disable the 'smart shortcut' optimization */
-static const flagtype w_less_smart_retrace = Flag(22); /*< stop early when examining smart shortcut retraction */
-static const flagtype w_less_smart_advance = Flag(23); /*< stop early when examining smart shortcut advancement */
-static const flagtype w_no_queued_extensions = Flag(24); /*< consider extensions one by one */
-static const flagtype w_no_branch_skipping = Flag(24); /*< do not skip branches */
+static constexpr flagtype w_numerical = Flag(1); /*< build trees numerically */
+static constexpr flagtype w_near_solid = Flag(2); /*< solid's pre-parent is also solid */
+static constexpr flagtype w_no_shortcut = Flag(3); /*< generate no shortcuts */
+static constexpr flagtype w_no_restart = Flag(4); /*< do not restart at powers of two */
+static constexpr flagtype w_no_sidecache = Flag(5); /*< do not cache get_side */
+static constexpr flagtype w_no_relative_distance = Flag(6); /*< do not build relative distances into codes */
+static constexpr flagtype w_examine_once = Flag(7); /*< restart after first conflict found in analysis */
+static constexpr flagtype w_examine_all = Flag(8); /*< focus on all conflicts found in analysis even if we know them */
+static constexpr flagtype w_conflict_all = Flag(9); /*< full extension in case of conflicts */
+static constexpr flagtype w_parent_always = Flag(10); /*< always consider the full parent rule */
+static constexpr flagtype w_parent_reverse = Flag(11); /*< reverse paths in parent_dir */
+static constexpr flagtype w_parent_side = Flag(12); /*< allow side paths in parent_dir */
+static constexpr flagtype w_parent_never = Flag(13); /*< never consider the full parent rule */
+static constexpr flagtype w_always_clean = Flag(14); /*< restart following phases after any distance errors */
+static constexpr flagtype w_single_origin = Flag(15); /*< consider only one origin */
+static constexpr flagtype w_slow_side = Flag(16); /*< do not try get_side optimization */
+static constexpr flagtype w_bfs = Flag(17); /*< compute distances using BFS */
+static constexpr flagtype w_numerical_fix = Flag(18); /*< when doing numerical, find out filled vertices */
+static constexpr flagtype w_known_structure = Flag(19); /*< do flagless first, then use the known distances from there (handled in ruletest) */
+static constexpr flagtype w_known_distances = Flag(20); /*< with, use the actual distances */
+static constexpr flagtype w_no_smart_shortcuts = Flag(21); /*< disable the 'smart shortcut' optimization */
+static constexpr flagtype w_less_smart_retrace = Flag(22); /*< stop early when examining smart shortcut retraction */
+static constexpr flagtype w_less_smart_advance = Flag(23); /*< stop early when examining smart shortcut advancement */
+static constexpr flagtype w_no_queued_extensions = Flag(24); /*< consider extensions one by one */
+static constexpr flagtype w_no_branch_skipping = Flag(24); /*< do not skip branches */
 
 /* for 3D honeycombs */
-static const flagtype w_skip_transducers = Flag(32); /*< skip the transducer test */
-static const flagtype w_skip_transducer_loops = Flag(33); /*< skip loops during the transducer test */
-static const flagtype w_skip_transducer_terminate = Flag(34); /*< skip termination during the transducer test */
-static const flagtype w_r3_all_errors = Flag(35); /*< consider all errors for R3 */
-static const flagtype w_r3_no_road_shortcuts = Flag(36); /*< consider all errors for R3 */
-static const flagtype w_ignore_transducer_dist = Flag(37); /*< ignore distance errors while testing the transducers */
+static constexpr flagtype w_skip_transducers = Flag(32); /*< skip the transducer test */
+static constexpr flagtype w_skip_transducer_loops = Flag(33); /*< skip loops during the transducer test */
+static constexpr flagtype w_skip_transducer_terminate = Flag(34); /*< skip termination during the transducer test */
+static constexpr flagtype w_r3_all_errors = Flag(35); /*< consider all errors for R3 */
+static constexpr flagtype w_r3_no_road_shortcuts = Flag(36); /*< consider all errors for R3 */
+static constexpr flagtype w_ignore_transducer_dist = Flag(37); /*< ignore distance errors while testing the transducers */
 #endif
 
 /** these control the output */
@@ -199,25 +199,33 @@ EX int less_states;
 
 EX int number_of_types() {
   if(arb::in() || WDIM == 2) return isize(arb::current.shapes);
+  #if CAP_MAXMDIM >= 4
   if(WDIM == 3) return gcd(reg3::quotient_count_sub(), less_states);
+  #endif
   throw hr_exception("unknown number_of_types");
   }
 
 EX int get_id(cell *c) {
   if(arb::in() || WDIM == 2) return shvid(c);
+  #if CAP_MAXMDIM >= 4
   if(WDIM == 3) return zgmod(reg3::get_aid(c), less_states);
+  #endif
   throw hr_exception("unknown get_id");
   }
 
 int shape_size(int id) {
   if(arb::in() || WDIM == 2) return isize(arb::current.shapes[id].connections);
+  #if CAP_MAXMDIM >= 4
   if(WDIM == 3) return reg3::get_size_of_aid(id);
+  #endif
   throw hr_exception("unknown shape_size");
   }
 
 int cycle_size(int id) {
   if(arb::in() || WDIM == 2) return arb::current.shapes[id].cycle_length;
+  #if CAP_MAXMDIM >= 4
   if(WDIM == 3) return reg3::get_size_of_aid(id);
+  #endif
   throw hr_exception("unknown shape size");
   }
 
@@ -1152,12 +1160,12 @@ struct treestate {
   vector<pair<int, int>> possible_parents;
   };
 
-static const int C_IGNORE = 0;
-static const int C_CHILD = 1;
-static const int C_UNCLE = 2;
-static const int C_EQUAL = 4;
-static const int C_NEPHEW = 6;  
-static const int C_PARENT = 8;
+static constexpr int C_IGNORE = 0;
+static constexpr int C_CHILD = 1;
+static constexpr int C_UNCLE = 2;
+static constexpr int C_EQUAL = 4;
+static constexpr int C_NEPHEW = 6;  
+static constexpr int C_PARENT = 8;
 #endif
 
 EX vector<treestate> treestates;
@@ -1321,10 +1329,12 @@ EX int move_code(twalker cs) {
      be_solid(cs.at); ufind(cs); ufind(cs2); be_solid(cs2.at);
      fix_distances(cs.at);
 
+     #if MAXMDIM >= 4
      if(WDIM == 3) {
        if(cs2.at->parent_dir == cs2.spin) return C_PARENT;
        else return get_roadsign(cs+wstep);
        }
+     #endif
 
      int y = cs.at->dist - cs.peek()->dist;
      int x;
@@ -1435,10 +1445,10 @@ vector<twalker> cq;
 
 #if HDR
 /* special codes */
-static const int DIR_UNKNOWN = -1;
-static const int DIR_LEFT = -4;
-static const int DIR_RIGHT = -5;
-static const int DIR_PARENT = -6;
+static constexpr int DIR_UNKNOWN = -1;
+static constexpr int DIR_LEFT = -4;
+static constexpr int DIR_RIGHT = -5;
+static constexpr int DIR_PARENT = -6;
 #endif
 
 vector<int> gen_rule(twalker cwmain, int id) {
@@ -1461,8 +1471,10 @@ vector<int> gen_rule(twalker cwmain, int id) {
   if(WDIM != 3) for(int i=0; i<isize(cids); i++) if(cids[i] == DIR_UNKNOWN)
     cids[i] = get_side(cwmain+i) < 0 ? DIR_RIGHT : DIR_LEFT;
 
+  #if MAXMDIM >= 4
   if(WDIM == 3) for(int i=0; i<isize(cids); i++) if(cids[i] == DIR_UNKNOWN)
     cids[i] = get_roadsign(cwmain+i);
+  #endif
 
   return cids;
   }
@@ -2035,12 +2047,14 @@ EX void rules_iteration() {
   if(isize(important) != N)
     throw rulegen_retry("need more rules after examine");
 
+  #if MAXMDIM >= 4
   if(WDIM == 3) {
     check_road_shortcuts();
     optimize();
     N = isize(important);
     check_validity_3d();
     }
+  #endif
 
   if(skipped_branches.size()) {
     checks_to_skip.clear();
@@ -2076,7 +2090,9 @@ EX void cleanup() {
   important.clear();
   shortcuts.clear();
   single_live_branch_close_to_root.clear();
+  #if MAXMDIM >= 4
   cleanup3();
+  #endif
   }
 
 EX void clear_all() {  
@@ -2098,6 +2114,7 @@ EX void generate_rules() {
   start_time = SDL_GetTicks();
   delete_tmap();
 
+  #if MAXMDIM >= 4
   if(WDIM == 3 && reg3::in_hrmap_rule_or_subrule()) {
     stop_game();
     reg3::consider_rules = 0;
@@ -2107,7 +2124,9 @@ EX void generate_rules() {
   else if(WDIM == 3) {
     flags |= w_numerical;
     }
-  else if(!arb::in()) try {
+  else 
+  #endif
+  if(!arb::in()) try {
     arb::convert::convert();
     if(flags & w_numerical) arb::convert::activate();
     }
@@ -2166,7 +2185,9 @@ EX void generate_rules() {
     t_origin.push_back(twalker(c, 0));
     }
 
+  #if MAXMDIM >= 4
   if(GDIM == 3) build_cycle_data();
+  #endif
 
   bfs_queue = queue<tcell*>();
   if(flags & w_bfs) for(auto c: t_origin) bfs_queue.push(c.at);
@@ -2349,7 +2370,7 @@ struct hrmap_rulegen : hrmap {
   
   bool strict_tree_rules() override { return true; }
 
-  virtual bool link_alt(heptagon *h, heptagon *alt, hstate firststate, int dir) override {
+  bool link_alt(heptagon *h, heptagon *alt, hstate firststate, int dir) override {
     auto& hts = treestates[h->fieldval];
     int psid = hts.sid;
     
@@ -2486,10 +2507,12 @@ auto hooks = addHook(hooks_configfile, 100, [] {
       param_i(max_shortcut_length, "max_shortcut_length");
       param_i(rulegen_timeout, "rulegen_timeout");
       param_i(first_restart_on, "first_restart_on");
+      #if MAXMDIM >= 4
       param_i(max_ignore_level_pre, "max_ignore_level_pre");
       param_i(max_ignore_level_post, "max_ignore_level_post");
       param_i(max_ignore_time_pre, "max_ignore_time_pre");
       param_i(max_ignore_time_post, "max_ignore_time_post");
+      #endif
     });
 
 EX void parse_treestate(arb::arbi_tiling& c, exp_parser& ep) {
@@ -2549,11 +2572,11 @@ EX void show() {
   dialog::init(XLAT("strict tree maps"));
 
   dialog::addHelp(XLAT(
-    "Strict tree maps are generated using a more powerful algorithm.\n\nThis algorithms supports horocycles and knows the expansion rates of various "
+    "Strict tree maps are generated using a more powerful algorithm.\n\nThis algorithm supports horocycles and knows the expansion rates of various "
     "tessellations (contrary to the basic implementation of Archimedean, tes, and unrectified/warped/untruncated tessellations).\n\nYou can convert mostly any "
     "non-spherical periodic 2D tessellation to strict tree based.\n\nSwitching the map format erases your map."));
 
-  if(kite::in()) {
+  if(aperiodic) {
     dialog::addInfo("not available in aperiodic tessellations");
     dialog::addBack();
     dialog::display();
@@ -2607,7 +2630,7 @@ EX void show() {
       }
     });
   add_edit(arb::convert::minimize_on_convert);
-  dialog::addBoolItem(XLAT("strict tree based"), currentmap->strict_tree_rules(), 's');
+  dialog::addBoolItem(XLAT("strict tree maps"), currentmap->strict_tree_rules(), 's');
   dialog::add_action([] {
     if(!currentmap->strict_tree_rules()) {
       if(prepare_rules()) {
@@ -2650,6 +2673,10 @@ int readRuleArgs() {
   else if(argis("-ruleflag")) {
     shift();
     rulegen::flags ^= Flag(argi());
+    }
+
+  else if(argis("-origin-id")) {
+    shift(); origin_id = argi();
     }
 
   else if(argis("-ruledflags")) {

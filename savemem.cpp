@@ -9,7 +9,7 @@
 namespace hr {
 
 #if HDR
-static const int PSEUDOKEY_MEMORY = 16397;
+static constexpr int PSEUDOKEY_MEMORY = 16397;
 #endif
 
 EX bool memory_saving_mode = true;
@@ -17,7 +17,7 @@ EX bool memory_saving_mode = true;
 EX bool show_memory_warning = true;
 EX bool ignored_memory_warning;
 
-static const int LIM = 150;
+static constexpr int LIM = 150;
 
 EX heptagon *last_cleared;
 
@@ -116,12 +116,16 @@ EX void save_memory() {
       }
     }
   
-  while(celldist(at->c7) > d-LIM) at = at->move(0);
-  
+  while(celldist(at->c7) > d-LIM && at != orig) at = at->move(0);
+
+  // make sure it is not the same altmap
+  auto atalt = at->alt; if(atalt) atalt = atalt->alt;
+  while(atalt && at != orig && at->alt && at->alt->alt == atalt) at = at->move(0);
+
   // go back to such a point X that all the heptagons adjacent to the current 'at'
   // are the children of X. This X becomes the new 'at'
   if(true) {
-    heptagon *allh[9];
+    heptagon *allh[FULL_EDGE+1];
     int hcount = 0;
     allh[hcount++] = at;
     for(int j=0; j<S7; j++) 
@@ -273,7 +277,7 @@ EX void show_memory_menu() {
       );
     dialog::bound_low(0);
     dialog::bound_up(max_reserve);
-    dialog::reaction = apply_memory_reserve;
+    dialog::get_di().reaction = apply_memory_reserve;
     });
 #endif
 

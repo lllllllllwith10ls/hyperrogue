@@ -233,6 +233,12 @@ EX void reduceOrbPowers() {
   whirlwind::calcdirs(cwt.at); 
   items[itStrongWind] = !items[itOrbAether] && whirlwind::qdirs == 1;
   items[itWarning] = 0;
+  if(items[itCrossbow]) {
+    if(lastmovetype == lmSkip && isWarped(cwt.at))
+      addMessage(XLAT("The warped space distracts you from reloading while staying in place!"));
+    else
+      items[itCrossbow]--;
+    }
   }
 
 eWall orig_wall;
@@ -608,6 +614,7 @@ EX bool haveRangedTarget() {
   }
 
 void checkmoveO() {
+  bow::bowpath_map.clear();
   if(multi::players > 1 && multi::activePlayers() == 1)
     multi::checklastmove();
   if(multi::players == 1) checkmove();
@@ -639,6 +646,7 @@ EX void teleportTo(cell *dest) {
       playerMoveEffects(movei(cwt.at, dest, TELEPORT));
       afterplayermoved();
       bfs();
+      advance_tides();
       }
     return;
     }
@@ -657,6 +665,7 @@ EX void teleportTo(cell *dest) {
 
   afterplayermoved();
   bfs();
+  advance_tides();
   
   sword::reset();
   items[itOrbSword2] = 0;
@@ -749,6 +758,7 @@ EX bool jumpTo(orbAction a, cell *dest, eItem byWhat, int bonuskill IS(0), eMons
   if(from) movecost(from, dest, 2);
 
   createNoise(1);
+  bow::bowpath_map.clear();
 
   if(shmup::on)
     shmup::teleported();
@@ -1297,7 +1307,7 @@ EX void apply_impact(cell *c) {
 EX int check_vault(cell *cf, cell *ct, flagtype flags, cell*& jumpthru) {
   cell *c2 = NULL, *c3 = NULL;    
   forCellCM(cc, cf) {
-    if(isNeighbor(cc, ct)) c3 = c2, c2 = cc;
+    if(isNeighbor(cc, ct) && c2 != cc) c3 = c2, c2 = cc;
     }
   jumpthru = c2;
   if(!c2) return 0;

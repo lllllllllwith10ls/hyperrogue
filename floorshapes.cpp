@@ -26,6 +26,11 @@ EX vector<basic_textureinfo> floor_texture_vertices;
 EX vector<glvertex> floor_texture_map;
 EX struct renderbuffer *floor_textures;
 
+EX basic_textureinfo* get_floor_texture_vertices(int index) {
+  if(noGUI || !vid.usingGL) return nullptr;
+  return &floor_texture_vertices[index];
+  }
+
 /* 0: generate no floorshapes; 1: generate only plain floorshapes; 2: generate all */
 EX int floorshapes_level = 2;
 
@@ -274,6 +279,10 @@ template<class T> void sizeto(T& t, int n) {
   if(isize(t) <= n) t.resize(n+1);
   }
 
+template<class T, class U> void sizeto(T& t, int n, const U& val) {
+  if(isize(t) <= n) t.resize(n+1, val);
+  }
+
 void geometry_information::bshape_regular(floorshape &fsh, int id, int sides, ld shift, ld size, cell *c) {
   
   sizeto(fsh.b, id);
@@ -375,6 +384,24 @@ void geometry_information::finish_apeirogon(hyperpoint center) {
     hpcpush(center);
     hpcpush(starting_point);
     }
+  }
+
+hyperpoint get_circumscribed_corner(cell *c, int t, hyperpoint h) {
+
+  hyperpoint h0 = currentmap->adjmod(c, t) * h;
+  hyperpoint h1 = currentmap->adjmod(c, t-1) * h;
+  transmatrix T;
+  array<hyperpoint, 3> hs = {h, h0, h1};
+  set_column(T, 3, C03);
+  hyperpoint res = C03;
+  for(int i=0; i<3; i++) {
+    hyperpoint ahs = hs[i];
+    if(hyperbolic) ahs[3] *= -1;
+    set_column(T, i, ahs);
+    res[i] = dot_d(4, hs[i], ahs);
+    }
+  T = transpose(T);
+  return inverse(T) * res;
   }
 
 // !siid equals pseudohept(c)
@@ -480,7 +507,7 @@ void geometry_information::generate_floorshapes_for(int id, cell *c, int siid, i
         }
       }
     
-    else if(arb::in()) {
+    else if(arb::in() || aperiodic || arcm::in()) {
       vector<hyperpoint> actual;
       for(int j=0; j<cor; j++) 
         actual.push_back(get_corner_position(c, j));
@@ -494,29 +521,34 @@ void geometry_information::generate_floorshapes_for(int id, cell *c, int siid, i
         }
       
       auto &ac = arb::current_or_slided();
-      ld dist = min_dist * (1 - 3 / sca) * ac.boundary_ratio;
-      
+
+      ld dist = min_dist * (1 - 3 / sca) * (arb::in() ? ac.boundary_ratio : 1);
       ld area = 0;
       for(int j=0; j<cor; j++) {
         hyperpoint current = kleinize(actual[j]);
-        hyperpoint last = kleinize(actual[j?j-1:cor-1]);
+        hyperpoint last = kleinize(atmod(actual, j-1));
         area += current[0] * last[1] - last[0] * current[1];
         }
       if(area < 0) dist = -dist;
 
-      int id = arb::id_of(c->master);
-      auto& sh = ac.shapes[id];
-      apeirogonal = sh.apeirogonal;
-      
+      apeirogonal = false;
+      int id = 0;
+      arb::shape *sh = nullptr;
+      if(arb::in()) {
+        id = arb::id_of(c->master);
+        sh = &ac.shapes[id];
+        apeirogonal = sh->apeirogonal;
+        }
+
       for(int j=0; j<cor; j++) {
-        hyperpoint last = actual[j?j-1:cor-1];
-        hyperpoint current = ypush(1e-6 * randd()) * xpush(1e-6) * actual[j];
-        hyperpoint next = actual[j<cor-1?j+1:0];
+        hyperpoint last = atmod(actual, j-1);
+        hyperpoint current = ypush(1e-7) * xpush(1e-6) * actual[j];
+        hyperpoint next = atmod(actual, j+1);
 
         if(apeirogonal) {
-          if(j == 0) last = arb::get_adj(arb::current_or_slided(), id, cor-1, id, cor-2, false) * actual[cor-3];
-          if(j == cor-2) next = arb::get_adj(arb::current_or_slided(), id, cor-2, id, cor-1, false) * actual[1];
-          if(j == cor-1) { cornerlist.push_back(sh.vertices.back()); continue; }
+          if(j == 0) last = arb::get_adj(ac, id, cor-1, id, cor-2, false) * actual[cor-3];
+          if(j == cor-2) next = arb::get_adj(ac, id, cor-2, id, cor-1, false) * actual[1];
+          if(j == cor-1) { cornerlist.push_back(sh->vertices.back()); continue; }
           }
 
         auto T = gpushxto0(current);
@@ -674,13 +706,14 @@ void geometry_information::generate_floorshapes_for(int id, cell *c, int siid, i
         sizeto(fsh.levels[k], id);
         bshape(fsh.levels[k][id], fsh.prio);    
         last->flags |= POLY_TRIANGLES;
-        last->tinf = &floor_texture_vertices[fsh.id];
+        last->tinf = get_floor_texture_vertices(fsh.id);
         last->texture_offset = 0;
 
         if(1) {
           int s = fsh.b[id].s;
           int e = fsh.b[id].e-1;
-          if(vid.pseudohedral) {
+
+          if(vid.pseudohedral == phInscribed) {
             hyperpoint ctr = Hypc;
             for(int t=0; t<e-s; t++)
               ctr += kleinize(cgi.emb->orthogonal_move(hpc[s+t], dfloor_table[k]));
@@ -694,7 +727,27 @@ void geometry_information::generate_floorshapes_for(int id, cell *c, int siid, i
                 });
               }
             }
-          if(!vid.pseudohedral) for(int t=0; t<e-s; t++) {
+          if(vid.pseudohedral == phCircumscribed) {
+
+            vector<hyperpoint> hs(c->type);
+            hyperpoint z = Hypc; z[2] = dfloor_table[k];
+            hyperpoint ctr = cgi.emb->logical_to_actual(z);
+            for(int t=0; t<c->type; t++) hs[t] = get_circumscribed_corner(c, t, ctr);
+            // for(int t=0; t<c->type; t++) hs[t] = xspinpush0(t * TAU / c->type, 0.2); //  kleinize(get_circumscribed_corner(c, t, ctr));
+
+            for(int t=0; t<c->type; t++) {
+              hyperpoint v1 = hs[t] - ctr;
+              hyperpoint v2 = atmod(hs, t+1) - ctr;
+              texture_order([&] (ld x, ld y) {
+                hpcpush(normalize(ctr + v1 * x + v2 * y));
+                });
+              }
+            /* also affect the plain floor */
+            bshape(fsh.b[id], PPR::FLOOR);
+            for(hyperpoint& h: hs) hpcpush(h);
+            hpcpush(hs[0]);
+            }
+          if(vid.pseudohedral == phOFF) for(int t=0; t<e-s; t++) {
 
             hyperpoint v1 = cgi.emb->actual_to_logical(hpc[s+t]);
             hyperpoint v2 = cgi.emb->actual_to_logical(hpc[s+t+1]);
@@ -716,7 +769,7 @@ void geometry_information::generate_floorshapes_for(int id, cell *c, int siid, i
         sizeto(fsh.cone[co], id);
         bshape(fsh.cone[co][id], fsh.prio);    
         last->flags |= POLY_TRIANGLES;
-        last->tinf = &floor_texture_vertices[fsh.id];
+        last->tinf = get_floor_texture_vertices(fsh.id);
         last->texture_offset = 0;
         ld h = (FLOOR - WALL) / (co+1);
         ld top = co ? (FLOOR + WALL) / 2 : WALL;
@@ -777,6 +830,8 @@ void geometry_information::generate_floorshapes_for(int id, cell *c, int siid, i
   #endif
   }
 
+EX hookset<bool(cell*)> hooks_floorshapes;
+
 void geometry_information::generate_floorshapes() {
 
   DEBBI(DF_POLY, ("generate_floorshapes"));
@@ -799,7 +854,9 @@ void geometry_information::generate_floorshapes() {
 
   model.type = modelh.type = S7;
 
-  if(WDIM == 3) ;
+  if(callhandlers(false, hooks_floorshapes, &model)) ;
+
+  else if(WDIM == 3) ;
   
   #if CAP_IRR
   else if(IRREGULAR) {
@@ -825,6 +882,14 @@ void geometry_information::generate_floorshapes() {
 
   else if(inforder::mixed()) { /* will be generated on the fly */ }
   
+  else if(hat::in()) {
+    dynamicval<bool> ncor(approx_nearcorner, true);
+    for(int i=0; i<2; i++) {
+      modelh.c7 = i == 1 ? &model : nullptr;
+      generate_floorshapes_for(i, &model, 0, 0);
+      }
+    }
+
   #if CAP_BT
   else if(kite::in()) {
     dynamicval<bool> ncor(approx_nearcorner, true);
@@ -839,21 +904,7 @@ void geometry_information::generate_floorshapes() {
   
   #if CAP_ARCM
   else if(arcm::in()) {
-    arcm::parent_index_of(&modelh) = 0;
-    auto &ac = arcm::current;
-    for(int i=0; i<2*ac.N + 2; i++) {
-      if(ac.regular && i>=2 && i < 2*ac.N) continue;
-      arcm::id_of(&modelh) = i;
-      model.type = isize(ac.triangles[i]);
-      if(DUAL) model.type /= 2, arcm::parent_index_of(&modelh) = !(i&1);
-      
-      if(BITRUNCATED)
-        generate_floorshapes_for(i, &model, !arcm::pseudohept(&model), arcm::pseudohept(&model) ? 0 : 1^(i&1));
-      else if(geosupport_football() == 2)
-        generate_floorshapes_for(i, &model, !arcm::pseudohept(&model), i >= 4 ? 1 : 0);
-      else
-        generate_floorshapes_for(i, &model, 0, 0);
-      }
+    /* will be generated on the fly */
     }
   #endif
   
@@ -949,7 +1000,7 @@ EX namespace gp {
     bool master = !(li.relative.first||li.relative.second);
     int cor = master ? S7 : SG6;
     if(master) li.last_dir = -1;
-    DEBB(DF_GP, (format("last=%d at=%d,%d tot=%d siid=%d sidir=%d cor=%d id=%d\n", li.last_dir, li.relative.first, li.relative.second, li.total_dir, siid, sidir, cor, id)));
+    DEBB(DF_GP, (hr::format("last=%d at=%d,%d tot=%d siid=%d sidir=%d cor=%d id=%d\n", li.last_dir, li.relative.first, li.relative.second, li.total_dir, siid, sidir, cor, id)));
       
     cgi.generate_floorshapes_for(id, c0, siid, sidir);
     
@@ -1036,6 +1087,23 @@ EX void set_floor(const transmatrix& spin, hpcshape& sh) {
   qfi.usershape = -1;
   }
 
+/** currently only for arcm */
+EX void ensure_floorshape_generated(int id, cell *c) {
+  hpcshape nul; nul.s = -1;
+  sizeto(cgi.shFloor.b, id, nul);
+  if(cgi.shFloor.b[id].s == -1) {
+    cgi.require_shapes();
+    if(BITRUNCATED)
+      cgi.generate_floorshapes_for(id, c, !arcm::pseudohept(c), arcm::pseudohept(c) ? 0 : 1^(id&1));
+    else if(geosupport_football() == 2)
+      cgi.generate_floorshapes_for(id, c, !arcm::pseudohept(c), id >= 4 ? 1 : 0);
+    else
+      cgi.generate_floorshapes_for(id, c, 0, 0);
+    cgi.finishshape();
+    cgi.extra_vertices();
+    }
+  }
+
 EX int shvid(cell *c) {
   return currentmap->shvid(c);
   }
@@ -1071,7 +1139,6 @@ int hrmap_standard::shvid(cell *c) {
       cgi.crossf = cgi.tessf;
       
       cgi.require_shapes();
-      println(hlog, "generating floorshapes for ", t);
       cgi.generate_floorshapes_for(t, &model, 0, 0);
       cgi.finishshape();
       cgi.extra_vertices();
@@ -1108,12 +1175,14 @@ EX struct dqi_poly *draw_shapevec(cell *c, const shiftmatrix& V, const vector<hp
   #endif
   #if CAP_ARCM
   else if(arcm::in()) {
-    return &queuepolyat(V, shv[shvid(c)], col, prio);
+    int id = shvid(c);
+    ensure_floorshape_generated(id, c);
+    return &queuepolyat(V, shv[id], col, prio);
     }
   #endif
   else if(GOLDBERG && ishex1(c)) 
     return &queuepolyat(V * pispin, shv[0], col, prio);
-  else if(!(S7&1) && PURE && !kite::in() && !a4) {
+  else if(!(S7&1) && PURE && !aperiodic && !a4) {
     auto si = patterns::getpatterninfo(c, patterns::PAT_COLORING, 0);
     if(si.id == 8) si.dir++;
     transmatrix D = applyPatterndir(c, si);
@@ -1241,9 +1310,11 @@ void draw_shape_for_texture(floorshape* sh) {
       }
     }
   
-  auto& ftv = floor_texture_vertices[sh->id];
-  ftv.tvertices.clear();
-  ftv.texture_id = floor_textures->renderedTexture;
+  auto ftv = get_floor_texture_vertices(sh->id);
+  if(ftv) {
+    ftv->tvertices.clear();
+    ftv->texture_id = floor_textures->renderedTexture;
+    }
   
   hyperpoint center = eupush(gx, gy) * C0;
   hyperpoint v1 = hpxyz3(sd, sd, 0, 0);
@@ -1271,9 +1342,9 @@ void draw_shape_for_texture(floorshape* sh) {
     };
   
   // SL2 needs 6 times more
-  texture_order([&] (ld x, ld y) {
+  if(ftv) texture_order([&] (ld x, ld y) {
     auto v = tvec_at(x, y);
-    ftv.tvertices.push_back(glhr::makevertex(v[0], v[1], 0));
+    ftv->tvertices.push_back(glhr::makevertex(v[0], v[1], 0));
     });
   
   floor_texture_square_size = 2 * (tvec_at(1, 0)[0] - tvec_at(0, 0)[0]);
@@ -1290,11 +1361,12 @@ EX void ensure_vertex_number(basic_textureinfo& bti, int qty) {
 
 /** ensure_vertex_number for a hpcshape */
 EX void ensure_vertex_number(hpcshape& sh) {
+  if(!sh.tinf) return;
   ensure_vertex_number(*sh.tinf, sh.e - sh.s);
   }
 
 EX void bind_floor_texture(hpcshape& li, int id) {
-  li.tinf = &floor_texture_vertices[id];
+  li.tinf = get_floor_texture_vertices(id);
   ensure_vertex_number(li);
   }
 
@@ -1309,7 +1381,7 @@ void geometry_information::make_floor_textures_here() {
   vid.xres = FLOORTEXTURESIZE;
   vid.yres = FLOORTEXTURESIZE;
   pconf.scale = 0.125;
-  pconf.camera_angle = 0;
+  dynamicval<transmatrix> vm(pconf.cam(), Id);
   pconf.alpha = 1;
   dynamicval<ld> lw(vid.linewidth, 2);
 

@@ -39,6 +39,8 @@
 
 namespace nilrider {
 
+multi::config scfg_nilrider;
+
 /** is the game paused? */
 bool paused = false;
 
@@ -83,7 +85,7 @@ void sync_music(eLand l) {
 bool turn(int delta) {
   if(planning_mode && !view_replay) return false;
 
-  multi::get_actions();
+  multi::get_actions(scfg_nilrider);
   auto& a = multi::actionspressed;
   auto& la = multi::lactionpressed;
 
@@ -246,7 +248,7 @@ void run() {
   dialog::add_key_action(PSEUDOKEY_SIM, toggle_replay);
   dialog::display();
 
-  char* t = multi::scfg.keyaction;
+  char* t = scfg_nilrider.keyaction;
   for(int i=1; i<512; i++) {
     auto& ka = dialog::key_actions;
     if(t[i] == 16+5) ka[i] = ka[PSEUDOKEY_PAUSE];
@@ -320,7 +322,9 @@ void pick_game() {
   dialog::add_action_push(pick_level);
   dialog::addBreak(100);
   add_edit(planning_mode);
-  dialog::addBack();
+  dialog::addItem(XLAT("play this track"), SDLK_ESCAPE);
+  dialog::addItem(XLAT("quit Nil Rider"), 'q');
+  dialog::add_action([] { quitmainloop = true; });
   dialog::display();
   }
 
@@ -363,7 +367,7 @@ void settings() {
   dialog::addItem("projection", 'P');
   dialog::add_action_push(nil_projection);
   dialog::addItem("configure keys", 'k');
-  dialog::add_action_push(multi::get_key_configurer(1, move_names, "Nilrider keys"));
+  dialog::add_action_push(multi::get_key_configurer(1, move_names, "Nilrider keys", scfg_nilrider));
 
   #if CAP_AUDIO
   add_edit(effvolume);
@@ -447,7 +451,7 @@ void pop_and_push_replays() {
   }
 #endif
 
-reaction_t on_quit = [] { exit(0); }; 
+reaction_t on_quit = [] { quitmainloop = true; };
 
 void restart() {
   clear_path(curlev);
@@ -540,17 +544,13 @@ void main_menu() {
 bool on;
 
 void change_default_key(int key, int val) {
-  char* t = multi::scfg.keyaction;
+  char* t = scfg_nilrider.keyaction;
   t[key] = val;
-  #if CAP_CONFIG
-  set_saver_default(t[key]);
-  #endif
   }
 
 void nilrider_keys() {
-  for(int i=0; i<512; i++)
-    if(multi::scfg.keyaction[i] >= 16 && multi::scfg.keyaction[i] < 32)
-      change_default_key(i, 0);
+  clear_config(scfg_nilrider);
+  
   change_default_key('s', 16 + 0);
   change_default_key('a', 16 + 1);
   change_default_key('w', 16 + 2);
@@ -564,6 +564,8 @@ void nilrider_keys() {
   change_default_key('b', 16 + 6);
   change_default_key('r', 16 + 7);
   change_default_key('v', 16 + 8);
+
+  sconfig_savers(scfg_nilrider, "nilrider");
   }
 
 bool nilrider_music(eLand& l) {
@@ -578,6 +580,25 @@ bool nilrider_music(eLand& l) {
   else l = music_nilrider;
   return false;
   }
+
+local_parameter_set lps_nilrider("nilrider:");
+
+void default_settings() {
+  lps_add(lps_nilrider, vid.cells_drawn_limit, 1);
+  lps_add(lps_nilrider, (color_t&) patterns::canvasback, 0);
+  lps_add(lps_nilrider, smooth_scrolling, true);
+  lps_add(lps_nilrider, mapeditor::drawplayer, false);
+  lps_add(lps_nilrider, backcolor, 0xC0C0FFFF);
+  lps_add(lps_nilrider, logfog, 1);
+  lps_add(lps_nilrider, patterns::whichCanvas, 0);
+
+  #if CAP_VR
+  lps_add(lps_nilrider, vrhr::hsm, vrhr::eHeadset::reference);
+  lps_add(lps_nilrider, vrhr::eyes, vrhr::eEyes::equidistant);
+  lps_add(lps_nilrider, vrhr::absolute_unit_in_meters, 6);
+  #endif
+  }
+
 
 void initialize() {
   load();
@@ -616,20 +637,11 @@ void initialize_all() {
   variation = eVariation::pure;
   nil_set_geodesic();
   enable_canvas();
-  patterns::canvasback = 0;
-  vid.cells_drawn_limit = 1;
-  smooth_scrolling = true;
-  mapeditor::drawplayer = false;
-  backcolor = 0xC0C0FFFF;
-  logfog = 1;
+  lps_enable(&lps_nilrider);
   initialize();
   poly_outline = 0xFF;
   pushScreen(pick_game);
-  #if CAP_VR
-  vrhr::hsm = vrhr::eHeadset::reference;
-  vrhr::eyes = vrhr::eEyes::equidistant;
-  vrhr::absolute_unit_in_meters = 6;
-  #endif
+  start_game();
   }
 
 auto celldemo = arg::add3("-unilcycle", initialize) + arg::add3("-unilplan", [] { planning_mode = true; }) + arg::add3("-viewsim", [] { view_replay = true; })
@@ -680,6 +692,8 @@ auto celldemo = arg::add3("-unilcycle", initialize) + arg::add3("-unilplan", [] 
       pmodel = mdPerspective;
       pconf.rotational_nil = 0;
       });
+
+auto hook0= addHook(hooks_configfile, 300, default_settings);
 
 #ifdef NILRIDER
 auto hook1=

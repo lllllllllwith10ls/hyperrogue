@@ -280,7 +280,7 @@ int bitfield_v;
 template<class T> void bitfield_editor(int val, T setter, string help = "") {
   bitfield_v = val;
   dialog::editNumber(bitfield_v, 0, 100, 1, bitfield_v, help, "");
-  dialog::reaction = [setter] () { setter(bitfield_v); };
+  dialog::get_di().reaction = [setter] () { setter(bitfield_v); };
   }
 
 struct debugScreen {
@@ -308,8 +308,6 @@ struct debugScreen {
       #if CAP_SHAPES
       queuepoly(gmatrix[what], cgi.shAsymmetric, 0x80808080);
       #endif
-      char buf[200];
-      sprintf(buf, "%p", hr::voidp(what));
       dialog::addSelItem("mpdist", its(what->mpdist), 'd');
       dialog::add_action([what] () { 
         bitfield_editor(what->mpdist, [what] (int i) { what->mpdist = 0; }, "generation level");        
@@ -326,7 +324,7 @@ struct debugScreen {
         static ld d = HEAT(what);
         dialog::editNumber(d, -2, 2, 0.1, d, "landparam",
           "Extra value that is important in some lands. The specific meaning depends on the land."); 
-        dialog::reaction = [what] () { HEAT(what) = d; };
+        dialog::get_di().reaction = [what] () { HEAT(what) = d; };
         });
       dialog::addSelItem("land flags", its(what->landflags)+"/"+itsh2(what->landflags), 'f');
       dialog::add_action([what] () { 
@@ -390,7 +388,7 @@ struct debugScreen {
       dialog::addBreak(50);
       
       if(show_debug_data) {
-        dialog::addSelItem("pointer", s0+buf+"/"+index_pointer(what), 0);
+        dialog::addSelItem("pointer", s0+hr::format("%p", hr::voidp(what))+"/"+index_pointer(what), 0);
         dialog::addSelItem("cpdist", its(what->cpdist), 0);
         dialog::addSelItem("celldist", its(celldist(what)), 0);
         dialog::addSelItem("celldistance", its(celldistance(cwt.at, what)), 0);
@@ -421,7 +419,7 @@ struct debugScreen {
         dialog::add_action([what] () {
           bitfield_editor(what->mondir, [what] (int i) { what->mondir = i; },
           "monster direction");
-          dialog::extra_options = [what] () { 
+          dialog::get_di().extra_options = [what] () { 
             dialog::addBoolItem(XLAT("mirrored"), what->monmirror, 'M');
             };
           });
@@ -748,7 +746,7 @@ int read_cheat_args() {
     shift(); int index = argi();
     shift(); whateveri[index] = argi();
     }
-  else if(argis("-W3")) {
+  else if(argis("-W4")) {
     shift(); top_land = readland(args()); cheat();
     showstartmenu = false;
     }
@@ -814,7 +812,6 @@ int read_cheat_args() {
     }
   else if(argis("-lands")) {
     PHASEFROM(2);
-    cheat();
     stop_game();
     shift(); land_structure = (eLandStructure) (argi());
     }

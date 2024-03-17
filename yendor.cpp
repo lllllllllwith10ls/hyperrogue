@@ -959,7 +959,7 @@ EX map<modecode_t, string> meaning;
 
 char xcheat;
 
-void save_mode_data(hstream& f) {
+EX void save_mode_data(hstream& f) {
   mapstream::save_geometry(f);
   
   if(yendor::on || tactic::on) 
@@ -980,6 +980,91 @@ void save_mode_data(hstream& f) {
   f.write<char>(xcheat);
   if(casual) {
     f.write<char>(1);
+    }
+  if(bow::weapon) {
+    f.write<char>(2);
+    f.write<char>(bow::weapon);
+    f.write<char>(bow::style);
+    }
+  if(use_custom_land_list) {
+    f.write<char>(3);
+    f.write<int>(landtypes);
+    for(int i=0; i<landtypes; i++) {
+      f.write<char>(custom_land_list[i]);
+      f.write<int>(custom_land_treasure[i]);
+      f.write<int>(custom_land_difficulty[i]);
+      f.write<int>(custom_land_wandering[i]);
+      }
+    }
+  if(ls::horodisk_structure()) {
+    f.write<char>(4);
+    f.write<int>(horodisk_from);
+    }
+  if(land_structure == lsChaosRW) {
+    f.write<char>(5);
+    f.write<int>(randomwalk_size);
+    }
+  }
+
+EX void load_mode_data_with_zero(hstream& f) {
+  mapstream::load_geometry(f);
+
+  land_structure = (eLandStructure) f.get<char>();
+  shmup::on = f.get<char>();
+  inv::on = f.get<char>();
+  #if CAP_TOUR
+  tour::on = f.get<char>();
+  #else
+  f.get<char>();
+  #endif
+  peace::on = f.get<char>();
+  peace::otherpuzzles = f.get<char>();
+  peace::explore_other = f.get<char>();
+  multi::players = f.get<char>();
+  xcheat = f.get<char>();
+  casual = false;
+  bow::weapon = bow::wBlade;
+  
+  while(true) {
+    char option = f.get<char>();
+    switch(option) {
+
+      case 0:
+        return;
+
+      case 1:
+        casual = true;
+        break;
+
+      case 2:
+        bow::weapon = (bow::eWeapon) f.get<char>();
+        bow::style = (bow::eCrossbowStyle) f.get<char>();
+        break;
+
+      case 3: {
+        use_custom_land_list = true;
+        int lt = f.get<int>();
+        if(lt > landtypes) throw hstream_exception();
+        for(int i=0; i<lt; i++) {
+          custom_land_list[i] = f.get<char>();
+          custom_land_treasure[i] = f.get<int>();
+          custom_land_difficulty[i] = f.get<int>();
+          custom_land_wandering[i] = f.get<int>();
+          }
+        break;
+        }
+
+      case 4:
+        horodisk_from = f.get<int>();
+        break;
+
+      case 5:
+        randomwalk_size = f.get<int>();
+        break;
+
+      default:
+        throw hstream_exception();
+      }
     }
   }
 

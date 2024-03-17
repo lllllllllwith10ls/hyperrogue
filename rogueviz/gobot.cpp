@@ -8,6 +8,8 @@
 // -canvas i -fillmodel ff801080 -noscr -geo Bring -gp 5 1 -unrectified -go-local -smart 1
 // (add -run before -go-local if you want to select your board manually (press F10 after selecting the board)
 
+// run online: ./hyper-go -canvas i -fillmodel ff801080 -noscr -geo Bring -gp 5 1 -unrectified -smart 3 -shot-1000 -shotxy 500 500 -shott 1 -gobot -go-discord
+
 /** \file gobot.cpp
  *  \brief bot to play Go via Discord
  */
@@ -15,13 +17,13 @@
 #define AEGIS 0
 
 #if AEGIS
-#include <aegis.hpp>
+#include <dpp/dpp.h>
 #endif
 
 #include "rogueviz.h"
 
 namespace hr {
-
+#if CAP_THREAD
 EX namespace gobot {
 
 eWall empty = waChasm;
@@ -32,10 +34,13 @@ vector<cell*> ac;
 map<cell*, int> indices;
 
 const int Free = 2;
+const int Unowned = 3;
 
 struct boarddata {
   vector<int> taken, owner;
   array<int, 2> captures;
+  string geom;
+  int last_index;
   };
 
 boarddata current;
@@ -46,19 +51,32 @@ vector<boarddata> history;
 
 bool draw_go(cell *c, const shiftmatrix& V);
 
-void init_go() {
+void init_go_board() {
   ac = currentmap->allcells();
+  current.taken.clear();
+  current.owner.clear();
   current.taken.resize(isize(ac), 2);
   current.owner.resize(isize(ac), 2);
   current.captures[0] = 0;
   current.captures[1] = 0;
+  current.last_index = -1;
+  shstream f; mapstream::save_geometry(f); current.geom = f.s;
+  indices.clear();
   for(int i=0; i<isize(ac); i++)
     indices[ac[i]] = i;
+  }
+
+void init_go() {
+  init_go_board();
   rogueviz::addHook(hooks_drawcell, 100, draw_go);
   }
 
 void hwrite(hstream& hs, const boarddata& b) {
-  hwrite(hs, b.captures, b.taken, b.owner);
+  hwrite(hs, b.captures, b.taken, b.owner, b.geom);
+  }
+
+void hread(hstream& hs, boarddata& b) {
+  hread(hs, b.captures, b.taken, b.owner, b.geom);
   }
 
 vector<int> neigh_indices(int i) {
@@ -89,7 +107,7 @@ int str_to_index(string s) {
   else return val + isize(chars) * (str_to_index(s.substr(1)) + 1);
   }
 
-color_t player_colors[2] = {0x202020FF, 0xFFFFFFFF};
+color_t player_colors[4] = {0x202020FF, 0xFFFFFFFF, 0, 0xFFD500FF};
 
 bool draw_go(cell *c, const shiftmatrix& V) {
   if(c->wall == waSea) c->wall = waChasm;
@@ -118,10 +136,18 @@ bool draw_go(cell *c, const shiftmatrix& V) {
     }
   
   else {
+    vid.linewidth /= 5;
     queuepoly(V, cgi.shGem[0], player_colors[current.owner[id]]);    
+    vid.linewidth *= 5;
     lv_needed = 2;
     }
   
+  if(id == current.last_index) {
+    vid.linewidth *= 3;
+    queuecircleat1(c, V, 1, 0x8080FFFF);
+    vid.linewidth /= 3;
+    }
+
   if(labels_value >= lv_needed) {
     string s = index_to_str(id);
     queuestr(V, isize(s) == 1 ? 0.8 : 0.5, s, 0xFFD500);
@@ -135,18 +161,26 @@ void save_backup() {
   }
 
 void undo() {
+  if(current.geom != history.back().geom) {
+    shstream f; f.s = history.back().geom;
+    stop_game();
+    mapstream::load_geometry(f);
+    start_game();
+    init_go();
+    }
   current = history.back();
   history.pop_back();
   }
 
 #if AEGIS
-aegis::gateway::events::message_create* cur;
+dpp::message_create_t* cur;
+dpp::cluster *pbot;
 #endif
 
 int shot_state;
 
 #if AEGIS
-std::vector<aegis::future<aegis::gateway::objects::message> > old_shots;
+// std::vector<dpp::future<dpp::message> > old_shots;
 #endif
 
 void clean_old_shots() {
@@ -164,6 +198,82 @@ void clean_old_shots() {
 
 bool menubased;
 
+bool full_scores = true;
+
+struct score {
+  array<int, 4> owned_by, stones;
+  };
+
+score get_score() {
+  score sc;
+  for(int i=0; i<4; i++)
+    sc.owned_by[i] = sc.stones[i] = 0;
+
+  for(int i=0; i<isize(ac); i++)
+    if(current.taken[i] != Free)
+      sc.stones[current.taken[i]]++;
+    else sc.owned_by[current.owner[i]]++;
+  return sc;
+  }
+
+void go_screenshot_content() {
+  gamescreen();
+  if(!full_scores) return;
+
+  score sc = get_score();
+
+  flat_model_enabler fme;
+  initquickqueue();
+
+  ld rad = vid.fsize;
+
+  if(sc.stones[0] > 0) {
+    shiftmatrix V = shiftless(atscreenpos(rad, rad, rad));
+    queuepolyat(V, cgi.shHugeDisk, player_colors[0], PPR::SUPERLINE);
+    write_in_space(V, max_glfont_size, .8, its(sc.stones[0]), player_colors[1], 1);
+    }
+
+  if(current.captures[0] > 0) {
+    shiftmatrix V = shiftless(atscreenpos(rad * 3, rad, rad));
+    write_in_space(V, max_glfont_size, .8, its(current.captures[0]), player_colors[1], 1);
+    }
+
+  if(sc.owned_by[0] > 0) {
+    shiftmatrix V = shiftless(atscreenpos(rad, rad * 3, rad));
+    write_in_space(V, max_glfont_size, .8, its(sc.owned_by[0]), player_colors[1], 1);
+    }
+
+  if(sc.stones[1] > 0) {
+    shiftmatrix V = shiftless(atscreenpos(vid.xres-rad, rad, rad));
+    queuepolyat(V, cgi.shHugeDisk, player_colors[1], PPR::SUPERLINE);
+    write_in_space(V, max_glfont_size, .8, its(sc.stones[1]), player_colors[0], 1);
+    }
+
+  if(current.captures[1] > 0) {
+    shiftmatrix V = shiftless(atscreenpos(vid.xres - rad * 3, rad, rad));
+    write_in_space(V, max_glfont_size, .8, its(current.captures[1]), player_colors[0], 1);
+    }
+
+  if(sc.owned_by[1] > 0) {
+    shiftmatrix V = shiftless(atscreenpos(vid.xres - rad, rad * 3, rad));
+    write_in_space(V, max_glfont_size, .8, its(sc.owned_by[1]), player_colors[1], 1);
+    }
+
+  if(sc.owned_by[2] > 0) {
+    shiftmatrix V = shiftless(atscreenpos(rad, vid.yres - rad, rad));
+    write_in_space(V, max_glfont_size, .8, its(sc.owned_by[2]), player_colors[2], 1);
+    }
+
+  if(sc.owned_by[3] > 0) {
+    shiftmatrix V = shiftless(atscreenpos(rad, vid.yres - rad, rad));
+    write_in_space(V, max_glfont_size, .8, its(sc.owned_by[3]), player_colors[3], 1);
+    }
+
+
+  quickqueue();
+  println(hlog, "should be drawn");
+  }
+
 void take_shot() {
   #if AEGIS
   if(cur) {
@@ -172,25 +282,12 @@ void take_shot() {
     while(shot_state == 1) usleep(1000);
     shot_state = 0;
     
-    aegis::create_message_t msg;
-    aegis::rest::aegis_file f;
-    f.name = "go-board.png";
-    
-    FILE *ff = fopen("go-temp.png", "r");
-    if(!ff) {
-      println(hlog, "file missing?!");
-      return;
-      }
-    int c;
-    while((c = fgetc(ff)) >= 0) f.data.push_back(c);
-    fclose(ff);
-    println(hlog, "file size = ", int(f.data.size()));
+    dpp::message msg(cur->msg.channel_id, "");
+    msg.add_file("go-board.png", dpp::utility::read_file("go-temp.png"));
+    pbot->message_create(msg);
 
-    msg.file(f);
-    println(hlog, "file attached");
     clean_old_shots();
     // old_shots.push_back();
-    cur->msg.get_channel().create_message(msg);
     println(hlog, "message sent");
     }
   #else
@@ -198,7 +295,7 @@ void take_shot() {
   #endif
   else if(!menubased) {
     println(hlog, "taking test screenshot");
-    shot::take("go-test.png");
+    shot::take("go-test.png", go_screenshot_content);
     }
   }
 
@@ -207,8 +304,10 @@ void go_message(string s) {
   addMessage(s);
 
   #if AEGIS
-  if(cur)
-    cur->msg.get_channel().create_message(s);
+  if(cur) {
+    dpp::message msg(cur->msg.channel_id, s);
+    pbot->message_create(msg);
+    }
   #endif
   }
 
@@ -260,6 +359,7 @@ void dead_group(int pos) {
       for(int j: neigh_indices(at)) d.visit(j);
       }
     }
+  current.last_index = pos;
   }
 
 bool dead_group(string s) {
@@ -298,6 +398,38 @@ bool mark_owned(string s, int who) {
       }
     }
   
+  current.last_index = pos;
+  return true;
+  }
+
+bool set_owner_auto() {
+  int N = isize(ac);
+  for(int at=0; at<N; at++) if(current.taken[at] == Free) current.owner[at] = Free;
+
+  for(int pos=0; pos<N; pos++) if(current.taken[pos] == Free && current.owner[pos] == Free) {
+    dfs d;
+    d.visit(pos);
+    int t0 = 0, t1 = 0;
+    for(int i=0; i<isize(d.q); i++) {
+      int at = d.q[i];
+      if(current.taken[at] == Free) {
+        for(int j: neigh_indices(at)) d.visit(j);
+        }
+      else if(current.taken[at] == 0) t0++;
+      else if(current.taken[at] == 1) t1++;
+      }
+    for(int i=0; i<isize(d.q); i++) {
+      int at = d.q[i];
+      auto& o = current.owner[at];
+      if(t0 && t1) o = Unowned;
+      else if(t0) o = 0;
+      else if(t1) o = 1;
+      else { go_message("all free!"); return true; } /* all free */
+      }
+    }
+
+  current.last_index = -1;
+  take_shot();
   return true;
   }
 
@@ -326,6 +458,16 @@ void try_to_play(string s, int who) {
     if(current.taken[i] == 1-who && count_breath(i) == 0)
       dead_group(i);
     }
+
+  int steps = 0;
+  for(int it=isize(history)-1; it>=0; it--) {
+    steps++;
+    if(history[it].taken == current.taken) {
+      go_message("This position repeated " + its(steps) + " moves back. Say 'undo' to cancel this move");
+      }
+    if(history[it].captures[0] == 0 && history[it].captures[1] == 0)
+      break;
+    }
   
   if(count_breath(pos) == 0) {
     current.taken[pos] = Free;
@@ -334,6 +476,7 @@ void try_to_play(string s, int who) {
     }
   
   else {
+    current.last_index = pos;
     take_shot();
     }      
   }
@@ -357,17 +500,28 @@ void set_owner(vector<string> tokens, int who) {
     if(mark_owned(tokens[i], who)) ok = true;
     }
   if(!ok) undo();
-  else take_shot();
+  else {
+    take_shot();
+    }
   }
 
 void clear_owner_marks() {
   save_backup();
   for(int i=0; i<isize(ac); i++) current.owner[i] = Free;
+  current.last_index = -1;
   take_shot();
   }
 
+void save_go() {
+  save_backup();
+  fhstream f("go.saved-game", "wb");
+  f.write(f.vernum);
+  f.write(history);
+  undo();
+  }
+
 void accept_command(string s) {
-  println(hlog, "accepting command: ", s);
+  println(hlog, "accepting command: '", s, "'");
   vector<string> tokens;
   string ctoken;
   for(char c: s + " ")
@@ -411,6 +565,7 @@ void accept_command(string s) {
   if(tokens[0] == "labels" && t == 2) {
     try {
       labels_value = parseld(tokens[1]);
+      current.last_index = -1;
       take_shot();
       }
     catch(hr_parse_exception& exc) {
@@ -435,26 +590,39 @@ void accept_command(string s) {
       "labels 0..3 - show (0) no labels, (1) labels on unowned, (2) labels on empty, (3) all labels\n"
       "ob [where] - own area as black\n"
       "ow [where] - own area as white\n"
-      "score - view the score\n"
+      "of [where] - the area is free\n"
+      "oc [where] - the area is common\n"
+      "oauto - own automatically\n"
+      "score - view the score (score on/off to include the score in screenshots)\n"
       "hires - take a 1000x1000 screenshot\n"
       "restart - restart\n"
+      "bring-unrectified x y -- restart on unrectified GP(x,y) Bring surface\n"
+      "disk-unrectified x y size -- restart on unrectified GP(x,y) {4,5} disk of given size\n"
+      "bring-gp x y -- restart on GP(x,y) Bring surface\n"
+      "disk-gp x y size -- restart on GP(x,y) {4,5} disk of given size\n"
+      "sphere-[gp|unrectified] x y -- restart on sphere\n"
       "undo - undo last move\n"
-      );      
+      "export - export board to string (no history, owners, captures)\n"
+      "import [string] - import board from string\n"
+      "csc [value] - stone size, current is " + fts(vid.creature_scale) + "\n"
+      );
 
-  if(tokens[0] == "save") {
-    save_backup();
-    fhstream f("go.saved-game", "wb");
-    f.write(history);    
-    undo();
-    }
+  if(tokens[0] == "save") save_go();
 
   if(tokens[0] == "die") die_at(tokens);
+
+  if(tokens[0] == "csc" && t == 2) vid.creature_scale = parseld(tokens[1].c_str());
   
   if(tokens[0] == "clear" && t == 1) 
     clear_owner_marks();
 
-  if(tokens[0] == "ow" || tokens[0] == "ob") 
-    set_owner(tokens, tokens[0][1] == 'w');
+  if(tokens[0] == "ob") set_owner(tokens, 0);
+  if(tokens[0] == "ow") set_owner(tokens, 1);
+  if(tokens[0] == "of") set_owner(tokens, 2);
+  if(tokens[0] == "oc") set_owner(tokens, 3);
+
+  if(tokens[0] == "oauto")
+    set_owner_auto();
   
   if(tokens[0] == "undo") {
     if(history.empty())
@@ -466,22 +634,20 @@ void accept_command(string s) {
     }
 
   if(tokens[0] == "score") {
-    array<int, 2> owned_by, stones;
-    for(int i=0; i<2; i++)
-      owned_by[i] = stones[i] = 0;
-
-    for(int i=0; i<isize(ac); i++)
-      if(current.taken[i] != Free)
-        stones[current.taken[i]]++;
-      else if(current.owner[i] != Free)
-        owned_by[current.owner[i]]++;
+    score sc = get_score();
     
     shstream ss;
-    println(ss, "black: ", stones[0], " stones, ", owned_by[0], " area, ", current.captures[1], " prisoners");
-    println(ss, "white: ", stones[1], " stones, ", owned_by[1], " area, ", current.captures[0], " prisoners");
+    println(ss, "black: ", sc.stones[0], " stones, ", sc.owned_by[0], " area, ", current.captures[1], " prisoners");
+    println(ss, "white: ", sc.stones[1], " stones, ", sc.owned_by[1], " area, ", current.captures[0], " prisoners");
+    print(ss, "board size: ", isize(ac));
+    if(sc.owned_by[2]) print(ss, " free: ", sc.owned_by[2]);
+    if(sc.owned_by[3]) print(ss, " common: ", sc.owned_by[3]);
     
     go_message(ss.s);
-   }
+
+    if(t == 2 && tokens[1] == "on") { full_scores = true; take_shot(); }
+    if(t == 2 && tokens[1] == "off") { full_scores = false; take_shot(); }
+    }
 
   if(tokens[0] == "restart") {
     save_backup();
@@ -491,6 +657,122 @@ void accept_command(string s) {
     take_shot();
     }
 
+  if(tokens[0] == "bring-unrectified" && t == 3) {
+    int x = atoi(tokens[1].c_str());
+    int y = atoi(tokens[2].c_str());
+    if(x > 8 || y > 8 || x < 0 || y < 0 || x+y == 0) { go_message("illegal parameters"); return; }
+    save_backup();
+    stop_game();
+    geometry = gBring;
+    variation =eVariation::unrectified;
+    gp::param = {x, y};
+    start_game();
+    init_go_board();
+    go_message("Bring surface, size = " + its(isize(ac)));
+    take_shot();
+    }
+
+  if(tokens[0] == "disk-unrectified" && t == 4) {
+    int x = atoi(tokens[1].c_str());
+    int y = atoi(tokens[2].c_str());
+    int size = atoi(tokens[3].c_str());
+    if(x > 8 || y > 8 || x < 0 || y < 0 || x+y == 0 || size > 1000 || size < 10) { go_message("illegal parameters"); return; }
+    save_backup();
+    stop_game();
+    geometry = g45;
+    req_disksize = size;
+    variation =eVariation::unrectified;
+    gp::param = {x, y};
+    start_game();
+    init_go_board();
+    go_message("disk, size = " + its(isize(ac)));
+    take_shot();
+    }
+
+  if(tokens[0] == "sphere-unrectified" && t == 3) {
+    int x = atoi(tokens[1].c_str());
+    int y = atoi(tokens[2].c_str());
+    if(x > 10 || y > 10 || x < 0 || y < 0 || x+y == 0) { go_message("illegal parameters"); return; }
+    save_backup();
+    stop_game();
+    geometry = gOctahedron;
+    req_disksize = 0;
+    variation =eVariation::unrectified;
+    gp::param = {x, y};
+    start_game();
+    init_go_board();
+    go_message("sphere, size = " + its(isize(ac)));
+    take_shot();
+    }
+
+  if(tokens[0] == "sphere-gp" && t == 3) {
+    int x = atoi(tokens[1].c_str());
+    int y = atoi(tokens[2].c_str());
+    if(x > 10 || y > 10 || x < 0 || y < 0 || x+y == 0) { go_message("illegal parameters"); return; }
+    save_backup();
+    stop_game();
+    geometry = gOctahedron;
+    req_disksize = 0;
+    variation =eVariation::goldberg;
+    gp::param = {x, y};
+    start_game();
+    init_go_board();
+    go_message("disk, size = " + its(isize(ac)));
+    take_shot();
+    }
+
+  if(tokens[0] == "bring-gp" && t == 3) {
+    int x = atoi(tokens[1].c_str());
+    int y = atoi(tokens[2].c_str());
+    if(x > 8 || y > 8 || x < 0 || y < 0 || x+y == 0) { go_message("illegal parameters"); return; }
+    save_backup();
+    stop_game();
+    geometry = gBring;
+    variation =eVariation::goldberg;
+    gp::param = {x, y};
+    start_game();
+    init_go_board();
+    go_message("Bring surface, size = " + its(isize(ac)));
+    take_shot();
+    }
+
+  if(tokens[0] == "disk-gp" && t == 4) {
+    int x = atoi(tokens[1].c_str());
+    int y = atoi(tokens[2].c_str());
+    int size = atoi(tokens[3].c_str());
+    if(x > 8 || y > 8 || x < 0 || y < 0 || x+y == 0 || size > 1000 || size < 10) { go_message("illegal parameters"); return; }
+    save_backup();
+    stop_game();
+    geometry = g45;
+    req_disksize = size;
+    variation =eVariation::goldberg;
+    gp::param = {x, y};
+    start_game();
+    init_go_board();
+    go_message("disk, size = " + its(isize(ac)));
+    take_shot();
+    }
+
+  if(tokens[0] == "export" && t == 1) {
+    string ex;
+    for(int i=0; i<isize(ac); i++) ex.push_back("bw." [current.taken[i]] );
+    go_message("current board: ```" + ex + "```");
+    }
+
+  if(tokens[0] == "import" && t == 2) {
+    string ex = tokens[1];
+    if(isize(ex) != isize(ac)) { go_message("bad length"); return; }
+    save_backup();
+    for(int i=0; i<isize(ac); i++) {
+      auto& t = current.taken[i];
+      auto ch = ex[i];
+      t = Free;
+      if(ch == 'b') t = 0;
+      if(ch == 'w') t = 1;
+      current.owner[i] = Free;
+      }
+    take_shot();
+    }
   }
 
 std::thread bot_thread;
@@ -498,17 +780,28 @@ std::thread bot_thread;
 void go_discord() {
 #if AEGIS
   bot_thread = std::thread([] {
-    aegis::core bot(aegis::create_bot_t().log_level(spdlog::level::trace).token(AEGIS_TOKEN));
+    println(hlog, "starting bot");
+    char *token = getenv("GOBOT_TOKEN");
+    if(!token) throw hr_exception("set the env variable GOBOT_TOKEN to the Discord bot token to run gobot");
+    uint64_t intents = dpp::i_default_intents | dpp::i_message_content;
+    dpp::cluster bot(token, intents);
+    pbot = &bot;
     std::mutex lock;
-    bot.set_on_message_create([&](auto obj) {
-      if(obj.msg.get_channel().get_name() != "go") return;
+    println(hlog, "on_message_create");
+    bot.on_message_create([&](auto obj) {
+      if(obj.msg.channel_id != 820590567397261352LL) {
+        println(hlog, "message '", obj.msg.content, "' on wrong channel");
+        return;
+        }
       std::unique_lock<std::mutex> lk(lock);
       cur = &obj;
-      accept_command(obj.msg.get_content());
+      accept_command(obj.msg.content);
       cur = nullptr; 
       });
-    bot.run();
-    bot.yield();
+    println(hlog, "starting bot");
+    bot.start(dpp::st_wait);
+    println(hlog, "done");
+    // bot.yield();
     });
 #endif
   }
@@ -597,15 +890,48 @@ int rugArgs() {
   else if(argis("-go-discord"))
     go_discord();
 
+  else if(argis("-go-load")) {
+    shift(); string s = args();
+    fhstream f(s, "rb");
+    f.read(f.vernum);
+    f.read(history);
+    println(hlog, "history of ", isize(history), " read successfully");
+    undo();
+    }
+
+  else if(argis("-go-save")) save_go();
+
+  #if CAP_VIDEO
+  else if(argis("-go-video")) {
+    save_backup();
+    shift(); string s = args();
+    shift(); int fpmove = argi();
+    shift(); int ffinal = argi();
+    int N = isize(history);
+    anims::noframes = N * fpmove + ffinal;
+    anims::period = anims::noframes;
+
+    int a = addHook(anims::hooks_anim, 100, [&] {
+      current = history[min(ticks / fpmove, N-1)];
+      });
+    anims::videofile = s;
+    anims::record_video_std();
+    delHook(anims::hooks_anim, a);
+    undo();
+    }
+  #endif
+
   else return 1;
   return 0;
   }
+
+bool display_stats = false;
 
 auto gobot_hook = 
   addHook(hooks_args, 100, rugArgs) +
   addHook(shmup::hooks_turn, 100, [] (int t) {
     if(shot_state == 1) {
-      shot::take("go-temp.png");
+      shot::take("go-temp.png", go_screenshot_content);
       shot_state = 2;
       }
     return false;
@@ -615,6 +941,6 @@ auto gobot_hook =
 #endif
 
 EX }
-
+#endif
 EX }
 

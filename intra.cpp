@@ -6,7 +6,7 @@ EX namespace intra {
 
 EX bool in;
 
-#if CAP_RAY && MAXMDIM >= 4
+#if CAP_PORTALS
 #if HDR
 /** information per every space connected with intra-portals */
 struct intra_data {
@@ -163,7 +163,7 @@ EX portal_data make_portal(cellwalker cw, int spin) {
     #if CAP_BT
     if(bt::in()) {
       for(auto h: fac)
-        println(hlog, PIU(deparabolic13(cgi.emb->normalize_flat(h))));
+        println(hlog, PIU(deparabolic13(cgi.emb->flatten(h))));
       if(cw.spin == cw.at->type - 2)
         fac.pop_back();
       else
@@ -176,7 +176,7 @@ EX portal_data make_portal(cellwalker cw, int spin) {
     else {
       hyperpoint ctr = Hypc;
       for(auto p: fac) ctr += product_decompose(p).second;
-      ctr = cgi.emb->normalize_flat(ctr);
+      ctr = cgi.emb->flatten(ctr);
       id.T = gpushxto0(ctr);
       }
     }
@@ -185,8 +185,8 @@ EX portal_data make_portal(cellwalker cw, int spin) {
     id.v0 = Hypc;
     id.scale = cgi.plevel;
     for(auto p: fac) id.v0 += p;
-    id.v0 = cgi.emb->normalize_flat(id.v0);
-    hyperpoint h = cgi.emb->normalize_flat(fac[0]);
+    id.v0 = cgi.emb->flatten(id.v0);
+    hyperpoint h = cgi.emb->flatten(fac[0]);
     id.T = cspin90(1, 0) * spintox(gpushxto0(id.v0) * h) * gpushxto0(id.v0);
     if((id.T * C0)[0] > 0) id.T = spin180() * id.T;
     for(int i=0; i<3; i++) id.T[3][i] = id.T[i][3] = i==3;
@@ -527,21 +527,21 @@ EX void analyze_orthonormal(array<hyperpoint, 4> ds, ld sca) {
   }
 
 EX void shift_view_portal(hyperpoint H) {
-  shift_view(H);
+  shift_view(H * scale);
   if(!through_portal()) return;
-  shift_view(-H);
+  shift_view(-H * scale);
   ld minv = 0, maxv = 1;
   for(int i=0; i<30; i++) {
     ld t = (minv + maxv) / 2;
-    shift_view(H * t);
+    shift_view(H * t * scale);
     bool b = through_portal();
     if(b) maxv = t; else minv = t;
-    shift_view(H * -t);
+    shift_view(H * -t * scale);
     }
-  println(hlog, "maxv = ", maxv);
-  shift_view(H * maxv);
+  // println(hlog, "maxv = ", maxv);
+  shift_view(H * maxv * scale);
   check_portal_movement();
-  shift_view_portal(H * (1 - maxv));
+  shift_view_portal(H * (1 - maxv) * scale);
   }
 
 EX const connection_data* through_portal() {
@@ -551,6 +551,8 @@ EX const connection_data* through_portal() {
   auto cw1 = cellwalker(centerover, nei);
   return at_or_null(connections, cw1);
   }
+
+EX ld scale = 1;
 
 EX void check_portal_movement() {
   auto p = through_portal();
@@ -620,19 +622,26 @@ EX void check_portal_movement() {
       #endif
       }
 
-    ld scale = p->id2.scale / p->id1.scale;
-
-    camera_speed *= scale;
-    anims::cycle_length *= scale;
-    #if CAP_VR
-    vrhr::absolute_unit_in_meters *= scale;
-    #endif
-    if(walking::eye_level != -1) walking::eye_level *= scale;
+    scale *= p->id2.scale / p->id1.scale;
 
     walking::floor_dir = -1;
     walking::on_floor_of = nullptr;
     }
   }
+
+EX void apply_scale() {
+  if(scale != 1) {
+    camera_speed *= scale;
+    anims::cycle_length *= scale;
+    vid.ipd *= scale;
+    #if CAP_VR
+    vrhr::absolute_unit_in_meters *= scale;
+    #endif
+    if(walking::eye_level != -1) walking::eye_level *= scale;
+    scale = 1;
+    }
+  }
+
 
 vector<cellwalker> unconnected;
 
@@ -659,7 +668,7 @@ EX string portal_help =
 EX void become_menu() {
   cmode = sm::SIDE | sm::MAYDARK;
   gamescreen();
-  dialog::init(XLAT("Become a portal map"));
+  dialog::init(XLAT("become a portal map"));
   dialog::addHelp(XLAT(portal_help));
   dialog::addItem(XLAT("yes, that's what I want"), 'y');
   dialog::add_action([] {
@@ -779,7 +788,7 @@ EX void show_portals() {
     dialog::add_action([cw] { unconnected.push_back(cw); });
     dialog::start_list(500, 500, '1');
     for(auto p: unconnected) {
-      dialog::addItem(XLAT("connect " + lalign(0, p)), dialog::list_fake_key++);
+      dialog::addItem(XLAT("connect ") + lalign(0, p), dialog::list_fake_key++);
       dialog::add_action([p, cw] {
         connect_portal(cw, p, edit_spin);
         mapeditor::map_version++;
@@ -1162,7 +1171,7 @@ EX void add_options() {
     cell *c = centerover->move(point_direction);
     if(c && c->wall == waWaxWall) {
       color_t col = c->landparam;
-      dialog::addBoolItem("we are facing floor (color " + format("%06X", col) + ")", colors_of_floors.count(col), 'n');
+      dialog::addBoolItem("we are facing floor (color " + hr::format("%06X", col) + ")", colors_of_floors.count(col), 'n');
       dialog::add_action([col] {
         if(colors_of_floors.count(col)) colors_of_floors.erase(col);
         else colors_of_floors.insert(col);

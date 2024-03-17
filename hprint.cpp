@@ -33,9 +33,9 @@ EX int debugflags = DF_INIT | DF_ERROR | DF_WARN | DF_MSG | DF_TIME | DF_LOG;
 
 EX string s0;
 
-EX string its(int i) { char buf[64]; sprintf(buf, "%d", i); return buf; }
+EX string its(int i) { return hr::format("%d", i); }
 
-EX string itsh8(int i) {static char buf[16]; sprintf(buf, "%08X", i); return buf; }
+EX string itsh8(int i) { return hr::format("%08X", i); }
 
 EX string fts(ld x, int prec IS(6)) {
   std::stringstream ss;
@@ -46,13 +46,18 @@ EX string fts(ld x, int prec IS(6)) {
 
 EX map<void*, int> pointer_indices;
 
-EX string index_pointer(void *v) {
-  if(v == nullptr) return "0";
+EX int index_pointer_int(void *v) {
+  if(v == nullptr) return 0;
   if(!pointer_indices.count(v)) {
-    int s = isize(pointer_indices);
+    int s = isize(pointer_indices) + 1;
     pointer_indices[v] = s;
     }
-  int i = pointer_indices[v];
+  return pointer_indices[v];
+  }
+
+EX string index_pointer(void *v) {
+  int i = index_pointer_int(v);
+  if(!i) return "0";
   string res;
   while(true) { res += ('A' + (i % 26)); i /= 26; if(!i) break; i--; }
   return res;
@@ -139,7 +144,7 @@ template<class T, class U> void hread(hstream& hs, map<T,U>& a) {
 template<class C, class C1, class... CS> void hwrite(hstream& hs, const C& c, const C1& c1, const CS&... cs) { hwrite(hs, c); hwrite(hs, c1, cs...); }
 template<class C, class C1, class... CS> void hread(hstream& hs, C& c, C1& c1, CS&... cs) { hread(hs, c); hread(hs, c1, cs...); }
 
-struct hstream_exception : hr_exception { hstream_exception() {} };
+struct hstream_exception : hr_exception {};
 
 struct fhstream : hstream {
   FILE *f;
@@ -150,7 +155,7 @@ struct fhstream : hstream {
   void write_chars(const char* c, size_t i) override { if(fwrite(c, i, 1, f) != 1) throw hstream_exception(); }
   void read_chars(char* c, size_t i) override { if(fread(c, i, 1, f) != 1) throw hstream_exception(); }
   char read_char() override { char c; read_chars(&c, 1); return c; }
-  virtual void flush() override { fflush(f); }
+  void flush() override { fflush(f); }
   };
 
 struct shstream : hstream { 
@@ -399,9 +404,9 @@ EX string llts(long long i) {
     if(i < 10) return its((int) i);
     return llts(i/10) + its(i%10);
 }
-EX string itsh(unsigned int i) {static char buf[16]; sprintf(buf, "%03X", i); return buf; }
-EX string itsh(int i) {static char buf[16]; sprintf(buf, "%03X", i); return buf; }
-EX string itsh2(int i) {static char buf[16]; sprintf(buf, "%02X", i); return buf; }
+EX string itsh(unsigned int i) { return hr::format("%03X", i); }
+EX string itsh(int i) { return hr::format("%03X", i); }
+EX string itsh2(int i) { return hr::format("%02X", i); }
 
 EX string itsh(unsigned long long i) {
   int i0 = int(i);
@@ -442,8 +447,20 @@ EX shiftpoint kz(shiftpoint h) {
   return h;
   }
 
+EX bool scan(shstream& hs, ld& val) {
+  int npos;
+  int qty = sscanf(hs.s.c_str() + hs.pos, "%lf%n", &val, &npos);
+  if(qty == 1) { hs.pos += npos; return true; }
+  return false;
+  }
+
 #if HDR
 template<class T> vector<T> kz(vector<T> v) {
+  for(auto& el: v) el = kz(el);
+  return v;
+  }
+
+template<class T, size_t N> array<T,N> kz(array<T,N> v) {
   for(auto& el: v) el = kz(el);
   return v;
   }
@@ -471,9 +488,7 @@ template<class T> T deserialize(const string& s) {
 EX string as_hexstring(string o) {
   string res;
   for(char x: o) {
-    char buf[4];
-    sprintf(buf, "%02X", (unsigned char)(x));
-    res += buf;
+    res += hr::format("%02X", (unsigned char)(x));
     }
   return res;
   }
@@ -495,8 +510,8 @@ EX string from_hexstring(string o) {
 EX string as_cstring(string o) {
   string s = "string(\"";
   for(char c: o)
-    s += format("\\x%02x", (unsigned char) c);
-  s += format("\", %d)", isize(o));
+    s += hr::format("\\x%02x", (unsigned char) c);
+  s += hr::format("\", %d)", isize(o));
   return s;
   }
 
@@ -508,7 +523,7 @@ EX string as_nice_cstring(string o) {
     else if(c == 10)
       s += "\\n";
     else
-      s += format("\\x%02x", (unsigned char) c);
+      s += hr::format("\\x%02x", (unsigned char) c);
   s += "\"";
   return s;
   }
@@ -540,4 +555,12 @@ template<class... T> string lalign(int len, T... t) {
   return hs.s;
   }
 #endif
+
+map<string, string> last;
+
+EX void debug_view(string context, string s) {
+  string& old = last[context];
+  if(s != old) { old = s; println(hlog, s); }
+  }
+
 }

@@ -2,6 +2,7 @@
 
 namespace hr {
 
+#if CAP_MODELS
 namespace ply {
 
 using namespace rogueviz::objmodels;
@@ -205,7 +206,7 @@ void prepare_nilform() {
 
 struct nilmodel : model {
   hyperpoint transform(hyperpoint h) override { return nilize(h).second; }
-  void process_triangle(vector<hyperpoint>& hys, vector<hyperpoint>& tot, bool textured, object *co) {
+  void process_triangle(vector<hyperpoint>& hys, vector<hyperpoint>& tot, bool textured, object *co) override {
     auto n0 = nilize(hys[0]).first;
     auto n1 = nilize(hys[1]).first;
     auto n2 = nilize(hys[2]).first;
@@ -234,20 +235,17 @@ void show() {
 
   dialog::addSelItem("advance", fts(advance), 'a');
   dialog::add_action([]() {
-    dialog::editNumber(advance, 0, 100, 1, 1, "advance", "");
-    dialog::reaction = make_routes;
+    dialog::editNumber(advance, 0, 100, 1, 1, "advance", "").reaction = make_routes;
     });
 
   dialog::addSelItem("over", fts(over), 'o');
   dialog::add_action([]() {
-    dialog::editNumber(over, 0, 100, 1, 1, "over", "");
-    dialog::reaction = make_routes;
+    dialog::editNumber(over, 0, 100, 1, 1, "over", "").reaction = make_routes;
     });
 
   dialog::addSelItem("over2", fts(over2), 'p');
   dialog::add_action([]() {
-    dialog::editNumber(over2, 0, 100, 1, 1, "over2", "");
-    dialog::reaction = make_routes;
+    dialog::editNumber(over2, 0, 100, 1, 1, "over2", "").reaction = make_routes;
     });
 
   dialog::addBoolItem_action("animated", animated, 'a');
@@ -296,4 +294,5 @@ auto plyhook =
     });
 
 }
+#endif
 }

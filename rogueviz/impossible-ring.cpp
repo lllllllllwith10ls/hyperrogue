@@ -20,11 +20,11 @@ struct iring {
 
   geometry_information *icgi;
 
-  static const int frames = 32;
+  static constexpr int frames = 32;
   
-  static const int cols = 256;
+  static constexpr int cols = 256;
 
-  static const int steps = 2048;    
+  static constexpr int steps = 2048;    
 
   array<array<hpcshape, cols>, frames> ptriangle[2];
 
@@ -246,8 +246,7 @@ bool cylanim = false;
 
 void o_key(o_funcs& v) {
   v.push_back(named_functionality("ring size", [] { 
-    dialog::editNumber(cscale, 0, 1, .01, .1, "", "");
-    dialog::reaction = reset;
+    dialog::editNumber(cscale, 0, 1, .01, .1, "", "").reaction = reset;
     }));
   }
 

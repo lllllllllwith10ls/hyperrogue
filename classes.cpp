@@ -537,16 +537,16 @@ EX genderswitch_t genderswitch[NUM_GS] = {
 #if HDR
 enum eOrbshape { osNone, osLove, osRanged, osOffensive, osFriend, osUtility, osDirectional, osWarping, osFrog, osPowerUtility, osProtective, osMovement, osTerraform };
 
-static const flagtype ZERO = 0;
+static constexpr flagtype ZERO = 0;
 
-static const flagtype IF_SHARD = Flag(0);
-static const flagtype IF_FIREPROOF = Flag(1);
-static const flagtype IF_PROTECTION = Flag(2);
-static const flagtype IF_EMPATHY = Flag(3);
-static const flagtype IF_RANGED = Flag(4);
-static const flagtype IF_SHMUPLIFE = Flag(5);
-static const flagtype IF_REVIVAL = Flag(6);
-static const flagtype IF_CURSE = Flag(7);
+static constexpr flagtype IF_SHARD = Flag(0);
+static constexpr flagtype IF_FIREPROOF = Flag(1);
+static constexpr flagtype IF_PROTECTION = Flag(2);
+static constexpr flagtype IF_EMPATHY = Flag(3);
+static constexpr flagtype IF_RANGED = Flag(4);
+static constexpr flagtype IF_SHMUPLIFE = Flag(5);
+static constexpr flagtype IF_REVIVAL = Flag(6);
+static constexpr flagtype IF_CURSE = Flag(7);
 
 // 0 = basic treasure, 1 = other item, 2 = power orb, 3 = not an item
 #define IC_TREASURE 0
@@ -579,29 +579,31 @@ EX itemtype iinf[ittypes] = {
 // --- wall types ---
 
 #if HDR
-static const flagtype WF_WATER = Flag(0);
-static const flagtype WF_BOAT = Flag(1);
-static const flagtype WF_CHASM = Flag(2);
-static const flagtype WF_NOFLIGHT = Flag(3);
-static const flagtype WF_FIRE = Flag(4);
-static const flagtype WF_THUMPER = Flag(5);
-static const flagtype WF_ACTIVABLE = Flag(6);
-static const flagtype WF_ALCHEMY = Flag(7);
-static const flagtype WF_RED = Flag(8);
-static const flagtype WF_WALL = Flag(9);
-static const flagtype WF_PUSHABLE = Flag(10);
-static const flagtype WF_CONE = Flag(11);
-static const flagtype WF_STDTREE = Flag(12);
-static const flagtype WF_GRAVE = Flag(13);
-static const flagtype WF_REPTILE = Flag(14);
-static const flagtype WF_HEATCOLOR = Flag(15);
-static const flagtype WF_HIGHWALL = Flag(16);
-static const flagtype WF_THORNY = Flag(17);
-static const flagtype WF_TIMEOUT = Flag(18);
-static const flagtype WF_CISLAND = Flag(19);
-static const flagtype WF_SULPHURIC = Flag(20);
-static const flagtype WF_HALFVINE = Flag(21);
-static const flagtype WF_SEAL = Flag(22);
+static constexpr flagtype WF_WATER = Flag(0);
+static constexpr flagtype WF_BOAT = Flag(1);
+static constexpr flagtype WF_CHASM = Flag(2);
+static constexpr flagtype WF_NOFLIGHT = Flag(3);
+static constexpr flagtype WF_FIRE = Flag(4);
+static constexpr flagtype WF_THUMPER = Flag(5);
+static constexpr flagtype WF_ACTIVABLE = Flag(6);
+static constexpr flagtype WF_ALCHEMY = Flag(7);
+static constexpr flagtype WF_RED = Flag(8);
+static constexpr flagtype WF_WALL = Flag(9);
+static constexpr flagtype WF_PUSHABLE = Flag(10);
+static constexpr flagtype WF_CONE = Flag(11);
+static constexpr flagtype WF_STDTREE = Flag(12);
+static constexpr flagtype WF_GRAVE = Flag(13);
+static constexpr flagtype WF_REPTILE = Flag(14);
+static constexpr flagtype WF_HEATCOLOR = Flag(15);
+static constexpr flagtype WF_HIGHWALL = Flag(16);
+static constexpr flagtype WF_THORNY = Flag(17);
+static constexpr flagtype WF_TIMEOUT = Flag(18);
+static constexpr flagtype WF_CISLAND = Flag(19);
+static constexpr flagtype WF_SULPHURIC = Flag(20);
+static constexpr flagtype WF_HALFVINE = Flag(21);
+static constexpr flagtype WF_NONBLOCK = Flag(22);
+static constexpr flagtype WF_ON = Flag(23); // just for grammar: 'on' not 'in'
+static const flagtype WF_SEAL = Flag(24);
 
 struct walltype {
   char  glyph;
@@ -633,23 +635,23 @@ enum eCanvasFloor { caflNone, caflM, caflFull, caflWarp, caflStar, caflCloud, ca
   caflPalace, caflDemon, caflCave, caflDesert, caflPower, caflRose, caflTurtle, caflDragon, caflReptile,
   caflHive, caflSwitch, caflTower, caflEND };
 
-static const flagtype LF_GENERATE_ALL = Flag(0);
-static const flagtype LF_ICY = Flag(1);
-static const flagtype LF_GRAVITY = Flag(2);
-static const flagtype LF_EQUI = Flag(3);
-static const flagtype LF_WARPED = Flag(4);
-static const flagtype LF_CYCLIC = Flag(5);
-static const flagtype LF_TECHNICAL = Flag(6);
-static const flagtype LF_MIRROR = Flag(7);
-static const flagtype LF_SEA = Flag(8);
-static const flagtype LF_COASTAL = Flag(9);
-static const flagtype LF_PURESEA = Flag(10);
-static const flagtype LF_ELEMENTAL = Flag(11);
-static const flagtype LF_HAUNTED = Flag(12);
-static const flagtype LF_TROLL = Flag(13);
-static const flagtype LF_INMIRROR = Flag(14);
-static const flagtype LF_INMIRRORORWALL = Flag(15);
-static const flagtype LF_ELECTRIC = Flag(17);
+static constexpr flagtype LF_GENERATE_ALL = Flag(0);
+static constexpr flagtype LF_ICY = Flag(1);
+static constexpr flagtype LF_GRAVITY = Flag(2);
+static constexpr flagtype LF_EQUI = Flag(3);
+static constexpr flagtype LF_WARPED = Flag(4);
+static constexpr flagtype LF_CYCLIC = Flag(5);
+static constexpr flagtype LF_TECHNICAL = Flag(6);
+static constexpr flagtype LF_MIRROR = Flag(7);
+static constexpr flagtype LF_SEA = Flag(8);
+static constexpr flagtype LF_COASTAL = Flag(9);
+static constexpr flagtype LF_PURESEA = Flag(10);
+static constexpr flagtype LF_ELEMENTAL = Flag(11);
+static constexpr flagtype LF_HAUNTED = Flag(12);
+static constexpr flagtype LF_TROLL = Flag(13);
+static constexpr flagtype LF_INMIRROR = Flag(14);
+static constexpr flagtype LF_INMIRRORORWALL = Flag(15);
+static constexpr flagtype LF_ELECTRIC = Flag(17);
 
 struct landtype {
   color_t color;
@@ -752,6 +754,9 @@ enum eGeometry {
   gInfOrderMixed, gSpace436, gFake,
   gSpace345, gSpace353, gSpace354, gSpace355,
   gHalfBring,
+  gAperiodicHat,
+  gSierpinski3, gSierpinski4, gSixFlake, gMengerSponge, gSierpinskiTet,
+  gAperiodicSpectre,
   gGUARD};
 
 enum eGeometryClass { gcHyperbolic, gcEuclid, gcSphere, gcSol, gcNIH, gcSolN, gcNil, gcProduct, gcSL2 };
@@ -787,71 +792,76 @@ struct geometryinfo {
   eVariation default_variation;
   };
 
-static const flagtype qCLOSED         = 1;
-static const flagtype qANYQ            = 2;
-static const flagtype qNONORIENTABLE   = 4;
-static const flagtype qSMALL           = 8;
+static constexpr flagtype qCLOSED         = 1;
+static constexpr flagtype qANYQ            = 2;
+static constexpr flagtype qNONORIENTABLE   = 4;
+static constexpr flagtype qSMALL           = 8;
 
-static const flagtype qFIELD           = 16;
-static const flagtype qDOCKS           = 32;
-static const flagtype qZEBRA           = 64;
+static constexpr flagtype qFIELD           = 16;
+static constexpr flagtype qDOCKS           = 32;
+static constexpr flagtype qZEBRA           = 64;
 
-static const flagtype qELLIPTIC        = 128;
+static constexpr flagtype qELLIPTIC        = 128;
 
-static const flagtype qBINARY          = 256;
-static const flagtype qKITE            = 512;
+static constexpr flagtype qBINARY          = 256;
+static constexpr flagtype qKITE            = 512;
 
-static const flagtype qREGULAR         = 1024; /* not set! */
-static const flagtype qARCHI           = 2048;
-static const flagtype qHYBRID          = 4096;
-static const flagtype qCRYSTAL         = 8192;
-static const flagtype qSOL             = 16384;
-static const flagtype qEXPERIMENTAL    = 32768;
-static const flagtype qNIH             = 65536;
+static constexpr flagtype qREGULAR         = 1024; /* not set! */
+static constexpr flagtype qARCHI           = 2048;
+static constexpr flagtype qHYBRID          = 4096;
+static constexpr flagtype qCRYSTAL         = 8192;
+static constexpr flagtype qSOL             = 16384;
+static constexpr flagtype qEXPERIMENTAL    = 32768;
+static constexpr flagtype qNIH             = 65536;
 
-static const flagtype qIDEAL           = 131072;
-static const flagtype qHUGE_BOUNDED    = 262144;
-static const flagtype qOPTQ            = Flag(19);
-static const flagtype qSINGLE          = Flag(20);
+static constexpr flagtype qIDEAL           = 131072;
+static constexpr flagtype qHUGE_BOUNDED    = 262144;
+static constexpr flagtype qOPTQ            = Flag(19);
+static constexpr flagtype qSINGLE          = Flag(20);
 
-static const flagtype qDEPRECATED      = Flag(21);
-static const flagtype qINFMIXED        = Flag(22);
+static constexpr flagtype qDEPRECATED      = Flag(21);
+static constexpr flagtype qINFMIXED        = Flag(22);
 
-static const flagtype qRAYONLY         = Flag(23);
-static const flagtype qAFFINE          = Flag(24);
+static constexpr flagtype qRAYONLY         = Flag(23);
+static constexpr flagtype qAFFINE          = Flag(24);
 
-static const flagtype qULTRA           = Flag(25);
+static constexpr flagtype qULTRA           = Flag(25);
 
-static const flagtype qPORTALSPACE     = Flag(26);
+static constexpr flagtype qPORTALSPACE     = Flag(26);
 
-static const flagtype qSTRETCHABLE     = Flag(27);
+static constexpr flagtype qSTRETCHABLE     = Flag(27);
 
-static const flagtype qCAT             = Flag(28);
+static constexpr flagtype qCAT             = Flag(28);
+
+static constexpr flagtype qAPERIODIC       = Flag(29);
+static constexpr flagtype qHAT             = Flag(30);
+
+static constexpr flagtype qFRACTAL         = Flag(31);
 
 // note: dnext assumes that x&7 equals 7
-static const int SEE_ALL = 50;
+static constexpr int SEE_ALL = 50;
 // note: check_football_colorability in arbitrile.cpp assumes OINF is divisible by 3
-static const int OINF = 123;
+static constexpr int OINF = 123;
 
 extern eGeometry geometry;
 extern eVariation variation;
 #endif
 
 #if HDR
-static const flagtype qsNONOR           = qANYQ | qSMALL | qCLOSED | qNONORIENTABLE;
-static const flagtype qsNONORE          = qsNONOR | qELLIPTIC;
-static const flagtype qsBQ              = qANYQ | qSMALL | qCLOSED;
-static const flagtype qsSMALL           = qANYQ | qSMALL | qCLOSED;
-static const flagtype qsSMALLN          = qANYQ | qSMALL | qCLOSED | qNONORIENTABLE;
-static const flagtype qsZEBRA           = qANYQ | qSMALL | qCLOSED | qZEBRA;
-static const flagtype qsFIELD           = qANYQ | qFIELD | qCLOSED;
-static const flagtype qsDOCKS           = qANYQ | qSMALL | qCLOSED | qDOCKS;
-static const flagtype qsSMALLB          = qSMALL | qCLOSED;
-static const flagtype qsSMALLBF         = qsSMALLB | qsFIELD | qANYQ;
-static const flagtype qsSMALLBE         = qsSMALLB | qELLIPTIC | qANYQ;
-static const flagtype qsBP              = qBINARY | qKITE;
+static constexpr flagtype qsNONOR           = qANYQ | qSMALL | qCLOSED | qNONORIENTABLE;
+static constexpr flagtype qsNONORE          = qsNONOR | qELLIPTIC;
+static constexpr flagtype qsBQ              = qANYQ | qSMALL | qCLOSED;
+static constexpr flagtype qsSMALL           = qANYQ | qSMALL | qCLOSED;
+static constexpr flagtype qsSMALLN          = qANYQ | qSMALL | qCLOSED | qNONORIENTABLE;
+static constexpr flagtype qsZEBRA           = qANYQ | qSMALL | qCLOSED | qZEBRA;
+static constexpr flagtype qsFIELD           = qANYQ | qFIELD | qCLOSED;
+static constexpr flagtype qsDOCKS           = qANYQ | qSMALL | qCLOSED | qDOCKS;
+static constexpr flagtype qsSMALLB          = qSMALL | qCLOSED;
+static constexpr flagtype qsSMALLBF         = qsSMALLB | qsFIELD | qANYQ;
+static constexpr flagtype qsSMALLBE         = qsSMALLB | qELLIPTIC | qANYQ;
+static constexpr flagtype qsBP              = qBINARY | qKITE;
 
-static const flagtype qsSINGLE          = qANYQ | qSMALL | qCLOSED | qSINGLE;
+static constexpr flagtype qsSINGLE          = qANYQ | qSMALL | qCLOSED | qSINGLE;
 #endif
 
 EX geometryinfo1 giEuclid2 = { gcEuclid,     2, 2, 3, {1,1, 0,0 } };
@@ -927,7 +937,7 @@ EX vector<geometryinfo> ginf = {
   {"{5,3,4}","field",   "{5,3,4} field quotient space",               "f435",    12, 4, qsSMALLBF | qDEPRECATED, giHyperb3, {{SEE_ALL, SEE_ALL}}, eVariation::pure},
   {"binary4","none",    "standard binary tiling",                     "binary4",  5, 3, qBINARY,   giHyperb2, {{7, 5}}, eVariation::pure},
   {"sol",    "none",    "Solv geometry",                              "sol",      8, 3, qBINARY|qSOL,   giSol, {{7, 5}}, eVariation::pure},
-  {"kd2",    "none",    "kite-and-dart",                              "kd2",      4, 3, qKITE,     giEuclid2, {{7, 7}}, eVariation::pure},
+  {"kd2",    "none",    "kite-and-dart",                              "kd2",      4, 3, qKITE | qAPERIODIC,     giEuclid2, {{7, 7}}, eVariation::pure},
   {"kd3",    "none",    "kite-and-dart on horospheres",               "kd3",     12, 3, qsBP,      giHyperb3, {{7, 3}}, eVariation::pure},
   {"nil",    "none",    "Nil geometry",                               "nil",      6, 3, qOPTQ,     giNil,     {{7, 5}}, eVariation::pure},
   {"product","none",    "product space",                              "product",  7, 3, qHYBRID,   giProduct, {{7, 3}}, eVariation::pure},
@@ -956,29 +966,43 @@ EX vector<geometryinfo> ginf = {
   {"{3,5,4}","none",    "{3,5,4} hyperbolic honeycomb",               "354",     20, 5, qIDEAL | qULTRA,    giHyperb3, {{7, 2}}, eVariation::pure},
   {"{3,5,5}","none",    "{3,5,5} hyperbolic honeycomb",               "355",     20, 5, qIDEAL | qULTRA,    giHyperb3, {{7, 2}}, eVariation::pure},
   {"{5,4}", "pBring",   "projective Bring's Surface",                 "pBring",   5, 4, qsSMALLN,   giHyperb2, {{6, 4}}, eVariation::bitruncated},
+  {"hat",    "none",    "aperiodic hat",                              "hat",     14, 3, qAPERIODIC | qHAT,  giEuclid2, {{7, 7}}, eVariation::pure},
+  {"triangle","none",   "Sierpiński triangle",                        "S3",       6, 3, qFRACTAL,  giEuclid2, {{10, 10}}, eVariation::pure},
+  {"carpet", "none",    "Sierpiński carpet",                          "S4",       4, 4, qFRACTAL,  giEuclid2, {{10, 10}}, eVariation::pure},
+  {"6-flake","none",    "6-flake fractal",                            "S6",       6, 3, qFRACTAL,  giEuclid2, {{10, 10}}, eVariation::pure},
+  {"{4,3,4}","none",    "Menger sponge",                              "S8",       6, 4, qFRACTAL,  giEuclid3, {{10, 10}}, eVariation::pure},
+  {"rh{4,3,4}","none",  "Sierpiński tetrahedron",                     "S4b",     12, 3, qFRACTAL,  giEuclid3, {{10, 10}}, eVariation::pure},
+  {"spectre","none",    "aperiodic spectre",                          "spectre", 14, 3, qAPERIODIC | qHAT,  giEuclid2, {{7, 7}}, eVariation::pure},
   };
   // bits: 9, 10, 15, 16, (reserved for later) 17, 18
 
 #if HDR
 namespace mf {
-  static const flagtype azimuthal = 1;
-  static const flagtype cylindrical = 2;
-  static const flagtype equiarea = 4;
-  static const flagtype equidistant = 8;
-  static const flagtype conformal = 16;
-  static const flagtype euc_boring = 32;
-  static const flagtype space = 64;
-  static const flagtype hyper_only = 128;
-  static const flagtype hyper_or_torus = 256;
-  static const flagtype pseudocylindrical = 512; /* includes cylindrical */
-  static const flagtype equivolume = 1024;
-  static const flagtype twopoint = 2048;
-  static const flagtype uses_bandshift = 4096;
-  static const flagtype broken = 8192; /* in spherical case, these are broken along the meridian 180 deg */
-  static const flagtype technical = 16384; /* don't display in the list */
+  static constexpr flagtype azimuthal = 1;
+  static constexpr flagtype cylindrical = 2; /* usually you want 'band' */
+  static constexpr flagtype equiarea = 4;
+  static constexpr flagtype equidistant = 8;
+  static constexpr flagtype conformal = 16;
+  static constexpr flagtype euc_boring = 32;
+  static constexpr flagtype space = 64;
+  static constexpr flagtype hyper_only = 128;
+  static constexpr flagtype hyper_or_torus = 256;
+  static constexpr flagtype pseudocylindrical = 512; /* includes cylindrical; usually you want 'band' or 'pseudoband' */
+  static constexpr flagtype equivolume = 1024;
+  static constexpr flagtype twopoint = 2048;
+  static constexpr flagtype uses_bandshift = 4096;
+  static constexpr flagtype broken = 8192; /* in spherical case, these are broken along the meridian 180 deg */
+  static constexpr flagtype technical = 16384; /* don't display in the list */
+  static constexpr flagtype product_special = (1<<15);
+  static constexpr flagtype axial = (1<<16);
+  static constexpr flagtype perspective = (1<<17);
+  static constexpr flagtype orientation = (1<<18);
+  static constexpr flagtype transition = (1<<19);
+  static constexpr flagtype werner = (1<<20);
+  static constexpr flagtype horocyclic = (1<<21);
   
-  static const flagtype band = (cylindrical | pseudocylindrical | uses_bandshift);
-  static const flagtype pseudoband = (pseudocylindrical | uses_bandshift);
+  static constexpr flagtype band = (cylindrical | pseudocylindrical | uses_bandshift | orientation);
+  static constexpr flagtype pseudoband = (pseudocylindrical | uses_bandshift | orientation);
   }
   
 struct modelinfo {
@@ -987,13 +1011,6 @@ struct modelinfo {
   const char *name_spherical;  
   
   flagtype flags;
-
-  int is_azimuthal;
-  int is_band;
-  int is_equiarea;
-  int is_equidistant;
-  int is_conformal;
-  const char* name;
   };
 
 enum eModel : int {
@@ -1016,7 +1033,9 @@ enum eModel : int {
   mdWerner, mdAitoff, mdHammer, mdLoximuthal, mdMiller, mdGallStereographic, mdWinkelTripel,
   // 39..48
   mdPoorMan, mdPanini, mdRetroCraig, mdRetroLittrow, mdRetroHammer, mdThreePoint, mdLiePerspective, mdLieOrthogonal, mdRelPerspective, mdRelOrthogonal,
-  // 49..
+  // 49..50
+  mdHorocyclicEqa, mdConformalSquare, mdFisheye2, mdPolar,
+  // 51..
   mdGUARD, mdPixel, mdHyperboloidFlat, mdPolynomial, mdManual
   };
 #endif
@@ -1025,68 +1044,70 @@ enum eModel : int {
 // (other bits are used for other information)
 
 #define X3(x) x, x, x
-#define DEFAULTS 0, 0, 0, 0, 0, nullptr
 
 /** list of available models (i.e., projections) */
 EX vector<modelinfo> mdinf = {
-  {"disk/Gans", "general perspective", "general perspective", mf::azimuthal | mf::conformal, DEFAULTS},
-  {"half-plane", "inversion", "stereographic projection [VR]", mf::conformal, DEFAULTS},
-  {"band", "band", "Mercator", mf::band | mf::conformal, DEFAULTS},
-  {X3("polygonal"), mf::conformal, DEFAULTS},
-  {X3("formula"), 0, DEFAULTS},
-  {X3("azimuthal equidistant"), mf::azimuthal | mf::equidistant | mf::euc_boring, DEFAULTS},
-  {X3("azimuthal equi-area"), mf::azimuthal | mf::equiarea | mf::euc_boring, DEFAULTS},
-  {X3("ball model"), mf::conformal | mf::azimuthal | mf::space, DEFAULTS},
-  {"Minkowski hyperboloid", "plane", "sphere", mf::conformal | mf::space | mf::euc_boring, DEFAULTS},
-  {"hemisphere", "sphere", "Minkowski hyperboloid", mf::conformal | mf::space, DEFAULTS},
-  {X3("band equidistant"), mf::band | mf::equidistant | mf::euc_boring, DEFAULTS},
-  {X3("band equi-area"), mf::band | mf::equiarea | mf::euc_boring, DEFAULTS},
-  {X3("sinusoidal"), mf::pseudoband | mf::equiarea | mf::euc_boring, DEFAULTS},
-  {X3("two-point equidistant"), mf::equidistant | mf::euc_boring | mf::twopoint, DEFAULTS},
-  {X3("fisheye"), 0, DEFAULTS},
-  {X3("Joukowsky transform"), mf::hyper_only | mf::conformal, DEFAULTS},
-  {X3("Joukowsky+inversion"), mf::hyper_only | mf::conformal, DEFAULTS},
-  {X3("rotated hyperboles"), mf::hyper_only, DEFAULTS},
-  {X3("spiral/ring"), mf::hyper_or_torus | mf::uses_bandshift, DEFAULTS},
-  {X3("native perspective"), 0, DEFAULTS},
-  {X3("azimuthal equi-volume"), mf::azimuthal | mf::equivolume | mf::euc_boring, DEFAULTS},
-  {X3("central inversion"), mf::azimuthal | mf::conformal, DEFAULTS},
-  {X3("two-point azimuthal"), mf::euc_boring | mf::twopoint, DEFAULTS},
-  {X3("two-point hybrid"), mf::euc_boring | mf::twopoint, DEFAULTS},
-  {X3("geodesic"), 0, DEFAULTS},
-  {X3("Mollweide"), mf::euc_boring | mf::pseudoband | mf::equiarea, DEFAULTS},
-  {X3("central cylindrical"), mf::euc_boring | mf::band, DEFAULTS},
-  {X3("Collignon"), mf::pseudoband | mf::equiarea, DEFAULTS},
-  {X3("horocyclic coordinates"), mf::euc_boring, DEFAULTS},
-  {X3("quadrant coordinates"), mf::euc_boring, DEFAULTS},
-  {X3("axial coordinates"), mf::euc_boring, DEFAULTS},
-  {X3("anti-axial coordinates"), mf::euc_boring, DEFAULTS},
-  {X3("Werner projection"), mf::euc_boring | mf::broken, DEFAULTS}, // keep distances from pole, and distances along parallels
-  {X3("Aitoff projection"), mf::euc_boring | mf::broken, DEFAULTS}, // halve longitudes, do azequid, double x
-  {X3("Hammer projection"), mf::euc_boring | mf::broken, DEFAULTS}, // halve longitudes, do azequia, double x
-  {X3("loximuthal projection"), mf::euc_boring | mf::broken, DEFAULTS}, // map loxodromes azimuthally and equidistantly
-  {X3("Miller projection"), mf::euc_boring | mf::band, DEFAULTS}, // scale latitude 4/5 -> Mercator -> 5/4
-  {X3("Gall stereographic"), mf::euc_boring | mf::band, DEFAULTS}, // like central cylindrical but stereographic
-  {X3("Winkel tripel"), mf::euc_boring | mf::broken, DEFAULTS}, // mean of equirec and Aitoff
-  {X3("Poor man's square"), mf::euc_boring, DEFAULTS}, // 
-  {X3("Panini projection"), mf::euc_boring, DEFAULTS}, // 
-  {X3("Craig retroazimuthal"), mf::euc_boring | mf::broken, DEFAULTS}, // retroazimuthal cylindrical
-  {X3("Littrow retroazimuthal"), mf::euc_boring | mf::broken, DEFAULTS}, // retroazimuthal conformal
-  {X3("Hammer retroazimuthal"), mf::euc_boring, DEFAULTS}, // retroazimuthal equidistant
-  {X3("three-point equidistant"), mf::euc_boring, DEFAULTS},
-  {X3("Lie perspective"), mf::euc_boring, DEFAULTS},
-  {X3("Lie orthogonal"), mf::euc_boring, DEFAULTS},
-  {X3("relativistic perspective"), mf::euc_boring, DEFAULTS},
-  {X3("relativistic orthogonal"), mf::euc_boring, DEFAULTS},
-  {X3("guard"), mf::technical, DEFAULTS},
-  {X3("pixel"), mf::technical, DEFAULTS},
-  {X3("hypflat"), mf::technical, DEFAULTS},
-  {X3("polynomial"), mf::technical | mf::conformal, DEFAULTS},
-  {X3("manual"), mf::technical, DEFAULTS},
+  {"disk/Gans", "general perspective", "general perspective", mf::azimuthal | mf::conformal},
+  {"half-plane", "inversion", "stereographic projection [VR]", mf::conformal | mf::orientation | mf::horocyclic},
+  {"band", "band", "Mercator", mf::band | mf::conformal | mf::transition},
+  {X3("polygonal"), mf::conformal | mf::orientation},
+  {X3("formula"), 0},
+  {X3("azimuthal equidistant"), mf::azimuthal | mf::equidistant | mf::euc_boring | mf::product_special},
+  {X3("azimuthal equi-area"), mf::azimuthal | mf::equiarea | mf::euc_boring},
+  {X3("ball model"), mf::conformal | mf::azimuthal | mf::space},
+  {"Minkowski hyperboloid", "plane", "sphere", mf::conformal | mf::space | mf::euc_boring},
+  {"hemisphere", "sphere", "Minkowski hyperboloid", mf::conformal | mf::space},
+  {X3("band equidistant"), mf::band | mf::equidistant | mf::euc_boring},
+  {X3("band equi-area"), mf::band | mf::equiarea | mf::euc_boring},
+  {X3("sinusoidal"), mf::pseudoband | mf::equiarea | mf::euc_boring},
+  {X3("two-point equidistant"), mf::equidistant | mf::euc_boring | mf::twopoint | mf::orientation},
+  {X3("fisheye"), 0},
+  {X3("Joukowsky transform"), mf::hyper_only | mf::conformal | mf::transition | mf::orientation},
+  {X3("Joukowsky+inversion"), mf::hyper_only | mf::conformal | mf::transition | mf::orientation},
+  {X3("rotated hyperboles"), mf::hyper_only | mf::orientation},
+  {X3("spiral/ring"), mf::hyper_or_torus | mf::uses_bandshift | mf::orientation},
+  {X3("native perspective"), mf::perspective | mf::product_special},
+  {X3("azimuthal equi-volume"), mf::azimuthal | mf::equivolume | mf::euc_boring},
+  {X3("central inversion"), mf::azimuthal | mf::conformal},
+  {X3("two-point azimuthal"), mf::euc_boring | mf::azimuthal | mf::twopoint | mf::orientation},
+  {X3("two-point hybrid"), mf::euc_boring | mf::azimuthal | mf::equidistant | mf::twopoint | mf::orientation},
+  {X3("geodesic"), mf::perspective | mf::product_special},
+  {X3("Mollweide"), mf::euc_boring | mf::pseudoband | mf::equiarea},
+  {X3("central cylindrical"), mf::euc_boring | mf::band},
+  {X3("Collignon"), mf::pseudoband | mf::equiarea},
+  {X3("horocyclic coordinates"), mf::euc_boring | mf::orientation | mf::horocyclic},
+  {X3("quadrant coordinates"), mf::euc_boring | mf::orientation},
+  {X3("axial coordinates"), mf::euc_boring | mf::transition | mf::orientation},
+  {X3("anti-axial coordinates"), mf::euc_boring | mf::orientation},
+  {X3("Werner projection"), mf::euc_boring | mf::broken | mf::werner | mf::orientation}, // keep distances from pole, and distances along parallels
+  {X3("Aitoff projection"), mf::euc_boring | mf::broken | mf::orientation}, // halve longitudes, do azequid, double x
+  {X3("Hammer projection"), mf::euc_boring | mf::broken | mf::orientation}, // halve longitudes, do azequia, double x
+  {X3("loximuthal projection"), mf::euc_boring | mf::broken | mf::orientation}, // map loxodromes azimuthally and equidistantly
+  {X3("Miller projection"), mf::euc_boring | mf::band}, // scale latitude 4/5 -> Mercator -> 5/4
+  {X3("Gall stereographic"), mf::euc_boring | mf::band}, // like central cylindrical but stereographic
+  {X3("Winkel tripel"), mf::euc_boring | mf::broken | mf::orientation}, // mean of equirec and Aitoff
+  {X3("Poor man's square"), mf::euc_boring | mf::orientation}, // https://archive.bridgesmathart.org/2018/bridges2018-59.html
+  {X3("Panini projection"), mf::euc_boring | mf::orientation},
+  {X3("Craig retroazimuthal"), mf::euc_boring | mf::broken | mf::pseudoband}, // retroazimuthal cylindrical
+  {X3("Littrow retroazimuthal"), mf::euc_boring | mf::broken | mf::pseudoband}, // retroazimuthal conformal
+  {X3("Hammer retroazimuthal"), mf::euc_boring | mf::pseudoband}, // retroazimuthal equidistant
+  {X3("three-point equidistant"), mf::euc_boring | mf::equidistant | mf::orientation | mf::product_special | mf::twopoint},
+  {X3("Lie perspective"), mf::euc_boring | mf::perspective},
+  {X3("Lie orthogonal"), mf::euc_boring},
+  {X3("relativistic perspective"), mf::euc_boring | mf::perspective},
+  {X3("relativistic orthogonal"), mf::euc_boring},
+  {X3("horocyclic equal-area"), mf::euc_boring | mf::equiarea | mf::orientation | mf::horocyclic},
+  {X3("conformal square"), mf::orientation | mf::broken | mf::transition},
+  {X3("variant fisheye"), 0},
+  {X3("polar coordinates"), mf::orientation},
+  {X3("guard"), mf::technical},
+  {X3("pixel"), mf::technical},
+  {X3("hypflat"), mf::technical},
+  {X3("polynomial"), mf::technical | mf::conformal | mf::orientation},
+  {X3("manual"), mf::technical},
   };
 
 #undef X3
-#undef DEFAULTS
 
 #if HDR
 static inline bool orbProtection(eItem it) { return false; } // not implemented

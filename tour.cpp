@@ -60,19 +60,19 @@ namespace LEGAL {
   }
 
 /** \brief when Enter pressed while showing the text, skip to the next slide immediately */
-static const flagtype QUICKSKIP=8;
+static constexpr flagtype QUICKSKIP=8;
 /** \brief The final slide. Shows where the presentation ends */
-static const flagtype FINALSLIDE=16;
+static constexpr flagtype FINALSLIDE=16;
 /** \brief Pressing Enter while in another geometry should change slides immediately */
-static const flagtype QUICKGEO=32;
+static constexpr flagtype QUICKGEO=32;
 /** \brief This slide should be displayed in sidescreen mode */
-static const flagtype SIDESCREEN = 64;
+static constexpr flagtype SIDESCREEN = 64;
 /** \brief When changing geometries, show the name of the slide, instead of the current land */
-static const flagtype USE_SLIDE_NAME = 128;
+static constexpr flagtype USE_SLIDE_NAME = 128;
 /** \brief do not display any help line */
-static const flagtype NOTITLE = 256;
+static constexpr flagtype NOTITLE = 256;
 /** \brief always display the text, even if going back or texts are disabled */
-static const flagtype ALWAYS_TEXT = 256;
+static constexpr flagtype ALWAYS_TEXT = 256;
 #endif
 
 EX vector<reaction_t> restorers;
@@ -180,7 +180,7 @@ string get_slidename(const string& s) {
   return s.substr(i);
   }
 
-string get_foldername(const string& s) {
+EX string get_foldername(const string& s) {
   int i = 0;
   for(int k=0; k<isize(s); k++) if(s[k] == '/') i = k+1;
   return s.substr(0, i);
@@ -829,8 +829,8 @@ EX slide default_slides[] = {
       if(mode == 1) 
         pmodel = mdHalfplane, smart = vid.use_smart_range, vid.use_smart_range = 2;
       if(mode == 2) 
-        models::rotation = cwt.at->land == laDungeon ? 0 : 2;
-      if(mode == 3) pmodel = mdDisk, models::rotation = 0, vid.use_smart_range = smart;
+        models::rotation = cwt.at->land == laDungeon ? Id : spin(M_PI);
+      if(mode == 3) pmodel = mdDisk, models::rotation = Id, vid.use_smart_range = smart;
       }
     },
   {"Curvature", 29, LEGAL::ANY,
@@ -978,7 +978,7 @@ EX slide default_slides[] = {
     "memory.",
     [] (presmode mode) {
       static int smart;
-      if(mode == 1) pmodel = mdBand, history::create_playerpath(), models::rotation = 0,
+      if(mode == 1) pmodel = mdBand, history::create_playerpath(), models::rotation = Id,
         smart = vid.use_smart_range, vid.use_smart_range = 2;
       if(mode == 3) {
         history::clear(), pmodel = mdDisk;

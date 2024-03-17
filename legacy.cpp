@@ -204,6 +204,9 @@ int modecodetable[42][6] = {
 
 EX modecode_t legacy_modecode() {
   if(int(geometry) > 3 || int(variation) > 1) return UNKNOWN;
+  if(casual) return UNKNOWN;
+  if(bow::weapon) return UNKNOWN;
+  if(use_custom_land_list) return UNKNOWN;
 
   bool is_default_land_structure =
     (princess::challenge || tactic::on) ? ls::single() :
@@ -326,11 +329,158 @@ int read_legacy_args() {
     stop_game();
     land_structure = lsNiceWalls;
     }
+  else if(argis("-grotate")) {
+    PHASE(3);  start_game();
+    shift(); int i = argi();
+    shift(); int j = argi();
+    shift(); View = View * cspin(i, j, argf());
+    playermoved = false;
+    }
+  else if(argis("-grotatei")) {
+    PHASE(3);  start_game();
+    shift(); int i = argi();
+    shift(); int j = argi();
+    shift(); rotate_view(cspin(i, j, argf()));
+    playermoved = false;
+    }
+  else if(argis("-rotate")) {
+    PHASE(3);  start_game();
+    shift(); ld a = argf();
+    shift(); ld b = argf();
+    View = View * spin(TAU * a / b);
+    playermoved = false;
+    }
+  else if(argis("-rotate3")) {
+    PHASE(3);  start_game();
+    shift(); ld a = argf();
+    shift(); ld b = argf();
+    View = View * cspin(1, 2, TAU * a / b);
+    playermoved = false;
+    }
+  else if(argis("-cview")) {
+    PHASE(3);  start_game();
+    View = Id; playermoved = false;
+    }
+  else if(argis("-ballangle")) {
+    PHASEFROM(2);
+    shift(); println(hlog, "-ballangle not implemented");
+    // shift_arg_formula(vpconf.ballangle);
+    }
+  else if(argis("-crot")) {
+    PHASEFROM(2);
+    shift(); shift(); shift(); println(hlog, "-crot not implemented");
+    /* shift_arg_formula(models::rotation);
+    if(GDIM == 3) shift_arg_formula(models::rotation_xz);
+    if(GDIM == 3) shift_arg_formula(models::rotation_xy2); */
+    }
+  else if(argis("-yca")) {
+    PHASEFROM(2);
+    shift_arg_formula(vid.yshift);
+    shift(); ld angle = argf();
+    pconf.cam() = cspin(0, 2, angle);
+    }
   else return 1;
   return 0;
   }
 
-auto ah_legacy = addHook(hooks_args, 0, read_legacy_args);
+int read_legacy_args_anim() {
+  using namespace anims;
+  using namespace arg;
+  ld movement_angle, shift_angle, rug_angle; /* TODO link to anims::angle's */
+  if(0);
+  else if(argis("-animperiod")) {
+    PHASEFROM(2); shift_arg_formula(period);
+    }
+  else if(argis("-animcircle")) {
+    PHASE(3); start_game();
+    ma = maCircle; ma_reaction();
+    shift_arg_formula(circle_spins);
+    shift_arg_formula(circle_radius);
+    shift(); circle_display_color = argcolor(24);
+    }
+  else if(argis("-animmove")) {
+    ma = maTranslation; 
+    shift_arg_formula(cycle_length);
+    shift_arg_formula(shift_angle);
+    shift_arg_formula(movement_angle);
+    }
+  else if(argis("-animmoverot")) {
+    ma = maTranslationRotation; 
+    shift_arg_formula(cycle_length);
+    shift_arg_formula(shift_angle);
+    shift_arg_formula(movement_angle);
+    }
+  else if(argis("-wallopt")) {
+    wallopt = true;
+    }
+  else if(argis("-animpar")) {
+    ma = maParabolic; 
+    shift_arg_formula(parabolic_length);
+    shift_arg_formula(shift_angle);
+    shift_arg_formula(movement_angle);
+    }
+  else if(argis("-animclear")) { clearup = true; }
+  else if(argis("-animrot")) {
+    ma = maRotation;
+    if(GDIM == 3) {
+      shift_arg_formula(movement_angle);
+      shift_arg_formula(normal_angle);
+      }
+    }
+  else if(argis("-animrotd")) {
+    start_game();
+    ma = maRotation;
+    shift_arg_formula(rotation_distance);
+    }
+  else if(argis("-animrug")) {
+    shift_arg_formula(rug_rotation1);
+    shift_arg_formula(rug_angle);
+    shift_arg_formula(rug_rotation2);
+    }
+  else if(argis("-animenv")) {
+    shift_arg_formula(env_ocean);
+    shift_arg_formula(env_volcano);
+    }
+  else if(argis("-animball")) {
+    shift(); println(hlog, "-animball removed");
+    }
+  else if(argis("-animj")) {
+    shift(); println(hlog, "-animj removed");
+/*  to recreate: if(joukowsky_anim) {
+    ld t = ticks / period;
+    t = t - floor(t);
+    if(pmodel == mdBand) {
+      vpconf.model_transition = t * 4 - 1;
+      }
+    else {
+      vpconf.model_transition = t / 1.1;
+      vpconf.scale = (1 - vpconf.model_transition) / 2.;
+      } */
+/* skiprope:legacy.cpp  pconf.skiprope += skiprope_rotation * t * TAU / period; */
+    }
+  else if(argis("-palpha")) {
+    PHASEFROM(2);
+    #if CAP_GL
+    shift_arg_formula(vid.stereo_param, reset_all_shaders);
+    #else
+    shift_arg_formula(vid.stereo_param);
+    #endif
+    vid.stereo_mode = sPanini;
+    }
+  else if(argis("-salpha")) {
+    PHASEFROM(2);
+    #if CAP_GL
+    shift_arg_formula(vid.stereo_param, reset_all_shaders);
+    #else
+    shift_arg_formula(vid.stereo_param);
+    #endif
+    vid.stereo_mode = sStereographic;
+    }
+  else return 1;
+  return 0;
+  }
+
+auto ah_legacy = addHook(hooks_args, 0, read_legacy_args) + addHook(hooks_args, 0, read_legacy_args_anim);
 #endif
 
 

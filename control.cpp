@@ -34,7 +34,7 @@ EX function <bool(SDL_Event &ev)> joyhandler = [] (SDL_Event &ev) {return false;
 
 #if HDR
 // what part of the compass does 'skip turn'
-static const auto SKIPFAC = .4;
+static constexpr auto SKIPFAC = .4;
 #endif
 
 // is the player using mouse? (used for auto-cross)
@@ -67,6 +67,7 @@ EX ld shiftmul = 1;
 
 EX cell *mouseover, *mouseover2, *lmouseover, *lmouseover_distant;
 EX ld modist, modist2;
+EX shiftmatrix mouseoverV;
 
 EX int lastt;
 
@@ -430,7 +431,7 @@ EX void full_rotate_camera(int dir, ld val) {
 
 EX void full_rotate_view(ld h, ld v) {
   if(history::on && !rug::rug_control())
-    models::rotation += h * camera_rot_speed;
+    models::rotation = spin(h * camera_rot_speed) * models::rotation;
   else {
     rotate_view(cspin(0, 1, v * camera_rot_speed));
     didsomething = true;
@@ -548,15 +549,17 @@ EX void handleKeyNormal(int sym, int uni) {
     if(sym == '.' || sym == 's') movepcto(-1, 1);
     if((sym == SDLK_DELETE || sym == SDLK_KP_PERIOD || sym == 'g') && uni != 'G' && uni != 'G'-64) 
       movepcto(MD_DROP, 1);
-    if(sym == 't' && uni != 'T' && uni != 'T'-64 && canmove) {
+    if(sym == 't' && uni != 'T' && uni != 'T'-64 && canmove) {     
       cell *target = GDIM == 3 ? mouseover : centerover;
       if(playermoved && items[itStrongWind]) { 
         cell *c = whirlwind::jumpDestination(cwt.at);
         if(c) target = c;
         }
-      targetRangedOrb(target, roKeyboard);
+      if(bow::fire_mode) bow::add_fire(target);
+      else targetRangedOrb(target, roKeyboard);
       sym = 0; uni = 0;
       }
+    if(sym == 'f') bow::switch_fire_mode();
     }
 
   if(sym == SDLK_KP5 && DEFAULTCONTROL && !game_keys_scroll) movepcto(-1, 1);
@@ -572,7 +575,9 @@ EX void handleKeyNormal(int sym, int uni) {
     }
 
   if(sym == SDLK_ESCAPE) {
-    if(viewdists)
+    if(bow::fire_mode)
+      bow::switch_fire_mode();
+    else if(viewdists)
       viewdists = false;
     else
       showMissionScreen();
@@ -613,9 +618,13 @@ EX void handleKeyNormal(int sym, int uni) {
     actonrelease = false;
     
     multi::cpid = 0;
-    if(mouseover && 
+    if(bow::fire_mode) {
+      if(mouseover) bow::add_fire(mouseover);
+      }
+    else if(mouseover &&
       targetclick && (shmup::on ? numplayers() == 1 && !shmup::pc[0]->dead : true) && targetRangedOrb(mouseover, forcetarget ? roMouseForce : roMouse)) {
       }
+    else if(bow::fire_on_mouse(mouseover)) ;
     else if(forcetarget)
       ;
     else if(rug::rugged && rug::renderonce)
@@ -674,6 +683,9 @@ EX void resize_screen_to(int x, int y);
 EX void mainloopiter() { printf("(compiled without SDL -- no action)\n"); quitmainloop = true; }
 #endif
 
+/* visualization only -- the HyperRogue movement keys should move the camera */
+EX bool game_keys_scroll;
+
 #if CAP_SDL
 
 // Warning: a very long function! todo: refactor
@@ -702,11 +714,10 @@ EX int sc_ticks, sc_ticks2;
 
 EX bool mouseaiming(bool shmupon) {
   return
-    (GDIM == 3 && !shmupon) || (rug::rugged && (lctrlclick ^ rug::mouse_control_rug));
+    (GDIM == 3 && !shmupon) || (rug::rugged && (lctrlclick ^ rug::mouse_control_rug)) || (cmode & sm::MOUSEAIM);
   }
 
-/* visualization only -- the HyperRogue movement keys should move the camera */
-EX bool game_keys_scroll;
+EX purehookset hooks_control;
 
 EX void mainloopiter() {
   GLWRAP;
@@ -751,6 +762,7 @@ EX void mainloopiter() {
   
   mousepan = cmode & sm::NORMAL;
   if((cmode & sm::PANNING) && !hiliteclick) mousepan = true;
+  if(cmode & sm::MOUSEAIM) mousepan = true;
   if(cmode & sm::SHOWCURSOR) mousepan = false;
   mousepan = mousepan && mouseaiming(false) && mouseaim_sensitivity;
   if(mousepan != oldmousepan) {
@@ -773,7 +785,7 @@ EX void mainloopiter() {
       SDL_ShowCursor(SDL_ENABLE);
       SDL_WarpMouse(vid.xres/2, vid.yres/2);
       #endif
-      mouseaim_x = mouseaim_y = 0;      
+      mouseaim_x = mouseaim_y = 0;
       }
     #endif
     }
@@ -905,7 +917,7 @@ EX void mainloopiter() {
     }
   #endif
   
-  if(mouseaiming(shmup::on)) {
+  if(mouseaiming(shmup::on) && !(cmode & sm::MOUSEAIM)) {
     #if CAP_MOUSEGRAB
     rug::using_rugview urv;
     dynamicval<bool> ds(didsomething, didsomething);
@@ -951,25 +963,30 @@ EX void mainloopiter() {
     ld t = (ticks - lastticks) * shiftmul / 1000.;
     lastticks = ticks;
 
-    if(keystate['d'] && DEFAULTNOR('d')) full_rotate_camera(0, -t);
-    if(keystate['a'] && DEFAULTNOR('a')) full_rotate_camera(0, t);
-    if(keystate['w'] && DEFAULTNOR('w')) full_rotate_camera(1, t);
-    if(keystate['s'] && DEFAULTNOR('s')) full_rotate_camera(1, -t);
-    if(keystate['q'] && DEFAULTNOR('q')) full_rotate_view(t / degree, t);
-    if(keystate['e'] && DEFAULTNOR('e')) full_rotate_view(-t / degree, -t);
+    #define dkey(x) keystate[int(x)] && DEFAULTNOR(x)
 
-    if(keystate['i'] && GDIM == 3 && DEFAULTNOR('i')) full_forward_camera(-t);
-    if(keystate['k'] && GDIM == 3 && DEFAULTNOR('k')) full_forward_camera(t);
-    if(keystate['l'] && GDIM == 3 && DEFAULTNOR('l')) full_strafe_camera(-t);
-    if(keystate['j'] && GDIM == 3 && DEFAULTNOR('j')) full_strafe_camera(t);
-    if(keystate['h'] && GDIM == 3 && DEFAULTNOR('h')) full_ystrafe_camera(-t);
-    if(keystate['y'] && GDIM == 3 && DEFAULTNOR('y')) full_ystrafe_camera(t);
+    if(dkey('d')) full_rotate_camera(0, -t);
+    if(dkey('a')) full_rotate_camera(0, t);
+    if(dkey('w')) full_rotate_camera(1, t);
+    if(dkey('s')) full_rotate_camera(1, -t);
+    if(dkey('q')) full_rotate_view(t / degree, t);
+    if(dkey('e')) full_rotate_view(-t / degree, -t);
+
+    if(GDIM == 3 && dkey('i')) full_forward_camera(-t);
+    if(GDIM == 3 && dkey('k')) full_forward_camera(t);
+    if(GDIM == 3 && dkey('l')) full_strafe_camera(-t);
+    if(GDIM == 3 && dkey('j')) full_strafe_camera(t);
+    if(GDIM == 3 && dkey('h')) full_ystrafe_camera(-t);
+    if(GDIM == 3 && dkey('y')) full_ystrafe_camera(t);
+    #undef dkey
     }
 
   #if CAP_VR
   vrhr::vr_control();
   #endif
   achievement_pump();  
+
+  callhooks(hooks_control);
 
   for(auto d: dialog::key_queue) {
     println(hlog, "handling key ", d);
@@ -1287,7 +1304,10 @@ EX void displayabutton(int px, int py, string s, int col) {
   int rad = (int) realradius();
   if(vid.stereo_mode == sLR) rad = 99999;
   int vrx = min(rad, vid.xres/2 - 40);
-  int vry = min(rad, min(current_display->ycenter, vid.yres - current_display->ycenter) - 20);
+  int maxy = min(current_display->ycenter, vid.yres - current_display->ycenter);
+  int vry = min(rad, maxy - 20);
+  vrx = max(vrx, vid.xres/3);
+  vry = max(vry, maxy * 2/3);
   int x = current_display->xcenter + px * vrx;
   int y = current_display->ycenter + py * (vry - siz/2);
   int vrr = int(hypot(vrx, vry) * sqrt(2.));

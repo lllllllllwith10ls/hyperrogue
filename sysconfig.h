@@ -190,7 +190,7 @@
 #endif
 
 #ifndef CAP_ODS
-#define CAP_ODS 0
+#define CAP_ODS 1
 #endif
 
 #ifndef CAP_VIDEO
@@ -652,6 +652,10 @@ union SDL_Event;
 
 #ifndef CAP_RAY
 #define CAP_RAY (MAXMDIM >= 4 && CAP_GL && !ISMOBILE && !ISWEB)
+#endif
+
+#ifndef CAP_PORTALS
+#define CAP_PORTALS CAP_RAY
 #endif
 
 #ifndef CAP_MEMORY_RESERVE

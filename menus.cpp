@@ -181,7 +181,7 @@ EX void showOverview() {
       gotoHelp(generateHelpForItem(eItem(umod)));
       if(cheater) {
         dialog::helpToEdit(items[umod], 0, 200, 10, 10);
-        dialog::reaction = [] () {
+        dialog::get_ne().reaction = [] () {
           if(hardcore) canmove = true;
           else checkmove();
           cheater++;
@@ -381,6 +381,43 @@ EX void showCreative() {
   dialog::display();
   }
 
+EX void show_achievement_eligibility() {
+  #if CAP_ACHIEVE
+  dialog::addBreak(100);
+  dialog::addInfo(XLAT("achievement/leaderboard eligiblity:"), 0xFF8000);
+  if(!wrongMode(0)) {
+    if(inv::on || bow::crossbow_mode()) dialog::addInfo(XLAT("eligible for most -- leaderboards separate"), 0x80FF00);
+    else dialog::addInfo(XLAT("eligible for most"), 0x00FF00);
+    }
+  else if(!wrongMode(rg::racing))
+    dialog::addInfo(XLAT("eligible for racing"), 0xFFFF00);
+  else if(!wrongMode(rg::shmup))
+    dialog::addInfo(XLAT("eligible for shmup"), 0xFFFF00);
+  else if(!wrongMode(rg::multi))
+    dialog::addInfo(XLAT("eligible for multiplayer"), 0xFFFF00);
+  else if(!wrongMode(rg::chaos))
+    dialog::addInfo(XLAT("eligible for Chaos mode"), 0xFFFF00);
+  else if(!wrongMode(rg::princess))
+    dialog::addInfo(XLAT("eligible for Princess Challenge"), 0xFFFF00);
+  else if(!wrongMode(specgeom_heptagonal()))
+    dialog::addInfo(XLAT("eligible for heptagonal"), 0xFFFF00);
+  else if(!wrongMode(any_specgeom())) /* the player probably knows what they are aiming at */
+    dialog::addInfo(XLAT("eligible for special geometry"), 0xFFFF00);
+  #if CAP_DAILY
+  else if(daily::on && !daily::historical)
+    dialog::addInfo(XLAT("eligible for Strange Challenge"), 0xFFFF00);
+  #endif
+  else if(cheater) dialog::addInfo(XLAT("disabled in cheat mode"), 0xC00000);
+  else if(casual) dialog::addInfo(XLAT("disabled in casual mode"), 0xC00000);
+  else if(ineligible_starting_land)
+    dialog::addInfo(XLAT("this starting land is not eligible for achievements"), 0xC00000);
+  else
+    dialog::addInfo(XLAT("not eligible due to current mode settings"), 0XC00000);
+  #else
+  dialog::addInfo(XLAT("no achievements/leaderboards in this version"), 0XFF8000);
+  #endif
+  }
+
 EX void show_chaos() {
   cmode = sm::SIDE | sm::MAYDARK;
   gamescreen();
@@ -388,10 +425,10 @@ EX void show_chaos() {
   chaosUnlocked = chaosUnlocked || autocheat;
 
   dialog::addHelp(
-    "In the Chaos mode, lands change very often, and "
+    XLAT("In the Chaos mode, lands change very often, and "
     "there are no walls between them. "
     "Some lands are incompatible with this."
-    "\n\nYou need to reach Crossroads IV to unlock the Chaos mode."
+    "\n\nYou need to reach Crossroads IV to unlock the Chaos mode.")
     );
   
   dialog::addBreak(100);
@@ -420,21 +457,15 @@ EX void show_chaos() {
   dialog::addSelItem(XLAT("land"), XLAT1(linf[specialland].name), 'l');
   dialog::add_action(activate_ge_land_selection);
 
-  dialog::addBreak(100);
-  if(ineligible_starting_land)
-    dialog::addInfo("this starting land is not eligible for achievements");
-  else if(land_structure == lsNiceWalls)
-    dialog::addInfo("eligible for most achievements");
-  else if(land_structure == lsChaos)
-    dialog::addInfo("eligible for Chaos mode achievements");
-  else if(land_structure == lsSingle)
-    dialog::addInfo("eligible for special achievements");
-  else
-    dialog::addInfo("not eligible for achievements");
-  if(cheater) dialog::addInfo("(but the cheat mode is on)");
-  if(casual) dialog::addInfo("(but the casual mode is on)");
+  show_achievement_eligibility();
 
   dialog::addBreak(100);
+  if(ls::horodisk_structure())
+    add_edit(horodisk_from);
+  else if(land_structure == lsChaosRW)
+    add_edit(randomwalk_size);
+  else
+    dialog::addBreak(100);
   dialog::addBack();
   dialog::display();
   }
@@ -654,6 +685,12 @@ EX void showChangeMode() {
   multi::cpid = 0;
   menuitem_land_structure('l');
 
+  dialog::addBoolItem(XLAT("custom land list"), use_custom_land_list, 'L');
+  dialog::add_action_push(customize_land_list);
+
+  dialog::addBoolItem(XLAT("weapon selection"), bow::weapon, 'b');
+  dialog::add_action_push(bow::showMenu);
+
   dialog::addBoolItem(XLAT("puzzle/exploration mode"), peace::on, 'p');
   dialog::add_action_push(peace::showMenu);
 
@@ -707,8 +744,9 @@ EX void showChangeMode() {
   dialog::add_action(racing::configure_race);
 #endif  
 
-  dialog::addBreak(50);
+  show_achievement_eligibility();
 
+  dialog::addBreak(50);
   dialog::addItem(XLAT("highlights & achievements"), 'h');
   dialog::add_action_push(mode_higlights);
   
@@ -953,10 +991,10 @@ EX void showStartMenu() {
       specialland = racing::race_lands[rand() % isize(racing::race_lands)];
       start_game();
       pmodel = mdBand;
-      pconf.model_orientation = racing::race_angle;
+      pconf.mori() = racing::race_angle;
       racing::race_advance = 1;
       vid.yshift = 0;
-      pconf.camera_angle = 0;
+      pconf.cam() = Id;
       pconf.xposition = 0;
       pconf.yposition = 0;
       pconf.scale = 1;

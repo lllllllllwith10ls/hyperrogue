@@ -203,6 +203,30 @@ constexpr transmatrix Id = diag(1,1,1,1);
 /** zero matrix */
 constexpr transmatrix Zero = diag(0,0,0,0);
 
+/** a transmatrix with 2D and 3D version, useful for configuration */
+struct trans23 {
+  transmatrix v2, v3;
+  transmatrix& get() { return MDIM == 3 ? v2 : v3; }
+  const transmatrix& get() const { return MDIM == 3 ? v2 : v3; }
+  trans23() { v2 = Id; v3 = Id; }
+  trans23(const transmatrix& T) { v2 = T; v3 = T; }
+  trans23(const transmatrix& T2, const transmatrix& T3) { v2 = T2; v3 = T3; }
+  bool operator == (const trans23& b) const;
+  bool operator != (const trans23& b) const { return !(self == b); }
+  trans23 operator * (trans23 T) {
+    trans23 t;
+    auto& dim = cginf.g.homogeneous_dimension;
+    dynamicval<int> d1(dim, dim);
+    dim = 3; t.v2 = v2 * T.v2;
+    dim = 4; t.v3 = v3 * T.v3;
+    return t;
+    }
+  friend trans23 operator * (transmatrix M, trans23 T) {
+    trans23 t(M);
+    return t * T;
+    }
+  };
+
 /** mirror image */
 constexpr transmatrix Mirror = diag(1,-1,1,1);
 
@@ -234,6 +258,8 @@ constexpr hyperpoint C03 = hyperpoint(0,0,0,1);
 /** C0 is the origin in our space */
 #define C0 (MDIM == 3 ? C02 : C03)
 #endif
+
+bool trans23::operator == (const trans23& b) const { return eqmatrix(v2, b.v2) && eqmatrix(v3, b.v3); }
 
 // basic functions and types
 //===========================
@@ -459,13 +485,18 @@ EX transmatrix to_other_side(hyperpoint h1, hyperpoint h2) {
     h1 = normalize(h1);
     h2 = normalize(h2);
     transmatrix T = to_other_side(h1, h2);
-    for(int i=0; i<4; i++) T[i][3] = T[3][i] = i == 3;
+    fix4(T);
     geom3::light_flip(false);
     return T;
     }
 
-  ld d = hdist(h1, h2);
+  if(sol && meuclid) {
+    /* works in 4x4... */
+    return gpushxto0(h1) * gpushxto0(h2);
+    }
   
+  ld d = hdist(h1, h2);
+
   hyperpoint v;  
   if(euclid)
     v = (h2 - h1) / d;    
@@ -487,7 +518,9 @@ EX transmatrix to_other_side(hyperpoint h1, hyperpoint h2) {
 EX ld material(const hyperpoint& h) {
   if(sphere || in_s2xe()) return intval(h, Hypc);
   else if(hyperbolic || in_h2xe()) return -intval(h, Hypc);
+  #if MAXMDIM >= 4
   else if(sl2) return h[2]*h[2] + h[3]*h[3] - h[0]*h[0] - h[1]*h[1];
+  #endif
   else return h[LDIM];
   }
 
@@ -790,8 +823,12 @@ EX transmatrix parabolic13(ld u, ld v) {
   }
 
 EX hyperpoint kleinize(hyperpoint h) {
+  #if MAXMDIM == 3
+  return point3(h[0]/h[2], h[1]/h[2], 1);
+  #else
   if(GDIM == 2) return point3(h[0]/h[2], h[1]/h[2], 1);
   else return point31(h[0]/h[3], h[1]/h[3], h[2]/h[3]);
+  #endif
   }
 
 EX hyperpoint deparabolic13(hyperpoint h) {
@@ -1156,6 +1193,16 @@ EX transmatrix iso_inverse(const transmatrix& T) {
   return inverse(T);
   }
 
+/** inverse a guaranteed rotation */
+EX transmatrix rot_inverse(const transmatrix& T) {
+  return transpose(T);
+  }
+
+/** inverse a guaranteed rotation */
+EX trans23 rot_inverse(const trans23& T) {
+  return trans23(rot_inverse(T.v2), rot_inverse(T.v3));
+  }
+
 /** \brief T inverse a matrix T = O*S, where O is isometry and S is a scaling matrix (todo optimize) */
 EX transmatrix z_inverse(const transmatrix& T) {
   return inverse(T);
@@ -1314,11 +1361,16 @@ EX shiftmatrix orthogonal_move(const shiftmatrix& t, double level) {
   return shiftless(orthogonal_move(t.T, level), t.shift);
   }
 
-/** fix a 3x3 matrix into a 4x4 matrix */
-EX transmatrix fix4(transmatrix t) {
+/** fix a 3x3 matrix into a 4x4 matrix, in place */
+EX void fix4(transmatrix& t) {
+  #if MAXMDIM > 3
+  if(ldebug) println(hlog, "fix4 performed");
   for(int i=0; i<4; i++) t[3][i] = t[i][3] = i == 3;
-  return t;
+  #endif
   }
+
+/** fix a 3x3 matrix into a 4x4 matrix, as a function */
+EX transmatrix fix4_f(transmatrix t) { fix4(t); return t; }
 
 EX transmatrix xyscale(const transmatrix& t, double fac) {
   transmatrix res;
@@ -1379,6 +1431,7 @@ EX hyperpoint mid_at_actual(hyperpoint h, ld v) {
   return rspintox(h) * xpush0(hdist0(h) * v);
   }
 
+#if MAXMDIM >= 4
 /** in 3D, an orthogonal projection of C0 on the given triangle */
 EX hyperpoint orthogonal_of_C0(hyperpoint h0, hyperpoint h1, hyperpoint h2) {
   h0 /= h0[3];
@@ -1393,6 +1446,7 @@ EX hyperpoint orthogonal_of_C0(hyperpoint h0, hyperpoint h1, hyperpoint h2) {
   hyperpoint h = w * denom + d1 * a1 + d2 * a2;
   return normalize(h);
   }
+#endif
 
 EX hyperpoint hpxd(ld d, ld x, ld y, ld z) {
   hyperpoint H = hpxyz(d*x, d*y, z);
@@ -1635,6 +1689,22 @@ EX hyperpoint inverse_exp(const shiftpoint h, flagtype prec IS(pNORMAL)) {
   return v;
   }
 
+/** more precise */
+EX hyperpoint inverse_exp_newton(hyperpoint h, int iter) {
+  auto approx = inverse_exp(shiftless(h));
+  for(int i=0; i<iter; i++) {
+    transmatrix T;
+    ld eps = 1e-3;
+    hyperpoint cur = direct_exp(approx);
+    println(hlog, approx, " error = ", hdist(cur, h), " iteration ", i, "/", iter);
+    for(int i=0; i<3; i++)
+      set_column(T, i, direct_exp(approx + ctangent(i, eps)) - h);
+    set_column(T, 3, C03);
+    approx = approx - inverse(T) * (cur - h) * eps;
+    }
+  return approx;
+  }
+
 EX ld geo_dist(const hyperpoint h1, const hyperpoint h2, flagtype prec IS(pNORMAL)) {
   if(!nonisotropic) return hdist(h1, h2);
   return hypot_d(3, inverse_exp(shiftless(nisot::translate(h1, -1) * h2, prec)));
@@ -1674,8 +1744,10 @@ EX ld raddif(ld a, ld b) {
   return d;
   }
 
+EX int bucket_scale = 10000;
+
 EX unsigned bucketer(ld x) {
-  return unsigned((long long)(x * 10000 + 100000.5) - 100000);
+  return (unsigned) (long long) (floor(x * bucket_scale + .5));
   }
 
 EX unsigned bucketer(hyperpoint h) {
@@ -1800,6 +1872,7 @@ EX ld inner3(hyperpoint h1, hyperpoint h2) {
     h1[0] * h2[0] + h1[1] * h2[1];
   }
 
+#if MAXMDIM >= 4
 /** circumscribe for H3 and S3 (not for E3 yet!) */
 EX hyperpoint circumscribe(hyperpoint a, hyperpoint b, hyperpoint c, hyperpoint d) {
   
@@ -1829,6 +1902,7 @@ EX hyperpoint circumscribe(hyperpoint a, hyperpoint b, hyperpoint c, hyperpoint 
 
   return h;
   }
+#endif
 
 /** the point in distance dist from 'material' to 'dir' (usually an (ultra)ideal point) */
 EX hyperpoint towards_inf(hyperpoint material, hyperpoint dir, ld dist IS(1)) {

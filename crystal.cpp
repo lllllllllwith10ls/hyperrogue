@@ -11,8 +11,8 @@ namespace hr {
 EX namespace crystal {
 
 #if HDR
-static const int MAXDIM = 7;
-static const int MAX_EDGE_CRYSTAL = 2 * MAXDIM;
+static constexpr int MAXDIM = 7;
+static constexpr int MAX_EDGE_CRYSTAL = 2 * MAXDIM;
 
 struct coord : public array<int, MAXDIM> {
   coord operator + (coord b) { for(int i=0; i<MAXDIM; i++) b[i] += self[i]; return b; }  
@@ -20,7 +20,7 @@ struct coord : public array<int, MAXDIM> {
   coord operator * (int x) { coord res; for(int i=0; i<MAXDIM; i++) res[i] = x * self[i]; return res; } 
   };
 
-static const coord c0 = {};
+static constexpr coord c0 = {};
 
 struct ldcoord : public array<ld, MAXDIM> {
   friend ldcoord operator + (ldcoord a, ldcoord b) { ldcoord r; for(int i=0; i<MAXDIM; i++) r[i] = a[i] + b[i]; return r; }
@@ -30,7 +30,7 @@ struct ldcoord : public array<ld, MAXDIM> {
   friend ld operator | (ldcoord a, ldcoord b) { ld r=0; for(int i=0; i<MAXDIM; i++) r += a[i] * b[i]; return r; }
   };
 
-static const ldcoord ldc0 = {};
+static constexpr ldcoord ldc0 = {};
 #endif
 
 #if CAP_CRYSTAL
@@ -325,7 +325,7 @@ ld sqhypot2(crystal_structure& cs, ldcoord co1, ldcoord co2) {
   return result;
   }
 
-static const int Modval = 64;
+static constexpr int Modval = 64;
 
 struct east_structure {
   map<coord, int> data;
@@ -884,7 +884,7 @@ EX vector<cell*> build_shortest_path(cell *c1, cell *c2) {
       }
     }
   
-  println(hlog, "Error: path not found");
+  println(hlog, "Error: path not found, steps = ", steps);
   return p;
   }
 
@@ -1318,9 +1318,7 @@ EX void set_crystal(int sides) {
   set_variation(eVariation::pure);
   ginf[gCrystal].sides = sides;
   ginf[gCrystal].vertex = 4;
-  static char buf[20];
-  sprintf(buf, "{%d,4}", sides);
-  ginf[gCrystal].tiling_name = buf;
+  ginf[gCrystal].tiling_name = hr::format("{%d,4}", sides);
   ginf[gCrystal].distlimit = distlimit_table[min(sides, MAX_EDGE_CRYSTAL-1)];
   }
 
@@ -1500,7 +1498,7 @@ EX void show() {
     dialog::add_action([]() { 
       draw_cut = true;
       dialog::editNumber(cut_level, -1, 1, 0.1, 0, XLAT("cut level"), ""); 
-      dialog::extra_options = [] {
+      dialog::get_di().extra_options = [] {
         dialog::addItem(XLAT("disable"), 'D');
         dialog::add_action([] { draw_cut = false; popScreen(); });
         };
@@ -1512,7 +1510,7 @@ EX void show() {
   dialog::add_action([] {
     dialog::editNumber(crystal_period, 0, 16, 2, 0, XLAT("Crystal torus"), 
       XLAT("Z_k^d instead of Z^d. Only works with k even."));
-    dialog::reaction_final = [] {
+    dialog::get_di().reaction_final = [] {
       if(cryst) stop_game();
       set_crystal_period_flags();
       if(cryst) start_game();
@@ -1562,7 +1560,7 @@ struct shift_data {
   
   bignum& compute(ld rad2) {
     if(result.count(rad2)) return result[rad2];
-    // println(hlog, "compute ", format("%p", this), " [shift=", shift, "], r2 = ", rad2);
+    // println(hlog, "compute ", hr::format("%p", this), " [shift=", shift, "], r2 = ", rad2);
     // indenter i(2);
     auto& b = result[rad2];
     if(!parent) {
@@ -1597,7 +1595,7 @@ EX string get_table_volume() {
         if(co[i] < mincoord) mincoord = co[i];
         if(co[i] > maxcoord) maxcoord = co[i];
         }
-      static const ld eps = 1e-4;
+      static constexpr ld eps = 1e-4;
       if(mincoord >= 0-eps && maxcoord < PERIOD-eps) {
         ld my_rad2 = rad2;
         auto cshift = (co - m->camelot_coord) / PERIOD;

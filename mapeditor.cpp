@@ -20,7 +20,7 @@ EX namespace mapeditor {
 
   #if HDR
   enum eShapegroup { sgPlayer, sgMonster, sgItem, sgFloor, sgWall };
-  static const int USERSHAPEGROUPS = 5;
+  static constexpr int USERSHAPEGROUPS = 5;
   #endif
   
   EX color_t dtfill = 0;
@@ -184,10 +184,14 @@ EX namespace mapeditor {
     if(drawing_tool && (cmode & sm::DRAW)) {
       shiftpoint moh = full_mouseh();
       dynamicval<ld> lw(vid.linewidth, vid.linewidth * dtwidth * 100);
-      if(holdmouse && mousekey == 'c')
+      if(holdmouse && mousekey == 'c') {
+        torus_rug_jump(moh, lstart);
         queue_hcircle(rgpushxto0(lstart), hdist(lstart, moh));
-      else if(holdmouse && mousekey == 'l')
+        }
+      else if(holdmouse && mousekey == 'l') {
+        torus_rug_jump(moh, lstart);
         queueline(lstart, moh, dtcolor, 4 + vid.linequality, PPR::LINE);
+        }
       else if(!holdmouse) {
         shiftmatrix T = rgpushxto0(moh);
         queueline(T * xpush0(-.1), T * xpush0(.1), dtcolor);
@@ -208,6 +212,9 @@ EX namespace mapeditor {
     }
   
   EX void dt_add_line(shiftpoint h1, shiftpoint h2, int maxl) {
+
+    torus_rug_jump(h2, h1);
+
     if(hdist(h1, h2) > 1 && maxl > 0) {
       shiftpoint h3 = mid(h1, h2);
       dt_add_line(h1, h3, maxl-1);
@@ -216,18 +223,21 @@ EX namespace mapeditor {
       }
     cell *b = centerover;
     
-    auto xh1 = inverse_shift(ggmatrix(b), h1);
-    virtualRebase(b, xh1);
+    shiftmatrix T = rgpushxto0(h1);
+    auto T1 = inverse_shift(ggmatrix(b), T);
+    virtualRebase(b, T1);
+    hyperpoint xh1 = tC0(T1);
     
     auto l = new dtline;
     l->s = xh1;
-    l->e = inverse_shift(ggmatrix(b), h2);
+    l->e = inverse_shift(T*inverse(T1), h2);
     dt_add(b, l);
     }
 
   EX void dt_add_circle(shiftpoint h1, shiftpoint h2) {
     cell *b = centerover;
     
+    torus_rug_jump(h2, h1);
     auto d = hdist(h1, h2);
     
     auto xh1 = inverse_shift(ggmatrix(b), h1);
@@ -271,27 +281,46 @@ EX namespace mapeditor {
   
   dtfree *cfree;
   cell *cfree_at;
+  shiftmatrix cfree_old;
   
   EX void dt_finish() {
     cfree = nullptr;
     cfree_at = nullptr;
     }
-  
+
+  EX void torus_rug_jump(shiftpoint& h, shiftpoint last) {
+    if(!rug::rugged) return;
+    again:
+
+    auto C = ggmatrix(centerover);
+    auto T1 = inverse_shift(C, rgpushxto0(h));
+
+    for(int a=0; a<2; a++) for(int s: {-1, 1}) {
+      transmatrix T = eumove(s * euc::eu.optimal_axes[a]);
+      shiftpoint h1 = C * T * tC0(T1);
+      if(hdist(h1, last) < hdist(h, last) - 1e-6) { h = h1; goto again; }
+      }
+    }
+
   EX void dt_add_free(shiftpoint h) {
+
+    if(cfree) torus_rug_jump(h, cfree_old * cfree->lh.back());
 
     cell *b = centerover;
     shiftmatrix T = rgpushxto0(h);
     auto T1 = inverse_shift(ggmatrix(b), T);
     virtualRebase(b, T1);
     
-    if(cfree)
-      cfree->lh.push_back(inverse_shift(ggmatrix(cfree_at), tC0(T)));
+    if(cfree) {
+      cfree->lh.push_back(inverse_shift(cfree_old, tC0(T)));
+      }
     
     if(b != cfree_at && !(dtfill && cfree_at)) {
       cfree = new dtfree;
       dt_add(b, cfree);
       cfree->lh.push_back(tC0(T1));
       cfree_at = b;
+      cfree_old = T * inverse(T1);
       }
     }
   
@@ -541,6 +570,8 @@ EX namespace mapstream {
       f.write(euc::eu_input.twisted);
       }
     f.write(mine_adjacency_rule);
+    f.write(req_disksize);
+    f.write(diskshape);
     }
   
   EX void load_geometry(hstream& f) {
@@ -681,6 +712,10 @@ EX namespace mapstream {
       }
     if(vernum >= 0xA810)
       f.read(mine_adjacency_rule);
+    if(vernum >= 0xA933) {
+      f.read(req_disksize);
+      f.read(diskshape);
+      }
     geometry_settings(was_default);
     }
   
@@ -724,7 +759,7 @@ EX namespace mapstream {
     }
     
     addToQueue(save_start());
-    #if MAXMDIM >= 4 && CAP_RAY
+    #if CAP_PORTALS
     if(intra::in) intra::prepare_need_to_save();
     #endif
     for(int i=0; i<isize(cellbyid); i++) {
@@ -771,7 +806,7 @@ EX namespace mapstream {
       f.write(c->wparam); f.write(c->landparam);
       f.write_char(c->stuntime); f.write_char(c->hitpoints);
       bool blocked = false;
-      #if MAXMDIM >= 4 && CAP_RAY
+      #if CAP_PORTALS
       if(intra::in && isWall3(c) && !intra::need_to_save.count(c)) blocked = true;
       #endif
       if(!blocked)
@@ -805,7 +840,7 @@ EX namespace mapstream {
       for(int i=0; i<multi::players; i++)
         f.write(cellids[multi::player[i].at]);
 
-    #if MAXMDIM >= 4 && CAP_RAY
+    #if CAP_PORTALS
     if(intra::in) {
       for(int i=0; i<isize(intra::portals_to_save); i++) {
         auto& p = intra::portals_to_save[i];
@@ -1069,7 +1104,7 @@ EX namespace mapstream {
           }
       }
 
-    #if MAXMDIM >= 4 && CAP_RAY
+    #if CAP_PORTALS
     if(intra::in) {
       while(true) {
         char k = f.get<char>();
@@ -1153,14 +1188,14 @@ EX namespace mapstream {
   EX void saveMap(hstream& f) {
     f.write(f.get_vernum());
     f.write(dual::state);
-    #if MAXMDIM >= 4 && CAP_RAY
+    #if CAP_PORTALS
     int q = intra::in ? isize(intra::data) : 0;
     f.write(q);
     #else
     int q = 0;
     #endif
     if(q) {
-      #if MAXMDIM >= 4 && CAP_RAY
+      #if CAP_PORTALS
       intra::prepare_to_save();
       int qp = isize(intra::portals_to_save);
       f.write(qp);
@@ -1204,7 +1239,7 @@ EX namespace mapstream {
     if(q) {
       int qp;
       f.read(qp);
-      #if MAXMDIM >= 4 && CAP_RAY
+      #if CAP_PORTALS
       intra::portals_to_save.resize(qp);
       for(auto& ps: intra::portals_to_save) {
         f.read(ps.spin);
@@ -1628,7 +1663,11 @@ EX namespace mapeditor {
   void allInPattern(cellwalker where) {
 
     manual_celllister cl;
-    if(!patterns::whichPattern) {
+    bool call_editAt = !patterns::whichPattern;
+#if CAP_TEXTURE
+    call_editAt |= (texture::config.tstate == texture::tsActive);
+#endif
+    if (call_editAt) {
       editAt(where, cl);
       return;
       }
@@ -1863,7 +1902,7 @@ EX namespace mapeditor {
   bool coloring;
   color_t colortouse = 0xC0C0C0FFu;
   // fake key sent to change the color
-  static const int COLORKEY = (-10000); 
+  static constexpr int COLORKEY = (-10000); 
 
   EX shiftmatrix drawtrans, drawtransnew;
 
@@ -2721,7 +2760,7 @@ EX namespace mapeditor {
 
     if(uni == 'z' && GDIM == 3) {
       dialog::editNumber(front_edit, 0, 5, 0.1, 0.5, XLAT("z-level"), "");
-      dialog::extra_options = [] () {
+      dialog::get_di().extra_options = [] () {
         dialog::addBoolItem(XLAT("The distance from the camera to added points."), front_config == eFront::sphere_camera, 'A');
         dialog::add_action([] { front_config = eFront::sphere_camera; });
         dialog::addBoolItem(XLAT("place points at fixed radius"), front_config == eFront::sphere_center, 'B');
@@ -2736,25 +2775,21 @@ EX namespace mapeditor {
           }
         dialog::addSelItem(XLAT("mousewheel step"), fts(front_step), 'S');
         dialog::add_action([] {
-          popScreen();
           dialog::editNumber(front_step, -10, 10, 0.1, 0.1, XLAT("mousewheel step"), "hint: shift for finer steps");
           });
         if(front_config == eFront::sphere_center) {
           dialog::addSelItem(XLAT("parallels to draw"), its(parallels), 'P');
           dialog::add_action([] {
-            popScreen();
             dialog::editNumber(parallels, 0, 72, 1, 12, XLAT("parallels to draw"), "");
             });
           dialog::addSelItem(XLAT("meridians to draw"), its(meridians), 'M');
           dialog::add_action([] {
-            popScreen();
             dialog::editNumber(meridians, 0, 72, 1, 12, XLAT("meridians to draw"), "");
             });
           }
         else if(front_config != eFront::sphere_camera) {
           dialog::addSelItem(XLAT("range of grid to draw"), fts(equi_range), 'R');
           dialog::add_action([] {
-            popScreen();
             dialog::editNumber(equi_range, 0, 5, 0.1, 1, XLAT("range of grid to draw"), "");
             });
           }
@@ -2850,7 +2885,7 @@ EX namespace mapeditor {
           static string text = "";
           dialog::edit_string(text, "", "");
           shiftpoint h = mh;
-          dialog::reaction_final = [h] {
+          dialog::get_di().reaction_final = [h] {
             if(text != "")
               dt_add_text(h, dtwidth * 50, text);
             };
@@ -2952,7 +2987,7 @@ EX namespace mapeditor {
   
       if(uni == 'p') {
         dialog::openColorDialog(colortouse);
-        dialog::reaction = [] () {
+        dialog::get_di().reaction = [] () {
           drawHandleKey(COLORKEY, COLORKEY);
           };
         }
@@ -3258,6 +3293,7 @@ EX namespace mapeditor {
     add_edit(game_keys_scroll);
     dialog::addInfo(XLAT("hint: shift+A to enter the map editor"));
     
+    #if CAP_PORTALS
     if(WDIM == 3 && !intra::in) {
       dialog::addBoolItem(XLAT("become a portal map"), intra::in, 'm');
       dialog::add_action_push(intra::become_menu);
@@ -3267,6 +3303,7 @@ EX namespace mapeditor {
       dialog::addItem(XLAT("manage portals"), 'm');
       dialog::add_action_push(intra::show_portals);
       }
+    #endif
 
     dialog::addItem(XLAT("change the pattern/color of new Canvas cells"), 'c');
     dialog::add_action_push(patterns::showPrePatternNoninstant);

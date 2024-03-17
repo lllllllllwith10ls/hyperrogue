@@ -219,6 +219,182 @@ void hrmap::extend_altmap(heptagon *h, int levs, bool link_cdata) {
     }
   }
 
+void new_voronoi_root(heptagon *h, int dist, int dir, eLand next) {
+  heptagon *alt = init_heptagon(h->type);
+  allmaps.push_back(newAltMap(alt));
+  alt->s = hsA;
+  alt->alt = alt;
+  alt->cdata = (cdata*) h;
+  alt->distance = dist;
+  vector<pair<heptagon*, heptagon*>> altpairs;
+  altpairs.emplace_back(h, alt);
+  altmap::relspin(alt) = dir;
+
+  hv_land[alt] = next;
+
+  while(alt->distance > -100) {
+    auto alt1 = createStep(alt, 0);
+    alt1->alt = alt->alt;
+    auto h1 = createStep(h, dir);
+    if(h1->alt) return;
+    altpairs.emplace_back(h1, alt1);
+    h1->alt = alt1;
+
+    auto dir_alt = alt->c.spin(0);
+    auto dir_h = h->c.spin(dir);
+
+    dir = altmap::relspin(alt1) = gmod(dir_h - dir_alt, alt->type);
+
+    h = h1; alt = alt1;
+    }
+
+  for(auto p: altpairs) p.first->alt = p.second;
+  }
+
+
+struct cand_info {
+  int best, bqty;
+  heptagon *candidate;
+  vector<int> free_dirs;
+  };
+
+cand_info voronoi_candidate(heptagon *h) {
+  cand_info ci;
+  ci.best = 999999; ci.bqty = 0;
+
+  for(int i=0; i<h->type; i++) {
+    heptagon *ho = createStep(h, i);
+    int ri = h->c.spin(i);
+    auto hoa = ho->alt;
+    if(hoa && hoa->alt) {
+      auto relspin = altmap::relspin(hoa);
+      /* we want ho->move(ri) which is hoa->move(ri - relspin) */
+      int dir = gmod(ri - relspin, hoa->type);
+      heptagon *hoa1 = createStep(hoa, dir);
+      if(!hoa1->alt) hoa1->alt = hoa->alt;
+      auto dist = hoa1->distance;
+      if(dist < ci.best) {
+        ci.best = dist;
+        ci.bqty = 0;
+        }
+      if(dist == ci.best && ci.candidate != hoa1) {
+        ci.bqty++;
+        ci.candidate = hoa1;
+        int rb = hoa->c.spin(dir);
+        /* hoa1->alt->move(rb) is h->move(rb+relspin to compute) */
+        altmap::relspin(ci.candidate) = gmod(i - rb, ci.candidate->type);
+        }
+      }
+    else ci.free_dirs.push_back(i);
+    }
+  return ci;
+  }
+
+vector<eLand> list_adjacent_lands(heptagon *h) {
+  vector<eLand> res;
+  for(int i=0; i<h->type; i++) {
+    heptspin hs = heptspin(h, i);
+    hs += wstep;
+    auto alt = hs.at->alt;
+    if(!alt) continue;
+    alt = alt->alt;
+    res.push_back(hv_land.at(alt));
+    // go arround the region of alt using the 'butterfly' method, to find the other two lands which seem adjacent
+    for(int d: {-1, 1}) {
+      auto hs1 = hs;
+      for(int i=0; i<100; i++) {
+        hs1 += d;
+        hs1 += wstep;
+        if(!hs1.at->alt) { hs1 += wstep; continue; }
+        auto alt1 = hs1.at->alt->alt;
+        if(alt1 != alt) {
+          res.push_back(hv_land.at(alt1)); break;
+          }
+        hs1 += d;
+        }
+      }
+    }
+  if(res.empty()) return { laBarrier };
+  return res;
+  }
+
+void extend_altmap_voronoi(heptagon *h) {
+  if(h->alt) return;
+
+  auto ci = voronoi_candidate(h);
+
+  if(ci.bqty == 0) {
+    new_voronoi_root(h, -30, hrand(h->type), firstland);
+    return;
+    }
+  else if(ci.bqty > 0 && isize(ci.free_dirs)) {
+    auto& expansion = get_expansion();
+    ld growth = expansion.get_growth();
+    ld odds = pow(growth, ci.candidate->distance) * isize(ci.free_dirs);
+    if(hrandf() < odds / (1 + odds)) {
+      vector<eLand> lands_list = list_adjacent_lands(h);
+
+      auto dist = ci.candidate->distance;
+      // in PURE, could be a tie, or the new root could win
+      if(PURE) dist -= hrand(2);
+      // in BITRUNCATED, it could change too.. need a better formula probably
+      if(BITRUNCATED) dist += hrand(3) - 1;
+      // do not care about others...
+      new_voronoi_root(h, dist, hrand_elt(ci.free_dirs), getNewLand2(lands_list));
+      return;
+      }
+    }
+
+  h->alt = ci.candidate;
+  }
+
+EX pair<heptagon*, int> get_voronoi_winner(cell *c) {
+  if(c == c->master->c7) {
+    extend_altmap_voronoi(c->master);
+    auto ci = voronoi_candidate(c->master);
+    if(ci.bqty == 1) return { ci.candidate->alt, ci.best };
+    else return { nullptr, ci.best };
+    }
+  else if(!BITRUNCATED) return get_voronoi_winner(c->master->c7);
+  else {
+    vector<heptagon*> nearh;
+    for(int i=0; i<c->type; i++) {
+      c->cmove(i);
+      if(c->move(i)->master->c7 == c->move(i)) nearh.push_back(c->move(i)->master);
+      }
+    for(auto h: nearh) extend_altmap_voronoi(h);
+    for(auto h: nearh) if(!h->alt) return { nullptr, 0 };
+    pair<heptagon*, int> best = {nullptr, 999999};
+    int bqty = 0;
+    for(auto h: nearh) {
+      vector<int> dists;
+      for(auto h1: nearh) {
+        if(h == h1) dists.push_back(h->alt->distance);
+        else {
+          for(int i=0; i<h->type; i++) if(h->cmove(i) == h1) {
+            auto ha1 = createStep(h->alt, gmod(i - altmap::relspin(h->alt), h->type));
+            dists.push_back(ha1->distance);
+            }
+          }
+        }
+      sort(dists.begin(), dists.end());
+      int gdist;
+      if(dists.back() == dists[0]) gdist = dists[0] - 1;
+      else if(dists.back() == dists[0] + 2) gdist = dists[0] + 1;
+      else gdist = dists[0];
+      if(gdist < best.second) {
+        best.second = gdist; bqty = 0;
+        }
+      if(gdist == best.second) {
+        bqty++;
+        if(bqty == 1 || best.first == h->alt->alt) best.first = h->alt->alt;
+        else best.first = nullptr;
+        }
+      }
+    return best;
+    }
+  }
+
 #if MAXMDIM >= 4
 EX int hrandom_adjacent(cellwalker cw) {
   auto& da = currentmap->dirdist(cw);
@@ -335,7 +511,12 @@ EX void beCIsland(cell *c) {
   }
 
 EX void generateTreasureIsland(cell *c) {
-  gen_alt(c);
+  if(ls::voronoi_structure()) {
+    if(c->land != laCaribbean) return;
+    }
+  else {
+    gen_alt(c);
+    }
   if(isOnCIsland(c)) return;
   
   bool src = hrand(100) < 10;
@@ -348,13 +529,18 @@ EX void generateTreasureIsland(cell *c) {
   for(int i=0; i<c->type; i++) {
     cell *c2 = createMov(c, i);
     if(!eubinary) currentmap->extend_altmap(c2->master);
-    if(greater_alt(c, c2)) {
+    auto ok = [&] (cell *c2) {
+      if(ls::hv_structure() && get_voronoi_winner(c2).first != get_voronoi_winner(c).first) return false;
+      return true;
+      };
+    if(ok(c2) && greater_alt(c, c2)) {
       ctab.push_back(c2);
       qlo = i; qhi = i;
       while(true && isize(ctab) < c->type) {
         qlo--;
         c2 = c->cmodmove(qlo);
         if(!have_alt(c2)) break;
+        if(!ok(c2)) break;
         if(celldistAlt(c2) >= celldistAlt(c)) break;
         ctab.push_back(c2);
         }
@@ -362,6 +548,7 @@ EX void generateTreasureIsland(cell *c) {
         qhi++;
         c2 = c->cmodmove(qhi);
         if(!have_alt(c2)) break;
+        if(!ok(c2)) break;
         if(celldistAlt(c2) >= celldistAlt(c)) break;
         ctab.push_back(c2);
         }
@@ -375,6 +562,7 @@ EX void generateTreasureIsland(cell *c) {
     return; 
     }
   cell* c2 = c->cmodmove((qlo+qhi)/2);
+  if(ls::voronoi_structure() && c2->land != laCaribbean) c2->land = laCaribbean;
   generateTreasureIsland(c2);
   if(!src) {
     c->wall = c2->wall;
@@ -921,7 +1109,7 @@ EX void setLandSphere(cell *c) {
     int y = getHemisphere(c, 2);
     elementalXY(c, x, y, (c->type != 6 || GOLDBERG));
     }
-  if(!(euclid && quotient))
+  if(!(euclid && (quotient || disksize)))
   if(specialland == laCrossroads || specialland == laCrossroads2 || specialland == laCrossroads3 || specialland == laTerracotta) {
     int x = getHemisphere(c, 1);
     if(x == 0 && specialland == laTerracotta)
@@ -1370,8 +1558,11 @@ EX int wallchance(cell *c, bool deepOcean) {
 /** \brief should we generate the horocycles in the current geometry? */
 EX bool horo_ok() {  
   if(INVERSE) return false;  
+  if(hat::in()) return false;
   if(currentmap->strict_tree_rules()) return true;
+  #if MAXMDIM >= 4
   if(reg3::in_hrmap_h3() && !PURE) return false;
+  #endif
   return mhyperbolic && !bt::in() && !arcm::in() && !kite::in() && !experimental && !mhybrid && !arb::in() && !quotient;
   }
 
@@ -1431,7 +1622,9 @@ EX bool extend_alt(cell *c, eLand horoland, eLand overland, bool extend_in_singl
   return false;
   }
 
-EX bool can_start_horo(cell *c) {
+EX bool can_start_horo(cell *c, bool allowed_in_horo IS(false)) {
+  if(ls::voronoi_structure()) return false;
+  if(!allowed_in_horo && ls::horodisk_structure()) return false;
   if(yendor::on && !among(c->land, laCaribbean, laStorms))
     return false;
   return ctof(c) && !have_alt(c) && horo_ok() && !randomPatternsMode && !racing::on;
@@ -1487,7 +1680,7 @@ EX bool good_for_wall(cell *c) {
 
 EX bool walls_not_implemented() {
   // if(WDIM == 3 && !PURE) return true;
-  if(sphere || quotient || nonisotropic || (kite::in() && !bt::in()) || experimental) return true;
+  if(sphere || quotient || nonisotropic || aperiodic || experimental) return true;
   return WDIM == 3 && (cgflags & qIDEAL);
   }
 
@@ -1653,9 +1846,13 @@ EX void start_camelot(cell *c) {
   heptagon *alt = create_altmap(c, ls::single() ? 2 : rtr+(hyperbolic && WDIM == 3 ? 11 : 14), ls::single() ? hsA : hsOrigin);
   if(alt) {
     altmap::radius(alt) = rtr;
-    altmap::orig_land(alt) = c->land;
+    altmap::orig_land(alt) = ls::horodisk_structure() ? laCrossroads : c->land;
+    hv_land[alt] = laCamelot;
     }
   }
+
+EX bool debug_voronoi;
+EX map<heptagon*, eLand> hv_land;
 
 EX void build_horocycles(cell *c, cell *from) {
 
@@ -1668,7 +1865,7 @@ EX void build_horocycles(cell *c, cell *from) {
   
   // buildbigstuff
 
-  if(ls::any_order() && bearsCamelot(c->land) && can_start_horo(c) && !bt::in() && 
+  if(ls::any_order() && (ls::horodisk_structure() || bearsCamelot(c->land)) && can_start_horo(c, true) && !bt::in() && !ls::voronoi_structure() &&
     #if MAXMDIM >= 4
     !(hyperbolic && WDIM == 3 && !reg3::in_hrmap_rule_or_subrule()) &&
     #endif
@@ -1698,12 +1895,20 @@ EX void build_horocycles(cell *c, cell *from) {
     create_altmap(c, horo_gen_distance(), hsA);
     
   #if CAP_COMPLEX2
-  if(c->land == laOcean && deepOcean && !generatingEquidistant && hrand(10000) < 20 && no_barriers_in_radius(c, 2) && hyperbolic && !quotient && !tactic::on && !safety) 
+  if(c->land == laOcean && deepOcean && !generatingEquidistant && hrand(10000) < 20 && no_barriers_in_radius(c, 2) && hyperbolic && !quotient && !tactic::on && !safety && !ls::hv_structure()) 
     brownian::init_further(c);
   #endif
 
   if(c->land == laCaribbean && can_start_horo(c))
     create_altmap(c, horo_gen_distance(), hsA);
+
+  if(ls::horodisk_structure() && can_start_horo(c, true)) {
+    auto m = create_altmap(c, horo_gen_distance(), hsA);
+    if(m) {
+      hv_land[m] = getNewLand(laCrossroads);
+      clearing::bpdata[m].root = NULL;
+      }
+    }
 
   if(c->land == laCanvas && can_start_horo(c) && ls::any_order())
     create_altmap(c, horo_gen_distance(), hsA);
@@ -1854,6 +2059,9 @@ EX void buildCamelot(cell *c) {
       if(c->land == laNone) printf("Camelot\n"); // NONEDEBUG
       }
     }
+  else if(ls::hv_structure()) {
+    setland(c, eLand(altmap::orig_land(c->master->alt->alt)));
+    }
   #endif
   }
 
@@ -1947,9 +2155,38 @@ EX void gen_temple(cell *c) {
   else c->landparam = 2;
   }
 
+/* -2 should be perfect */
+EX int horodisk_from = -2;
+
+EX void pick_hv_subland(cell *c, eLand l, int depth) {
+  if(l == laElementalWall) {
+    auto land_at = [] (int dp) {
+      int i = dp - 12;
+      if((i & 7) == 7) return laElementalWall;
+      i >>= 3;
+      eLand tab[4] = { laEAir, laEWater, laEEarth, laEFire };
+      return tab[i&3];
+      };
+
+    setland(c, land_at(depth));
+    if(c->land == laElementalWall) {
+      c->barleft = land_at(depth-1);
+      c->barright = land_at(depth+1);
+      if(hrand(100) < 75)
+        c->wall = getElementalWall(hrand(2) ? c->barleft : c->barright);
+      }
+    }
+  else if(l == laWarpCoast) {
+    int i = (depth & 8);
+    setland(c, i ? laWarpCoast : laWarpSea);
+    }
+  else setland(c, l);
+  }
+
 EX void moreBigStuff(cell *c) {
   if(disable_bigstuff) return;
 
+  if(!ls::hv_structure())
   if((bearsCamelot(c->land) && !euclid && !quotient && !nil) || c->land == laCamelot) 
   if(have_alt(c)) if(!(bt::in() && specialland != laCamelot)) 
     buildCamelot(c);
@@ -1963,12 +2200,50 @@ EX void moreBigStuff(cell *c) {
     else
       c->wall = waSea;
     }
+
+  if(ls::voronoi_structure()) {
+    auto p = get_voronoi_winner(c);
+    auto ph = p.first;
+    if(ph) {
+      eLand l = hv_land[ph];
+      pick_hv_subland(c, l, p.second);
+      if(isEquidLand(l)) c->landparam = 1-p.second;
+      }
+    else {
+      setland(c, laBarrier);
+      }
+    }
+
+  if(ls::horodisk_structure()) {
+    if(have_alt(c) && masterAlt(c) <= 0) {
+      gen_alt(c);
+      preventbarriers(c);
+      }
+    if(have_alt(c) && hv_land[c->master->alt->alt] == laCamelot) {
+      buildCamelot(c);
+      }
+    else if(have_alt(c) && celldistAlt(c) <= horodisk_from) {
+      eLand l = hv_land[c->master->alt->alt];
+      pick_hv_subland(c, l, celldistAlt(c));
+      if(l == laCaribbean) generateTreasureIsland(c);
+      if(l == laWhirlpool && celldistAlt(c) >= -1) {
+        setland(c, laOcean);
+        c->landparam = 30;
+        }
+      if(l == laWestWall && celldistAlt(c) >= -1) {
+        setland(c, laCrossroads);
+        }
+      if(isEquidLand(l)) c->landparam = 1-celldistAlt(c);
+      }
+    else
+      setland(c, laCrossroads);
+    }
   
-  extend_alt(c, laPalace, laPalace, false, PRADIUS1);
+  if(!ls::hv_structure()) extend_alt(c, laPalace, laPalace, false, PRADIUS1);
 
   extend_alt(c, laCanvas, laCanvas);
 
-  if(extend_alt(c, laStorms, laStorms, false)) {
+  if(!ls::hv_structure() && extend_alt(c, laStorms, laStorms, false)) {
     int d = celldistAlt(c);
     if(d <= -2) {
       c->wall = eubinary ? waCharged : (altmap::which(c->master->alt->alt) & 1) ? waCharged : waGrounded;
@@ -1987,10 +2262,12 @@ EX void moreBigStuff(cell *c) {
         c->wall = waColumn;
     }
   
-  else if(extend_alt(c, laTemple, laRlyeh)) 
+  else if(!ls::hv_structure() && extend_alt(c, laTemple, laRlyeh))
     gen_temple(c);
 
-  if(extend_alt(c, laClearing, laOvergrown)) {
+  if(ls::hv_structure() && c->land == laTemple) gen_temple(c);
+
+  if(!ls::hv_structure() && extend_alt(c, laClearing, laOvergrown)) {
     if(in_single_horo(c, laClearing)) {
       c->land = laClearing, c->wall = waNone;
       }
@@ -1998,11 +2275,21 @@ EX void moreBigStuff(cell *c) {
       c->wall = waSmallTree, c->monst = moNone, c->item = itNone, c->landparam = 1;
     }
 
-  if(extend_alt(c, laMountain, laJungle) && in_single_horo(c, laMountain)) {
+  if(ls::horodisk_structure() && c->land == laClearing) {
+    if(celldistAlt(c) >= -1)
+      c->wall = waSmallTree, c->monst = moNone, c->item = itNone, c->landparam = 1;
+    }
+
+  if(ls::voronoi_structure() && c->land == laClearing) {
+    if(celldistAlt(c) == -20)
+      c->wall = waSmallTree, c->monst = moNone, c->item = itNone, c->landparam = 1;
+    }
+
+  if(!ls::hv_structure() && extend_alt(c, laMountain, laJungle) && in_single_horo(c, laMountain)) {
     c->land = laMountain, c->wall = waNone;
     }
 
-  if(extend_alt(c, laWhirlpool, laOcean) && in_single_horo(c, laWhirlpool))
+  if(!ls::hv_structure() && extend_alt(c, laWhirlpool, laOcean) && in_single_horo(c, laWhirlpool))
     c->land = laWhirlpool, c->wall = waSea, c->monst = moNone, c->item = itNone;
   }
 

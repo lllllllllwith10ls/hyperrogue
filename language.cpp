@@ -10,10 +10,10 @@
 #include "hyper.h"
 namespace hr {
 
-EX const string dnameof(eMonster m) { return m >= 0 && m < motypes ? minf[m].name : format("[MONSTER %d]", m); }
-EX const string dnameof(eLand l) { return l >= 0 && l < landtypes ? linf[l].name : format("[LAND %d]", l); }
-EX const string dnameof(eWall w) { return w >= 0 && w < walltypes ? winf[w].name : format("[WALL %d]", w); }
-EX const string dnameof(eItem i) { return i >= 0 && i < ittypes ? iinf[i].name : format("[ITEM %d]", i); }
+EX const string dnameof(eMonster m) { return m >= 0 && m < motypes ? minf[m].name : hr::format("[MONSTER %d]", m); }
+EX const string dnameof(eLand l) { return l >= 0 && l < landtypes ? linf[l].name : hr::format("[LAND %d]", l); }
+EX const string dnameof(eWall w) { return w >= 0 && w < walltypes ? winf[w].name : hr::format("[WALL %d]", w); }
+EX const string dnameof(eItem i) { return i >= 0 && i < ittypes ? iinf[i].name : hr::format("[ITEM %d]", i); }
 
 #if HDR
 #define NUMLAN 8
@@ -63,10 +63,10 @@ struct fullnoun {
 
 #if !CAP_TRANS
 #if HDR
-#define NUMEXTRA 12
+#define NUMEXTRA 13
 extern const char* natchars[NUMEXTRA];
 #endif
-const char* natchars[NUMEXTRA] = {"°","é","á", "²", "½", "Θ", "δ", "π", "ϕ", "ᵈ", "∞", "⌫"};
+const char* natchars[NUMEXTRA] = {"°","é","á", "²", "½", "Θ", "δ", "π", "ϕ", "ᵈ", "∞", "⌫", "√"};
 #endif
 
 #if CAP_TRANS
