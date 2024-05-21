@@ -235,6 +235,17 @@ EX bool is_zebra_trapdoor(cell *c) {
     return (randomPatternsMode ? RANDPAT : (zebra40(c)&2));
   }
 
+EX int docks_hept(cell *c) {
+  int docksType = dockType(docks7val(c));
+  if(among(docksType, 0, 3, 6, 7, 9, 10, 14)) {
+      return 1;
+  }
+  else if(among(docksType, 8, 15)) {
+      return 8;
+  }
+  return 0;
+}
+
 EX void gen_eclectic_monster(cell *c) {
   cell *c2 = c->move(hrand(c->type));
   if(c2->wall == waRed1 || c2->wall == waRed2 || c2->wall == waRed3)
@@ -2511,6 +2522,8 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
           patterns::patterninfo si;
           if(a38) 
             patterns::val38(c, si, patterns::SPF_DOCKS, patterns::PAT_COLORING);
+          else if(stdhyperbolic)
+            si.id = docks_hept(c);
           else
             si.id = arcm::in() ? (hrand(6)*4) : (zebra40(c)&2) ? 0 : zebra40(c) == 4 ? 8 : 1;
           c->wall = waSea;
@@ -2521,6 +2534,10 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
             if(a38) for(int i=0; i<c->type; i++) {
               patterns::val38(createMov(c, i), si, patterns::SPF_DOCKS, patterns::PAT_COLORING);
               if(si.id == 0) c->mondir = i;
+              }
+            else if(stdhyperbolic) for(int i=0; i<c->type; i++) {
+              if(createMov(c, i)->type == 6 && docks_hept(createMov(c, i)) == 0) 
+                c->mondir = i;
               }
             }
           }

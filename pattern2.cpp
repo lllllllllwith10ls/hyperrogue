@@ -178,6 +178,36 @@ int fiftyval(cell *c) {
       ar[2]->fiftyval) + 512;
     }
   }
+  
+
+// irregular {14,14} pattern
+EX int docks7val(heptagon* h) {
+  int i = h->dock7val;
+  if(quotient) return 0;
+  return i;
+  }
+
+
+EX int docks7val(cell *c) {
+  if(ctof(c)) return docks7val(c->master);
+  else if(sphere) return 0;
+  else {
+    int a[3], qa=0;
+    auto ar = gp::get_masters(c);
+    for(int i=0; i<3; i++)
+      a[qa++] = docks7val(ar[i]);
+    // somehow sort(a, a+qa) produces a warning in gcc 12.1.0, so we sort manually
+    // sort the two elements
+    if(a[0] > a[1]) swap(a[0], a[1]);
+    if(qa == 2 && a[1] == a[0]+7) return 36+a[0]-1;
+    if(qa == 2 && a[1] != a[0]+7) return 29+a[0]-1;
+    // sort the three elements
+    if(a[1] > a[2]) swap(a[1], a[2]);
+    if(a[0] > a[1]) swap(a[0], a[1]);
+    
+    return dockHexVal(a[0], a[1], a[2]);
+    }
+  }
 
 EX int cdist50(cell *c) {
   if(meuclid && S3 == 4) {
@@ -621,6 +651,7 @@ EX namespace patterns {
     PAT_EMERALD = 'f',
     PAT_PALACE = 'p',
     PAT_FIELD = 'F',
+    PAT_DOCKS = 'D',
     PAT_DOWN = 'H',
     PAT_COLORING = 'C',
     PAT_SIBLING = 'S',
@@ -1217,6 +1248,10 @@ EX namespace patterns {
       val_nopattern(c, si, sub);
       si.id = c->master->fiftyval;
       }
+      
+    else if(pat == PAT_DOCKS && stdhyperbolic) {
+      si.id = docks7val(c);
+    }
     
     else if(pat == PAT_DOWN) {
       si.id = towerval(c, coastvalEdge);
@@ -1701,6 +1736,7 @@ EX namespace patterns {
     ep.extra_params["chess"] = chessvalue(c);
     ep.extra_params["ph"] = pseudohept(c);
     ep.extra_params["kph"] = kraken_pseudohept(c);
+    ep.extra_params["dock7"] = docks7val(c);
     if(true) {
       ep.extra_params["md"] = c->master->distance;
       ep.extra_params["me"] = c->master->emeraldval;
@@ -2252,6 +2288,9 @@ EX namespace patterns {
       dialog::addBoolItem(XLAT("single cells"), (whichPattern == PAT_FIELD), PAT_FIELD);
     else
       dialog::addBoolItem(XLAT("field pattern"), (whichPattern == PAT_FIELD), PAT_FIELD);
+  
+    if(stdhyperbolic)
+      dialog::addBoolItem(XLAT("Docks pattern"), (whichPattern == PAT_DOCKS), PAT_DOCKS);
     
     dialog::addBoolItem(XLAT("single type"), (whichPattern == PAT_SINGLETYPE), PAT_SINGLETYPE);
 
@@ -2338,7 +2377,7 @@ EX namespace patterns {
     keyhandler = [] (int sym, int uni) {
       dialog::handleNavigation(sym, uni);
       
-      if(among(uni, PAT_EMERALD, PAT_PALACE, PAT_ZEBRA, PAT_DOWN, PAT_FIELD, PAT_COLORING, PAT_SIBLING, PAT_CHESS, PAT_SINGLETYPE, PAT_TYPES)) {
+      if(among(uni, PAT_EMERALD, PAT_PALACE, PAT_ZEBRA, PAT_DOWN, PAT_FIELD, PAT_DOCKS, PAT_COLORING, PAT_SIBLING, PAT_CHESS, PAT_SINGLETYPE, PAT_TYPES)) {
         if(whichPattern == uni) whichPattern = PAT_NONE;
         else whichPattern = ePattern(uni);
         #if CAP_EDIT

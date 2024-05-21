@@ -84,6 +84,7 @@ EX heptagon *init_heptagon(int type) {
   h->zebraval = 0;
   h->fiftyval = 0;
   h->fieldval = 0;
+  h->dock7val = 0;
   h->rval0 = h->rval1 = 0;
   h->cdata = NULL;
   h->alt = NULL;
@@ -112,10 +113,14 @@ heptagon *buildHeptagon(heptagon *parent, int d, hstate s, int pard = 0, int fix
     #endif
     if(a38) 
       h->fiftyval = fifty_38(parent->fiftyval, d);  
-    else if(parent->s == hsOrigin)
+    else if(parent->s == hsOrigin) {
       h->fiftyval = firstfiftyval(d);
-    else
+      h->dock7val = firstdock7val(d);
+      }
+    else{
       h->fiftyval = nextfiftyval(parent->fiftyval, parent->move(0)->fiftyval, d);
+      h->dock7val = nextdock7val(parent->dock7val, parent->move(0)->dock7val, d);
+      }
     }
   else {
     h->c7 = NULL;

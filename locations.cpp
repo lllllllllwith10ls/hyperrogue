@@ -330,6 +330,8 @@ struct heptagon : cdata_or_heptagon {
   short fiftyval;
   /** \brief Zebra pattern generator. May have different meaning in other geometries. */
   short zebraval;
+  /** \brief Docks pattern generator. May have different meaning in other geometries. */
+  short dock7val;
   /** \brief Field quotient pattern ID. May have different meaning in other geometries. */
   int fieldval : 24;
   /** \brief the number of adjacent heptagons */

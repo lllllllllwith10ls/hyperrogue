@@ -38,7 +38,6 @@
 // #warning Two translations for "band equi-area" [RU]
 // #warning Two translations for "%The1 destroys %the2!" [TR]
 // #warning Two translations for "This orb lets you go through living walls. It also has powers in some of the other lands." [TR]
-// #warning Two translations for "Wherever this powerful being goes, the living fjord sinks below water, non-magical boats are destroyed, and fires are extinguished.\n\nAs a special case, you can attack the Water Elemental from the water, without drowning immediately." [TR]
 // #warning Two translations for "A coastal area, from where you can get both to the inland worlds and to the Ocean. Each turn, each cell will become water or earth, based on the majority of cells around it. Contrary to the Living Caves, this process is not affected by most items and monsters, but elementals, dead Trolls, and cells outside of the Living Fjord have a very powerful effect." [TR]
 // #warning Two translations for "Collect 10 treasures in various lands to unlock the challenges there" [TR]
 // #warning Two translations for "tree" [TR]
@@ -73,76 +72,510 @@
 // #warning Two translations for "show quotient spaces" [FR]
 // #warning Two translations for "field quotient" [FR]
 // #warning Two translations for "Sight range for 3D geometries is specified in the absolute units. This value also affects the fog effect.\n\nIn spherical geometries, the sight range of 2π will let you see things behind you as if they were in front of you, and the sight range of π (or more) will let you see things on the antipodal point just as if they were close to you.\n\nIn hyperbolic geometries, the number of cells to render depends exponentially on the sight range. More cells to drawn reduces the performance.\n\nSight range affects the gameplay, and monsters act iff they are visible. Monster generation takes this into account." [FR]
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "\n\nOrb unlocked: %1"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "\n\nThis Orb is triggered on your first direct melee attack or illegal move."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: " (%1 $$$, %2 kills, %3 deaths)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: " (%1 pkills)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: " (%1 self)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: " (click to fire)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: " (fire mode on / turns to reload: %1)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: " (fire mode on)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: " (turns to reload: %1)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "%The1 alarms other dogs as it dies!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "%The1 can only be used on items!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "%The1 can only be used on monsters."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "%The1 cannot be used on %the2."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "%The1 cannot be used on big monsters."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "%The1 is already stunned!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "%The1 is enraged!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "%The1 is immune to %the2!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "(but the casual mode is on)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "(but the cheat mode is on)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "(fix errors)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "(shooting while unstable -- no turn passes)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "0 = looking forward, 90 = looking upward. In VR this is adjusted automatically."
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "1 = orthogonal/Gans model"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "1 = the angle can be changed with keyboard or mouse movements, 0 = the angle is fixed"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "1 for full stereographic/Panini projection. Lower values reduce the effect.\n\nHyperRogue uses a quick implementation, so parameter values too close to 1 may be buggy (outside of raycasting); try e.g. 0.9 instead."
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "2 = small Poincare model/stereographic projection"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "255 = opaque"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "2D engine"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "3 = big Poincare model/stereographic projection"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "3D detailed settings"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "3D embedding method"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "3D style"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "3D styles"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "4 = Klein model/gnomonic projection"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "5 = change wall display mode"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "6 = change grid"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "6-flake fractal"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "7 = change heptagon marking"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "8 = change background color"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "9 = hyperboloid model"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "A larger number means darker game map in the background. Set to 8 to disable the background."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "A magical shield protects %the1!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Accessible only from %the1, %2, or %3.\n"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Add one extra dimension in the Euclidean way."
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "Alt = highlight interesting stuff"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "Alt+Enter = full screen"
 // #warning Missing [FR : PT-BR] from [PL TR CZ RU DE]: "An expensive metal from the Living Caves. For some reason gold prevents the living walls from growing close to it."
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "An expensive metal from the Living Caves. For some reason gold prevents the living walls from growing close to it. "
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Angle to rotate by."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Apeirodic hat tiling based on: https://arxiv.org/pdf/2303.10798.pdf\n\nThis controls the parameter discussed in Section 6. Parameter p is Tile(p, (2-p)√3), scaled so that the area is the same for every p.\n\nAperiodic spectre tiling based on: https://arxiv.org/abs/2305.17743\n\nIn the spectre tiling, set the parameter to 'spectre' value to make all tiles have the same shape."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Approximations of geometric straight lines."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "B = build on walls "
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Can go in either direction on odd shapes. 3 turns to reload."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Can only use %the1 on a monster!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Can only vault in a roughly straight line!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Cannot attack %the1 while vaulting!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Cannot attack there!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Cannot be used in multiplayer"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Cannot fire again yet. Turns to reload: %1."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Cannot grow against gravity!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Cannot grow there!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Cannot hit anything by shooting this direction!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Cannot jump onto %the1!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Cannot jump that far!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Cannot pass through %the1 while vaulting!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Cannot phase onto %the1!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Cannot phase that far!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Cannot phase to %the1!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Cannot switch places with %the1!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Cannot vault onto %the1!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Cannot vault that far!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Cannot vault to %the1!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Click on a faraway monster to fire if possible, or move if not."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Clicking on a faraway monster always means an attempt to fire."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Clifford Torus"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Disable if you are photosensitive. Replaces flashing effects such as Orb of Storms lightning with slow, adjustable animations."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Display cell type IDs, as well as vertex and edge identifiers.\n\nSetting 1 uses the internal shape IDs, while setting 2 in tes files uses the original IDs in case if extra tile types were added to separate mirror images or different football types."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Distance from the floor to the eye in the walking mode, in absolute units. In VR this is adjusted automatically."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "ERROR: No common neighbor to vault through!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Embed Euclidean as a cylinder in twisted product geometry."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Embed Euclidean as a horocylinder in H2xR space."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Embed Euclidean cylinder in Euclidean space."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Embed Euclidean cylinder in H2xR space."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Embed Euclidean cylinder in Nil."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Embed Euclidean cylinder in hyperbolic space."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Embed Euclidean cylinder or spherical plane in the H2xR product space."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Embed Euclidean or hyperbolic plane in the H2xR product space."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Embed Euclidean or hyperbolic plane into Sol."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Embed Euclidean or hyperbolic plane into stretched Sol geometry."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Embed Euclidean or hyperbolic plane into stretched hyperbolic geometry."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Embed Euclidean plane in twisted product geometry."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Embed Euclidean plane into Nil."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Embed Euclidean rectangular torus into S3."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Embed as a surface in a space of lower curvature."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Embed as an equidistant surface in the 3D version of the same geometry."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Embed sphere as a sphere in hyperbolic space."
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "Esc = quest status"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Euclidean embedding rotation"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Euclidean embedding scale"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Euclidean embedding scale Y/X"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "F10 = quit game"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "F5 = restart game"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Fire crossbow! Click to aim, click again to confirm."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Fire mode disabled."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Fire!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Firing cancelled."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Graph geodesic: any sequence of tiles is OK as long as there are no shortcuts. 4 turns to reload."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Hits all monsters in a straight line, but slow to reload. Press 'f' or click the crossbow icon to target."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "How much of edges to draw for tree patterns (to show how the tree edges are oriented)."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "How to rotate the Euclidean embedding, in degrees."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "How to scale the Euclidean map, relatively to the 3D absolute unit."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "How wide should the cell boundaries be."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "HyperRogue %1: online demo"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "I know I can press F1 for help"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Imaginary part of the hat parameter. This corresponds to the usual interpretation of complex numbers in Euclidean planar geometry: rather than shortened or lengthened, the edges are moved in the other dimension."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "In two-axe-based models, this parameter gives the angle between the two axes."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Level of shallow water"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Lie group"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Lie orthogonal"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Lie perspective"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Menger sponge"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Nil cylinder"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "No way to hit this place."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Note: cannot fire again yet. Turns to reload: %1."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Nothing to blow here!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Nothing to phase through!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Nothing to vault over!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "ODS"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Outside of the supported limits"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Panini"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Pauses: %1 of %2 allowed"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Play on a disk. Enables the special game rules for small bounded spaces (especially relevant for e.g. Minefield and Halloween). The number given is the number of tiles to use; it is not used exactly, actually the smallest disk above this size is used. Set to 0 to disable."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Projection believed to be used by Italian painters. Allows very high FOV angles while rendering more straight lines as straight than the stereographic projection."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "PvP available only in shmup"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "PvP grants infinite lives -- achievements disabled"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "S = snap (%1)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "SL2 cylinder"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Save the config and restart to select another score/save file."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Save the config to always play without recording your progress."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Save the config to always use %1."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Set this to -2 to get perfect horodisks. Smaller values yield less dense horodisks, and larger values might produce horodisks with errors or crashing into each other."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Shooting impossible."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Sierpiński carpet"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Sierpiński tetrahedron"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Sierpiński triangle"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Sky is rendered at the distance computed based on the sky height, which might be beyond the range visible in fog. To prevent this, the intensity of the fog effect depends on the value here rather than the actual distance. Stars are affected similarly."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Stab them by shooting around them."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Standard Rogue weapon. Bump into a monster to hit. Most monsters attack you the same way."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Stereographic projection allows very high FOV angles."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Strict tree maps are generated using a more powerful algorithm.\n\nThis algorithm supports horocycles and knows the expansion rates of various tessellations (contrary to the basic implementation of Archimedean, tes, and unrectified/warped/untruncated tessellations).\n\nYou can convert mostly any non-spherical periodic 2D tessellation to strict tree based.\n\nSwitching the map format erases your map."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Strong wind can only take you to a specific place!"
 // #warning Missing [FR : DE PT-BR] from [PL TR CZ RU]: "TRANSLATIONWARNING"
 // #warning Missing [FR : DE PT-BR] from [PL TR CZ RU]: "TRANSLATIONWARNING2"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "The average size of a land in randomwalk mode."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "The following Orbs act an extra lives in the shmup mode:"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "The unit this value is given in is wall height. Note that, in exponentially expanding spaces, too high values could cause rendering issues. So if you want infinity, values of 5 or similar should be used -- there is no visible difference from infinity and glitches are avoided."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "The warped space distracts you from reloading while staying in place!"
 // #warning Missing [PL CZ : TR RU PT-BR] from [DE FR]: "There are Krakens in your homeland too... huge sea monsters which could easily destroy ships. The geometry of this strange world prevents quick movement of huge objects, so there are no large ships, only small boats, and hyperbolic Krakens are relatively small too. Still, you suppose they might be the widest creatures which could still move at considerable speed...\n\nKraken heads can move only on hexagons. You need to attack all the tentacles to kill the Kraken. A tentacle cannot attack if it has been attacked on the same turn. When a Kraken attacks you while you are in a boat, it destroys the boat, but does not kill you."
 // #warning Missing [FR : TR DE PT-BR] from [PL CZ RU]: "There are Krakens in your homeland, too... huge sea monsters which could easily destroy ships. The geometry of this strange world prevents quick movement of huge objects, so there are no large ships, only small boats, and hyperbolic Krakens are relatively small too. Still, you suppose they might be the widest creatures which could still move at considerable speed...\n\nKraken heads can move only on hexagons. You need to attack all the tentacles to kill the Kraken. A tentacle cannot attack if it has been attacked on the same turn. When a Kraken attacks you while you are in a boat, it destroys the boat, but does not kill you."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "There should be a Palace somewhere nearby..."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "This feature lets you construct the same tiling, but from shapes of different curvature.\n\nThe number you give here is (2D) vertex degree or (3D) the number of cells around an edge.\n\n"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "This scaling factor affects only the Y coordinate."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Too many pauses!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Trying to fire."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Use HyperRogue's 2D engine to simulate same curvature. Works well in top-down and third-person perspective. The Hypersian Rug mode can be used to project this to a surface."
 // #warning Missing [FR : PT-BR] from [PL TR CZ RU DE]: "Variants of %the1 are available in the Random Pattern Mode after getting a highscore of at least 10 %2."
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "Variants of %the1 are available in the Random Pattern Mode after getting a highscore of at least 10 %2P."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Welcome to HatRogue!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Welcome to HyperRanger!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Welcome to a portal map! Press 'o' to configure."
+// #warning Missing [PL : PT-BR] from [TR CZ RU DE FR]: "Wherever this powerful being goes, the living fjord sinks below water, non-magical boats are destroyed, and fires are extinguished.\n\nAs a special case, you can attack the Water Elemental from the water with your blade, without drowning immediately."
+// #warning Missing [CZ FR : TR RU DE PT-BR] from [PL]: "Wherever this powerful being goes, the living fjord sinks below water, non-magical boats are destroyed, and fires are extinguished.\n\nAs a special case, you can attack the Water Elemental with your blade from the water, without drowning immediately."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Width of cell boundaries"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "X ="
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Y ="
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "You are currently in a visualization. Press wasd to scroll, qe to rotate. You can also use the arrow keys. ESC for menu.\n\n"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "You are currently in a visualization. Press wasdqe to rotate the camera, ijklyh to move. You can also use the arrow keys and Home/End and PgUp/PgDn. ESC for menu.\n\n"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "You are too weakened to attack %the1!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "You cannot attack your own mount!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "You cannot grow on yourself!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "You cannot grow there from any adjacent cell!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "You fire an angry glance at your enemies."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "You have no melee weapon!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "You have no ranged Orbs!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "You need to click crossbow or be close to fire."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Your crossbow is still reloading!"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Your progress will not be saved."
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "Z ="
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "achievement/leaderboard eligiblity:"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "achievements disabled in split screen"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "add to list"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "all context help/welcome messages"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "altitude of the sky"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "altitude of the stars"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "always"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "always move on geodesics"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "angle between the axes"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "animation rug angle"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "aperiodic hat"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "aperiodic spectre"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "arrows = panning"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "auto rotation"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "auto rotation in 3D"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "auto-adjust dual-focus projections"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "autoscale dual focus"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "become a portal map"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "bitruncated sub-cubes"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "bitruncated-subcubed"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "blade"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "bow color"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "bowstring color"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "bug: %1"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "bull line"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "bump to shoot"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "camera angle"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "cannot be disabled for this tiling"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "canvas darkness"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "canvas floor shape"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "centered menus in widescreen"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "chevron (periodic)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "choose your score/save file"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "circumscribed"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "click left mouse button = move/skip"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "click right mouse button = context help"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "color by symmetries (reversed tiles marked)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "comma (periodic)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "configure Hypersian Rug"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "conformal square"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "connect "
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "consider all symmetries when converting"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "context help"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "controls the max memory usage of conversion algorithm -- the algorithm fails if exceeded"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "converted successfully -- %1 cell types"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "crossbow"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "crossbow straight line style"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "ctrl + hold middle button = move the screen"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "ctrl + mousewheel = change zoom"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "ctrl + shift + mousewheel = change both projection and zoom"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "d%1 rolled %2"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "default: "
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "depth bonus in pseudohedral"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "die direction"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "die face"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "die mirror status"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "die shape"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "disabled in casual mode"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "disabled in cheat mode"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "disconnect this portal"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "disk shape"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "disk size"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "display Voronoi tie debug values"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "display distances up to"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "display mine counts numerically"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "display small floors"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "display tile debug values"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "distance in tiles"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "distance in vertices"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "do not draw sky"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "do not render higher levels if camera too high"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "double original"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "draw all if multiple of original"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "draw copies (2D only)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "draw plain floors in 3D"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "dual sub-cubes"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "dual-subcubed"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "dxy(n) = rotate n degrees from x to y\n\nd-degree, r-radian, t-turn\n\nexample: dxy(30)*dyz(45)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "edit cell values"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "eligible for Chaos mode"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "eligible for Chaos mode achievements"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "eligible for Princess Challenge"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "eligible for Strange Challenge"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "eligible for heptagonal"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "eligible for most"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "eligible for most -- leaderboards separate"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "eligible for most achievements"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "eligible for multiplayer"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "eligible for racing"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "eligible for shmup"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "eligible for special achievements"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "eligible for special geometry"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "equirectangular"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "error"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "error: currently works only in PURE Euclidean regular square or hex tiling"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "error: currently works only in pure Euclidean, or binary tiling and similar"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "error: not supported"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "error: this embedding does not work in shmup"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "error: this method does not work in hyperbolic geometry"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "error: this method does not work in spherical geometry"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "error: this method works only in cylinder"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "error: this method works only in rectangular torus"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "explicit"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "extend automatically"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "extended football colorability"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "eye angle scale"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "flashing effects"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "flat, not equidistant"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "floor alpha"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "for mobile VR"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "for red-cyan glasses"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "for rendering 360° VR videos (implemented only in raycaster and some other parts)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "for rendering 360° videos (implemented only in raycaster)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "forced center down"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "fraction of mine in bounded minefield"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "friendly fire"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "friendly fire off -- achievements disabled"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "g = drop a Dead Orb"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "generate a random track"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "geodesics"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "geometric"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "geometric distance"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "hat"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "hat clusters"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "hat in cluster"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "hat parameter (imaginary)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "hat superclusters"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "hat/spectre/turtle parameter"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "height-to-width ratio"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "highlight faraway monsters"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "hint: shift+A to enter the map editor"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "hold middle mouse button = panning"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "horocyclic equal-area"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "horocylinder"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "horodisks"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "hyperbolic cylinder"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "hyperbolic product"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "icons"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "ideal Voronoi"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "idle animation speed"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "in tes internal format"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "infinite depth"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "infinite sky"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "inscribed"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "invert convex/concave"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "keep eye level when walking enabled"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "keep levels"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "keep the vertical angle of the camera"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "land size in horodisk mode"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "land size in randomwalk mode"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "last parallel drawn"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "learn about hyperbolic geometry"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "less items/kills in landscape"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "less items/kills in portrait"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "light, camera, and objects always take the shortest path"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "light, camera, and objects move in lines of constant direction, in the Lie group sense"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "linear perspective"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "lower curvature"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "make the center not the actual screen center"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "make the tiles flat"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "manage portals"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "maximum cellcount"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "menu map darkening"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "might be glitched in some settings"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "mirror connection"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "mirrored"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "mixed"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "model orientation 3D"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "more options in 3D engine"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "mouse auto-fire mode"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "mousewheel down = move/skip"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "mousewheel up = panning"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "move the camera with arrow keys and Home/End"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "movement animation"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "much lower curvature"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "needs"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "night star size (relative to item sizes)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "no achievements/leaderboards in this version"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "no context help/welcome messages"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "no filters"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "not eligible due to current mode settings"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "not eligible for achievements"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "not implemented"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "note: more choices in cubic honeycombs"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "number of parallels drawn"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "o = world overview"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "on geodesics when moving camera manually, keep level when auto-centering"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "orb display mode"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "original"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "parallel/meridian orientation"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "pick scores"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "play on an official track"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "play the game"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "player vs player"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "portal orientation"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "post-ordered"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "pre-ordered"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "prevent exceeding recommended altitudes"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "priority"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "probability of star per tile"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "product"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "product cylinder"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "projective Bring's Surface"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "pure exploration (game keys scroll)"
 // #warning Missing [PL CZ FR : TR DE PT-BR] from [RU]: "quick projection"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "qweasdzxc, hjklyubn, numpad = move/skip turn"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "ratio of high walls to normal walls"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "ratio of very high walls to normal walls"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "relativistic orthogonal"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "relativistic perspective"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "remove %1 from the list"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "render behind the camera"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "reset view"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "rug forward movement angle"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "rug_camera angle"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "rules generated successfully: %1 states using %2-%3 cells"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "same curvature"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "select the score/save file on startup"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "self hits"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "semidirect_rendering (perspective on GPU)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "set 20x20 torus"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "set 3D settings automatically"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "set binary tiling"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "set binary tiling variant"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "set cylinder"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "set hex tiling"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "set recommended settings"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "set square tiling"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "set ternary tiling"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "shift + middle button = reset position"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "shift + mousewheel = change projection"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "shift+click left mouse button = use ranged Orb"
 // #warning Missing [PL CZ : TR RU PT-BR] from [DE FR]: "shoot'em up and multiplayer"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "simplified display of apeirogons"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "sky fake height"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "sky rendering"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "skybox"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "spectre"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "spherical product"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "split by midedges"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "split by original faces"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "split by vertex axes"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "split screen mode"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "star probability"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "start animations"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "stereo/high-FOV mode"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "stereographic"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "stereographic/Panini parameter"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "straight lines"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "stretched Sol"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "strict tree maps"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "sub-cubes"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "subcubed"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "subdivided"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "subdivision"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "sun size (relative to item sizes)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "symmetric subdivision"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "t = use a ranged Orb (target center of the screen)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "tes reverse order on convert"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "test portal here"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "the following sliders will restart the game"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "the map is fixed (improves performance)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "the tiles are circumscribed"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "the tiles are curved"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "the tiles are inscribed"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "this is not a Lie group"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "this starting land is not eligible for achievements"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "toggle high detail"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "toggle numerical display"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "too difficult: %1"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "translation+rotation"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "tree-drawing parameter"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "turtle"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "types (mark reverse)"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "unordered"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "unreversed colors"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "use the default value"
 // #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "v = menu"
-// #warning Missing [PL CZ : TR RU DE PT-BR] from [FR]: "{4,∞} (infinite squares)"
-// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "{4,∞} (infinite triangles)"
-// #warning Missing [CZ : TR DE PT-BR] from [PL RU FR]: "Palace Quest"
-// #warning Missing [CZ : TR DE PT-BR] from [PL RU FR]: "Pike"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "view another world"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "view shift for embedded planes"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "w: %1"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "walking eye angle"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "walking eye level"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "weapon selection"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "wiki"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "works only in Euclidean"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "world list"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "yes, that's what I want"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "yet another classic game"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "z = set Shift+click"
+// #warning Missing [FR : TR RU DE PT-BR] from [PL CZ]: "λ: %1°"
 // #warning Missing [FR : DE PT-BR] from [PL TR CZ RU]: "Platform"
 // #warning Missing [CZ : TR DE PT-BR] from [PL RU FR]: "deep water"
 
 #if HDR
 #if CAP_TRANS
-#define NUMEXTRA 159
-#define NATCHARS {"¨","°","²","´","½","À","Á","Ä","Ç","È","É","Ê","Í","Î","Ö","Ú","Ü","ß","à","á","â","ã","ä","ç","è","é","ê","ì","í","î","ï","ò","ó","ô","õ","ö","ø","ù","ú","û","ü","ý","ą","ć","Č","č","Ď","ď","Ę","ę","Ě","ě","ğ","İ","ı","Ł","ł","ń","ň","Œ","œ","Ř","ř","Ś","ś","Ş","ş","Š","š","Ť","ť","ů","Ź","ź","Ż","ż","Ž","ž","Θ","δ","λ","π","ϕ","Ё","А","Б","В","Г","Д","Е","Ж","З","И","Й","К","Л","М","Н","О","П","Р","С","Т","У","Ф","Х","Ц","Ч","Ш","Щ","Ы","Ь","Э","Ю","Я","а","б","в","г","д","е","ж","з","и","й","к","л","м","н","о","п","р","с","т","у","ф","х","ц","ч","ш","щ","ъ","ы","ь","э","ю","я","ё","ᵈ","ᶻ","’","⁻","←","→","√","∞","⌫","⏎","�",}
+#define NUMEXTRA 160
+#define NATCHARS {"¨","°","²","´","½","À","Á","Ä","Ç","È","É","Ê","Í","Î","Ö","Ú","Ü","ß","à","á","â","ã","ä","ç","è","é","ê","ì","í","î","ï","ò","ó","ô","õ","ö","ø","ù","ú","û","ü","ý","Ą","ą","ć","Č","č","Ď","ď","Ę","ę","Ě","ě","ğ","İ","ı","Ł","ł","ń","ň","Œ","œ","Ř","ř","Ś","ś","Ş","ş","Š","š","Ť","ť","ů","Ź","ź","Ż","ż","Ž","ž","Θ","δ","λ","π","ϕ","Ё","А","Б","В","Г","Д","Е","Ж","З","И","Й","К","Л","М","Н","О","П","Р","С","Т","У","Ф","Х","Ц","Ч","Ш","Щ","Ы","Ь","Э","Ю","Я","а","б","в","г","д","е","ж","з","и","й","к","л","м","н","о","п","р","с","т","у","ф","х","ц","ч","ш","щ","ъ","ы","ь","э","ю","я","ё","ᵈ","ᶻ","’","⁻","←","→","√","∞","⌫","⏎","�",}
 extern const char* natchars[NUMEXTRA];
 #endif
 #endif
 const char* natchars[NUMEXTRA] = NATCHARS;
-//javastring = "¨°²´½ÀÁÄÇÈÉÊÍÎÖÚÜßàáâãäçèéêìíîïòóôõöøùúûüýąćČčĎďĘęĚěğİıŁłńňŒœŘřŚśŞşŠšŤťůŹźŻżŽžΘδλπϕЁАБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЫЬЭЮЯабвгдежзийклмнопрстуфхцчшщъыьэюяёᵈᶻ’⁻←→√∞⌫⏎�";
+//javastring = "¨°²´½ÀÁÄÇÈÉÊÍÎÖÚÜßàáâãäçèéêìíîïòóôõöøùúûüýĄąćČčĎďĘęĚěğİıŁłńňŒœŘřŚśŞşŠšŤťůŹźŻżŽžΘδλπϕЁАБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЫЬЭЮЯабвгдежзийклмнопрстуфхцчшщъыьэюяёᵈᶻ’⁻←→√∞⌫⏎�";
 
-EX int transcompleteness[NUMLAN] = {3728, 3690, 1227, 3687, 2534, 1554, 383, 3719, };
+EX int transcompleteness[NUMLAN] = {4173, 4134, 1228, 4133, 2534, 1554, 383, 3727, };
 
 //statistics
-// total:   495 nouns,  3195 sentences
-// EN: 21264B nouns, 170111B sentences
-// PL: 26584B nouns, 178569B sentences
-// TR: 15392B nouns, 57727B sentences
-// CZ: 26644B nouns, 189522B sentences
+// total:   495 nouns,  3639 sentences
+// EN: 21264B nouns, 185172B sentences
+// PL: 26584B nouns, 196199B sentences
+// TR: 15392B nouns, 57977B sentences
+// CZ: 26732B nouns, 208078B sentences
 // RU: 44273B nouns, 214438B sentences
 // DE: 17001B nouns, 81185B sentences
 // PT-BR:  3881B nouns, 12088B sentences
-// FR: 27465B nouns, 200555B sentences
+// FR: 27465B nouns, 200819B sentences
 // check hash: 29
 hashcode hashval = 0x29;
 
@@ -282,6 +715,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Nil",
    "Nil",
     }},
+  {0x211f6, { // "ODS"
+   "rzut ODS",
+/*MISSING*/    "ODS",
+   "projekce ODS",
+/*MISSING*/    "ODS",
+/*MISSING*/    "ODS",
+/*MISSING*/    "ODS",
+/*MISSING*/    "ODS",
+    }},
   {0x2123b, { // "OFF"
    "WYŁ",
    "KAPALI",
@@ -327,6 +769,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Sol",
    "Sol",
     }},
+  {0x24735, { // "X ="
+   "X = ",
+/*MISSING*/    "X =",
+   "X = ",
+/*MISSING*/    "X =",
+/*MISSING*/    "X =",
+/*MISSING*/    "X =",
+/*MISSING*/    "X =",
+    }},
   {0x248b5, { // "WRL"
    "WRL",
 /*MISSING*/    "WRL",
@@ -336,6 +787,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "WRL",
    "WRL",
     }},
+  {0x24dc6, { // "Y ="
+   "Y = ",
+/*MISSING*/    "Y =",
+   "Y = ",
+/*MISSING*/    "Y =",
+/*MISSING*/    "Y =",
+/*MISSING*/    "Y =",
+/*MISSING*/    "Y =",
+    }},
   {0x253c9, { // "YES"
    "TAK",
 /*MISSING*/    "YES",
@@ -344,6 +804,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "YES",
 /*MISSING*/    "YES",
    "OUI",
+    }},
+  {0x25457, { // "Z ="
+   "Z = ",
+/*MISSING*/    "Z =",
+   "Z = ",
+/*MISSING*/    "Z =",
+/*MISSING*/    "Z =",
+/*MISSING*/    "Z =",
+/*MISSING*/    "Z =",
     }},
   {0x28ea9, { // "all"
    "wszystko",
@@ -380,6 +849,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "+5 = move instantly",
 /*MISSING*/    "+5 = move instantly",
    "+5 = bouge instantanément",
+    }},
+  {0x2bae5, { // "hat"
+   "kapelusz ('hat')",
+/*MISSING*/    "hat",
+   "klobouk ('hat')",
+/*MISSING*/    "hat",
+/*MISSING*/    "hat",
+/*MISSING*/    "hat",
+/*MISSING*/    "hat",
     }},
   {0x2e99b, { // "off"
    "wył",
@@ -975,6 +1453,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "type",
    "type",
     }},
+  {0x7fe884, { // "wiki"
+   "wiki",
+/*MISSING*/    "wiki",
+   "wiki",
+/*MISSING*/    "wiki",
+/*MISSING*/    "wiki",
+/*MISSING*/    "wiki",
+/*MISSING*/    "wiki",
+    }},
   {0x876076, { // "Esc = cancel"
    "Esc = anuluj",
 /*MISSING*/    "Esc = cancel",
@@ -1010,6 +1497,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "This works only in hyperbolic geometry.",
 /*MISSING*/    "This works only in hyperbolic geometry.",
    "Ceci ne marche qu'en géométrie hyperbolique.",
+    }},
+  {0xeb208f, { // "walking eye angle"
+   "chodzenie: kąt widzenia",
+/*MISSING*/    "walking eye angle",
+   "úhel oka při chůzi",
+/*MISSING*/    "walking eye angle",
+/*MISSING*/    "walking eye angle",
+/*MISSING*/    "walking eye angle",
+/*MISSING*/    "walking eye angle",
     }},
   {0xf96d70, { // "flipping X impossible"
    "odbicie X niemożliwe",
@@ -1272,6 +1768,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "Circles are strange in hyperbolic geometry too. Look for the Castle of Camelot in the Crossroads; the Round Table inside is a circle of radius 28. Finding its center is a difficult challenge.\n\nPress '5' to cheat by seeing the smaller circles too.\n\nNote: Camelot and some other lands are unlocked earlier in the Tutorial than in a real game.",
    "Les cercles sont aussi étranges en géométrie hyperbolique. Regardez le château de Camelot dans les Croisements ; La Table Ronde à l'intérieur est un cercle de rayon 28. Trouver son centre est un vrai défi.\n\nAppuyez sur '5' pour tricher en voyant aussi des cercles plus petits.\n\nNote : Camelot et d'autres pays sont débloqués plus tôt dans le tutoriel que dans le jeu réel. ",
     }},
+  {0x2b77825, { // "PvP available only in shmup"
+   "tryb gracz vs gracz dostępny tylko w trybie strzelanki",
+/*MISSING*/    "PvP available only in shmup",
+   "mód 'hráč proti hráči' je dostupný pouze ve střílečkovém módu",
+/*MISSING*/    "PvP available only in shmup",
+/*MISSING*/    "PvP available only in shmup",
+/*MISSING*/    "PvP available only in shmup",
+/*MISSING*/    "PvP available only in shmup",
+    }},
+  {0x2bc5660, { // "walking eye level"
+   "chodzenie: poziom oka",
+/*MISSING*/    "walking eye level",
+   "výše oka při chůzi",
+/*MISSING*/    "walking eye level",
+/*MISSING*/    "walking eye level",
+/*MISSING*/    "walking eye level",
+/*MISSING*/    "walking eye level",
+    }},
   {0x2bda9b7, { // "adjacent cells from nonadjacent heptagons: %1"
    "sąsiednie pola niesąsiednich siedmiokątów: %1",
 /*MISSING*/    "adjacent cells from nonadjacent heptagons: %1",
@@ -1343,6 +1857,15 @@ sentence all_sentences[] = {
    "Angeber Modus",
    "Modo 'exibido'",
    "Mode démonstration",
+    }},
+  {0x33ba70a, { // "%The1 is immune to %the2!"
+   "%1 jest odporn%y1 na %a2!",
+/*MISSING*/    "%The1 is immune to %the2!",
+   "%1 je proti %a2 imunní!",
+/*MISSING*/    "%The1 is immune to %the2!",
+/*MISSING*/    "%The1 is immune to %the2!",
+/*MISSING*/    "%The1 is immune to %the2!",
+/*MISSING*/    "%The1 is immune to %the2!",
     }},
   {0x344ac8a, { // "eye color"
    "kolor oczu",
@@ -1470,6 +1993,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "In the Windy Plains, you can let the wind carry you, causing you to move two cells with the wind in a single turn. This cannot be done if you are standing at distance at most 2 from the Air Elemental, or if any of the three cells on the way has two wind directions.\n\nPress 't' or click the destination to activate.",
    "Dans les plaines venteuses, vous pouvez laisser le vent vous porter, ce qui vous permet de bouger de deux cases en un tour. Ceci ne fonctionne pas à une distance d'au plus 2 d'un Élémental d'Air, ou si une des trois cases sur le chemin ont deux directions de vent.\n\n Presser 't' ou cliquer la destination pour activer.",
     }},
+  {0x4b84f19, { // "product"
+   "produkt",
+/*MISSING*/    "product",
+   "součin",
+/*MISSING*/    "product",
+/*MISSING*/    "product",
+/*MISSING*/    "product",
+/*MISSING*/    "product",
+    }},
   {0x4be7783, { // "eye level"
    "poziom oka",
 /*MISSING*/    "eye level",
@@ -1515,6 +2047,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "T = text",
    "T = texte",
     }},
+  {0x5190159, { // "The unit this value is given in is wall height. Note that, in exponentially expanding spaces, too high values could cause rendering issues. So if you want infinity, values of 5 or similar should be used -- there is no visible difference from infinity and glitches are avoided."
+   "Ta wartość jest podawana w jednostkach wysokości ściany. W przestrzeniach rosnących wykładniczo, zbyt wysokie wartości mogą powodować błędy. Także sugerujemy użycie wartości około 5 dla nieskończoności -- nie ma widocznych różnic i te błędy nie wystąpią.",
+/*MISSING*/    "The unit this value is given in is wall height. Note that, in exponentially expanding spaces, too high values could cause rendering issues. So if you want infinity, values of 5 or similar should be used -- there is no visible difference from infinity and glitches are avoided.",
+   "Tato hodnota je udávaná v jednotkách výšky stěny. Pozor -- v exponenciálně se zvětšujících prostorech by příliš vysoká hodnota mohla způsobit problémy při renderování. Chceš-li tedy nekonečno, použij hodnotu 5 nebo něco podobného -- vizuálně tam žádný rozdíl oproti nekonečnu není a vyhneš se chybám.",
+/*MISSING*/    "The unit this value is given in is wall height. Note that, in exponentially expanding spaces, too high values could cause rendering issues. So if you want infinity, values of 5 or similar should be used -- there is no visible difference from infinity and glitches are avoided.",
+/*MISSING*/    "The unit this value is given in is wall height. Note that, in exponentially expanding spaces, too high values could cause rendering issues. So if you want infinity, values of 5 or similar should be used -- there is no visible difference from infinity and glitches are avoided.",
+/*MISSING*/    "The unit this value is given in is wall height. Note that, in exponentially expanding spaces, too high values could cause rendering issues. So if you want infinity, values of 5 or similar should be used -- there is no visible difference from infinity and glitches are avoided.",
+/*MISSING*/    "The unit this value is given in is wall height. Note that, in exponentially expanding spaces, too high values could cause rendering issues. So if you want infinity, values of 5 or similar should be used -- there is no visible difference from infinity and glitches are avoided.",
+    }},
   {0x51cf6e4, { // "draw based on size in the projection (no generation)"
    "rysuj na podstawie rozmiaru w projekcji (bez generacji)",
 /*MISSING*/    "draw based on size in the projection (no generation)",
@@ -1541,6 +2082,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "faces per vertex",
 /*MISSING*/    "faces per vertex",
    "faces par sommet",
+    }},
+  {0x5a75ad2, { // "Click on a faraway monster to fire if possible, or move if not."
+   "Klikając odległego przeciwnika strzelasz jeśli to możliwe, ruszasz się jeśli nie.",
+/*MISSING*/    "Click on a faraway monster to fire if possible, or move if not.",
+   "Klikni na vzdáleného netvora, abys vystřelil, je-li to možné, nebo se pohnul, pokud není.",
+/*MISSING*/    "Click on a faraway monster to fire if possible, or move if not.",
+/*MISSING*/    "Click on a faraway monster to fire if possible, or move if not.",
+/*MISSING*/    "Click on a faraway monster to fire if possible, or move if not.",
+/*MISSING*/    "Click on a faraway monster to fire if possible, or move if not.",
     }},
   {0x5ac1642, { // "zebra pattern"
    "wzór zebry",
@@ -1659,6 +2209,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "edit the texture",
    "editer la texture",
     }},
+  {0x6d538bd, { // "(fix errors)"
+   "(popraw błędy)",
+/*MISSING*/    "(fix errors)",
+   "(oprav chyby)",
+/*MISSING*/    "(fix errors)",
+/*MISSING*/    "(fix errors)",
+/*MISSING*/    "(fix errors)",
+/*MISSING*/    "(fix errors)",
+    }},
   {0x6d5b75b, { // "which grants the greatest enjoyment.\""
    "sprawia największą przyjemność.\"",
 /*MISSING*/    "which grants the greatest enjoyment.\"",
@@ -1667,6 +2226,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "which grants the greatest enjoyment.\"",
 /*MISSING*/    "which grants the greatest enjoyment.\"",
    "d'y arriver qui apporte le plus de joie.\"",
+    }},
+  {0x6da79ab, { // "1 = the angle can be changed with keyboard or mouse movements, 0 = the angle is fixed"
+   "1 = kąt widzenia można zmieniać klawiaturą lub myszą, 0 = kąt jest sztywno ustalony",
+/*MISSING*/    "1 = the angle can be changed with keyboard or mouse movements, 0 = the angle is fixed",
+   "1 = úhel je možné měnit klávesnicí nebo pohybem myši, 0 = úhel je pevně daný",
+/*MISSING*/    "1 = the angle can be changed with keyboard or mouse movements, 0 = the angle is fixed",
+/*MISSING*/    "1 = the angle can be changed with keyboard or mouse movements, 0 = the angle is fixed",
+/*MISSING*/    "1 = the angle can be changed with keyboard or mouse movements, 0 = the angle is fixed",
+/*MISSING*/    "1 = the angle can be changed with keyboard or mouse movements, 0 = the angle is fixed",
     }},
   {0x6db128a, { // "Preparing the line (%1/1000)..."
    "Przygotowanie linii (%1/1000)...",
@@ -1722,6 +2290,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Annoying insects. They can awaken Sleeping Bulls.",
    "Des insectes énervants. Ils réveillent les Taureaux Endormis.",
     }},
+  {0x7071760, { // "set ternary tiling"
+   "ustaw parkietaż ternarny",
+/*MISSING*/    "set ternary tiling",
+   "nastav ternární dláždění",
+/*MISSING*/    "set ternary tiling",
+/*MISSING*/    "set ternary tiling",
+/*MISSING*/    "set ternary tiling",
+/*MISSING*/    "set ternary tiling",
+    }},
   {0x7149d2c, { // "This land is designed for infinite worlds."
    "Ta kraina jest zaprojektowana dla światów nieskończonych.",
 /*MISSING*/    "This land is designed for infinite worlds.",
@@ -1757,6 +2334,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "cells in memory",
 /*MISSING*/    "cells in memory",
    "cases en mémoire",
+    }},
+  {0x758e6ac, { // "Embed Euclidean cylinder in Euclidean space."
+   "Zanurz walec euklidesowy w przestrzeń euklidesową.",
+/*MISSING*/    "Embed Euclidean cylinder in Euclidean space.",
+   "Vnoř eukleidovský válec do eukleidovského prostoru.",
+/*MISSING*/    "Embed Euclidean cylinder in Euclidean space.",
+/*MISSING*/    "Embed Euclidean cylinder in Euclidean space.",
+/*MISSING*/    "Embed Euclidean cylinder in Euclidean space.",
+/*MISSING*/    "Embed Euclidean cylinder in Euclidean space.",
     }},
   {0x75e3054, { // "The Aitoff projection is obtained by multiplying the longitude by 1/2, using azimuthal equidistant projection, and then dividing X by 1/2. Hammer projection is similar but equi-area projection is used instead. Here you can change this parameter."
    "Rzut Aitoffa powstaje przez pomnożenie długości przez 1/2, użycie rzutu azymutalnego ekwidystantnego, i podzielenie X przez 1/2. Rzut Hammera jest podobny, ale używamy rzutu równopolowego. Tu możesz zmienić ten parametr.",
@@ -1893,6 +2479,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Returned to your game.",
    "Retourné à votre jeu.",
     }},
+  {0x8a955ab, { // "eligible for Strange Challenge"
+   "legalne dla Dziwnej Misji",
+/*MISSING*/    "eligible for Strange Challenge",
+   "achievementy/leaderboardy Podivné mise dostupné",
+/*MISSING*/    "eligible for Strange Challenge",
+/*MISSING*/    "eligible for Strange Challenge",
+/*MISSING*/    "eligible for Strange Challenge",
+/*MISSING*/    "eligible for Strange Challenge",
+    }},
   {0x8fb0328, { // "These people study gravity and infinite trees. They have no special features, other than wearing a strange hat."
    "Ci ludzie badają grawitację i drzewa nieskończone. Nie mają szczególnych własności poza swoim dziwnym nakryciem głowy.",
 /*MISSING*/    "These people study gravity and infinite trees. They have no special features, other than wearing a strange hat.",
@@ -1947,6 +2542,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "You cannot go against the current!",
    "Vous ne pouvez pas aller contre le courant !",
     }},
+  {0x940b053, { // "λ: %1°"
+   "λ: %1°",
+/*MISSING*/    "λ: %1°",
+   "λ: %1°",
+/*MISSING*/    "λ: %1°",
+/*MISSING*/    "λ: %1°",
+/*MISSING*/    "λ: %1°",
+/*MISSING*/    "λ: %1°",
+    }},
   {0x96e8d7a, { // "cycle length"
    "długość cyklu",
 /*MISSING*/    "cycle length",
@@ -1973,6 +2577,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Blue Raiders have a powerful attack which takes two turns to complete, and also makes the Blue Raider stunned for a long time. This attack can destroy other Raiders if it hits them.",
 /*MISSING*/    "Blue Raiders have a powerful attack which takes two turns to complete, and also makes the Blue Raider stunned for a long time. This attack can destroy other Raiders if it hits them.",
    "Les pilleurs bleus ont une attaque puissante qui prend deux tours à compléter, et assomme aussi le pilleur bleu pour un long moment. Cette attaque peut détruire d'autres pilleurs si elle les atteint.",
+    }},
+  {0x9a51e33, { // "Your crossbow is still reloading!"
+   "Twoja kusza wciąż się ładuje!",
+/*MISSING*/    "Your crossbow is still reloading!",
+   "Tvá kuše se stále ještě nabíjí!",
+/*MISSING*/    "Your crossbow is still reloading!",
+/*MISSING*/    "Your crossbow is still reloading!",
+/*MISSING*/    "Your crossbow is still reloading!",
+/*MISSING*/    "Your crossbow is still reloading!",
     }},
   {0x9bb12f5, { // "Parameter names, e.g. '%1'"
    "Nazwy parametrów, np. '%1'",
@@ -2009,6 +2622,15 @@ sentence all_sentences[] = {
    "Punkte: %1",
    "Sua pontuação: %1",
    "Points : %1",
+    }},
+  {0x9f7de0f, { // "idle animation speed"
+   "prędkość animacji własnej",
+/*MISSING*/    "idle animation speed",
+   "rychlost nečinné animace",
+/*MISSING*/    "idle animation speed",
+/*MISSING*/    "idle animation speed",
+/*MISSING*/    "idle animation speed",
+/*MISSING*/    "idle animation speed",
     }},
   {0x9f7f208, { // "fake curvature"
    "fałszywa krzywizna",
@@ -2072,6 +2694,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Impossible.",
 /*MISSING*/    "Impossible.",
    "Impossible.",
+    }},
+  {0xa3905ba, { // "draw copies (2D only)"
+   "rysuj kopie (tylko 2D)",
+/*MISSING*/    "draw copies (2D only)",
+   "vykresluj kopie (pouze 2D)",
+/*MISSING*/    "draw copies (2D only)",
+/*MISSING*/    "draw copies (2D only)",
+/*MISSING*/    "draw copies (2D only)",
+/*MISSING*/    "draw copies (2D only)",
     }},
   {0xa461927, { // "the native Orb of %the1"
    "rodzima sfera %abl1",
@@ -2189,6 +2820,15 @@ sentence all_sentences[] = {
    "Karte konnte nicht von %1 geladen werden",
 /*MISSING*/    "Failed to load map from %1",
    "Échec du chargement de la carte depuis %1",
+    }},
+  {0xb12307b, { // "movement animation"
+   "animacja ruchu",
+/*MISSING*/    "movement animation",
+   "animace pohybu",
+/*MISSING*/    "movement animation",
+/*MISSING*/    "movement animation",
+/*MISSING*/    "movement animation",
+/*MISSING*/    "movement animation",
     }},
   {0xb32b580, { // "Hint: press 1 to change the projection."
    "Wskazówka: wciśnij 1 by zmienić rzut.",
@@ -2352,6 +2992,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Did you know that it is possible to break a magical sphere into finitely many parts, and then, out of the parts obtained, to make two magical spheres, just like the original? Hyperbolic geometry makes this even easier!\n\nWhen you pick up another Orb, it will not disappear from the ground -- Orb of Choice will be drained instead.",
    "Saviez vous qu'il était possible de briser une sphère magique en de nombreuses parties finies, et alors, avec les parties obtenues de faire deux sphères magique, juste comme l'original ? La géométrie hyperbolique rend cela encore plus facile !\n\nQuand vous choisissez une autre Orbe, elle ne disparaît pas du sol -- l'Orbe du Choix est drainée à la place.",
     }},
+  {0xc3ba647, { // "Fire!"
+   "Ognia!",
+/*MISSING*/    "Fire!",
+   "Hoří!",
+/*MISSING*/    "Fire!",
+/*MISSING*/    "Fire!",
+/*MISSING*/    "Fire!",
+/*MISSING*/    "Fire!",
+    }},
   {0xc4223be, { // "Your view of the 3D model is naturally bounded from four directions by your window. Here, you can also set up similar bounds in the Z direction. Radius of the ball/band models, and the distance from the center to the plane in the halfspace model, are 1.\n\n"
    "Model 3D widoczny na ekranie jest naturalnie ograniczony z 4 strony przez wielkość okna. Tu można również ustawić podobne ograniczenie w kierunku Z. Promień modelu kuli/wstęgi, oraz odległość od środka do płaszczyzny w modelu półprzestrzeni, są równe 1.\n\n",
 /*MISSING*/    "Your view of the 3D model is naturally bounded from four directions by your window. Here, you can also set up similar bounds in the Z direction. Radius of the ball/band models, and the distance from the center to the plane in the halfspace model, are 1.\n\n",
@@ -2432,6 +3081,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Somewhat inaccurate.",
 /*MISSING*/    "Somewhat inaccurate.",
    "Quelque peu imprécis.",
+    }},
+  {0xd3f5c7c, { // "auto-adjust dual-focus projections"
+   "automatycznie dostosuj projekcje podwójnie zogniskowane",
+/*MISSING*/    "auto-adjust dual-focus projections",
+   "automatické přizpůsobení projekcí s dvojím zaostřením",
+/*MISSING*/    "auto-adjust dual-focus projections",
+/*MISSING*/    "auto-adjust dual-focus projections",
+/*MISSING*/    "auto-adjust dual-focus projections",
+/*MISSING*/    "auto-adjust dual-focus projections",
     }},
   {0xd40ebb1, { // "sound effects volume"
    "głośność efektów dźwiękowych",
@@ -2630,6 +3288,15 @@ sentence all_sentences[] = {
    "Kleine Tropfen magischen Wassers. Du siehst Abbilder von dir in ihnen. Gehe in die Wolke, um diese Bilder real werden zu lassen.",
 /*MISSING*/    "Tiny droplets of magical water. You see images of yourself inside them. Go inside the cloud, to make these images help you.",
    "De minuscules gouttes d'eau magique. Vous voyez vos reflets à l'intérieur. Entrez dans le nuage, pour que ces images vous aident.",
+    }},
+  {0xe98f1db, { // "eligible for Chaos mode achievements"
+   "osiągnięcia trybu Chaosu legalne",
+/*MISSING*/    "eligible for Chaos mode achievements",
+   "lze získat achievementy v chaotickém módu",
+/*MISSING*/    "eligible for Chaos mode achievements",
+/*MISSING*/    "eligible for Chaos mode achievements",
+/*MISSING*/    "eligible for Chaos mode achievements",
+/*MISSING*/    "eligible for Chaos mode achievements",
     }},
   {0xeb06c65, { // "slideshows"
    "pokazy slajdów",
@@ -2838,6 +3505,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "stretched hyperbolic",
    "hyperbolique étirée",
     }},
+  {0xfe9aecb, { // "inscribed"
+   "wpisane",
+/*MISSING*/    "inscribed",
+   "vepsané",
+/*MISSING*/    "inscribed",
+/*MISSING*/    "inscribed",
+/*MISSING*/    "inscribed",
+/*MISSING*/    "inscribed",
+    }},
   {0xff0eb61, { // "player 2 spin"
    "gracz 2 obrót",
    "oyuncu 2, dön",
@@ -2964,6 +3640,24 @@ sentence all_sentences[] = {
    "preto",
    "noir",
     }},
+  {0x10f5aa08, { // "blade"
+   "broń biała",
+/*MISSING*/    "blade",
+   "čepel",
+/*MISSING*/    "blade",
+/*MISSING*/    "blade",
+/*MISSING*/    "blade",
+/*MISSING*/    "blade",
+    }},
+  {0x1116acbf, { // "bow color"
+   "kolor kuszy",
+/*MISSING*/    "bow color",
+   "barva kuše",
+/*MISSING*/    "bow color",
+/*MISSING*/    "bow color",
+/*MISSING*/    "bow color",
+/*MISSING*/    "bow color",
+    }},
   {0x1119b52b, { // "cells"
    "pola",
 /*MISSING*/    "cells",
@@ -3044,6 +3738,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "empty",
 /*MISSING*/    "empty",
    "vide",
+    }},
+  {0x117ad1c0, { // "the following sliders will restart the game"
+   "te suwaki restartują grę",
+/*MISSING*/    "the following sliders will restart the game",
+   "následující slidery restartují hru",
+/*MISSING*/    "the following sliders will restart the game",
+/*MISSING*/    "the following sliders will restart the game",
+/*MISSING*/    "the following sliders will restart the game",
+/*MISSING*/    "the following sliders will restart the game",
+    }},
+  {0x117dc532, { // "error"
+   "błąd",
+/*MISSING*/    "error",
+   "chyba",
+/*MISSING*/    "error",
+/*MISSING*/    "error",
+/*MISSING*/    "error",
+/*MISSING*/    "error",
     }},
   {0x11981060, { // "works correctly so far"
    "póki co działa",
@@ -3144,6 +3856,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "go up",
    "vers le haut",
     }},
+  {0x11d08d94, { // "draw all if multiple of original"
+   "rysuj wszystkie jeśli wielokrotność oryginalnej",
+/*MISSING*/    "draw all if multiple of original",
+   "vykresluj vše, je-li to násobkem originálu",
+/*MISSING*/    "draw all if multiple of original",
+/*MISSING*/    "draw all if multiple of original",
+/*MISSING*/    "draw all if multiple of original",
+/*MISSING*/    "draw all if multiple of original",
+    }},
   {0x11d3206b, { // "affine transformations"
    "przekszt. afiniczne",
 /*MISSING*/    "affine transformations",
@@ -3188,6 +3909,15 @@ sentence all_sentences[] = {
    "Bei Ebbe können wunderschöne Bernsteine auf den hyperbolischen Stränden gefunden werden. Vielleicht war hier früher ein Wald...?",
 /*MISSING*/    "When the tide is away, beautiful ambers can be found on the hyperbolic beaches. Perhaps there used to be a forest here?",
    "Quand la marée est basse, de magnifiques ambres peuvent être trouvées sur les plages hyperboliques. Peut-être y avait il une forêt autrefois...?",
+    }},
+  {0x121a6384, { // "icons"
+   "ikony",
+/*MISSING*/    "icons",
+   "ikony",
+/*MISSING*/    "icons",
+/*MISSING*/    "icons",
+/*MISSING*/    "icons",
+/*MISSING*/    "icons",
     }},
   {0x1225fca8, { // "input"
    "sterowanie",
@@ -3297,6 +4027,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "\"I like collecting ambers at the beach.\"",
    "\"J'aime ramasser de l'ambre à la plage.\"",
     }},
+  {0x12b10a72, { // "geometric distance"
+   "odległość geometryczna",
+/*MISSING*/    "geometric distance",
+   "geometrická vzdálenost",
+/*MISSING*/    "geometric distance",
+/*MISSING*/    "geometric distance",
+/*MISSING*/    "geometric distance",
+/*MISSING*/    "geometric distance",
+    }},
   {0x12b60c2f, { // "Maximum number of messages on screen."
    "Największa możliwa liczba wiadomości na ekranie.",
 /*MISSING*/    "Maximum number of messages on screen.",
@@ -3333,6 +4072,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "magic",
    "magique",
     }},
+  {0x12cd64f7, { // "mixed"
+   "tryb mieszany",
+/*MISSING*/    "mixed",
+   "smíšený mód",
+/*MISSING*/    "mixed",
+/*MISSING*/    "mixed",
+/*MISSING*/    "mixed",
+/*MISSING*/    "mixed",
+    }},
+  {0x12edbb26, { // "hint: shift+A to enter the map editor"
+   "wskazówka: shift+A uruchamia edytor map",
+/*MISSING*/    "hint: shift+A to enter the map editor",
+   "nápověda: stiskem shift+A se dostaneš do mapového editoru",
+/*MISSING*/    "hint: shift+A to enter the map editor",
+/*MISSING*/    "hint: shift+A to enter the map editor",
+/*MISSING*/    "hint: shift+A to enter the map editor",
+/*MISSING*/    "hint: shift+A to enter the map editor",
+    }},
   {0x12eed6d6, { // "precision of S2xE rings"
    "precyzja pierścieni w S2xE",
 /*MISSING*/    "precision of S2xE rings",
@@ -3341,6 +4098,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "precision of S2xE rings",
 /*MISSING*/    "precision of S2xE rings",
    "précision des anneaux S2xE",
+    }},
+  {0x12f3d157, { // "needs"
+   "potrzeba: ",
+/*MISSING*/    "needs",
+   "potřebuje: ",
+/*MISSING*/    "needs",
+/*MISSING*/    "needs",
+/*MISSING*/    "needs",
+/*MISSING*/    "needs",
     }},
   {0x12ffde12, { // "This is the biggest Hypersian Rug you have ever seen! Unfortunately, it is too large to take it as a trophy."
    "To jest największy hiperski dywan, jaki kiedykolwiek widzia%łeś0! Niestety, jest za duży, by wziąć go jako zdobycz.",
@@ -3432,6 +4198,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "radii",
    "rayons",
     }},
+  {0x139dab3b, { // "display tile debug values"
+   "pokaż wartości do debugowania kafelków",
+/*MISSING*/    "display tile debug values",
+   "zobrazení debugových hodnot políček",
+/*MISSING*/    "display tile debug values",
+/*MISSING*/    "display tile debug values",
+/*MISSING*/    "display tile debug values",
+/*MISSING*/    "display tile debug values",
+    }},
   {0x13a02f9d, { // "ready"
    "gotowe",
 /*MISSING*/    "ready",
@@ -3521,6 +4296,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "dimension",
 /*MISSING*/    "dimension",
    "dimension",
+    }},
+  {0x13dfbf81, { // "straight lines"
+   "linie proste",
+/*MISSING*/    "straight lines",
+   "přímky",
+/*MISSING*/    "straight lines",
+/*MISSING*/    "straight lines",
+/*MISSING*/    "straight lines",
+/*MISSING*/    "straight lines",
     }},
   {0x13e3af0e, { // "YASC codes"
    "kody YASC",
@@ -3620,6 +4404,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "You are playing %the1 in the Pure Tactics mode.",
 /*MISSING*/    "You are playing %the1 in the Pure Tactics mode.",
    "Vous jouez %le1 dans le mode tactique pur.",
+    }},
+  {0x1448d87f, { // "w: %1"
+   "w: %1",
+/*MISSING*/    "w: %1",
+   "w: %1",
+/*MISSING*/    "w: %1",
+/*MISSING*/    "w: %1",
+/*MISSING*/    "w: %1",
+/*MISSING*/    "w: %1",
     }},
   {0x144f4b42, { // "collect 3 %2 to unlock it in %the1"
    "znajdź 3x %2 by udostępnić %abl1",
@@ -4026,6 +4819,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "sphere from the inside",
    "sphère de l'intérieur",
     }},
+  {0x175a49e6, { // "Clifford Torus"
+   "torus Clifforda",
+/*MISSING*/    "Clifford Torus",
+   "Cliffordův torus",
+/*MISSING*/    "Clifford Torus",
+/*MISSING*/    "Clifford Torus",
+/*MISSING*/    "Clifford Torus",
+/*MISSING*/    "Clifford Torus",
+    }},
   {0x17680c3a, { // "e = erase"
    "e = kasuj",
 /*MISSING*/    "e = erase",
@@ -4089,6 +4891,15 @@ sentence all_sentences[] = {
    "[+] manter o tamanho da janela, [-] usar a resolução da tela",
    "[+] garder la taille de la fenêtre, [-] utiliser la résolution de l'écran",
     }},
+  {0x17a16f77, { // "sky fake height"
+   "fałszywa wysokość nieba",
+/*MISSING*/    "sky fake height",
+   "falešná výška oblohy",
+/*MISSING*/    "sky fake height",
+/*MISSING*/    "sky fake height",
+/*MISSING*/    "sky fake height",
+/*MISSING*/    "sky fake height",
+    }},
   {0x17ab145a, { // "spiral multiplier"
    "mnożnik spirali",
 /*MISSING*/    "spiral multiplier",
@@ -4143,6 +4954,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "player",
    "joueur",
     }},
+  {0x18173637, { // "yet another classic game"
+   "kolejna klasyczna gra",
+/*MISSING*/    "yet another classic game",
+   "další klasická hra",
+/*MISSING*/    "yet another classic game",
+/*MISSING*/    "yet another classic game",
+/*MISSING*/    "yet another classic game",
+/*MISSING*/    "yet another classic game",
+    }},
   {0x183ef6e8, { // "This orb lets you instantly move to a safe faraway location. Knowing the nature of this strange world, you doubt that you will ever find the way back...\n\nYour game will be saved if you quit the game while the Orb of Safety is still powered.\n\nTechnical note: as it is virtually impossible to return, this Orb recycles memory used for the world so far (even if you do not use it to save the game). "
    "Ta sfera pozwala Ci natychmiast przenieść się do bezpiecznego miejsca. Znając naturę tego świata, zapewne nigdy nie trafisz z powrotem...\n\nJeśli wyjdziesz z gry podczas gdy Sfera Bezpieczeństwa wciąż ma moc, gra zostanie zapisana.\n\nUwaga techniczna: nawet jeśli nie zapiszesz gry, ta sfera czyści całą pamięć o świecie gry. ",
    "Bu küre seni güvenli bir uzak yere ışınlar. Bu dünyanın garip yapısını düşününce geri dönüp dönemeyeceğin belli değil...\n\nEğer Güvenlik Küresi hâlâ açıkken oyundan çıkarsan oyunun kaydedilecek.\n\nTeknik not: geri dönmek aslında tamamen imkânsız olduğundan, bu Küre sadece şimdiye kadar bu dünya için kullanılan hafızayı kullanır. (onu ounu kaydetmek için kullanmasanız da.) ",
@@ -4151,6 +4971,15 @@ sentence all_sentences[] = {
    "Dieser Orb versetzt dich augenblicklich an einen weit entfernten, sicheren Ort. In Anbetracht der Natur dieser Welt bezweifelst du, dass du je einen Weg zurückfindest...\n\nDein Spiel wird gespeichert wenn du es beendest während der Orb der Geborgenheit noch Kraft besitzt.\n\nTechnische Anmerkung: Da es wirklich unmöglich ist zurückzukehren, gibt dieser Orb den Speicher, den die Welt bis dahin belegt hat, frei (selbst wenn du das Spiel nicht speicherst.)",
 /*MISSING*/    "This orb lets you instantly move to a safe faraway location. Knowing the nature of this strange world, you doubt that you will ever find the way back...\n\nYour game will be saved if you quit the game while the Orb of Safety is still powered.\n\nTechnical note: as it is virtually impossible to return, this Orb recycles memory used for the world so far (even if you do not use it to save the game). ",
    "Cet Orbe vous téléporte vers un endroit sûr. Étant donné la nature de cet étrange monde, vous doutez pouvoir un jour retrouver votre chemin pour revenir en arrière...\n\nVotre jeu sera sauvegardé si vous quittez le jeu avec l'Orbe de Sécurité encore active.\n\nNote technique : étant donné qu'il est virtuellement impossible de faire demi-tour, cet Orbe recycle la mémoire utilisée jusque là pour le monde (même si vous ne l'utilisez pas pour sauvegarder le jeu.)",
+    }},
+  {0x1842574a, { // "Cannot be used in multiplayer"
+   "Nie można używać w grze na wielu graczy",
+/*MISSING*/    "Cannot be used in multiplayer",
+   "Toto nelze použít v módu pro více hráčů",
+/*MISSING*/    "Cannot be used in multiplayer",
+/*MISSING*/    "Cannot be used in multiplayer",
+/*MISSING*/    "Cannot be used in multiplayer",
+/*MISSING*/    "Cannot be used in multiplayer",
     }},
   {0x184f810a, { // "This Orb summons a minor volcanic activity around you. All the heptagonal cells adjacent to enemies in distance at most 5 to you will be set on fire. Does not affect the cell you are on, and enemies resistant to fire."
    "Ta Sfera powoduje aktywność wulkaniczną w Twoich okolicach. Wszystkie siedmiokątne pola obok przeciwników w odległości co najwyżej 5 od Ciebie będą się palić. Nie wpływa to na pole, na którym stoisz, ani na przeciwników odpornych na ogień.",
@@ -4197,6 +5026,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Level of water surface",
    "Niveau de la surface de l'eau",
     }},
+  {0x186be799, { // "Embed Euclidean or hyperbolic plane into stretched Sol geometry."
+   "Zanurz płaszczyznę euklidesową lub hiperboliczną w rozciągniętą geometrię Sol.",
+/*MISSING*/    "Embed Euclidean or hyperbolic plane into stretched Sol geometry.",
+   "Vnoř eukleidovskou nebo hyperbolickou rovinu do natažené geometrie Sol.",
+/*MISSING*/    "Embed Euclidean or hyperbolic plane into stretched Sol geometry.",
+/*MISSING*/    "Embed Euclidean or hyperbolic plane into stretched Sol geometry.",
+/*MISSING*/    "Embed Euclidean or hyperbolic plane into stretched Sol geometry.",
+/*MISSING*/    "Embed Euclidean or hyperbolic plane into stretched Sol geometry.",
+    }},
   {0x1896d25b, { // "Fractal landscapes"
    "Fraktalne krajobrazy",
 /*MISSING*/    "Fractal landscapes",
@@ -4232,6 +5070,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "multiplayer",
 /*MISSING*/    "multiplayer",
    "multiplayer",
+    }},
+  {0x198d41dc, { // "display small floors"
+   "małe podłogi",
+/*MISSING*/    "display small floors",
+   "zobrazit malé podlahy",
+/*MISSING*/    "display small floors",
+/*MISSING*/    "display small floors",
+/*MISSING*/    "display small floors",
+/*MISSING*/    "display small floors",
     }},
   {0x19b6747c, { // "turn left"
    "skręć w lewo",
@@ -4295,6 +5142,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "nearer end",
 /*MISSING*/    "nearer end",
    "fin plus proche",
+    }},
+  {0x1a1a6c84, { // "Lie perspective"
+   "perspektywa w grupie Liego",
+/*MISSING*/    "Lie perspective",
+   "perspektiva v Lieově grupě",
+/*MISSING*/    "Lie perspective",
+/*MISSING*/    "Lie perspective",
+/*MISSING*/    "Lie perspective",
+/*MISSING*/    "Lie perspective",
     }},
   {0x1a57640c, { // "background particle effects"
    "cząsteczki w tle",
@@ -4476,6 +5332,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Cells to uncover: %1",
    "Cases à découvrir : %1",
     }},
+  {0x1bdae664, { // "Distance from the floor to the eye in the walking mode, in absolute units. In VR this is adjusted automatically."
+   "Odległość od podłogi do oka w trybie chodzenia, w jednostkach bezwzględnych. W trybie VR jest to dobierane automatycznie.",
+/*MISSING*/    "Distance from the floor to the eye in the walking mode, in absolute units. In VR this is adjusted automatically.",
+   "Vzdálenost oka od podlahy v módu chůze, vyjádřená v absolutních jednotkách. Ve VR módu se upravuje automaticky.",
+/*MISSING*/    "Distance from the floor to the eye in the walking mode, in absolute units. In VR this is adjusted automatically.",
+/*MISSING*/    "Distance from the floor to the eye in the walking mode, in absolute units. In VR this is adjusted automatically.",
+/*MISSING*/    "Distance from the floor to the eye in the walking mode, in absolute units. In VR this is adjusted automatically.",
+/*MISSING*/    "Distance from the floor to the eye in the walking mode, in absolute units. In VR this is adjusted automatically.",
+    }},
   {0x1c15475c, { // "reflective walls"
    "odbijające ściany",
 /*MISSING*/    "reflective walls",
@@ -4530,6 +5395,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "spinning in the band model",
    "tourner dans le modèle ruban",
     }},
+  {0x1c547e30, { // "camera angle"
+   "kąt kamery",
+/*MISSING*/    "camera angle",
+   "úhel kamery",
+/*MISSING*/    "camera angle",
+/*MISSING*/    "camera angle",
+/*MISSING*/    "camera angle",
+/*MISSING*/    "camera angle",
+    }},
+  {0x1c6bb9a9, { // "Euclidean embedding rotation"
+   "obrót zanurzenia euklidesowego",
+/*MISSING*/    "Euclidean embedding rotation",
+   "rotace eukleidovského vnoření",
+/*MISSING*/    "Euclidean embedding rotation",
+/*MISSING*/    "Euclidean embedding rotation",
+/*MISSING*/    "Euclidean embedding rotation",
+/*MISSING*/    "Euclidean embedding rotation",
+    }},
   {0x1c6d896a, { // "two players"
    "dwóch graczy",
    "iki kişilik",
@@ -4547,6 +5430,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "display coverage",
 /*MISSING*/    "display coverage",
    "afficher le recouvrement",
+    }},
+  {0x1c737346, { // "test portal here"
+   "testuj portal tutaj",
+/*MISSING*/    "test portal here",
+   "otestovat portál zde",
+/*MISSING*/    "test portal here",
+/*MISSING*/    "test portal here",
+/*MISSING*/    "test portal here",
+/*MISSING*/    "test portal here",
     }},
   {0x1ca498fe, { // "F3 = load"
    "F3 = wczytaj",
@@ -4665,6 +5557,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "The Emperor's mausoleum. The army of Terracotta Warriors is supposed to protect him in his afterlife, while the traps are to protect the treasures in the mausoleum from thieves.",
    "Les mausolée de l'Empereur. L'armée de guerriers de Terre Cuite est censée le protéger après sa mort, tandis que les pièges sont là pour protéger les trésors du mausolée des voleurs.",
     }},
+  {0x1d8052ff, { // "%The1 is already stunned!"
+   "%1 już jest ogłuszon%y1!",
+/*MISSING*/    "%The1 is already stunned!",
+   "%1 už je omráčen%ý1!",
+/*MISSING*/    "%The1 is already stunned!",
+/*MISSING*/    "%The1 is already stunned!",
+/*MISSING*/    "%The1 is already stunned!",
+/*MISSING*/    "%The1 is already stunned!",
+    }},
   {0x1daf3416, { // "advanced projections"
    "rzuty zaawansowane",
 /*MISSING*/    "advanced projections",
@@ -4691,6 +5592,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Hunters believe that wearing a Turquoise amulet will improve their accuracy. This one has been lost, but the hunting dogs are guarding it until the owner returns.",
 /*MISSING*/    "Hunters believe that wearing a Turquoise amulet will improve their accuracy. This one has been lost, but the hunting dogs are guarding it until the owner returns.",
    "Les chasseurs croient que porter une amulette de Turquoise améliore leur précision. Celle-ci a été perdue, mais les chiens de chasse la gardent jusqu'au retour du propriétaire.",
+    }},
+  {0x1e027577, { // "Lie group"
+   "grupy Liego",
+/*MISSING*/    "Lie group",
+   "Lieova grupa",
+/*MISSING*/    "Lie group",
+/*MISSING*/    "Lie group",
+/*MISSING*/    "Lie group",
+/*MISSING*/    "Lie group",
     }},
   {0x1e0a280a, { // "two-point parameter"
    "parametr modeli dwupunktowych",
@@ -4890,6 +5800,33 @@ sentence all_sentences[] = {
 /*MISSING*/    "Mollweide",
    "projection de Mollweide",
     }},
+  {0x1fb4d7ae, { // "split by original faces"
+   "podziel według ścian oryginalnych komórek",
+/*MISSING*/    "split by original faces",
+   "rozdělit podle původních stran",
+/*MISSING*/    "split by original faces",
+/*MISSING*/    "split by original faces",
+/*MISSING*/    "split by original faces",
+/*MISSING*/    "split by original faces",
+    }},
+  {0x1fec510f, { // "much lower curvature"
+   "o wiele niższa krzywizna",
+/*MISSING*/    "much lower curvature",
+   "mnohem menší křivost",
+/*MISSING*/    "much lower curvature",
+/*MISSING*/    "much lower curvature",
+/*MISSING*/    "much lower curvature",
+/*MISSING*/    "much lower curvature",
+    }},
+  {0x1ff72505, { // "aperiodic hat"
+   "aperiodyczny kapelusz (hat)",
+/*MISSING*/    "aperiodic hat",
+   "aperiodický klobouk",
+/*MISSING*/    "aperiodic hat",
+/*MISSING*/    "aperiodic hat",
+/*MISSING*/    "aperiodic hat",
+/*MISSING*/    "aperiodic hat",
+    }},
   {0x20028d27, { // "That would have %1/%2 levels"
    "To by miało %1/%2 poziomów",
 /*MISSING*/    "That would have %1/%2 levels",
@@ -4898,6 +5835,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "That would have %1/%2 levels",
 /*MISSING*/    "That would have %1/%2 levels",
    "Cela aurait %1/%2 niveaux",
+    }},
+  {0x20087188, { // "(but the cheat mode is on)"
+   "(ale włączono tryb oszusta)",
+/*MISSING*/    "(but the cheat mode is on)",
+   "(ale je zapnutý cheat mód)",
+/*MISSING*/    "(but the cheat mode is on)",
+/*MISSING*/    "(but the cheat mode is on)",
+/*MISSING*/    "(but the cheat mode is on)",
+/*MISSING*/    "(but the cheat mode is on)",
+    }},
+  {0x203b5b0d, { // "view shift for embedded planes"
+   "zmiana kamery dla zanurzonych płaszczyzn",
+/*MISSING*/    "view shift for embedded planes",
+   "změna pohledu pro vnořené roviny",
+/*MISSING*/    "view shift for embedded planes",
+/*MISSING*/    "view shift for embedded planes",
+/*MISSING*/    "view shift for embedded planes",
+/*MISSING*/    "view shift for embedded planes",
     }},
   {0x2042c576, { // "racing in Thurston geometries"
    "wyścigi w geometriach Thurstona",
@@ -4943,6 +5898,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Pictures loaded from %1",
 /*MISSING*/    "Pictures loaded from %1",
    "Images chargées depuis %1",
+    }},
+  {0x20add5ef, { // "Lie orthogonal"
+   "rzut ortogonalny w grupie Liego",
+/*MISSING*/    "Lie orthogonal",
+   "ortogonální projekce v Lieově grupě",
+/*MISSING*/    "Lie orthogonal",
+/*MISSING*/    "Lie orthogonal",
+/*MISSING*/    "Lie orthogonal",
+/*MISSING*/    "Lie orthogonal",
     }},
   {0x20afda88, { // "You are %1 cells away from the starting point, or the place where you used an Orb of Safety last time. There are %2 such cells.\n"
    "Jesteś %1 kroków od punktu startu lub miejsca ostatniego użycia Sfery Bezpieczeństwa. Takich pól jest %2.\n",
@@ -5124,6 +6088,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "clockwise",
    "sens horaire",
     }},
+  {0x22114777, { // "There should be a Palace somewhere nearby..."
+   "Gdzieś tu powinien być Pałac...",
+/*MISSING*/    "There should be a Palace somewhere nearby...",
+   "Někde tady by měl být Palác...",
+/*MISSING*/    "There should be a Palace somewhere nearby...",
+/*MISSING*/    "There should be a Palace somewhere nearby...",
+/*MISSING*/    "There should be a Palace somewhere nearby...",
+/*MISSING*/    "There should be a Palace somewhere nearby...",
+    }},
   {0x22140af9, { // "activate"
    "uruchom",
 /*MISSING*/    "activate",
@@ -5241,6 +6214,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Cannot move into the current location of another player!",
    "Impossible d'aller à l'emplacement actuel d'un autre joueur !",
     }},
+  {0x22b8fd0a, { // "tes reverse order on convert"
+   "odwrócona kolejność tes przy konwersji",
+/*MISSING*/    "tes reverse order on convert",
+   "obrácené pořadí *.tes při konverzi",
+/*MISSING*/    "tes reverse order on convert",
+/*MISSING*/    "tes reverse order on convert",
+/*MISSING*/    "tes reverse order on convert",
+/*MISSING*/    "tes reverse order on convert",
+    }},
   {0x22c09369, { // "Welcome to the Shoot'em Up mode!"
    "Witaj w trybie strzelanki!",
    "Witaj w trybie strzelanki!",
@@ -5267,6 +6249,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "VR: scale the 3D model",
 /*MISSING*/    "VR: scale the 3D model",
    "VR: mettre le modèle 3D à l'échelle",
+    }},
+  {0x230276ec, { // "255 = opaque"
+   "255 = nieprzejrzyste",
+/*MISSING*/    "255 = opaque",
+   "255 = neprůhledné",
+/*MISSING*/    "255 = opaque",
+/*MISSING*/    "255 = opaque",
+/*MISSING*/    "255 = opaque",
+/*MISSING*/    "255 = opaque",
+    }},
+  {0x230ac87e, { // "error: currently works only in pure Euclidean, or binary tiling and similar"
+   "błąd: obecnie działa tylko w czystym parkietażu euklidesowym, lub podobnym do parkietażu binarnego",
+/*MISSING*/    "error: currently works only in pure Euclidean, or binary tiling and similar",
+   "chyba: momentálně funguje pouze v čistých eukleidovských dlážděních nebo v binárním dláždění a jemu podobným",
+/*MISSING*/    "error: currently works only in pure Euclidean, or binary tiling and similar",
+/*MISSING*/    "error: currently works only in pure Euclidean, or binary tiling and similar",
+/*MISSING*/    "error: currently works only in pure Euclidean, or binary tiling and similar",
+/*MISSING*/    "error: currently works only in pure Euclidean, or binary tiling and similar",
     }},
   {0x230e45e2, { // "A fruit from the Yendorian Forest."
    "Owoc z Yendoriańskiego Lasu.",
@@ -5457,6 +6457,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Someone has put air fans in these plains, causing strong winds everywhere. You think that the purpose is to harness the magical power of Air Elementals, but you are not sure.\n\nAll cells except fans are grouped into three colors according to a pattern. Wind blows counterclockwise around each group of cells of a single color. Cells which are blocked by walls, or at distance at most 2 from an Air Elemental, do not count for this.\n\nIt is illegal to move in a direction which is closer to incoming wind than to outgoing wind. However, you can move two cells with the wind in a single turn, and so can the birds.",
    "Quelqu'un a placé des ventilateurs dans ces plaines, créant de forts vents partout. Vous pensez que le but est de récolter le pouvoir magique des Élémentaux d'Air, mais vous n'êtes pas sûr'.\n\nToutes les cases sauf les ventilateurs sont groupées en trois couleurs suivant un motif. Le vent souffle dans le sens horaire autour de chaque groupe de cases d'une seule couleur. Les cases sont bloquées par des murs, ou à une distance d'au plus 2 à d'un Élémental d'Air, ne comptent pas pour cela.\n\nIl est interdit d'aller dans la direction plus proche du vent arrivant que sortant. Cependant vous pouvez bouger de deux cases dans le sens du vent en un tour comme les oiseaux.",
     }},
+  {0x2503910c, { // "flashing effects"
+   "efekty rozbłysku",
+/*MISSING*/    "flashing effects",
+   "bleskové efekty",
+/*MISSING*/    "flashing effects",
+/*MISSING*/    "flashing effects",
+/*MISSING*/    "flashing effects",
+/*MISSING*/    "flashing effects",
+    }},
   {0x250afb61, { // "As you leave, your powers are drained!"
    "Opuszczasz Krainę Mocy... Twoja moc znikła!",
    "Ayrılırken, tüm güçlerinin tükendiğini farkettin!",
@@ -5565,6 +6574,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "forbidden to find in %the1",
    "interdit de ramasser %a1",
     }},
+  {0x25f729fd, { // "achievement/leaderboard eligiblity:"
+   "legalność osiągnięć i rankingów:",
+/*MISSING*/    "achievement/leaderboard eligiblity:",
+   "dostupnost achievementů/leaderboardů:",
+/*MISSING*/    "achievement/leaderboard eligiblity:",
+/*MISSING*/    "achievement/leaderboard eligiblity:",
+/*MISSING*/    "achievement/leaderboard eligiblity:",
+/*MISSING*/    "achievement/leaderboard eligiblity:",
+    }},
   {0x261e394e, { // "This floor will fall after someone goes there. Go quickly!"
    "Ta podłoga się zapadnie, jak ktoś będzie przechodził. Prechodź szybko!",
    "Bu zemin birisi oradan geçtikten sonra çöker! Çabuk uzaklaş!",
@@ -5582,6 +6600,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Enter = choose",
 /*MISSING*/    "Enter = choose",
    "Entrée = choisir",
+    }},
+  {0x2634eb57, { // " (turns to reload: %1)"
+   " (kolejki do naładowania: %1)",
+/*MISSING*/    " (turns to reload: %1)",
+   " (počet kol do nabití: %1)",
+/*MISSING*/    " (turns to reload: %1)",
+/*MISSING*/    " (turns to reload: %1)",
+/*MISSING*/    " (turns to reload: %1)",
+/*MISSING*/    " (turns to reload: %1)",
     }},
   {0x263b9e49, { // " Additionally, all items around the killed Troll will be destroyed."
    " Dodatkowo, wszystkie przedmioty wokół zabitego Trolla ulegają zniszczeniu.",
@@ -5663,6 +6690,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "%The1 is filled!",
 /*MISSING*/    "%The1 is filled!",
    "%Le1 est rempli !",
+    }},
+  {0x274f817f, { // "Can only use %the1 on a monster!"
+   "Można użyć %a1 tylko na potworze!",
+/*MISSING*/    "Can only use %the1 on a monster!",
+   "%a1 můžeš použít pouze na netvory!",
+/*MISSING*/    "Can only use %the1 on a monster!",
+/*MISSING*/    "Can only use %the1 on a monster!",
+/*MISSING*/    "Can only use %the1 on a monster!",
+/*MISSING*/    "Can only use %the1 on a monster!",
     }},
   {0x276de5f8, { // "There is not enough space!"
    "Nie ma miejsca!",
@@ -5790,6 +6826,15 @@ sentence all_sentences[] = {
    "Você empurra %na1.",
    "Vous poussez %le1.",
     }},
+  {0x28ebbb94, { // "HyperRogue %1: online demo"
+   "HyperRogue %1: demo online",
+/*MISSING*/    "HyperRogue %1: online demo",
+   "HyperRogue %1: online demo",
+/*MISSING*/    "HyperRogue %1: online demo",
+/*MISSING*/    "HyperRogue %1: online demo",
+/*MISSING*/    "HyperRogue %1: online demo",
+/*MISSING*/    "HyperRogue %1: online demo",
+    }},
   {0x28f10653, { // "select a puzzle"
    "wybierz zagadkę",
 /*MISSING*/    "select a puzzle",
@@ -5825,6 +6870,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "z = camera",
 /*MISSING*/    "z = camera",
    "z = caméra",
+    }},
+  {0x2935f092, { // "(shooting while unstable -- no turn passes)"
+   "(Strzał z niestabilnej pozycji -- tura nie mija)",
+/*MISSING*/    "(shooting while unstable -- no turn passes)",
+   "(střelba z nestabilní polohy -- bez spotřeby kola)",
+/*MISSING*/    "(shooting while unstable -- no turn passes)",
+/*MISSING*/    "(shooting while unstable -- no turn passes)",
+/*MISSING*/    "(shooting while unstable -- no turn passes)",
+/*MISSING*/    "(shooting while unstable -- no turn passes)",
     }},
   {0x2944ac2a, { // "%The1 disperses the cloud!"
    "%1 rozprys%ł1 chmurę!",
@@ -5870,6 +6924,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Set to 1 to get stereographic projection, which allows very wide field-of-view values.\n\n",
 /*MISSING*/    "Set to 1 to get stereographic projection, which allows very wide field-of-view values.\n\n",
    "Régler à 1 pour obtenir la projection stéréographique, ce qui permet des valeurs de champ de vision très large.\n\n",
+    }},
+  {0x29c17f36, { // "edit cell values"
+   "edytuj zmienne w polach",
+/*MISSING*/    "edit cell values",
+   "editace hodnot políček",
+/*MISSING*/    "edit cell values",
+/*MISSING*/    "edit cell values",
+/*MISSING*/    "edit cell values",
+/*MISSING*/    "edit cell values",
     }},
   {0x29c3e78d, { // "Welcome to SL(2,R)-ogue!"
    "Witaj w SL(2,R)-ogue!",
@@ -5943,6 +7006,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "rainbow by distance",
    "arc-en-ciel par distance",
     }},
+  {0x2a6f501b, { // "Stab them by shooting around them."
+   "(Dźgnij ich poprzez strzelanie wokół nich.)",
+/*MISSING*/    "Stab them by shooting around them.",
+   "(Bodni je tím, že střelíš kolem nich.)",
+/*MISSING*/    "Stab them by shooting around them.",
+/*MISSING*/    "Stab them by shooting around them.",
+/*MISSING*/    "Stab them by shooting around them.",
+/*MISSING*/    "Stab them by shooting around them.",
+    }},
   {0x2ab5083c, { // "d = delete"
    "d = kasuj",
 /*MISSING*/    "d = delete",
@@ -5951,6 +7023,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "d = delete",
 /*MISSING*/    "d = delete",
    "d = effacer",
+    }},
+  {0x2ac06b59, { // "Width of cell boundaries"
+   "szerokość brzegów pól",
+/*MISSING*/    "Width of cell boundaries",
+   "šířka hranic políček",
+/*MISSING*/    "Width of cell boundaries",
+/*MISSING*/    "Width of cell boundaries",
+/*MISSING*/    "Width of cell boundaries",
+/*MISSING*/    "Width of cell boundaries",
+    }},
+  {0x2aeda581, { // "0 = looking forward, 90 = looking upward. In VR this is adjusted automatically."
+   "0 = wprost, 90 = do góry. W VR to jest dostosowywane automatycznie.",
+/*MISSING*/    "0 = looking forward, 90 = looking upward. In VR this is adjusted automatically.",
+   "0 = dopředu, 90 = nahoru. Ve VR módu se upravuje automaticky.",
+/*MISSING*/    "0 = looking forward, 90 = looking upward. In VR this is adjusted automatically.",
+/*MISSING*/    "0 = looking forward, 90 = looking upward. In VR this is adjusted automatically.",
+/*MISSING*/    "0 = looking forward, 90 = looking upward. In VR this is adjusted automatically.",
+/*MISSING*/    "0 = looking forward, 90 = looking upward. In VR this is adjusted automatically.",
     }},
   {0x2afb1eaf, { // "conformal/history mode"
    "tryb konforemny/historii",
@@ -5988,6 +7078,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Hyperbolic geometry has been discovered by the 19th century mathematicians who wondered about the nature of paralellness. Take a line L and a point A. Can a world exist where there is more than one line passing through A which does not cross L?\n\nThe Icy Land will be very dangerous if you have lots of Ice Diamonds -- lots of Yetis and Ice Wolves hunting you! But the other lands, where you have no treasures yet, will still be (relatively) safe.\n\nWander further, and you should find Crossroads quickly -- the Great Walls are straight lines, and indeed, they work differently than in Euclidean. On the other side of Great Walls, you see other lands -- there are about 60 lands in HyperRogue, based on different mechanics and aspects of hyperbolic geometry.",
    "La géométrie hyperbolique a été découvert par des mathématiciens du 19ème siècle qui s'interrogeaient sur la nature du parallélisme. Prendre une ligne L et un point A. Peut il exister un monde où il y a plus d'une ligne passant par A, qui ne croise pas L ?\n\nAventurez vous plus loin et vous trouverez les Croisements assez vite -- les Grands Murs sont des lignes droites, et en effet, elles fonctionnent différemment que dans le monde euclidien. De l'autre côté des Grands Murs vous voyez d'autres pays -- il y a environ 60 pays dans HyperRogue, basé sur différents mécanismes et aspects de la géométrie hyperbolique.",
     }},
+  {0x2b4545b1, { // "Can only vault in a roughly straight line!"
+   "Przeskok można wykonać tylko w (mniej więcej) prostej linii!",
+/*MISSING*/    "Can only vault in a roughly straight line!",
+   "Skoky lze provádět pouze (zhruba) přímo!",
+/*MISSING*/    "Can only vault in a roughly straight line!",
+/*MISSING*/    "Can only vault in a roughly straight line!",
+/*MISSING*/    "Can only vault in a roughly straight line!",
+/*MISSING*/    "Can only vault in a roughly straight line!",
+    }},
   {0x2b488624, { // "A land filled with demons and molten sulphur. Abandon all hope ye who enter here!"
    "Kraina pełna demonów i stopionej siarki. Ty, który wchodzisz, żegnaj się z nadzieją!",
    "Şeytanlarla ve erimiş sülfürle dolu bir diyar. Buraya giriyorsan tüm ümitlerini terket!",
@@ -6023,6 +7122,15 @@ sentence all_sentences[] = {
    "Immer verfügbar.\n",
 /*MISSING*/    "Always available.\n",
    "Toujours disponible.\n",
+    }},
+  {0x2b683cbf, { // "canvas darkness"
+   "przyciemnianie płótna",
+/*MISSING*/    "canvas darkness",
+   "tmavost Plátna",
+/*MISSING*/    "canvas darkness",
+/*MISSING*/    "canvas darkness",
+/*MISSING*/    "canvas darkness",
+/*MISSING*/    "canvas darkness",
     }},
   {0x2b6ca79b, { // "hair color"
    "kolor włosów",
@@ -6222,6 +7330,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Want another type of game? Want more challenge?\nHyperRogue has many special modes and challenges that significantly change the gameplay. Try them!",
    "Voulez vous un autre type de jeu ? Plus de défis ?\nHyperRogue a de nombreux modes spéciaux et défis qui changent significativement le jeu. Essayez les !",
     }},
+  {0x2cab5748, { // "skybox"
+   "skybox",
+/*MISSING*/    "skybox",
+   "skybox",
+/*MISSING*/    "skybox",
+/*MISSING*/    "skybox",
+/*MISSING*/    "skybox",
+/*MISSING*/    "skybox",
+    }},
   {0x2cb6bfa9, { // "currently no more than %1 edges"
    "obecnie nie więcej niż %1 krawędzi",
 /*MISSING*/    "currently no more than %1 edges",
@@ -6257,6 +7374,24 @@ sentence all_sentences[] = {
    "Drücke eine Taste zum entbinden",
 /*MISSING*/    "press a key to unassign",
    "appuyer sur une touche à dé-assigner",
+    }},
+  {0x2cf13fae, { // "bowstring color"
+   "kolor cięciwy",
+/*MISSING*/    "bowstring color",
+   "barva tětivy",
+/*MISSING*/    "bowstring color",
+/*MISSING*/    "bowstring color",
+/*MISSING*/    "bowstring color",
+/*MISSING*/    "bowstring color",
+    }},
+  {0x2cfed838, { // "projective Bring's Surface"
+   "rzutowa powierzchnia Bringa",
+/*MISSING*/    "projective Bring's Surface",
+   "projektivní Bringův povrch",
+/*MISSING*/    "projective Bring's Surface",
+/*MISSING*/    "projective Bring's Surface",
+/*MISSING*/    "projective Bring's Surface",
+/*MISSING*/    "projective Bring's Surface",
     }},
   {0x2d1c2b31, { // "A toy lost in the Frog Park by a spoiled child."
    "Zabawka zgubiona w Żabim Parku przez rozpuszczone dziecko.",
@@ -6357,6 +7492,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "full angle",
    "angle total",
     }},
+  {0x2dfe3072, { // "prevent exceeding recommended altitudes"
+   "nie przekraczaj rekomendowanych wysokości",
+/*MISSING*/    "prevent exceeding recommended altitudes",
+   "nepřekračuj doporučenou výšku",
+/*MISSING*/    "prevent exceeding recommended altitudes",
+/*MISSING*/    "prevent exceeding recommended altitudes",
+/*MISSING*/    "prevent exceeding recommended altitudes",
+/*MISSING*/    "prevent exceeding recommended altitudes",
+    }},
   {0x2e09b940, { // "periodic patterns"
    "okresowe wzorki",
 /*MISSING*/    "periodic patterns",
@@ -6375,6 +7519,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "statue",
    "statue",
     }},
+  {0x2e20564b, { // "Nothing to blow here!"
+   "Tu nic nie można zdmuchnąć!",
+/*MISSING*/    "Nothing to blow here!",
+   "Tady není co odfouknout!",
+/*MISSING*/    "Nothing to blow here!",
+/*MISSING*/    "Nothing to blow here!",
+/*MISSING*/    "Nothing to blow here!",
+/*MISSING*/    "Nothing to blow here!",
+    }},
   {0x2e388e53, { // "Monsters slain by you in melee are turned into friendly ghosts. Does not affect plants and friends."
    "Potwory zabite przez Ciebie wręcz są zamieniane w przyjazne duchy. Nie wpływa na rośliny i przyjaciół.",
 /*MISSING*/    "Monsters slain by you in melee are turned into friendly ghosts. Does not affect plants and friends.",
@@ -6383,6 +7536,15 @@ sentence all_sentences[] = {
    "Monster, die du im Nahkampf getötet hast, werden in freundliche Geister verwandelt. Es hat keinen Effekt auf Pflanzen und Freunde.",
 /*MISSING*/    "Monsters slain by you in melee are turned into friendly ghosts. Does not affect plants and friends.",
    "Les monstres que vous tuez en combat rapproché deviennent des fantômes alliés. N'agit pas sur les plantes et les alliés.",
+    }},
+  {0x2e59a600, { // "light, camera, and objects move in lines of constant direction, in the Lie group sense"
+   "światło, kamera, i obiekty ruszają się w liniach o stałym kierunku w sensie group Liego",
+/*MISSING*/    "light, camera, and objects move in lines of constant direction, in the Lie group sense",
+   "světlo, kamera a předměty se pohybují po čarách konstantního směru ve smyslu Lieovy grupy",
+/*MISSING*/    "light, camera, and objects move in lines of constant direction, in the Lie group sense",
+/*MISSING*/    "light, camera, and objects move in lines of constant direction, in the Lie group sense",
+/*MISSING*/    "light, camera, and objects move in lines of constant direction, in the Lie group sense",
+/*MISSING*/    "light, camera, and objects move in lines of constant direction, in the Lie group sense",
     }},
   {0x2e62651b, { // "help for keyboard users"
    "pomoc dla użytkowników klawiatury",
@@ -6455,6 +7617,15 @@ sentence all_sentences[] = {
    "Die Kräfte des Lebens zerstören %den1 %a1!",
 /*MISSING*/    "%The1 is destroyed by the forces of Life!",
    "%Le1 est détruit par le pouvoir de la Vie !",
+    }},
+  {0x2f494e28, { // "Embed Euclidean or hyperbolic plane in the H2xR product space."
+   "Zanurz płaszczyznę euklidesową lub hiperboliczną w przestrzeń produktową H2xR",
+/*MISSING*/    "Embed Euclidean or hyperbolic plane in the H2xR product space.",
+   "Vnoř eukleidovskou nebo hyperbolickou rovinu do součinového prostoru H2xR",
+/*MISSING*/    "Embed Euclidean or hyperbolic plane in the H2xR product space.",
+/*MISSING*/    "Embed Euclidean or hyperbolic plane in the H2xR product space.",
+/*MISSING*/    "Embed Euclidean or hyperbolic plane in the H2xR product space.",
+/*MISSING*/    "Embed Euclidean or hyperbolic plane in the H2xR product space.",
     }},
   {0x2f5daf21, { // "If we are viewing an equidistant g absolute units below a plane, from a point c absolute units above the plane, this corresponds to viewing a Minkowski hyperboloid from a point tanh(g)/tanh(c) units below the center. This in turn corresponds to the Poincaré model for g=c, and Klein-Beltrami model for g=0."
    "Jeśli ekwidystantną powierzchnię g jednostek pod płaszczyzną oglądamy z punktu na wysokości c, odpowiada to oglądaniu hiperboloidy Minkowskiego z punktu tanh(g)/tanh(c) poniżej jej środka. To z kolei odpowiada modelowi Poincaré dla g=c, i Kleina-Beltramiego dla g=0.",
@@ -6555,6 +7726,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Some lands unlock at specific treasures or kills",
    "Certains pays sont débloqués par des trésors ou des ennemis tués spécifiques",
     }},
+  {0x30b5e6ee, { // " (fire mode on / turns to reload: %1)"
+   " (tryb strzału / kolejki do naładowania: %1)",
+/*MISSING*/    " (fire mode on / turns to reload: %1)",
+   " (palebný mód / počet kol do nabití: %1)",
+/*MISSING*/    " (fire mode on / turns to reload: %1)",
+/*MISSING*/    " (fire mode on / turns to reload: %1)",
+/*MISSING*/    " (fire mode on / turns to reload: %1)",
+/*MISSING*/    " (fire mode on / turns to reload: %1)",
+    }},
   {0x30d30363, { // "c = copy"
    "b = brzeg",
    "b = kopya",
@@ -6572,6 +7752,15 @@ sentence all_sentences[] = {
    "Erste Seite [LEER]",
    "primeira página [Space]",
    "première page [Espace]",
+    }},
+  {0x30ff6396, { // "manage portals"
+   "zarządzanie portalami",
+/*MISSING*/    "manage portals",
+   "správa portálů",
+/*MISSING*/    "manage portals",
+/*MISSING*/    "manage portals",
+/*MISSING*/    "manage portals",
+/*MISSING*/    "manage portals",
     }},
   {0x3121a0a8, { // "adult Tortoise flags"
    "flagi dorosłego Żółwia",
@@ -6636,6 +7825,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "circle spins",
    "tour du cercle",
     }},
+  {0x3197c3c0, { // "Stereographic projection allows very high FOV angles."
+   "Rzut stereograficzny pozwala na bardzo duże pole widzenia.",
+/*MISSING*/    "Stereographic projection allows very high FOV angles.",
+   "Stereografická projekce umožňuje opravdu velké zorné úhly.",
+/*MISSING*/    "Stereographic projection allows very high FOV angles.",
+/*MISSING*/    "Stereographic projection allows very high FOV angles.",
+/*MISSING*/    "Stereographic projection allows very high FOV angles.",
+/*MISSING*/    "Stereographic projection allows very high FOV angles.",
+    }},
   {0x31b9e615, { // "%The1 says, \"I die, but my clan in Trollheim will avenge me!\""
    "%1 mówi: \"Ja umieram, ale mój klan w Trollheim mnie pomści!\"",
 /*MISSING*/    "%The1 says, \"I die, but my clan in Trollheim will avenge me!\"",
@@ -6653,6 +7851,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "This will end your current game and start a new one. Are you sure?",
 /*MISSING*/    "This will end your current game and start a new one. Are you sure?",
    "Ceci vous fera quitter votre jeu actuel et démarrer un nouveau. Êtes vous sûr%e0 ?",
+    }},
+  {0x31c419f0, { // "Shooting impossible."
+   "Strzał niemożliwy.",
+/*MISSING*/    "Shooting impossible.",
+   "Nemůžeš střílet.",
+/*MISSING*/    "Shooting impossible.",
+/*MISSING*/    "Shooting impossible.",
+/*MISSING*/    "Shooting impossible.",
+/*MISSING*/    "Shooting impossible.",
     }},
   {0x31d7c599, { // "The Hunting Dogs give up."
    "Myśliwskie psy się poddały.",
@@ -6698,6 +7905,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "available in current geometry",
 /*MISSING*/    "available in current geometry",
    "disponible dans la géométrie actuelle",
+    }},
+  {0x31f83d64, { // "play on an official track"
+   "graj na torze oficjalnym",
+/*MISSING*/    "play on an official track",
+   "hraj na oficiální dráze",
+/*MISSING*/    "play on an official track",
+/*MISSING*/    "play on an official track",
+/*MISSING*/    "play on an official track",
+/*MISSING*/    "play on an official track",
     }},
   {0x31f95476, { // "canvas colors"
    "kolory płótna",
@@ -6906,6 +8122,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "You would get hurt!",
    "Vous seriez blessé !",
     }},
+  {0x33a57d43, { // "Cannot grow there!"
+   "Nie można tam rosnąć!",
+/*MISSING*/    "Cannot grow there!",
+   "Tam nemůžeš růst!",
+/*MISSING*/    "Cannot grow there!",
+/*MISSING*/    "Cannot grow there!",
+/*MISSING*/    "Cannot grow there!",
+/*MISSING*/    "Cannot grow there!",
+    }},
   {0x33ded648, { // "Rotate the camera. Can be used to obtain a first person perspective, or third person perspective when combined with Y shift."
    "Obróć kamerę. Można użyć do uzyskania perspektywy z pierwszej osoby lub z trzeciej osoby po połączeniu z przesunięciem Y.",
 /*MISSING*/    "Rotate the camera. Can be used to obtain a first person perspective, or third person perspective when combined with Y shift.",
@@ -6914,6 +8139,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Rotate the camera. Can be used to obtain a first person perspective, or third person perspective when combined with Y shift.",
 /*MISSING*/    "Rotate the camera. Can be used to obtain a first person perspective, or third person perspective when combined with Y shift.",
    "Tourne la caméra. Peut être utilisé pour obtenir un point de vue à la première ou troisième personne lorsque combiné avec Y shift.",
+    }},
+  {0x33f318b4, { // "PvP grants infinite lives -- achievements disabled"
+   "gracz vs gracz daje nieskończenie wiele żyć -- osiągnięcia wyłączone",
+/*MISSING*/    "PvP grants infinite lives -- achievements disabled",
+   "v módu 'hráč proti hráči' máš nekonečné životy -- achievementy jsou vypnuté",
+/*MISSING*/    "PvP grants infinite lives -- achievements disabled",
+/*MISSING*/    "PvP grants infinite lives -- achievements disabled",
+/*MISSING*/    "PvP grants infinite lives -- achievements disabled",
+/*MISSING*/    "PvP grants infinite lives -- achievements disabled",
     }},
   {0x33f5fa96, { // "Illusions are targeted by most monsters, just like yourself, Thumpers, and your friends."
    "Większość potworów celuje w iluzje, podobnie jak w Ciebie, Dudniki i Twoich przyjaciół.",
@@ -6987,6 +8221,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "rotate view",
    "angle de vue",
     }},
+  {0x34326506, { // "split by vertex axes"
+   "podziel według osi wierzchołków",
+/*MISSING*/    "split by vertex axes",
+   "rozdělit podle vrcholových os",
+/*MISSING*/    "split by vertex axes",
+/*MISSING*/    "split by vertex axes",
+/*MISSING*/    "split by vertex axes",
+/*MISSING*/    "split by vertex axes",
+    }},
   {0x345423a6, { // "gain kills"
    "zdobądź zabicia",
    "leşler kazan.",
@@ -7032,6 +8275,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Bolza period",
    "période de Bolza",
     }},
+  {0x3504b106, { // "no context help/welcome messages"
+   "bez pomocy kontekstowej",
+/*MISSING*/    "no context help/welcome messages",
+   "bez kontextové nápovědy",
+/*MISSING*/    "no context help/welcome messages",
+/*MISSING*/    "no context help/welcome messages",
+/*MISSING*/    "no context help/welcome messages",
+/*MISSING*/    "no context help/welcome messages",
+    }},
   {0x35336197, { // "extra graphical effects"
    "dodatkowe efekty graficzne",
 /*MISSING*/    "extra graphical effects",
@@ -7041,6 +8293,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "extra graphical effects",
    "effets graphiques supplémentaires",
     }},
+  {0x353b70f0, { // "turtle"
+   "żółw ('turtle')",
+/*MISSING*/    "turtle",
+   "želva ('turtle')",
+/*MISSING*/    "turtle",
+/*MISSING*/    "turtle",
+/*MISSING*/    "turtle",
+/*MISSING*/    "turtle",
+    }},
+  {0x3543273b, { // "mirror connection"
+   "połączenie lustrzane",
+/*MISSING*/    "mirror connection",
+   "zrcadlové spojení",
+/*MISSING*/    "mirror connection",
+/*MISSING*/    "mirror connection",
+/*MISSING*/    "mirror connection",
+/*MISSING*/    "mirror connection",
+    }},
   {0x355c49e0, { // "(this setting is for 3D geometries only, use 'model viewing' instead)"
    "(to ustawienie jest dla geometrii 3D, użyj 'oglądanie modelu')",
 /*MISSING*/    "(this setting is for 3D geometries only, use 'model viewing' instead)",
@@ -7049,6 +8319,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "(this setting is for 3D geometries only, use 'model viewing' instead)",
 /*MISSING*/    "(this setting is for 3D geometries only, use 'model viewing' instead)",
    "(ce réglage est pour les géométries 3D uniquement, utiliser 'visualiser modèle' à la place)",
+    }},
+  {0x356125df, { // "Cannot jump onto %the1!"
+   "Nie można wskoczyć na %a1!",
+/*MISSING*/    "Cannot jump onto %the1!",
+   "Nemůžeš vyskočit na %a1!",
+/*MISSING*/    "Cannot jump onto %the1!",
+/*MISSING*/    "Cannot jump onto %the1!",
+/*MISSING*/    "Cannot jump onto %the1!",
+/*MISSING*/    "Cannot jump onto %the1!",
     }},
   {0x356ceb1d, { // "Hit him by walking away from him."
    "Odejdź od niego, by go trafić.",
@@ -7176,6 +8455,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "This is what Hyperbug Queens eat. Very tasty and healthy.",
    "C'est ce que mangent les Reines Hyperinsectes. Délicieux et bon pour la santé.",
     }},
+  {0x365637ed, { // "How much of edges to draw for tree patterns (to show how the tree edges are oriented)."
+   "Jaką część krawędzi rysować (by pokazać, w którą stronę zorientowane są krawędzie drzewa).",
+/*MISSING*/    "How much of edges to draw for tree patterns (to show how the tree edges are oriented).",
+   "Jak velká část hran se má kreslit ve stromových vzorech (pro vyznačení jejich orientace).",
+/*MISSING*/    "How much of edges to draw for tree patterns (to show how the tree edges are oriented).",
+/*MISSING*/    "How much of edges to draw for tree patterns (to show how the tree edges are oriented).",
+/*MISSING*/    "How much of edges to draw for tree patterns (to show how the tree edges are oriented).",
+/*MISSING*/    "How much of edges to draw for tree patterns (to show how the tree edges are oriented).",
+    }},
   {0x36692cb1, { // "No game here."
    "Tu nie ma gry.",
 /*MISSING*/    "No game here.",
@@ -7220,6 +8508,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "colorblind simulation",
 /*MISSING*/    "colorblind simulation",
    "simulation daltonisme",
+    }},
+  {0x36c4a82d, { // "toggle high detail"
+   "przestaw wysoki poziom szczegółów",
+/*MISSING*/    "toggle high detail",
+   "přepni vysokou úroveň detailů",
+/*MISSING*/    "toggle high detail",
+/*MISSING*/    "toggle high detail",
+/*MISSING*/    "toggle high detail",
+/*MISSING*/    "toggle high detail",
     }},
   {0x36df8f3e, { // "You summon a monster!"
    "Przywoła%łeś0 potwora!",
@@ -7319,6 +8616,15 @@ sentence all_sentences[] = {
    "Spieler 7 los",
 /*MISSING*/    "player 7 go",
    "joueur 7 part",
+    }},
+  {0x3701f16b, { // "distance in tiles"
+   "odległość w polach",
+/*MISSING*/    "distance in tiles",
+   "vzdálenost v políčkách",
+/*MISSING*/    "distance in tiles",
+/*MISSING*/    "distance in tiles",
+/*MISSING*/    "distance in tiles",
+/*MISSING*/    "distance in tiles",
     }},
   {0x37047907, { // "z-level"
    "poziom z",
@@ -7482,6 +8788,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "This ancient weapon is beautifully encrusted with precious gems, but you prefer your own -- it is much lighter.",
    "Cette arme ancienne est magnifiquement incrustée de gemmes précieuses, mais vous préférez la votre -- elle est bien plus légère.",
     }},
+  {0x38efe6ef, { // "3D embedding method"
+   "metoda zanurzenia w 3D",
+/*MISSING*/    "3D embedding method",
+   "metoda vnoření do 3D",
+/*MISSING*/    "3D embedding method",
+/*MISSING*/    "3D embedding method",
+/*MISSING*/    "3D embedding method",
+/*MISSING*/    "3D embedding method",
+    }},
   {0x39058963, { // "Whenever you attack with this Orb, you also hit the monsters adjacent to you which are neither adjacent nor opposite to the monster you originally attacked."
    "Gdy atakujesz z tą Sferą, atakujesz także potwory obok Ciebie, które ani nie są obok, ani na przeciwko oryginalnie zaatakowanego potwora.",
 /*MISSING*/    "Whenever you attack with this Orb, you also hit the monsters adjacent to you which are neither adjacent nor opposite to the monster you originally attacked.",
@@ -7572,6 +8887,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "reset per-player statistics",
    "réinitialise les statistiques par joueur",
     }},
+  {0x393ee34f, { // "Panini"
+   "Panini",
+/*MISSING*/    "Panini",
+   "Panini",
+/*MISSING*/    "Panini",
+/*MISSING*/    "Panini",
+/*MISSING*/    "Panini",
+/*MISSING*/    "Panini",
+    }},
+  {0x3973b69b, { // "depth bonus in pseudohedral"
+   "bonus do głębokości",
+/*MISSING*/    "depth bonus in pseudohedral",
+   "bonus na hloubku v pseudohedrálním módu",
+/*MISSING*/    "depth bonus in pseudohedral",
+/*MISSING*/    "depth bonus in pseudohedral",
+/*MISSING*/    "depth bonus in pseudohedral",
+/*MISSING*/    "depth bonus in pseudohedral",
+    }},
   {0x399bba1a, { // "gain orb powers"
    "Moce sfer",
    "küre güçleri kazan",
@@ -7598,6 +8931,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Failed to load %1",
 /*MISSING*/    "Failed to load %1",
    "Échec du chargement de %1",
+    }},
+  {0x39cc14f2, { // "color by symmetries (reversed tiles marked)"
+   "koloruj po symetriach (zaznacz odwrócone kafelki)",
+/*MISSING*/    "color by symmetries (reversed tiles marked)",
+   "obarvi podle symetrií (s vyznačením převrácených dlaždic)",
+/*MISSING*/    "color by symmetries (reversed tiles marked)",
+/*MISSING*/    "color by symmetries (reversed tiles marked)",
+/*MISSING*/    "color by symmetries (reversed tiles marked)",
+/*MISSING*/    "color by symmetries (reversed tiles marked)",
     }},
   {0x39d682db, { // "Still confused? Read the FAQ on the HyperRogue website!\n\n"
    "Coś jest niejasne? Przeczytaj FAQ na stronie HyperRogue! (po angielsku)\n\n",
@@ -7644,6 +8986,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "F/;/Space/Enter/KP5 = fire, WASD/IJKL/Numpad = move",
    "F/[;]/Espace/Entrée/[pavé numérique 5] = tirer, WASD/IJKL/Numpad = bouger",
     }},
+  {0x3a2d7149, { // "die mirror status"
+   "stan lustrzanego odbicia kostki",
+/*MISSING*/    "die mirror status",
+   "zrcadlový status kostky",
+/*MISSING*/    "die mirror status",
+/*MISSING*/    "die mirror status",
+/*MISSING*/    "die mirror status",
+/*MISSING*/    "die mirror status",
+    }},
   {0x3a302cfa, { // "Click again to go back to your game."
    "Kliknij ponownie by wrócić do swojej gry.",
 /*MISSING*/    "Click again to go back to your game.",
@@ -7679,6 +9030,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Crystal Camelot is an octahedron in 'pure' 3D crystal geometry (and a similar polytope in other pure crystals), and an Euclidean ball in bitruncated/Goldberg crystals.",
 /*MISSING*/    "Crystal Camelot is an octahedron in 'pure' 3D crystal geometry (and a similar polytope in other pure crystals), and an Euclidean ball in bitruncated/Goldberg crystals.",
    "Le Camelot en cristal est un octaèdre en géométrie 3D cristalline 'pure', (et un polytope similaire dans d'autre cristaux purs) et une balle euclidienne dans un cristal bitronqué/Goldberg.",
+    }},
+  {0x3a6b62f7, { // "A larger number means darker game map in the background. Set to 8 to disable the background."
+   "Większa liczba to ciemniejsze tło z mapą gry. Ustaw 8, by całkowicie wyłączyć tło.",
+/*MISSING*/    "A larger number means darker game map in the background. Set to 8 to disable the background.",
+   "Vyšší číslo znamená tmavší herní mapu na pozadí. Hodnota 8 pozadí úplně vypne.",
+/*MISSING*/    "A larger number means darker game map in the background. Set to 8 to disable the background.",
+/*MISSING*/    "A larger number means darker game map in the background. Set to 8 to disable the background.",
+/*MISSING*/    "A larger number means darker game map in the background. Set to 8 to disable the background.",
+/*MISSING*/    "A larger number means darker game map in the background. Set to 8 to disable the background.",
     }},
   {0x3a6d5777, { // "%The1 kills %the2!"
    "%1 zabi%ł1 %a2!",
@@ -7752,6 +9112,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Collect four different Elemental Shards!",
    "Rassemblez quatre Fragments Élémentaux différents !",
     }},
+  {0x3b22ce3d, { // "no achievements/leaderboards in this version"
+   "brak osiągnięć i rankingów w tej wersji",
+/*MISSING*/    "no achievements/leaderboards in this version",
+   "v této verzi žádné achievementy/leaderboardy nejsou",
+/*MISSING*/    "no achievements/leaderboards in this version",
+/*MISSING*/    "no achievements/leaderboards in this version",
+/*MISSING*/    "no achievements/leaderboards in this version",
+/*MISSING*/    "no achievements/leaderboards in this version",
+    }},
   {0x3b3cabcc, { // "Press F1 or right-shift-click things for help."
    "F1 lub klikaj z prawym shiftem na elementach gry, by uzyskać pomoc.",
 /*MISSING*/    "Press F1 or right-shift-click things for help.",
@@ -7805,6 +9174,15 @@ sentence all_sentences[] = {
    "Vektoren-Grafiken-Editor",
    "editor de vetores gráficos",
    "éditeur de graphiques vectoriels",
+    }},
+  {0x3bafc95f, { // "autoscale dual focus"
+   "automatyczne skalowanie przy podwójnym ogniskowaniu",
+/*MISSING*/    "autoscale dual focus",
+   "automatické škálování dvojího zaostření",
+/*MISSING*/    "autoscale dual focus",
+/*MISSING*/    "autoscale dual focus",
+/*MISSING*/    "autoscale dual focus",
+/*MISSING*/    "autoscale dual focus",
     }},
   {0x3bca0c75, { // "The size of the absolute unit of the non-Euclidean geometry in meters. This affects the headset movement and binocular vision.\n\nIn spherical geometry, the absolute unit is the radius of the sphere. The smaller the absolute unit, the stronger the non-Euclidean effects.\n\nElements of the HyperRogue world have fixed size in terms of absolute units, so reducing the absolute unit makes them smaller. If you are playing in the Euclidean mode, this feature just scales everything (e.g., in the cube tiling, the 'absolute unit' is just the edge of the cube). Only perspective projections are affected, other models use the 'VR scale' setting from the Projections menu."
    "Odpowiednik jednostki absolutnej geometrii nieuklidesowej w metrach. Wpływa to na ruch okularów VR i widzenie dwuoczne.\n\nW geometrii sferycznej jest to promień sfery. Im mniejsza jednostka absolutna, tym silniejsze efekty nieeuklidesowe. Elementy świata HyperRogue mają ustalony rozmiar w jednostkach absolutnych, także zmniejszenie jednostki spowoduje ich zmniejszenie. W trybie euklidesowym ten parametr po prostu skaluje wszystko (w parkietażu sześciennym jest to bok sześcianu). Parametr wpływa jedynie na perspektywę, pozostałe modele używają parametru 'skala VR' z menu rzutów.",
@@ -8004,6 +9382,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "disable ghost timer",
    "désactiver le compteur fantôme",
     }},
+  {0x3d7925e4, { // "ratio of very high walls to normal walls"
+   "stosunek bardzo wysokich ścian do normalnych",
+/*MISSING*/    "ratio of very high walls to normal walls",
+   "poměr velmi vysokých a normálních stěn",
+/*MISSING*/    "ratio of very high walls to normal walls",
+/*MISSING*/    "ratio of very high walls to normal walls",
+/*MISSING*/    "ratio of very high walls to normal walls",
+/*MISSING*/    "ratio of very high walls to normal walls",
+    }},
   {0x3da911b2, { // "Activated the Hyperstone Quest!"
    "Aktywowałeś Misję Hiperkamień!",
    "Aşkıntaş Görevini etkinleştirdin!",
@@ -8030,6 +9417,15 @@ sentence all_sentences[] = {
    "%Der1 %1 würde dich dort töten!",
    "%na1 lhe mataria ali!",
    "%Le1 vous tuerait ici !",
+    }},
+  {0x3e286c2d, { // "{3,5,4} field quotient space"
+   "{3,5,4} przestrzeń ilorazowa ciała",
+/*MISSING*/    "{3,5,4} field quotient space",
+   "{3,5,4} prostor s tělesovým kvocientem",
+/*MISSING*/    "{3,5,4} field quotient space",
+/*MISSING*/    "{3,5,4} field quotient space",
+/*MISSING*/    "{3,5,4} field quotient space",
+   "{3,5,4} champ d'espace quotient",
     }},
   {0x3e383911, { // "line patterns"
    "wzory linii",
@@ -8148,6 +9544,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Apparently a prince is kept locked somewhere, but you won't ever find him in this hyperbolic palace. ",
    "Apparemment un prince est enfermé quelque part, mais vous ne le trouverez pas dans ce palais hyperbolique.  ",
     }},
+  {0x3f290e7a, { // "Cannot vault to %the1!"
+   "Nie można przeskoczyć do %a1!",
+/*MISSING*/    "Cannot vault to %the1!",
+   "Nemůžeš skočit do %a1!",
+/*MISSING*/    "Cannot vault to %the1!",
+/*MISSING*/    "Cannot vault to %the1!",
+/*MISSING*/    "Cannot vault to %the1!",
+/*MISSING*/    "Cannot vault to %the1!",
+    }},
   {0x3f3de746, { // "The Orb of Yendor is locked in with powerful magic."
    "Potężna magia chroni Sferę Yendoru przed przemieszczaniem.",
 /*MISSING*/    "The Orb of Yendor is locked in with powerful magic.",
@@ -8211,6 +9616,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "display only hexagons",
    "ne montrer ne les hexagones",
     }},
+  {0x3fa17bba, { // "conformal square"
+   "kwadrat konforemny",
+/*MISSING*/    "conformal square",
+   "konformální čtverec",
+/*MISSING*/    "conformal square",
+/*MISSING*/    "conformal square",
+/*MISSING*/    "conformal square",
+/*MISSING*/    "conformal square",
+    }},
   {0x3fc46553, { // "generate"
    "generuj spoza zasięgu",
 /*MISSING*/    "generate",
@@ -8228,6 +9642,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "This is applied in HyperRogue to create landscapes, such as the chasms in the land of Reptiles or the Dragon Chasms, which you should find quickly. Also in the Dragon Chasms, you can find a Baby Tortoise, and try to find a matching adult tortoise in the Galápagos. There are over two millions of species, but since there is so much space in hyperbolic geometry, finding a matching tortoise is possible. The brighter the color in Galápagos is, the more aspects of the tortoises in the given area are matching.",
 /*MISSING*/    "This is applied in HyperRogue to create landscapes, such as the chasms in the land of Reptiles or the Dragon Chasms, which you should find quickly. Also in the Dragon Chasms, you can find a Baby Tortoise, and try to find a matching adult tortoise in the Galápagos. There are over two millions of species, but since there is so much space in hyperbolic geometry, finding a matching tortoise is possible. The brighter the color in Galápagos is, the more aspects of the tortoises in the given area are matching.",
    "Ceci est appliqué dans HyperRogue pour créer des paysages, comme les gouffres dans le pays des Reptiles ou les Gouffres aux Dragons, que vous devriez trouver rapidement. Aussi dans les Gouffres aux Dragons, vous pouvez trouver un Bébé Tortue, et essayer de trouver une tortue adulte correspondante dans les Galápagos. Il y a plus de deux millions d'espèces, mais comme il y a beaucoup d'espace avec la géométrie hyperbolique, il est possible de trouver une tortue correspondante. Plus la couleur des Galápagos est brillante, plus d'aspects des tortues dans un endroit donné correspondent.",
+    }},
+  {0x3fff65e2, { // "all context help/welcome messages"
+   "pełna pomoc kontekstowa",
+/*MISSING*/    "all context help/welcome messages",
+   "plná kontextová nápověda",
+/*MISSING*/    "all context help/welcome messages",
+/*MISSING*/    "all context help/welcome messages",
+/*MISSING*/    "all context help/welcome messages",
+/*MISSING*/    "all context help/welcome messages",
     }},
   {0x4000b1f6, { // "elliptic"
    "eliptyczna",
@@ -8264,6 +9687,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Special interest.",
 /*MISSING*/    "Special interest.",
    "Interêt spécial.",
+    }},
+  {0x40485645, { // "original"
+   "oryginalna",
+/*MISSING*/    "original",
+   "originální",
+/*MISSING*/    "original",
+/*MISSING*/    "original",
+/*MISSING*/    "original",
+/*MISSING*/    "original",
     }},
   {0x404d990a, { // "save whom"
    "kogo ratujemy",
@@ -8327,6 +9759,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "change the alpha parameter to show the lines",
 /*MISSING*/    "change the alpha parameter to show the lines",
    "changer le paramètre alpha pour montrer les lignes",
+    }},
+  {0x40a13981, { // "start animations"
+   "animacje podczas startu gry",
+/*MISSING*/    "start animations",
+   "startovní animace",
+/*MISSING*/    "start animations",
+/*MISSING*/    "start animations",
+/*MISSING*/    "start animations",
+/*MISSING*/    "start animations",
+    }},
+  {0x40a996d7, { // "\n\nThis Orb is triggered on your first direct melee attack or illegal move."
+   "\n\nTa Sfera się aktywuje automatycznie, gdy wykonasz bezpośredni atak wręcz lub nielegalny ruch.",
+/*MISSING*/    "\n\nThis Orb is triggered on your first direct melee attack or illegal move.",
+   "\n\nTato Sféra se spustí při tvém prvním přímém útoku nablízko nebo ilegálním tahu.",
+/*MISSING*/    "\n\nThis Orb is triggered on your first direct melee attack or illegal move.",
+/*MISSING*/    "\n\nThis Orb is triggered on your first direct melee attack or illegal move.",
+/*MISSING*/    "\n\nThis Orb is triggered on your first direct melee attack or illegal move.",
+/*MISSING*/    "\n\nThis Orb is triggered on your first direct melee attack or illegal move.",
     }},
   {0x40c3c492, { // "horocyclic coordinates"
    "współrzędne horocykliczne",
@@ -8427,6 +9877,15 @@ sentence all_sentences[] = {
    "ou 'r' ou F5 para reiniciar",
    "ou 'r' ou bien F5 pour recommencer du début",
     }},
+  {0x41a43148, { // "set binary tiling"
+   "ustaw parkietaż binarny",
+/*MISSING*/    "set binary tiling",
+   "nastav binární dláždění",
+/*MISSING*/    "set binary tiling",
+/*MISSING*/    "set binary tiling",
+/*MISSING*/    "set binary tiling",
+/*MISSING*/    "set binary tiling",
+    }},
   {0x41a524ac, { // "The total value of the treasure you have collected.\n\nEvery world type contains a specific type of treasure, worth 1 $$$; your goal is to collect as much treasure as possible, but every treasure you find causes more enemies to hunt you in its native land.\n\nOrbs of Yendor are worth 50 $$$ each.\n\n"
    "Łączna wartość Twoich skarbów.\n\nKażda kraina zawiera specyficzny dla niej skarb, wart 1 $$$; Twoim celem jest zebranie jak najwięcej skarbów, ale każdy znaleziony skarb powoduje, że w jego krainie więcej potworów na Ciebie poluje.\n\nSfery Yendoru są warte po 50 $$$.\n\n",
    "Topladığınız hazinelerin toplam değeri.\n\nHer dünya 1 $$$ değerinde belli bir çeşit hazine içerir;  amacın olabildiğince çok hazine toplamak, ama her bulduğun hazine, daha fazla düşmanın sana saldırmasına sebep olur.\n\n Her Yendorun Küresi 50 $$$ değerindedir.\n\n",
@@ -8471,6 +9930,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Diagonal",
 /*MISSING*/    "Diagonal",
    "Diagonale",
+    }},
+  {0x41ccce9a, { // "Use HyperRogue's 2D engine to simulate same curvature. Works well in top-down and third-person perspective. The Hypersian Rug mode can be used to project this to a surface."
+   "Używamy silnika 2D by symulować tą samą krzywiznę w trzecim wymiarze. Działa dobrze przy widoku z góry i z perspektywy trzeciej osoby. Tryb Hiperskiego Dywanu może być użyty, by zrobić rzut na powierzchnię w trzech wymiarach.",
+/*MISSING*/    "Use HyperRogue's 2D engine to simulate same curvature. Works well in top-down and third-person perspective. The Hypersian Rug mode can be used to project this to a surface.",
+   "Použij 2D engine HyperRogue k simulování stejné křivosti. Dobře to funguje v pohledu seshora nebo třetí osoby. Můžeš použít mód Hyperského koberce, abys výsledek promítl na nějaký povrch.",
+/*MISSING*/    "Use HyperRogue's 2D engine to simulate same curvature. Works well in top-down and third-person perspective. The Hypersian Rug mode can be used to project this to a surface.",
+/*MISSING*/    "Use HyperRogue's 2D engine to simulate same curvature. Works well in top-down and third-person perspective. The Hypersian Rug mode can be used to project this to a surface.",
+/*MISSING*/    "Use HyperRogue's 2D engine to simulate same curvature. Works well in top-down and third-person perspective. The Hypersian Rug mode can be used to project this to a surface.",
+/*MISSING*/    "Use HyperRogue's 2D engine to simulate same curvature. Works well in top-down and third-person perspective. The Hypersian Rug mode can be used to project this to a surface.",
     }},
   {0x41d2f570, { // "Challenges do not get harder"
    "Misje nie stają się trudniejsze",
@@ -8543,6 +10011,15 @@ sentence all_sentences[] = {
    "Korallen haben auch in deiner Welt eine etwas hyperbolische Struktur. Aber natürliche Korallen der Verzerrten See haben besonders schöne Formen. Rattenmenschen kennen den Wert der Korallen und bewahren sie daher zur Sicherheit in Booten auf.",
 /*MISSING*/    "Corals have a somewhat hyperbolic structure even in your home world, but natural corals from the Warped Sea have truly beautiful shapes. Ratlings know the value of corals, and thus keep them in boats for safety.",
    "Les Coraux ont une structure en quelque sorte hyperbolique même dans votre monde natal, mais les coraux naturels de la mer déformée ont des formes réellement magnifiques. Les Hommes-Rats connaissent la valeur des coraux, et les gardent donc dans leurs bateaux par sécurité.",
+    }},
+  {0x42d2f98c, { // "for red-cyan glasses"
+   "do użycia z czerowno-turkusowymi okularami 3D",
+/*MISSING*/    "for red-cyan glasses",
+   "pro červeno-tyrkysové 3D brýle",
+/*MISSING*/    "for red-cyan glasses",
+/*MISSING*/    "for red-cyan glasses",
+/*MISSING*/    "for red-cyan glasses",
+/*MISSING*/    "for red-cyan glasses",
     }},
   {0x42e883f7, { // "\"By now, you should have your own formula, you know?\""
    "\"Wiesz co, m%ógł0byś już mieć swój własny wzór!\"",
@@ -8742,6 +10219,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "smoothen",
    "lisser",
     }},
+  {0x448e588c, { // "Embed Euclidean or hyperbolic plane into stretched hyperbolic geometry."
+   "Zanurz płaszczyznę euklidesową lub hiperboliczną w rozciągniętą geometrię hiperboliczną.",
+/*MISSING*/    "Embed Euclidean or hyperbolic plane into stretched hyperbolic geometry.",
+   "Vnoř eukleidovskou nebo hyperbolickou rovinu do natažené hyperbolické geometrie.",
+/*MISSING*/    "Embed Euclidean or hyperbolic plane into stretched hyperbolic geometry.",
+/*MISSING*/    "Embed Euclidean or hyperbolic plane into stretched hyperbolic geometry.",
+/*MISSING*/    "Embed Euclidean or hyperbolic plane into stretched hyperbolic geometry.",
+/*MISSING*/    "Embed Euclidean or hyperbolic plane into stretched hyperbolic geometry.",
+    }},
   {0x44c12288, { // "e = edit this"
    "e = edytuj to",
    "e = bunu düzenle",
@@ -8805,6 +10291,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Failed to save map to %1",
    "Échec de la sauvegarde de la carte vers %1",
     }},
+  {0x4522b88d, { // "Cannot fire again yet. Turns to reload: %1."
+   "Wciąż nie możesz strzelać. Liczba kolejek do naładowania: %1",
+/*MISSING*/    "Cannot fire again yet. Turns to reload: %1.",
+   "Ještě nemůžeš znovu střílet. Počet kol do nabití: %1",
+/*MISSING*/    "Cannot fire again yet. Turns to reload: %1.",
+/*MISSING*/    "Cannot fire again yet. Turns to reload: %1.",
+/*MISSING*/    "Cannot fire again yet. Turns to reload: %1.",
+/*MISSING*/    "Cannot fire again yet. Turns to reload: %1.",
+    }},
   {0x453100f2, { // "Collect %1x %2 to unlock"
    "Zbierz %1x %2 by odblokować",
    " %1 tane %2 toplayarak aktifleştir",
@@ -8813,6 +10308,15 @@ sentence all_sentences[] = {
    "Sammle %1x %2 zum Freischalten",
 /*MISSING*/    "Collect %1x %2 to unlock",
    "Rassemblez %1x %P2 pour débloquer",
+    }},
+  {0x45422fb6, { // "highlight faraway monsters"
+   "podświetlaj odległe potwory",
+/*MISSING*/    "highlight faraway monsters",
+   "zvýrazni vzdálené netvory",
+/*MISSING*/    "highlight faraway monsters",
+/*MISSING*/    "highlight faraway monsters",
+/*MISSING*/    "highlight faraway monsters",
+/*MISSING*/    "highlight faraway monsters",
     }},
   {0x454e060d, { // "connection debugger"
    "debugger połączeń",
@@ -8840,6 +10344,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Controls the number of triangles used for wall surfaces. Higher numbers reduce the performance. This has a strong effect when the walls are curved indeed (floors in 2D geometries, honeycombs based on horospheres, and projections other than native perspective), but otherwise, usually it can be set to 1 without significant adverse effects other than slightly incorrect texturing.",
 /*MISSING*/    "Controls the number of triangles used for wall surfaces. Higher numbers reduce the performance. This has a strong effect when the walls are curved indeed (floors in 2D geometries, honeycombs based on horospheres, and projections other than native perspective), but otherwise, usually it can be set to 1 without significant adverse effects other than slightly incorrect texturing.",
    "Contrôle le nombre de triangles utilisés pour la surface des murs. De plus grands nombres réduisent la performance. Ceci a un fort effet quand les murs sont effectivement courbés (sols en géométries 2D, nids d'abeilles basés sur des horosphères, et les projections autres qu'en perspective native), mais autrement, cela peut être réglé à 1 sans effets négatifs importants autres qu'une texture légèrement incorrecte.",
+    }},
+  {0x455a56ec, { // "too difficult: %1"
+   "za trudne: %1",
+/*MISSING*/    "too difficult: %1",
+   "příliš obtížné: %1",
+/*MISSING*/    "too difficult: %1",
+/*MISSING*/    "too difficult: %1",
+/*MISSING*/    "too difficult: %1",
+/*MISSING*/    "too difficult: %1",
     }},
   {0x4575e062, { // "default value"
    "domyślna wartość",
@@ -8876,6 +10389,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "General Euclid",
 /*MISSING*/    "General Euclid",
    "Euclide général",
+    }},
+  {0x46093d90, { // "might be glitched in some settings"
+   "w niektórych ustawieniach źle działa",
+/*MISSING*/    "might be glitched in some settings",
+   "s některými nastaveními může dělat chyby",
+/*MISSING*/    "might be glitched in some settings",
+/*MISSING*/    "might be glitched in some settings",
+/*MISSING*/    "might be glitched in some settings",
+/*MISSING*/    "might be glitched in some settings",
+    }},
+  {0x461873ac, { // "converted successfully -- %1 cell types"
+   "konwersja udana -- liczba typów pól: %1",
+/*MISSING*/    "converted successfully -- %1 cell types",
+   "konverze úspěšná -- %1 typů políček",
+/*MISSING*/    "converted successfully -- %1 cell types",
+/*MISSING*/    "converted successfully -- %1 cell types",
+/*MISSING*/    "converted successfully -- %1 cell types",
+/*MISSING*/    "converted successfully -- %1 cell types",
     }},
   {0x46205246, { // "Cannot teleport on an item!"
    "Nie możesz teleportować się na przedmiot!",
@@ -8966,6 +10497,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "warped",
 /*MISSING*/    "warped",
    "tordu",
+    }},
+  {0x469aedde, { // "spectre"
+   "spektr ('spectre')",
+/*MISSING*/    "spectre",
+   "přízrak ('spectre')",
+/*MISSING*/    "spectre",
+/*MISSING*/    "spectre",
+/*MISSING*/    "spectre",
+/*MISSING*/    "spectre",
     }},
   {0x469f3675, { // "Ice Walls melt after some time has passed."
    "Lodowe ściany topią się po pewnym czasie.",
@@ -9075,6 +10615,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "variation|dual|bitruncated",
    "variation|duel|bitronqué",
     }},
+  {0x477abcdb, { // "ideal Voronoi"
+   "idealne Voronoi",
+/*MISSING*/    "ideal Voronoi",
+   "ideální Voronoi",
+/*MISSING*/    "ideal Voronoi",
+/*MISSING*/    "ideal Voronoi",
+/*MISSING*/    "ideal Voronoi",
+/*MISSING*/    "ideal Voronoi",
+    }},
+  {0x47bc034f, { // "circumscribed"
+   "opisane",
+/*MISSING*/    "circumscribed",
+   "opsané",
+/*MISSING*/    "circumscribed",
+/*MISSING*/    "circumscribed",
+/*MISSING*/    "circumscribed",
+/*MISSING*/    "circumscribed",
+    }},
   {0x47c3eb96, { // "send scores to Steam leaderboards"
    "wyślij wyniki do rankingów Steam",
 /*MISSING*/    "send scores to Steam leaderboards",
@@ -9083,6 +10641,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "send scores to Steam leaderboards",
 /*MISSING*/    "send scores to Steam leaderboards",
    "envoyer les scores au tableaux de Steam",
+    }},
+  {0x47c7be12, { // "hat clusters"
+   "klastry kapeluszy",
+/*MISSING*/    "hat clusters",
+   "shluky klobouků",
+/*MISSING*/    "hat clusters",
+/*MISSING*/    "hat clusters",
+/*MISSING*/    "hat clusters",
+/*MISSING*/    "hat clusters",
     }},
   {0x47ec6cf4, { // "The gate is closing right on you! RUN!"
    "Brama leci na Ciebie! UCIEKAJ!",
@@ -9101,6 +10668,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "geometry",
 /*MISSING*/    "geometry",
    "géométrie",
+    }},
+  {0x47f8d5b2, { // "eye angle scale"
+   "skalowanie kąta widzenia",
+/*MISSING*/    "eye angle scale",
+   "škálování úhlu oka",
+/*MISSING*/    "eye angle scale",
+/*MISSING*/    "eye angle scale",
+/*MISSING*/    "eye angle scale",
+/*MISSING*/    "eye angle scale",
+    }},
+  {0x480b40d7, { // "pure exploration (game keys scroll)"
+   "czysta eksploracja (klawisze gry przewijają)",
+/*MISSING*/    "pure exploration (game keys scroll)",
+   "čisté zkoumání světa (herní klávesy scrollují)",
+/*MISSING*/    "pure exploration (game keys scroll)",
+/*MISSING*/    "pure exploration (game keys scroll)",
+/*MISSING*/    "pure exploration (game keys scroll)",
+/*MISSING*/    "pure exploration (game keys scroll)",
     }},
   {0x48129451, { // " (2D only)"
    " (tylko 2D)",
@@ -9156,6 +10741,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "model used (not conformal!)",
    "modèle utilisé (non conforme !)",
     }},
+  {0x488f5bee, { // "geodesics"
+   "geodezyjne",
+/*MISSING*/    "geodesics",
+   "geodetiky",
+/*MISSING*/    "geodesics",
+/*MISSING*/    "geodesics",
+/*MISSING*/    "geodesics",
+/*MISSING*/    "geodesics",
+    }},
+  {0x48aa4f12, { // "crossbow"
+   "kusza",
+/*MISSING*/    "crossbow",
+   "kuše",
+/*MISSING*/    "crossbow",
+/*MISSING*/    "crossbow",
+/*MISSING*/    "crossbow",
+/*MISSING*/    "crossbow",
+    }},
   {0x48ad1464, { // "Note: this mode is based on what you see on the screen -- but re-rendered in another way. If not everything is shown on the screen (e.g., too zoomed in), the results will be incorrect (though possibly interesting). Use a different projection to fix this."
    "Uwaga: ten tryb jest oparty na tym, co widzisz na ekranie -- tylko inaczej przedstawionym. Jeśli nie wszystko jest na ekranie (np. za mocno zbliżenie), wyniki będą nieprawidłowe, choć być może interesujące. Użyj innego rzutu, by to naprawić.",
 /*MISSING*/    "Note: this mode is based on what you see on the screen -- but re-rendered in another way. If not everything is shown on the screen (e.g., too zoomed in), the results will be incorrect (though possibly interesting). Use a different projection to fix this.",
@@ -9182,6 +10785,15 @@ sentence all_sentences[] = {
    "Je höher die Zahl, desto flüssiger sind die Animationen. Sind sie nicht flüssig genug, versuche die Optionen zu ändern ",
    "Quanto maior o número, mais suave serão as animações no jogo. Se você acha que as animações não estão suficientemente suaves, você pode tentar mudar as opções ",
    "Plus le nombre est grand, plus les animations sont fluides.Si elles ne sont pas assez fluides, vous pouvez essayer de changer les options.",
+    }},
+  {0x4917baf7, { // "Cannot phase that far!"
+   "Nie można fazować tak daleko!",
+/*MISSING*/    "Cannot phase that far!",
+   "Nemůžeš fázovat tak daleko!",
+/*MISSING*/    "Cannot phase that far!",
+/*MISSING*/    "Cannot phase that far!",
+/*MISSING*/    "Cannot phase that far!",
+/*MISSING*/    "Cannot phase that far!",
     }},
   {0x4925e6da, { // "ambush:"
    "zasadzka:",
@@ -9300,6 +10912,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "This does not work in bounded geometries.",
    "Ceci ne marche pas en géométrie à bords",
     }},
+  {0x49d6e466, { // "Strict tree maps are generated using a more powerful algorithm.\n\nThis algorithm supports horocycles and knows the expansion rates of various tessellations (contrary to the basic implementation of Archimedean, tes, and unrectified/warped/untruncated tessellations).\n\nYou can convert mostly any non-spherical periodic 2D tessellation to strict tree based.\n\nSwitching the map format erases your map."
+   "Ściśle drzewiaste mapy używają mocniejsego algorytmu.\n\nW tym algorytmie działają horocykle i obliczanie stopnia ekspansji dla różnych teselacji (w przeciwieństwie do podstawowej implementacji map archimedesowych, .tes, i teselacji unrectified/warped/untruncated).\n\nMożna skonwertować prawie dowolną niesferyczną okresową teselację 2D do ściśle drzewiastej mapy.\n\nTa konwersja powoduje wykasowanie Twojej obecnej mapy gry.",
+/*MISSING*/    "Strict tree maps are generated using a more powerful algorithm.\n\nThis algorithm supports horocycles and knows the expansion rates of various tessellations (contrary to the basic implementation of Archimedean, tes, and unrectified/warped/untruncated tessellations).\n\nYou can convert mostly any non-spherical periodic 2D tessellation to strict tree based.\n\nSwitching the map format erases your map.",
+   "Striktní stromové mapy se vytvářejí pomocí silnějšího algoritmu.\n\nTento algoritmus podporuje horocykly a zná rychlost růstu různých dláždění (oproti základní implementaci archimédovských dláždění, *.tes a nerektifikovaných/pokřivených/neseříznutých dláždění).\n\nTéměř jakékoli nesférické periodické 2D dláždění je možné zkonvertovat na striktní stromovou mapu.\n\nZměna formátu mapy tvoji mapu vymaže.",
+/*MISSING*/    "Strict tree maps are generated using a more powerful algorithm.\n\nThis algorithm supports horocycles and knows the expansion rates of various tessellations (contrary to the basic implementation of Archimedean, tes, and unrectified/warped/untruncated tessellations).\n\nYou can convert mostly any non-spherical periodic 2D tessellation to strict tree based.\n\nSwitching the map format erases your map.",
+/*MISSING*/    "Strict tree maps are generated using a more powerful algorithm.\n\nThis algorithm supports horocycles and knows the expansion rates of various tessellations (contrary to the basic implementation of Archimedean, tes, and unrectified/warped/untruncated tessellations).\n\nYou can convert mostly any non-spherical periodic 2D tessellation to strict tree based.\n\nSwitching the map format erases your map.",
+/*MISSING*/    "Strict tree maps are generated using a more powerful algorithm.\n\nThis algorithm supports horocycles and knows the expansion rates of various tessellations (contrary to the basic implementation of Archimedean, tes, and unrectified/warped/untruncated tessellations).\n\nYou can convert mostly any non-spherical periodic 2D tessellation to strict tree based.\n\nSwitching the map format erases your map.",
+/*MISSING*/    "Strict tree maps are generated using a more powerful algorithm.\n\nThis algorithm supports horocycles and knows the expansion rates of various tessellations (contrary to the basic implementation of Archimedean, tes, and unrectified/warped/untruncated tessellations).\n\nYou can convert mostly any non-spherical periodic 2D tessellation to strict tree based.\n\nSwitching the map format erases your map.",
+    }},
   {0x49ea57b3, { // "level lines"
    "poziomice",
 /*MISSING*/    "level lines",
@@ -9309,6 +10930,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "level lines",
    "lignes de niveau",
     }},
+  {0x4a00d732, { // "Display cell type IDs, as well as vertex and edge identifiers.\n\nSetting 1 uses the internal shape IDs, while setting 2 in tes files uses the original IDs in case if extra tile types were added to separate mirror images or different football types."
+   "Typy komórek, numery krawędzi i wierzchołków. Ustaw 1 = wewnętrzne IDy kształtów, 2 = oryginalne IDy, o ile dodatkowe typy zostały dodane, by odseparować odbicia lustrzane lub dodatkowe typy wprowadzone w celu uzyskania kolorowalności piłki nożnej.",
+/*MISSING*/    "Display cell type IDs, as well as vertex and edge identifiers.\n\nSetting 1 uses the internal shape IDs, while setting 2 in tes files uses the original IDs in case if extra tile types were added to separate mirror images or different football types.",
+   "Zobrazuje ID typu políčka a identifikátory vrcholů a hran.\n\nHodnota 1 používá interní ID tvarů, zatímco hodnota 2 používá původní ID ze souborů *.tes pro případ, že se přidaly další typy políček, aby se oddělily zrcadlové obrazy nebo různé fotbalové typy.",
+/*MISSING*/    "Display cell type IDs, as well as vertex and edge identifiers.\n\nSetting 1 uses the internal shape IDs, while setting 2 in tes files uses the original IDs in case if extra tile types were added to separate mirror images or different football types.",
+/*MISSING*/    "Display cell type IDs, as well as vertex and edge identifiers.\n\nSetting 1 uses the internal shape IDs, while setting 2 in tes files uses the original IDs in case if extra tile types were added to separate mirror images or different football types.",
+/*MISSING*/    "Display cell type IDs, as well as vertex and edge identifiers.\n\nSetting 1 uses the internal shape IDs, while setting 2 in tes files uses the original IDs in case if extra tile types were added to separate mirror images or different football types.",
+/*MISSING*/    "Display cell type IDs, as well as vertex and edge identifiers.\n\nSetting 1 uses the internal shape IDs, while setting 2 in tes files uses the original IDs in case if extra tile types were added to separate mirror images or different football types.",
+    }},
   {0x4a0b2d2a, { // "This orb is activated if you are unable to escape (radius 4) without making illegal moves or going through cells which are currently adjacent to enemy monsters. Most game over situations are covered by this, but generally, this orb is oversensitive...\n\nWhen activated, it creates a Flash effect of radius 5."
    "Ta sfera aktywuje się, gdy nie możesz uciec (promień 4) bez wykonywania nielegalnych ruchów lub przechodzenia przez komórki nie sąsiadujące z przeciwnikami. Pokrywa większość sytuacji 'koniec gry', ale zazwyczaj ta sfera jest nadwrażliwa...\n\nAktywacja powoduje efekt czaru Błysk w promieniu 5.",
 /*MISSING*/    "This orb is activated if you are unable to escape (radius 4) without making illegal moves or going through cells which are currently adjacent to enemy monsters. Most game over situations are covered by this, but generally, this orb is oversensitive...\n\nWhen activated, it creates a Flash effect of radius 5.",
@@ -9317,6 +10947,15 @@ sentence all_sentences[] = {
    "Dieser Orb wird aktiviert, wenn du nicht mehr entkommen kannst (Radius 4), ohne unerlaubte Züge zu machen oder Zellen zu überqueren, die sich neben einem feindlichen Monster befinden. Die meisten game-over-Situationen erfüllen diese Bedingung, aber im Allgemeinen ist dieser Orb überempfindlich...\n\nWenn er aktiviert wird, erzeugt er einen Lichtblitz vom Radius 5.",
 /*MISSING*/    "This orb is activated if you are unable to escape (radius 4) without making illegal moves or going through cells which are currently adjacent to enemy monsters. Most game over situations are covered by this, but generally, this orb is oversensitive...\n\nWhen activated, it creates a Flash effect of radius 5.",
    "Cet orbe s'active si vous ne pouvez pas vous échapper (rayon 4), sans mouvements interdits ou en passant par des cases adjacentes à des monstres. La plupart des situations sont couvertes par ceci, mais en général cet orbe est trop sensible. Une fois activée, elle crée un effet d’Éclair de rayon 5.",
+    }},
+  {0x4a1bd982, { // "Imaginary part of the hat parameter. This corresponds to the usual interpretation of complex numbers in Euclidean planar geometry: rather than shortened or lengthened, the edges are moved in the other dimension."
+   "Część urojona parametru hat. Odpowiada ona standardowej interpretacji liczb zespolonych w geometrii płaskiej: zamiast skracać czy wydłużać, krawędzie są przemieszczane w drugim wymiarze.",
+/*MISSING*/    "Imaginary part of the hat parameter. This corresponds to the usual interpretation of complex numbers in Euclidean planar geometry: rather than shortened or lengthened, the edges are moved in the other dimension.",
+   "Imaginární část parametru 'hat'. Odpovídá obvyklé interpretaci komplexních čísel v eukleidovské rovinné geometrii: místo aby se hrany zkracovaly nebo prodlužovaly, posouvají se ve druhém rozměru.",
+/*MISSING*/    "Imaginary part of the hat parameter. This corresponds to the usual interpretation of complex numbers in Euclidean planar geometry: rather than shortened or lengthened, the edges are moved in the other dimension.",
+/*MISSING*/    "Imaginary part of the hat parameter. This corresponds to the usual interpretation of complex numbers in Euclidean planar geometry: rather than shortened or lengthened, the edges are moved in the other dimension.",
+/*MISSING*/    "Imaginary part of the hat parameter. This corresponds to the usual interpretation of complex numbers in Euclidean planar geometry: rather than shortened or lengthened, the edges are moved in the other dimension.",
+/*MISSING*/    "Imaginary part of the hat parameter. This corresponds to the usual interpretation of complex numbers in Euclidean planar geometry: rather than shortened or lengthened, the edges are moved in the other dimension.",
     }},
   {0x4a4ed3d9, { // "\"I would love to come to your world with you!\""
    "\"Chcia%ł1bym wrócić z Tobą do Twojego świata!\"",
@@ -9462,6 +11101,15 @@ sentence all_sentences[] = {
    "personagem do jogador",
    "personnage du joueur",
     }},
+  {0x4bd6b032, { // "controls the max memory usage of conversion algorithm -- the algorithm fails if exceeded"
+   "steruje maksymalnym zużyciem pamięci algorytmu konwersji -- jeśli przekroczymy podaną wartość, algorytm jest przerywany",
+/*MISSING*/    "controls the max memory usage of conversion algorithm -- the algorithm fails if exceeded",
+   "ovládá maximální využití paměti konverzním algoritmem -- pokud se toto množství překročí, algoritmus skončí neúspěšně",
+/*MISSING*/    "controls the max memory usage of conversion algorithm -- the algorithm fails if exceeded",
+/*MISSING*/    "controls the max memory usage of conversion algorithm -- the algorithm fails if exceeded",
+/*MISSING*/    "controls the max memory usage of conversion algorithm -- the algorithm fails if exceeded",
+/*MISSING*/    "controls the max memory usage of conversion algorithm -- the algorithm fails if exceeded",
+    }},
   {0x4bde6233, { // "(locked)"
    "(zablokowane)",
    "(aktif değil)",
@@ -9552,6 +11200,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "summon Thumpers",
    "invoquer un Marteleur",
     }},
+  {0x4c8070f9, { // "error: currently works only in PURE Euclidean regular square or hex tiling"
+   "błąd: obecnie działa tylko w CZYSTYM parkietażu euklidesowym kwadratowym lub sześciokątnym",
+/*MISSING*/    "error: currently works only in PURE Euclidean regular square or hex tiling",
+   "chyba: momentálně funguje pouze v ČISTÉM eukleidovském pravidelném čtvercovém nebo šestiúhelníkovém dláždění",
+/*MISSING*/    "error: currently works only in PURE Euclidean regular square or hex tiling",
+/*MISSING*/    "error: currently works only in PURE Euclidean regular square or hex tiling",
+/*MISSING*/    "error: currently works only in PURE Euclidean regular square or hex tiling",
+/*MISSING*/    "error: currently works only in PURE Euclidean regular square or hex tiling",
+    }},
   {0x4c958ad7, { // "This orb allows you to instantly kill a non-adjacent enemy by clicking it. Each use drains 30 charges."
    "Ta sfera pozwala natychmiastowo zabić niesąsiadującego przeciwnika (klikając go). Każde użycie zmniejsza poziom naładowania o 30 jednostek.",
    "Bu küre yakında olmayan herhangi bir düşmana tıklayarak onu öldürebilmene izin verir. Her kullanım 30 şarj götürür.",
@@ -9614,6 +11271,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "limit on cells drawn",
 /*MISSING*/    "limit on cells drawn",
    "limites sur les cellules tracées",
+    }},
+  {0x4d12984d, { // "You fire an angry glance at your enemies."
+   "Strzelasz focha.",
+/*MISSING*/    "You fire an angry glance at your enemies.",
+   "Věnuješ nepřátelům ošklivý pohled.",
+/*MISSING*/    "You fire an angry glance at your enemies.",
+/*MISSING*/    "You fire an angry glance at your enemies.",
+/*MISSING*/    "You fire an angry glance at your enemies.",
+/*MISSING*/    "You fire an angry glance at your enemies.",
     }},
   {0x4d30b487, { // "Rogues will never make moves which result in their immediate death. Even when cornered, they are able to instantly teleport back to their home world at any moment, taking the treasures forever... but at least they will not steal anything further!\n\n"
    "Cwaniacy nigdy nie robią ruchów, po których zostaliby od razu zabici. Nawet gdy się ich otoczy, są zdolni natychmiast teleportować się i wrócić do świata, skąd pochodzą, zabierając skarby na zawsze... ale przynajmniej nie ukradną już nic więcej!\n\n",
@@ -9750,6 +11416,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "{4,3,6} field quotient space",
    "{4,3,6} champ d'espace quotient",
     }},
+  {0x4ea78a8c, { // "Cannot phase onto %the1!"
+   "Nie można fazować na %a1!",
+/*MISSING*/    "Cannot phase onto %the1!",
+   "Nemůžeš fázovat na %a1!",
+/*MISSING*/    "Cannot phase onto %the1!",
+/*MISSING*/    "Cannot phase onto %the1!",
+/*MISSING*/    "Cannot phase onto %the1!",
+/*MISSING*/    "Cannot phase onto %the1!",
+    }},
   {0x4edaa2c9, { // "projection boundary"
    "brzeg modelu",
 /*MISSING*/    "projection boundary",
@@ -9849,6 +11524,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "too dangerous to use in %the1",
    "trop dangereux à utiliser %a1",
     }},
+  {0x4fe3160c, { // "view another world"
+   "pokaż inny świat",
+/*MISSING*/    "view another world",
+   "podívat se na jiný svět",
+/*MISSING*/    "view another world",
+/*MISSING*/    "view another world",
+/*MISSING*/    "view another world",
+/*MISSING*/    "view another world",
+    }},
   {0x4ff92418, { // "median edge: %1 minimum: %2"
    "mediana: %1 minimum: %2",
 /*MISSING*/    "median edge: %1 minimum: %2",
@@ -9903,6 +11587,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "This Orb allows you to target monsters to stun them. 10 charges are used to stun for 5 turns. Does not work against multi-tile monsters.",
    "Cet Orbe permet d'étourdir les monstres. 10 charges étourdissement pendant 5 tours. Ne fonctionne pas sur les monstres occupant plus d'une case.",
     }},
+  {0x504b26a0, { // "{3,5,3} hyperbolic honeycomb"
+   "{3,5,3} siatka hiperboliczna",
+/*MISSING*/    "{3,5,3} hyperbolic honeycomb",
+   "{3,5,3} hyperbolické dělení",
+/*MISSING*/    "{3,5,3} hyperbolic honeycomb",
+/*MISSING*/    "{3,5,3} hyperbolic honeycomb",
+/*MISSING*/    "{3,5,3} hyperbolic honeycomb",
+   "{3,5,3} nid d'abeilles hyperbolique",
+    }},
   {0x504bcdb7, { // "exit menu"
    "wyjdź z menu",
 /*MISSING*/    "exit menu",
@@ -9939,6 +11632,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "A creepy monster who follows you everywhere in the Graveyard and the Cursed Canyon.",
    "Un monstre effrayant qui vous suit partout dans le Cimetière et le Canyon Maudit.",
     }},
+  {0x50851685, { // "set 3D settings automatically"
+   "ustaw 3D automatycznie",
+/*MISSING*/    "set 3D settings automatically",
+   "nastav 3D možnosti automaticky",
+/*MISSING*/    "set 3D settings automatically",
+/*MISSING*/    "set 3D settings automatically",
+/*MISSING*/    "set 3D settings automatically",
+/*MISSING*/    "set 3D settings automatically",
+    }},
   {0x509e69f6, { // "Knight of the 3-Spherical Table"
    "Rycerz 3-Sferycznego Stołu",
 /*MISSING*/    "Knight of the 3-Spherical Table",
@@ -9966,6 +11668,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Wine grown under hyperbolic sun would be extremely prized in your home location.",
    "Le vin vieilli sous le Soleil hyperbolique aurait beaucoup de valeur dans votre pays natal.",
     }},
+  {0x50e5bd4f, { // "maximum cellcount"
+   "max liczba pól",
+/*MISSING*/    "maximum cellcount",
+   "maximální počet políček",
+/*MISSING*/    "maximum cellcount",
+/*MISSING*/    "maximum cellcount",
+/*MISSING*/    "maximum cellcount",
+/*MISSING*/    "maximum cellcount",
+    }},
   {0x50ead1aa, { // "In the pure tactics mode, you concentrate on a specific land. Your goal to obtain as high score as possible, without using features of the other lands. You can then compare your score with your friends!\n\nYou need to be somewhat proficient in the normal game to unlock the given land in this challenge (collect 20 treasure in the given land, or 2 in case of Camelot).\n\nSince getting high scores in some lands is somewhat luck dependent, you play each land N times, and your score is based on N consecutive plays. The value of N depends on how 'fast' the land is to play, and how random it is.\n\nIn the Caribbean, you can access Orbs of Thorns, Aether, and Space if you have ever collected 25 treasure in their native lands.\n\nThe rate of treasure spawn is static in this mode. It is not increased by killing monsters.\n\nGood luck, and have fun!"
    "W trybie taktycznym skupiasz się na jednej krainie. Twoim celem jest zdobycie jak najwyższego wyniku, bez używania elementów pozostałych krain. Możesz potem porównać wyniki ze znajomymi!\n\nMusisz sobie dobrze radzić w normalnej grze, by odblokować daną krainę tutaj (zbierz 20 skarbów w danym świecie, albo 2 w przypadku Camelot).\n\nZdobywanie wysokich wyników w niektórych krainach jest zależne od szczęścia, zatem grasz każdą krainę N razy, a Twój wynik jest oparty na N kolejnych grach. Wartość N zależy od tego, jak 'szybko' gra się w krainie i jak bardzo jest losowa.\n\nNa Karaibach masz dostęp do Sfery Cierni, Eteru i Przestrzeni, jeżeli kiedylkolwiek zebra%łeś0 25 skarbów w ich natywnych krainach.\n\nSzybkość generowania skarbów jest stała w tym trybie, nie powiększa się wraz z zabijaniem potworów.\n\nPowodzenia i miłej zabawy!",
    "Saf taktik modunda sadece tek bir diyara odaklanırsın. Amacın diğer diyarların özelliklerini hiç kullanmadan mümkün olduğunca yüksek puan yapmak. Sonra skorunu arkadaşlarınınkiyle karşılaştırabilirsin!\n\n Normal oyunda maharetini ispatlayarak belli bir diyarı bu modda açabilirsin. (Belli bir diyarda 20 hazine toplamak, Kamelot için 2 hazine toplamak gibi).\n\nYüksek skor almak şöyle böyle şansa bağlı olduğundan, her diyarı N defa oynarsın ve skorun bu ardarda N oyuna göre belirlenir. N'in değeri diyarın ne kadar hızlı oynandığına ve ne derece rassal olduğuna göre değişir.\n\nKarayiplerde, Diken Küresine, Ether'e ve Uzay'a eğer daha önce ilgili diyarlarda 25'er hazine topladıysan erişebilirsin.\n\nHazine üretimi bu modda statiktir ve canavar öldürmekle artmaz.\n\nİyi şanslar ve iyi eğlenceler!",
@@ -9974,6 +11685,15 @@ sentence all_sentences[] = {
    "Im Strategiemodus konzentrierst du dich auf ein einziges Land. Das Ziel ist es eine möglichst hohe Punktzahl zu erreichen ohne features anderer Länder zu nutzen. Du kannst deine Punktzahl mit denen deiner Freunde vergleichen!\n\nDu musst im normalen Spiel etwas erfahrener sein um das Land in dieser Herausforderung freizuschalten. (Sammle 20 Schätze im jeweiligem Land, oder 2 im Fall von Camelot).\n\nDa die Punktzahl in manchen Ländern sehr glücksbasierend sein kann, wird jedes Land N mal gespielt und die Punktzahl basiert auf N Durchläufen. Die Anzahl N hängt davon ab wie 'schnell' und zufällig das Land ist.\n\nIn der Karibik hast du Zugriff auf den Orb der Dornen, den Orb des Aether und den Orb des Raumes wenn zuvor 25 Schätze in ihren Heimatländern gesammelt wurden.\n\nDie Anzahl der Schätze in diesem Modus ist festgelegt und wird nicht durch das Töten von Monstern erhöht.\n\nViel Glück und Erfolg!",
 /*MISSING*/    "In the pure tactics mode, you concentrate on a specific land. Your goal to obtain as high score as possible, without using features of the other lands. You can then compare your score with your friends!\n\nYou need to be somewhat proficient in the normal game to unlock the given land in this challenge (collect 20 treasure in the given land, or 2 in case of Camelot).\n\nSince getting high scores in some lands is somewhat luck dependent, you play each land N times, and your score is based on N consecutive plays. The value of N depends on how 'fast' the land is to play, and how random it is.\n\nIn the Caribbean, you can access Orbs of Thorns, Aether, and Space if you have ever collected 25 treasure in their native lands.\n\nThe rate of treasure spawn is static in this mode. It is not increased by killing monsters.\n\nGood luck, and have fun!",
    "Dans le mode stratégie, vous vous concentrez sur un pays spécifique. Votre but est d'obtenir le plus haut score possible, sans utiliser les fonctionnalités d'autres Pays. Vous pouvez alors comparer votre score avec celui de vos amis !\n\nVous devez être doué dans le jeu normal pour débloquer un pays donné dans ce défi. (rassembler 20 trésors du pays donné, ou 2 dans le cas de Camelot).\n\nComme l'obtention de hauts scores dans certains pays dépend du hasard, vousjouez chaque pays N fois et le score est basé sur les N parties consécutives. La valeur de N dépend de la 'durée' et du caractère aléatoire du pays.\n\nDans les Caraïbes, vous pouvez trouver l'Orbe des Épines, de l'Ether et de l'Espace quand vous avez ramassé 25 trésors de leur pays d'origine.\n\nLa probabilité d'apparition des trésors est statique dans ce mode et n'est pas augmentée en tuant des monstres.\n\nBonne chance et amusez-vous !",
+    }},
+  {0x51003f35, { // "%The1 cannot be used on %the2."
+   "%1 nie może być użyt%y1 na %abl2.",
+/*MISSING*/    "%The1 cannot be used on %the2.",
+   "%1 se nedá použít na %abl2.",
+/*MISSING*/    "%The1 cannot be used on %the2.",
+/*MISSING*/    "%The1 cannot be used on %the2.",
+/*MISSING*/    "%The1 cannot be used on %the2.",
+/*MISSING*/    "%The1 cannot be used on %the2.",
     }},
   {0x51194412, { // "select the texture's pattern"
    "wybierz wzorek tekstury",
@@ -10092,6 +11812,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "If the 2D underlying manifold is bounded, the period should be a divisor of the 'rotation space' value (PSL(2,R)) times the Euler characteristics of the underlying manifold. For unbounded underlying manifold, any value should work (theoretically, the current implementation in HyperRogue is not perfect).\n\nWe won't stop you from trying illegal numbers, but they won't work correctly.",
    "Si la variété 2D sous-jacente est à bord, la période devrait être un diviseur de 'l'espace de rotation' (PSL(2,R)) fois la caractéristique d'Euler de la variété sous-jacente. Pour la variété sans bord sous-jacente, n'importe quelle valeur devrait marcher (en théorie, l'implémentation actuelle d'HyperRogue n'est pas parfait ).\n\nNous ne vous empêcheront pas d'essayer des nombres non valides, mais ils ne marcheront pas correctement.",
     }},
+  {0x52206307, { // "How to scale the Euclidean map, relatively to the 3D absolute unit."
+   "Jak przeskalować mapę euklidesową, w stosunku do jednostki absolutnej 3D.",
+/*MISSING*/    "How to scale the Euclidean map, relatively to the 3D absolute unit.",
+   "Jak škálovat eukleidovskou mapu v poměru ke 3D absolutní jednotce.",
+/*MISSING*/    "How to scale the Euclidean map, relatively to the 3D absolute unit.",
+/*MISSING*/    "How to scale the Euclidean map, relatively to the 3D absolute unit.",
+/*MISSING*/    "How to scale the Euclidean map, relatively to the 3D absolute unit.",
+/*MISSING*/    "How to scale the Euclidean map, relatively to the 3D absolute unit.",
+    }},
   {0x52284ab9, { // "Welcome to CoverRogue!"
    "Witaj w CoverRogue!",
 /*MISSING*/    "Welcome to CoverRogue!",
@@ -10200,6 +11929,15 @@ sentence all_sentences[] = {
    "distância do centro hiperbolóide",
    "distance au centre hyperbolique",
     }},
+  {0x52cca0e9, { // "works only in Euclidean"
+   "działa tylko w przestrzeni euklidesowej",
+/*MISSING*/    "works only in Euclidean",
+   "toto funguje pouze v eukleidovském prostoru",
+/*MISSING*/    "works only in Euclidean",
+/*MISSING*/    "works only in Euclidean",
+/*MISSING*/    "works only in Euclidean",
+/*MISSING*/    "works only in Euclidean",
+    }},
   {0x52d61db4, { // "polynomial"
    "wielomian",
 /*MISSING*/    "polynomial",
@@ -10289,6 +12027,15 @@ sentence all_sentences[] = {
    "Joystick 1: Bewegungsgrenze",
 /*MISSING*/    "first joystick: movement threshold",
    "Joystick 1: seuil de mouvement",
+    }},
+  {0x5392df06, { // "menu map darkening"
+   "przyciemnianie mapy w menu",
+/*MISSING*/    "menu map darkening",
+   "ztmavování mapy v menu",
+/*MISSING*/    "menu map darkening",
+/*MISSING*/    "menu map darkening",
+/*MISSING*/    "menu map darkening",
+/*MISSING*/    "menu map darkening",
     }},
   {0x53aca925, { // "configure panning"
    "skonfiguruj przewijanie",
@@ -10407,6 +12154,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "A nasty creature that lives in caves. They don't like you for some reason.",
    "Une créature vicieuse qui vit dans les caves. Elles ne vous aiment pas apparemment.",
     }},
+  {0x54d4c164, { // "equirectangular"
+   "rzut równoprostokątny",
+/*MISSING*/    "equirectangular",
+   "rovnoobdélníková projekce",
+/*MISSING*/    "equirectangular",
+/*MISSING*/    "equirectangular",
+/*MISSING*/    "equirectangular",
+/*MISSING*/    "equirectangular",
+    }},
   {0x54d65046, { // "create the model"
    "twórz model",
    "modeli üret",
@@ -10442,6 +12198,15 @@ sentence all_sentences[] = {
    "vier Spieler",
 /*MISSING*/    "four players",
    "quatre joueurs",
+    }},
+  {0x552eb81b, { // "the map is fixed (improves performance)"
+   "stała mapa (lepsza wydajność)",
+/*MISSING*/    "the map is fixed (improves performance)",
+   "fixní mapa (zlepšuje výkon)",
+/*MISSING*/    "the map is fixed (improves performance)",
+/*MISSING*/    "the map is fixed (improves performance)",
+/*MISSING*/    "the map is fixed (improves performance)",
+/*MISSING*/    "the map is fixed (improves performance)",
     }},
   {0x553b55b1, { // "Date: %1 time: %2 s "
    "Data: %1 czas: %2 s ",
@@ -10496,6 +12261,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "3D monsters/walls on the surface",
 /*MISSING*/    "3D monsters/walls on the surface",
    "monstres/murs 3D sur la surface",
+    }},
+  {0x55a65527, { // "Cannot vault onto %the1!"
+   "Nie można przeskoczyć na %a1!",
+/*MISSING*/    "Cannot vault onto %the1!",
+   "Nemůžeš skočit na %a1!",
+/*MISSING*/    "Cannot vault onto %the1!",
+/*MISSING*/    "Cannot vault onto %the1!",
+/*MISSING*/    "Cannot vault onto %the1!",
+/*MISSING*/    "Cannot vault onto %the1!",
     }},
   {0x55b4d09a, { // "autochoose"
    "autowybór",
@@ -10605,6 +12379,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "geodesic table missing",
    "table géodésique manquante",
     }},
+  {0x56c658c1, { // "Embed Euclidean cylinder in Nil."
+   "Zanurz walec euklidesowy w Nil.",
+/*MISSING*/    "Embed Euclidean cylinder in Nil.",
+   "Vnoř eukleidovský válec do Nil.",
+/*MISSING*/    "Embed Euclidean cylinder in Nil.",
+/*MISSING*/    "Embed Euclidean cylinder in Nil.",
+/*MISSING*/    "Embed Euclidean cylinder in Nil.",
+/*MISSING*/    "Embed Euclidean cylinder in Nil.",
+    }},
   {0x56c932ae, { // "return to the game"
    "wróć do gry",
    "oyuna dön",
@@ -10704,6 +12487,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "\n\nOption -mineadj 1 can be added for Moore neighborhoods.",
    "\n\nOption -mineadj 1 peut être ajouté pour les voisinages de Moore.",
     }},
+  {0x585c27af, { // "You are currently in a visualization. Press wasd to scroll, qe to rotate. You can also use the arrow keys. ESC for menu.\n\n"
+   "Jesteś w wizualizacji. Klawisze: wasd by przesuwać, qe by obracać. Można też używać strzałek. ESC by wyjść do menu.\n\n",
+/*MISSING*/    "You are currently in a visualization. Press wasd to scroll, qe to rotate. You can also use the arrow keys. ESC for menu.\n\n",
+   "Momentálně se nacházíš ve vizualizaci. Stiskni klávesy WASD pro pohyb, QE pro rotaci. Také můžeš používat šipky. ESC otvírá menu.\n\n",
+/*MISSING*/    "You are currently in a visualization. Press wasd to scroll, qe to rotate. You can also use the arrow keys. ESC for menu.\n\n",
+/*MISSING*/    "You are currently in a visualization. Press wasd to scroll, qe to rotate. You can also use the arrow keys. ESC for menu.\n\n",
+/*MISSING*/    "You are currently in a visualization. Press wasd to scroll, qe to rotate. You can also use the arrow keys. ESC for menu.\n\n",
+/*MISSING*/    "You are currently in a visualization. Press wasd to scroll, qe to rotate. You can also use the arrow keys. ESC for menu.\n\n",
+    }},
   {0x58c7df10, { // "Escher/3D"
    "Escher/3D",
 /*MISSING*/    "Escher/3D",
@@ -10794,6 +12586,33 @@ sentence all_sentences[] = {
 /*MISSING*/    "A malicious water being. When you kill him, he changes the tile you are standing on, from land to shallow water, or from shallow water to deep water.",
    "Une créature aquatique malveillante. Quand vous le tuez, il change la case sur laquelle vous vous tenez, de terre à eau peu profonde, ou eau peu profonde à eau profonde.",
     }},
+  {0x593282e3, { // "die direction"
+   "kierunek kostki",
+/*MISSING*/    "die direction",
+   "směr kostky",
+/*MISSING*/    "die direction",
+/*MISSING*/    "die direction",
+/*MISSING*/    "die direction",
+/*MISSING*/    "die direction",
+    }},
+  {0x5943be6d, { // "remove %1 from the list"
+   "usuń %1 z listy",
+/*MISSING*/    "remove %1 from the list",
+   "odstranit %1 ze seznamu",
+/*MISSING*/    "remove %1 from the list",
+/*MISSING*/    "remove %1 from the list",
+/*MISSING*/    "remove %1 from the list",
+/*MISSING*/    "remove %1 from the list",
+    }},
+  {0x594647ff, { // "achievements disabled in split screen"
+   "podzielony ekran -- osiągnięcia wyłączone",
+/*MISSING*/    "achievements disabled in split screen",
+   "mód rozdělené obrazovky -- achievementy jsou vypnuté",
+/*MISSING*/    "achievements disabled in split screen",
+/*MISSING*/    "achievements disabled in split screen",
+/*MISSING*/    "achievements disabled in split screen",
+/*MISSING*/    "achievements disabled in split screen",
+    }},
   {0x5965759b, { // "Use Orb of the Mirror to gain copies of one of your Orbs; mirroring weaker Orbs usually yields more copies. It can only be used once per Orb type, and only when you are next to a mirror."
    "Użyj Sfery Lustra, by skopiować jedną z Twoich sfer; odbijanie słabszych Sfer zwykle daje więcej kopii. Możesz użyć tylko raz na każdy typ Sfery i tylko stojąc obok lustra.",
 /*MISSING*/    "Use Orb of the Mirror to gain copies of one of your Orbs; mirroring weaker Orbs usually yields more copies. It can only be used once per Orb type, and only when you are next to a mirror.",
@@ -10812,6 +12631,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "chessboard",
    "plateau d'échec",
     }},
+  {0x597b788d, { // "horocyclic equal-area"
+   "horocykliczny, równe pola",
+/*MISSING*/    "horocyclic equal-area",
+   "horocyklická rovnoplochá",
+/*MISSING*/    "horocyclic equal-area",
+/*MISSING*/    "horocyclic equal-area",
+/*MISSING*/    "horocyclic equal-area",
+/*MISSING*/    "horocyclic equal-area",
+    }},
+  {0x59888463, { // "always move on geodesics"
+   "ruch zawsze po geodezyjnych",
+/*MISSING*/    "always move on geodesics",
+   "vždy se pohybuj po geodetikách",
+/*MISSING*/    "always move on geodesics",
+/*MISSING*/    "always move on geodesics",
+/*MISSING*/    "always move on geodesics",
+/*MISSING*/    "always move on geodesics",
+    }},
   {0x5989171a, { // "design the net"
    "projektuj siatkę",
    "ağı tasarla",
@@ -10821,6 +12658,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "design the net",
    "concevoir le réseau",
     }},
+  {0x599fa553, { // "Save the config to always play without recording your progress."
+   "Zapisz konfigurację, by zawsze grać bez zapisu postępów.",
+/*MISSING*/    "Save the config to always play without recording your progress.",
+   "Ulož konfiguraci, aby se vždy hrálo bez zaznamenávání postupu.",
+/*MISSING*/    "Save the config to always play without recording your progress.",
+/*MISSING*/    "Save the config to always play without recording your progress.",
+/*MISSING*/    "Save the config to always play without recording your progress.",
+/*MISSING*/    "Save the config to always play without recording your progress.",
+    }},
   {0x59aaad3c, { // "counterclockwise"
    "antyzegarowo",
 /*MISSING*/    "counterclockwise",
@@ -10829,6 +12675,24 @@ sentence all_sentences[] = {
    "gegen den Uhrzeigersinn",
 /*MISSING*/    "counterclockwise",
    "sens antihoraire",
+    }},
+  {0x59ae6b31, { // "die face"
+   "ścianka kostki",
+/*MISSING*/    "die face",
+   "stěna kostky",
+/*MISSING*/    "die face",
+/*MISSING*/    "die face",
+/*MISSING*/    "die face",
+/*MISSING*/    "die face",
+    }},
+  {0x59c0995c, { // "Embed as a surface in a space of lower curvature."
+   "Zanurz jako powierzchnia w przestrzeni o niższej krzywiźnie.",
+/*MISSING*/    "Embed as a surface in a space of lower curvature.",
+   "Vnoř jako povrch v prostoru s menší křivostí.",
+/*MISSING*/    "Embed as a surface in a space of lower curvature.",
+/*MISSING*/    "Embed as a surface in a space of lower curvature.",
+/*MISSING*/    "Embed as a surface in a space of lower curvature.",
+/*MISSING*/    "Embed as a surface in a space of lower curvature.",
     }},
   {0x59c47de5, { // "Follow the Mouse and escape with %the1!"
    "Idź za Myszką i ucieknij z %abl1!",
@@ -10983,6 +12847,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "gnomonic projection",
    "projection gnomique",
     }},
+  {0x5b565170, { // "display mine counts numerically"
+   "pokazuj liczby min cyframi",
+/*MISSING*/    "display mine counts numerically",
+   "zobrazuj počet min číslem",
+/*MISSING*/    "display mine counts numerically",
+/*MISSING*/    "display mine counts numerically",
+/*MISSING*/    "display mine counts numerically",
+/*MISSING*/    "display mine counts numerically",
+    }},
   {0x5b5b245d, { // "parabolic"
    "izometria paraboliczna",
 /*MISSING*/    "parabolic",
@@ -11036,6 +12909,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "The smallest allowed ratio of edge length to median edge length. Tilings with low values are easier to generate, but tend to be more ugly.",
 /*MISSING*/    "The smallest allowed ratio of edge length to median edge length. Tilings with low values are easier to generate, but tend to be more ugly.",
    "Le plus petit ratio permis de longueur d'arête à longueur d'arête médiane. Les pavages à bas ratio sont plus faciles à générer mais plus moches.",
+    }},
+  {0x5bbec869, { // "hat superclusters"
+   "superklastry",
+/*MISSING*/    "hat superclusters",
+   "supershluky klobouků",
+/*MISSING*/    "hat superclusters",
+/*MISSING*/    "hat superclusters",
+/*MISSING*/    "hat superclusters",
+/*MISSING*/    "hat superclusters",
     }},
   {0x5bcb4cde, { // "quarter-turn space"
    "przestrzeń ćwierćobrotu",
@@ -11117,6 +12999,15 @@ sentence all_sentences[] = {
    "Vektor Grafiken Editor -- drücke F1 um Hilfe zu erhalten",
 /*MISSING*/    "vector graphics editor -- press F1 for help",
    "éditeur graphique vectoriel -- appuyer sur F1 pour l'aide",
+    }},
+  {0x5c2e6e71, { // "crossbow straight line style"
+   "styl linii strzału",
+/*MISSING*/    "crossbow straight line style",
+   "styl střelných čar",
+/*MISSING*/    "crossbow straight line style",
+/*MISSING*/    "crossbow straight line style",
+/*MISSING*/    "crossbow straight line style",
+/*MISSING*/    "crossbow straight line style",
     }},
   {0x5c5df36d, { // "Wrong color!"
    "Zły kolor!",
@@ -11217,14 +13108,23 @@ sentence all_sentences[] = {
 /*MISSING*/    "Note: the rules above correspond to the standard geometry; actual rules in other geometries may be different. ",
    "Notes : les règles ci-dessus correspondent à la géométrie standard ; les règles réelles dans d'autres géométries peuvent être différentes. ",
     }},
-  {0x5d18d071, { // "Wherever this powerful being goes, the living fjord sinks below water, non-magical boats are destroyed, and fires are extinguished.\n\nAs a special case, you can attack the Water Elemental from the water, without drowning immediately."
-   "Gdziekolwiek przejdzie ta potężna istota, żywy fiord tonie, niemagiczne łódki są niszczone, a ogień gaśnie.\n\nJako szczególny przypadek, możesz atakować Wodnego Żywiołaka z wody, nie topiąc się.",
-   "Bu güçlü yaratığın geçtiği her yerde Yaşayan Fiyort su altına gömülür, sihirli olmayan kayıklar yok olur ve ateşler söner. \n\n İstisna bir durum olarak Su Özütüne suyun içerisinden hemen boğulmadan vurursan onu öldürebilirsin. ",
-   "Kamkoli se vydá tato mocná bytost, tam se Živoucí fjord potápí pod vodu, všechny čluny kromě magických jsou zničeny a veškerý oheň je uhašen.\n\nNa Elementála Vody můžeš zaútočit z vody, aniž by ses okamžitě utopil; to je speciální případ.",
-   "Где бы ни шло это могущественное существо, фьорды расступаются перед ним, обычные лодки уничтожаются, огонь гаснет.\n\nОднако, если Вы атакуете его, находясь в воде, Вас не затянет сразу в воду.",
-   "Wohin auch immer sich dieses Wesen bewegt sinkt der lebende Fjord. Dadurch werden nicht magische Boote zerstört und Feuer gelöscht.\n\nDie Besonderheit ist: du kannst den Wasserelementar vom Wasser aus angreifen ohne sofort zu ertrinken.",
-/*MISSING*/    "Wherever this powerful being goes, the living fjord sinks below water, non-magical boats are destroyed, and fires are extinguished.\n\nAs a special case, you can attack the Water Elemental from the water, without drowning immediately.",
-   "Là où cet être puissant va, le fjord vivant est submergé d'eau, les bateaux non-magiques détruits, et les feux éteints.\n\nCas particulier : vous pouvez attaquer l'Élemental depuis l'eau sans vous noyer immédiatement.",
+  {0x5d1aa8a1, { // "%The1 can only be used on monsters."
+   "%1 może być użyt%y1 tylko na potworach.",
+/*MISSING*/    "%The1 can only be used on monsters.",
+   "%1 se dá používat pouze na netvory.",
+/*MISSING*/    "%The1 can only be used on monsters.",
+/*MISSING*/    "%The1 can only be used on monsters.",
+/*MISSING*/    "%The1 can only be used on monsters.",
+/*MISSING*/    "%The1 can only be used on monsters.",
+    }},
+  {0x5d1ff25b, { // "display Voronoi tie debug values"
+   "wartości do debugowania Voronoi",
+/*MISSING*/    "display Voronoi tie debug values",
+   "zobrazit debugové hodnoty pro Voronoiova políčka",
+/*MISSING*/    "display Voronoi tie debug values",
+/*MISSING*/    "display Voronoi tie debug values",
+/*MISSING*/    "display Voronoi tie debug values",
+/*MISSING*/    "display Voronoi tie debug values",
     }},
   {0x5d222839, { // "This Orb makes you stunningly beautiful. Monsters which come next to you will be stunned for one turn. Multi-tile monsters are not affected. Additionally, it makes you immune to beauty."
    "Dzięki tej Sferze stajesz się oszałamiająco piękn%y0. Stworzenia, które wejdą na pole obok Ciebie, zostaną oszołomione na 1 kolejkę. Nie działa to na stworzenia zajmujące wiele pól. Dodatkowo, stajesz się niewrażliw%y0 na piękno.",
@@ -11252,6 +13152,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "parameter",
 /*MISSING*/    "parameter",
    "paramètre",
+    }},
+  {0x5d5e257d, { // "set 20x20 torus"
+   "ustaw torus 20x20",
+/*MISSING*/    "set 20x20 torus",
+   "nastav torus 20x20",
+/*MISSING*/    "set 20x20 torus",
+/*MISSING*/    "set 20x20 torus",
+/*MISSING*/    "set 20x20 torus",
+/*MISSING*/    "set 20x20 torus",
     }},
   {0x5d704424, { // "best if %1 is divisible by %2"
    "najlepiej gdy %1 jest podzielne przez %2",
@@ -11315,6 +13224,15 @@ sentence all_sentences[] = {
    "Der Luftelementar weht dich weg!",
 /*MISSING*/    "The Air Elemental blows you away!",
    "Les élémentaux d'air vous soufflent au loin !",
+    }},
+  {0x5dd9fe88, { // "keep levels"
+   "trzymaj poziom",
+/*MISSING*/    "keep levels",
+   "udržuj úrovně",
+/*MISSING*/    "keep levels",
+/*MISSING*/    "keep levels",
+/*MISSING*/    "keep levels",
+/*MISSING*/    "keep levels",
     }},
   {0x5dece069, { // "recently changed settings"
    "ostatnio zmieniane ustawienia",
@@ -11424,6 +13342,24 @@ sentence all_sentences[] = {
    "velocidade de animação",
    "vitesse d'animation",
     }},
+  {0x5f159ae4, { // "eligible for multiplayer"
+   "legalne dla wielu graczy",
+/*MISSING*/    "eligible for multiplayer",
+   "multiplayerové achievementy/leaderboardy dostupné",
+/*MISSING*/    "eligible for multiplayer",
+/*MISSING*/    "eligible for multiplayer",
+/*MISSING*/    "eligible for multiplayer",
+/*MISSING*/    "eligible for multiplayer",
+    }},
+  {0x5f27041b, { // "die shape"
+   "kształt kostki",
+/*MISSING*/    "die shape",
+   "tvar kostky",
+/*MISSING*/    "die shape",
+/*MISSING*/    "die shape",
+/*MISSING*/    "die shape",
+/*MISSING*/    "die shape",
+    }},
   {0x5f276f07, { // "rotational symmetry"
    "symetria obrotowa",
    "döngüsel simetri",
@@ -11459,6 +13395,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "HyperRogue Guided Tour",
 /*MISSING*/    "HyperRogue Guided Tour",
    "Visite guidée d'HyperRogue",
+    }},
+  {0x5f434210, { // "set hex tiling"
+   "ustaw parkietaż sześciokątny",
+/*MISSING*/    "set hex tiling",
+   "nastav šestiúhelníkové dláždění",
+/*MISSING*/    "set hex tiling",
+/*MISSING*/    "set hex tiling",
+/*MISSING*/    "set hex tiling",
+/*MISSING*/    "set hex tiling",
     }},
   {0x5f681a02, { // "previous page"
    "poprzednia strona",
@@ -11631,6 +13576,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "{4,3,5} hyperbolic honeycomb",
    "{4,3,5} nid d'abeilles hyperbolique",
     }},
+  {0x60bd2075, { // "unreversed colors"
+   "kolory nie odwrócone",
+/*MISSING*/    "unreversed colors",
+   "nepřevrácené barvy",
+/*MISSING*/    "unreversed colors",
+/*MISSING*/    "unreversed colors",
+/*MISSING*/    "unreversed colors",
+/*MISSING*/    "unreversed colors",
+    }},
   {0x60c082b1, { // "{3,3,6} hyperbolic honeycomb"
    "{3,3,6} siatka hiperboliczna",
 /*MISSING*/    "{3,3,6} hyperbolic honeycomb",
@@ -11747,6 +13701,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "You can change this parameter for a transition from another model to this one.",
 /*MISSING*/    "You can change this parameter for a transition from another model to this one.",
    "Vous pouvez changer ce paramètre pour une transition depuis un autre modèle à celui là.",
+    }},
+  {0x61c0af64, { // "Trying to fire."
+   "Próbujesz strzelać.",
+/*MISSING*/    "Trying to fire.",
+   "Pokoušíš se vystřelit.",
+/*MISSING*/    "Trying to fire.",
+/*MISSING*/    "Trying to fire.",
+/*MISSING*/    "Trying to fire.",
+/*MISSING*/    "Trying to fire.",
     }},
   {0x61c0babf, { // "%The1 melts away!"
    "%1 się stopi%ł1!",
@@ -11891,6 +13854,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "orthogonal projection",
 /*MISSING*/    "orthogonal projection",
    "projection orthogonale",
+    }},
+  {0x62e159b5, { // "last parallel drawn"
+   "ostatni równoleżnik rysowany",
+/*MISSING*/    "last parallel drawn",
+   "poslední nakreslená rovnoběžka",
+/*MISSING*/    "last parallel drawn",
+/*MISSING*/    "last parallel drawn",
+/*MISSING*/    "last parallel drawn",
+/*MISSING*/    "last parallel drawn",
     }},
   {0x62faf13b, { // "flip X coordinate"
    "odbij współrzędną X",
@@ -12071,6 +14043,15 @@ sentence all_sentences[] = {
    "z = reinzoomen",
 /*MISSING*/    "z = zoom in",
    "z = agrandir",
+    }},
+  {0x641cc6ad, { // "animation rug angle"
+   "kąt animacji dywanu",
+/*MISSING*/    "animation rug angle",
+   "úhel animace koberce",
+/*MISSING*/    "animation rug angle",
+/*MISSING*/    "animation rug angle",
+/*MISSING*/    "animation rug angle",
+/*MISSING*/    "animation rug angle",
     }},
   {0x643e1465, { // "Mercator"
    "odwzorowanie Merkatora",
@@ -12270,6 +14251,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "set 3D monsters or walls in basic config first",
    "régler les monstres ou murs 3D dans la configuration basique d'abord",
     }},
+  {0x65c0e5dc, { // "2D engine"
+   "silnik 2D",
+/*MISSING*/    "2D engine",
+   "2D engine",
+/*MISSING*/    "2D engine",
+/*MISSING*/    "2D engine",
+/*MISSING*/    "2D engine",
+/*MISSING*/    "2D engine",
+    }},
   {0x65ecb1bf, { // "cannot adjust camera"
    "brak możliwości ustawienia kamery",
 /*MISSING*/    "cannot adjust camera",
@@ -12351,6 +14341,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "affect texture position Y",
    "affecte la position de la texture Y",
     }},
+  {0x66466dbc, { // "night star size (relative to item sizes)"
+   "rozmiar gwiazd nocnych (w stosunku do wielkości przedmiotów)",
+/*MISSING*/    "night star size (relative to item sizes)",
+   "velikost nočních hvězd (v poměru k velikosti předmětů)",
+/*MISSING*/    "night star size (relative to item sizes)",
+/*MISSING*/    "night star size (relative to item sizes)",
+/*MISSING*/    "night star size (relative to item sizes)",
+/*MISSING*/    "night star size (relative to item sizes)",
+    }},
   {0x66670ced, { // "circles"
    "koła",
 /*MISSING*/    "circles",
@@ -12359,6 +14358,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "circles",
 /*MISSING*/    "circles",
    "cercles",
+    }},
+  {0x666c0aa5, { // "linear perspective"
+   "perspektywa liniowa",
+/*MISSING*/    "linear perspective",
+   "lineární perspektiva",
+/*MISSING*/    "linear perspective",
+/*MISSING*/    "linear perspective",
+/*MISSING*/    "linear perspective",
+/*MISSING*/    "linear perspective",
     }},
   {0x669a0c61, { // "Reduce the framerate limit to conserve CPU energy"
    "Ogranicz fps, by oszczędzać energię",
@@ -12413,6 +14421,15 @@ sentence all_sentences[] = {
    "Kehre zum normalen Spiel zurück",
 /*MISSING*/    "Return to the normal game",
    "Retour au jeu normal",
+    }},
+  {0x66e205cf, { // "Embed as an equidistant surface in the 3D version of the same geometry."
+   "Zanurz jako powierzchnia ekwidystantna w trójwymiarowej wersji tej samej geometrii.",
+/*MISSING*/    "Embed as an equidistant surface in the 3D version of the same geometry.",
+   "Vnoř jako ekvidistantní povrch ve 3D verzi stejné geometrie.",
+/*MISSING*/    "Embed as an equidistant surface in the 3D version of the same geometry.",
+/*MISSING*/    "Embed as an equidistant surface in the 3D version of the same geometry.",
+/*MISSING*/    "Embed as an equidistant surface in the 3D version of the same geometry.",
+/*MISSING*/    "Embed as an equidistant surface in the 3D version of the same geometry.",
     }},
   {0x66efb860, { // "right spiral multiplier"
    "mnożnik spirali prostokątnej",
@@ -12512,6 +14529,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "record to a file",
 /*MISSING*/    "record to a file",
    "enregistrer vers un fichier",
+    }},
+  {0x67537b25, { // "not implemented"
+   "nie zaimplementowane",
+/*MISSING*/    "not implemented",
+   "není implementováno",
+/*MISSING*/    "not implemented",
+/*MISSING*/    "not implemented",
+/*MISSING*/    "not implemented",
+/*MISSING*/    "not implemented",
     }},
   {0x6758c9cd, { // "alternate coloring"
    "kolorowanie alternatywne",
@@ -12621,6 +14647,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Humans are %1 absolute units high. Your head travels %2 times the distance travelled by your feet.",
    "Les humains mesurent %1. Votre tête parcours %2 la distance parcourue par vos pieds.",
     }},
+  {0x68a613e4, { // "The warped space distracts you from reloading while staying in place!"
+   "Zakrzywiona przestrzeń nie pozwala Ci ładować broni bez ruszania się!",
+/*MISSING*/    "The warped space distracts you from reloading while staying in place!",
+   "Pokřivený prostor ti brání nabíjet na místě!",
+/*MISSING*/    "The warped space distracts you from reloading while staying in place!",
+/*MISSING*/    "The warped space distracts you from reloading while staying in place!",
+/*MISSING*/    "The warped space distracts you from reloading while staying in place!",
+/*MISSING*/    "The warped space distracts you from reloading while staying in place!",
+    }},
   {0x68b817aa, { // "\"I have been trained to fight with a Hypersian scimitar, you know?\""
    "\"Trenowa%łem1 walkę hiperskim szamszirem, wiesz?\"",
    "Hiç Aşkınlı Palasıyla savaşmak üzere eğitilmemiştim biliyor musun?\"",
@@ -12629,6 +14664,15 @@ sentence all_sentences[] = {
    "Ich habe trainiert um mit einem Hypersischem Scimitar zu kämpfen, wusstest du das?\"",
 /*MISSING*/    "\"I have been trained to fight with a Hypersian scimitar, you know?\"",
    "J'ai été entraîné%e1 à combattre au cimeterre Hypersan, vous savez ?\"",
+    }},
+  {0x68b8b7c6, { // "You cannot grow on yourself!"
+   "Nie możesz rosnąć na sobie!",
+/*MISSING*/    "You cannot grow on yourself!",
+   "Nemůžeš růst na sobě!",
+/*MISSING*/    "You cannot grow on yourself!",
+/*MISSING*/    "You cannot grow on yourself!",
+/*MISSING*/    "You cannot grow on yourself!",
+/*MISSING*/    "You cannot grow on yourself!",
     }},
   {0x68b9e900, { // "\"That should teach you to take me seriously!\""
    "\"Traktuj mnie poważnie! Niech to będzie dla Ciebie nauczką!\"",
@@ -12765,6 +14809,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "distance between images",
    "distance entre les images",
     }},
+  {0x69b7cdcb, { // "eligible for most achievements"
+   "większość osiągnięć legalna",
+/*MISSING*/    "eligible for most achievements",
+   "lze získat většinu achievementů",
+/*MISSING*/    "eligible for most achievements",
+/*MISSING*/    "eligible for most achievements",
+/*MISSING*/    "eligible for most achievements",
+/*MISSING*/    "eligible for most achievements",
+    }},
   {0x69c3c7c7, { // "{3,∞} (infinite triangles)"
    "{3,∞} (nieskończone trójkąty)",
 /*MISSING*/    "{3,∞} (infinite triangles)",
@@ -12809,6 +14862,15 @@ sentence all_sentences[] = {
    "Hast du dich je gewundert, wie ein Brettspiel auf einer hyperbolischen Ebene aussehen würde? Ich habe mich über Go gewundert und dieses Feature erstellt. Probiere es selbst!\nEnter = Gegenstand aufheben (und punkte), [LEER] = Gegenstand löschen\nAndere Tasten platzieren Orbs, Terrain und Anderes\nIm periodischen Editor kannst du 0-4 verwenden um die Wände zu verändern\n",
 /*MISSING*/    "Ever wondered how some boardgame would look on the hyperbolic plane? I wondered about Go, so I have created this feature. Now you can try yourself!\nEnter = pick up an item (and score), space = clear an item\nOther keys place orbs and terrain features of various kinds\nIn the periodic editor, press 0-4 to switch walls in different ways\n",
    "Vous êtes-vous déjà demandé à quoi ressemblerait un jeu de plateau dans le plan hyperbolique ? Je me suis posé la question pour le Go et j'ai crée cette fonctionnalité. Maintenant vous pouvez essayer !\nEntrer = ramasser un objet (et les points), Espace = supprimer un objet\nD'autres touches placent les orbes et des terrains\nDans l'éditeur périodique, appuyer sur 0-4 pour échanger les murs de différentes manières\n ",
+    }},
+  {0x6a051b4e, { // "stereo/high-FOV mode"
+   "tryb stereo / duże pole widzenia",
+/*MISSING*/    "stereo/high-FOV mode",
+   "mód stereo / velký zorný úhel",
+/*MISSING*/    "stereo/high-FOV mode",
+/*MISSING*/    "stereo/high-FOV mode",
+/*MISSING*/    "stereo/high-FOV mode",
+/*MISSING*/    "stereo/high-FOV mode",
     }},
   {0x6a252056, { // "This frog is able to vault over the shrubs in the Frog Park, destroying the shrub in the process. While it can also vault over monsters, it will never hurt the other frogs!"
    "Ta żaba umie przeskakiwać krzaki w Żabim Parku, przy okazji niszcząc te krzaki. Potrafi ona też przeskakiwać inne stworzenia, ale nigdy nie skrzywdzi innych żab!",
@@ -12918,6 +14980,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "info about: %1",
    "info sur : %1",
     }},
+  {0x6b2319e5, { // "draw plain floors in 3D"
+   "w trybie 3D rysuj zwykłe podłogi",
+/*MISSING*/    "draw plain floors in 3D",
+   "vykresluj v 3D módu prostou podlahu",
+/*MISSING*/    "draw plain floors in 3D",
+/*MISSING*/    "draw plain floors in 3D",
+/*MISSING*/    "draw plain floors in 3D",
+/*MISSING*/    "draw plain floors in 3D",
+    }},
   {0x6b37f216, { // "You activate the Flash spell!"
    "Aktywowa%łeś0 czar Błysk!",
    "Işık büyüsünü etkinleştirdin!",
@@ -12935,6 +15006,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "display only chessboard black",
 /*MISSING*/    "display only chessboard black",
    "afficher seulement le plateau d'échec noir",
+    }},
+  {0x6b5ed224, { // "Apeirodic hat tiling based on: https://arxiv.org/pdf/2303.10798.pdf\n\nThis controls the parameter discussed in Section 6. Parameter p is Tile(p, (2-p)√3), scaled so that the area is the same for every p.\n\nAperiodic spectre tiling based on: https://arxiv.org/abs/2305.17743\n\nIn the spectre tiling, set the parameter to 'spectre' value to make all tiles have the same shape."
+   "Hat: aperiodyczny parkietaż oparty na: https://arxiv.org/pdf/2303.10798.pdf\n\nTu możemy sterować parametrem opisanym w Sekcji 6. Parametr p to Tile(p, (2-p)√3), przeskalowany tak, by pole było takie samo dla każdego p.\n\nSpectre: aperiodyczny parkietaż oparty na: https://arxiv.org/abs/2305.17743\n\nW tym parkietażu ustaw parametr na 'spectre' by wszystkie kafelki miały ten sam kształt.",
+/*MISSING*/    "Apeirodic hat tiling based on: https://arxiv.org/pdf/2303.10798.pdf\n\nThis controls the parameter discussed in Section 6. Parameter p is Tile(p, (2-p)√3), scaled so that the area is the same for every p.\n\nAperiodic spectre tiling based on: https://arxiv.org/abs/2305.17743\n\nIn the spectre tiling, set the parameter to 'spectre' value to make all tiles have the same shape.",
+   "Aperiodické kloboukové (hat) dláždění založené na: https://arxiv.org/pdf/2303.10798.pdf\n\nToto ovládá parametr diskutovaná v Sekci 6. Parametr p znamená Tile(p, (2-p)√3), škálovaný tak, aby měla pole pro všechna p stejný obsah.\n\nAperiodické přízrakové (spectre) dláždění založené na: https://arxiv.org/abs/2305.17743\n\nPokud v přízrakovém dláždění nastavíš parametr na hodnotu 'spectre', budou mít všechna políčka stejný tvar.",
+/*MISSING*/    "Apeirodic hat tiling based on: https://arxiv.org/pdf/2303.10798.pdf\n\nThis controls the parameter discussed in Section 6. Parameter p is Tile(p, (2-p)√3), scaled so that the area is the same for every p.\n\nAperiodic spectre tiling based on: https://arxiv.org/abs/2305.17743\n\nIn the spectre tiling, set the parameter to 'spectre' value to make all tiles have the same shape.",
+/*MISSING*/    "Apeirodic hat tiling based on: https://arxiv.org/pdf/2303.10798.pdf\n\nThis controls the parameter discussed in Section 6. Parameter p is Tile(p, (2-p)√3), scaled so that the area is the same for every p.\n\nAperiodic spectre tiling based on: https://arxiv.org/abs/2305.17743\n\nIn the spectre tiling, set the parameter to 'spectre' value to make all tiles have the same shape.",
+/*MISSING*/    "Apeirodic hat tiling based on: https://arxiv.org/pdf/2303.10798.pdf\n\nThis controls the parameter discussed in Section 6. Parameter p is Tile(p, (2-p)√3), scaled so that the area is the same for every p.\n\nAperiodic spectre tiling based on: https://arxiv.org/abs/2305.17743\n\nIn the spectre tiling, set the parameter to 'spectre' value to make all tiles have the same shape.",
+/*MISSING*/    "Apeirodic hat tiling based on: https://arxiv.org/pdf/2303.10798.pdf\n\nThis controls the parameter discussed in Section 6. Parameter p is Tile(p, (2-p)√3), scaled so that the area is the same for every p.\n\nAperiodic spectre tiling based on: https://arxiv.org/abs/2305.17743\n\nIn the spectre tiling, set the parameter to 'spectre' value to make all tiles have the same shape.",
+    }},
+  {0x6b65f5a5, { // "Embed Euclidean plane in twisted product geometry."
+   "Zanurz płaszczyznę euklidesową w skręconą geometrię produktową.",
+/*MISSING*/    "Embed Euclidean plane in twisted product geometry.",
+   "Vnoř eukleidovskou rovinu do zkroucené součinové geometrie.",
+/*MISSING*/    "Embed Euclidean plane in twisted product geometry.",
+/*MISSING*/    "Embed Euclidean plane in twisted product geometry.",
+/*MISSING*/    "Embed Euclidean plane in twisted product geometry.",
+/*MISSING*/    "Embed Euclidean plane in twisted product geometry.",
     }},
   {0x6b740cab, { // "load (%1 turns passed)"
    "ładuj (minęło kolejek: %1)",
@@ -13017,6 +15106,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Cold white gems, found in the Icy Land.",
    "Une gemme blanche et froide, qui se trouve dans le Pays des Glaces.",
     }},
+  {0x6ba96ed1, { // "altitude of the sky"
+   "wysokość nieba",
+/*MISSING*/    "altitude of the sky",
+   "výška oblohy",
+/*MISSING*/    "altitude of the sky",
+/*MISSING*/    "altitude of the sky",
+/*MISSING*/    "altitude of the sky",
+/*MISSING*/    "altitude of the sky",
+    }},
   {0x6badc27a, { // "This might be useful for Android devices with limited memory."
    "To może się przydać, gdy Twoje urządzenie ma mało pamięci.",
    "Bu, sınırlı hafızalı Android cihazları için kullanışlı olabilir.",
@@ -13071,6 +15169,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Your energy swords get stronger!",
    "Votre épée d'énergie se renforce !",
     }},
+  {0x6c3b5751, { // "play the game"
+   "gramy",
+/*MISSING*/    "play the game",
+   "hraj",
+/*MISSING*/    "play the game",
+/*MISSING*/    "play the game",
+/*MISSING*/    "play the game",
+/*MISSING*/    "play the game",
+    }},
   {0x6c4bb55c, { // " You need to go deep to collect lots of them."
    "By zebrać ich dużo, musisz głęboko wejść w krainę.",
 /*MISSING*/    " You need to go deep to collect lots of them.",
@@ -13088,6 +15195,15 @@ sentence all_sentences[] = {
    "Du fällst den Baum.",
    "Você corta a árvore.",
    "Vous abattez l'arbre.",
+    }},
+  {0x6c6fbd15, { // "height-to-width ratio"
+   "stosunek wysokości do szerokości",
+/*MISSING*/    "height-to-width ratio",
+   "poměr výšky a šířky",
+/*MISSING*/    "height-to-width ratio",
+/*MISSING*/    "height-to-width ratio",
+/*MISSING*/    "height-to-width ratio",
+/*MISSING*/    "height-to-width ratio",
     }},
   {0x6c71a8d7, { // "compass probability"
    "prawdopodobieństwo kompasu",
@@ -13206,6 +15322,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Someone has told you that one can get battle experience safely by killing tons of essentially harmless creatures, such as Bats. But does this make any sense?...\n\nIt does not. Bats cannot hurt you, but may block your movement, or toggle switches if they fall on them.",
    "Quelqu'un vous a dit qu'on peut obtenir de l'expérience sans danger en tuant des tonnes de créatures essentiellement inoffensives, comme des chauves-souris. Mais est-ce que cela a du sens ?...\n\nÇa n'en a pas. Les chauves-souris ne peuvent pas vous blesser mais peuvent bloquer vos mouvements, ou déclencher des interrupteurs si elles tombent dessus.",
     }},
+  {0x6d5e5e99, { // "in tes internal format"
+   "w formacie wewnętrznym .tes",
+/*MISSING*/    "in tes internal format",
+   "v interním formátu *.tes",
+/*MISSING*/    "in tes internal format",
+/*MISSING*/    "in tes internal format",
+/*MISSING*/    "in tes internal format",
+/*MISSING*/    "in tes internal format",
+    }},
   {0x6d686288, { // "band equidistant"
    "wstęga ekwidystantna",
 /*MISSING*/    "band equidistant",
@@ -13224,6 +15349,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "do nothing",
    "ne rien faire",
     }},
+  {0x6d972296, { // "Embed Euclidean cylinder in H2xR space."
+   "Zanurz walec euklidesowy w przestrzeń produktową H2xR.",
+/*MISSING*/    "Embed Euclidean cylinder in H2xR space.",
+   "Vnoř eukleidovský válec do prostoru H2xR.",
+/*MISSING*/    "Embed Euclidean cylinder in H2xR space.",
+/*MISSING*/    "Embed Euclidean cylinder in H2xR space.",
+/*MISSING*/    "Embed Euclidean cylinder in H2xR space.",
+/*MISSING*/    "Embed Euclidean cylinder in H2xR space.",
+    }},
   {0x6d9f6637, { // "inventory/kill sorting"
    "sortowanie skarbów/potworów",
 /*MISSING*/    "inventory/kill sorting",
@@ -13232,6 +15366,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "inventory/kill sorting",
 /*MISSING*/    "inventory/kill sorting",
    "tri de l'inventaire/des tués",
+    }},
+  {0x6dd42295, { // "rug_camera angle"
+   "kąt kamery dywanu",
+/*MISSING*/    "rug_camera angle",
+   "úhel kamery koberce",
+/*MISSING*/    "rug_camera angle",
+/*MISSING*/    "rug_camera angle",
+/*MISSING*/    "rug_camera angle",
+/*MISSING*/    "rug_camera angle",
     }},
   {0x6dd44399, { // "racing menu"
    "menu wyścigów",
@@ -13314,6 +15457,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "see how it ended",
    "voir comment ça s'est terminé",
     }},
+  {0x6e7e29d1, { // "eligible for special geometry"
+   "legalne dla geometrii specjalnych",
+/*MISSING*/    "eligible for special geometry",
+   "achievementy/leaderboardy speciální geometrie dostupné",
+/*MISSING*/    "eligible for special geometry",
+/*MISSING*/    "eligible for special geometry",
+/*MISSING*/    "eligible for special geometry",
+/*MISSING*/    "eligible for special geometry",
+    }},
   {0x6e90badf, { // "Failed to save pictures to %1"
    "Nie udało się zapisać obrazków do %1",
 /*MISSING*/    "Failed to save pictures to %1",
@@ -13368,6 +15520,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "d = delete v",
    "d = supprimer v",
     }},
+  {0x6ec4c0e3, { // "more options in 3D engine"
+   "więcej opcji przy użyciu silnika 3D",
+/*MISSING*/    "more options in 3D engine",
+   "více možností v 3D enginu",
+/*MISSING*/    "more options in 3D engine",
+/*MISSING*/    "more options in 3D engine",
+/*MISSING*/    "more options in 3D engine",
+/*MISSING*/    "more options in 3D engine",
+    }},
   {0x6ec544a8, { // "Everything in this Land has black and white stripes."
    "Wszystko w tej Krainie ma czarne i białe paski.",
    "Bu diyardaki her şey siyah ve beyaz şeritlere sahip.",
@@ -13403,6 +15564,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Möbius transformations",
 /*MISSING*/    "Möbius transformations",
    "transformation de Möbius",
+    }},
+  {0x6f0fb3c4, { // "bump to shoot"
+   "uderz by strzelać",
+/*MISSING*/    "bump to shoot",
+   "střílej naběhnutím",
+/*MISSING*/    "bump to shoot",
+/*MISSING*/    "bump to shoot",
+/*MISSING*/    "bump to shoot",
+/*MISSING*/    "bump to shoot",
     }},
   {0x6f268d45, { // "inversion"
    "inwersja",
@@ -13466,6 +15636,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Do not use compases.\n\n",
 /*MISSING*/    "Do not use compases.\n\n",
    "Ne pas utiliser de boussoles.\n\n",
+    }},
+  {0x704aba53, { // "the tiles are curved"
+   "kafelki są zakrzywione",
+/*MISSING*/    "the tiles are curved",
+   "dlaždice jsou zakřivené",
+/*MISSING*/    "the tiles are curved",
+/*MISSING*/    "the tiles are curved",
+/*MISSING*/    "the tiles are curved",
+/*MISSING*/    "the tiles are curved",
     }},
   {0x704ba953, { // "angle to screen normal"
    "kąt do normalnej do ekranu",
@@ -13584,6 +15763,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "You cannot attack through the Vine!",
    "Vous ne pouvez pas attaquer à travers la Vigne !",
     }},
+  {0x7129f60b, { // "Embed Euclidean cylinder in hyperbolic space."
+   "Zanurz walec euklidesowy w przestrzeń hiperboliczną.",
+/*MISSING*/    "Embed Euclidean cylinder in hyperbolic space.",
+   "Vnoř eukleidovský válec do hyperbolického prostoru.",
+/*MISSING*/    "Embed Euclidean cylinder in hyperbolic space.",
+/*MISSING*/    "Embed Euclidean cylinder in hyperbolic space.",
+/*MISSING*/    "Embed Euclidean cylinder in hyperbolic space.",
+/*MISSING*/    "Embed Euclidean cylinder in hyperbolic space.",
+    }},
   {0x7135002c, { // "select the starting land"
    "wybierz startową krainę",
 /*MISSING*/    "select the starting land",
@@ -13664,6 +15852,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "best scores to show as ghosts",
 /*MISSING*/    "best scores to show as ghosts",
    "meilleurs scores à montrer en tant que fantômes",
+    }},
+  {0x71e1598b, { // "consider all symmetries when converting"
+   "przy konwersji uwzględniaj wszystkie symetrie",
+/*MISSING*/    "consider all symmetries when converting",
+   "ber při konverzi v úvahu všechny symetrie",
+/*MISSING*/    "consider all symmetries when converting",
+/*MISSING*/    "consider all symmetries when converting",
+/*MISSING*/    "consider all symmetries when converting",
+/*MISSING*/    "consider all symmetries when converting",
+    }},
+  {0x71e3eede, { // "This scaling factor affects only the Y coordinate."
+   "Ten współczynnik skali wpływa jedynie na współrzędną Y.",
+/*MISSING*/    "This scaling factor affects only the Y coordinate.",
+   "Tento škálovací faktor ovlivňuje pouze souřadnici Y.",
+/*MISSING*/    "This scaling factor affects only the Y coordinate.",
+/*MISSING*/    "This scaling factor affects only the Y coordinate.",
+/*MISSING*/    "This scaling factor affects only the Y coordinate.",
+/*MISSING*/    "This scaling factor affects only the Y coordinate.",
     }},
   {0x72251160, { // "Parrots feel safe in the forests of Caribbean, so they never leave them. But they will help the Pirates by attacking the intruders."
    "Papugi czują się bezpiecznie w lasach Karaibów i ich nie opuszczają, ale chętnie pomogą Piratom walczyć z najeźdźcami.",
@@ -13764,6 +15970,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "some parameters will only change in recorded animation",
    "certains paramètres ne changeront qu'en animation enregistrée",
     }},
+  {0x72eb4bbd, { // "You are currently in a visualization. Press wasdqe to rotate the camera, ijklyh to move. You can also use the arrow keys and Home/End and PgUp/PgDn. ESC for menu.\n\n"
+   "Jesteś w wizualizacji. Klawisze: wasdqe by obracać kamerę, ijklyh by poruszać. Można też używać strzałek, Home/End, i PgUp/PgDn. ESC by wyjść do menu.\n\n",
+/*MISSING*/    "You are currently in a visualization. Press wasdqe to rotate the camera, ijklyh to move. You can also use the arrow keys and Home/End and PgUp/PgDn. ESC for menu.\n\n",
+   "Momentálně se nacházíš ve vizualizaci. Stiskni klávesy WASDQE pro rotaci kamery, IJKLYH pro pohyb. Také můžeš používat šipky a klávesy Home/End a PgUp/PgDn. ESC otvírá menu.\n\n",
+/*MISSING*/    "You are currently in a visualization. Press wasdqe to rotate the camera, ijklyh to move. You can also use the arrow keys and Home/End and PgUp/PgDn. ESC for menu.\n\n",
+/*MISSING*/    "You are currently in a visualization. Press wasdqe to rotate the camera, ijklyh to move. You can also use the arrow keys and Home/End and PgUp/PgDn. ESC for menu.\n\n",
+/*MISSING*/    "You are currently in a visualization. Press wasdqe to rotate the camera, ijklyh to move. You can also use the arrow keys and Home/End and PgUp/PgDn. ESC for menu.\n\n",
+/*MISSING*/    "You are currently in a visualization. Press wasdqe to rotate the camera, ijklyh to move. You can also use the arrow keys and Home/End and PgUp/PgDn. ESC for menu.\n\n",
+    }},
   {0x734c01da, { // "p = grid color"
    "p = kolor siatki",
 /*MISSING*/    "p = grid color",
@@ -13800,6 +16015,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Three-colorability required.",
    "trois-colorabilité requise.",
     }},
+  {0x7375b7ca, { // "strict tree maps"
+   "ściśle drzewiaste mapy",
+/*MISSING*/    "strict tree maps",
+   "striktní stromové mapy",
+/*MISSING*/    "strict tree maps",
+/*MISSING*/    "strict tree maps",
+/*MISSING*/    "strict tree maps",
+/*MISSING*/    "strict tree maps",
+    }},
   {0x737f1daa, { // "inverse rectify"
    "odwrotne ucięcie",
 /*MISSING*/    "inverse rectify",
@@ -13817,6 +16041,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "Welcome to HyperRogue! (cheat mode on)",
 /*MISSING*/    "Welcome to HyperRogue! (cheat mode on)",
    "Bienvenue dans HyperRogue! (mode triche activé)",
+    }},
+  {0x73bef5d3, { // "%The1 can only be used on items!"
+   "%1 może być używan%y1 tylko na przedmiotach!",
+/*MISSING*/    "%The1 can only be used on items!",
+   "%1 se dá použít pouze na předměty!",
+/*MISSING*/    "%The1 can only be used on items!",
+/*MISSING*/    "%The1 can only be used on items!",
+/*MISSING*/    "%The1 can only be used on items!",
+/*MISSING*/    "%The1 can only be used on items!",
+    }},
+  {0x73c2173e, { // "Graph geodesic: any sequence of tiles is OK as long as there are no shortcuts. 4 turns to reload."
+   "Geodezyjna grafowa: każdy ciąg pól dobry o ile nie ma skrótów. 4 kolejki do przeładowania.",
+/*MISSING*/    "Graph geodesic: any sequence of tiles is OK as long as there are no shortcuts. 4 turns to reload.",
+   "Grafová geodetika: jakákoli sekvence políček je v pořáídku, pokud neexistují zkratky. Nabíjení trvá 4 kola.",
+/*MISSING*/    "Graph geodesic: any sequence of tiles is OK as long as there are no shortcuts. 4 turns to reload.",
+/*MISSING*/    "Graph geodesic: any sequence of tiles is OK as long as there are no shortcuts. 4 turns to reload.",
+/*MISSING*/    "Graph geodesic: any sequence of tiles is OK as long as there are no shortcuts. 4 turns to reload.",
+/*MISSING*/    "Graph geodesic: any sequence of tiles is OK as long as there are no shortcuts. 4 turns to reload.",
     }},
   {0x73e8ce69, { // "Move with mouse, num pad, qweadzxc, or hjklyubn. Wait by pressing 's' or '.'. Spin the world with arrows, PageUp/Down, and Space. To save the game you need an Orb of Safety. Press 'v' for the main menu (configuration, special modes, etc.), ESC for the quest status.\n\n"
    "Ruszasz się myszą, klawiaturą numeryczną, qweadzxc, lub hjklyubn. Czekasz naciskając 's' lub '.'. Obracasz świat strzałkami, PgUp/Dn, lub Space. Naciśnij 'v' by przejść do menu (konfiguracja, tryby specjalne itd.), ESC by zobaczyć stan misji.\n\n",
@@ -14025,6 +16267,15 @@ sentence all_sentences[] = {
    "características especiais [Space]",
    "fonctionnalités spéciales [Espace]",
     }},
+  {0x76049876, { // "portal orientation"
+   "orientacja portalu",
+/*MISSING*/    "portal orientation",
+   "orientace portálu",
+/*MISSING*/    "portal orientation",
+/*MISSING*/    "portal orientation",
+/*MISSING*/    "portal orientation",
+/*MISSING*/    "portal orientation",
+    }},
   {0x7615cea8, { // "random walk"
    "błądzenie losowe",
 /*MISSING*/    "random walk",
@@ -14160,6 +16411,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "This Orb halves the power usage of orbs which cost some charges with each activation. It even affects the one-shot orbs such as Flash or Teleport. If such an activation normally costs x charges, it costs only x/2 (rounded up) if you have an Orb of Energy.",
    "Cet Orbe divise par deux l'usage des orbes qui coûtent des charges à chaque activation. Cela affecte même les orbes à usage unique comme l'éclair et la téléportation. Si une telle activation coûte normalement x charges, cela coûte seulement x/2 charges (arrondi),  si vous avez un Orbe d'Énergie.",
     }},
+  {0x7709cc6f, { // "make the tiles flat"
+   "płaskie kafelki",
+/*MISSING*/    "make the tiles flat",
+   "ploché dlaždice",
+/*MISSING*/    "make the tiles flat",
+/*MISSING*/    "make the tiles flat",
+/*MISSING*/    "make the tiles flat",
+/*MISSING*/    "make the tiles flat",
+    }},
   {0x7729990b, { // "pointer length"
    "długość wskaźnika",
 /*MISSING*/    "pointer length",
@@ -14223,6 +16483,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "(most achievements are not available)",
    "(la plupart des accomplissements ne sont pas disponibles)",
     }},
+  {0x77be39ce, { // "reset view"
+   "zresetuj obraz",
+/*MISSING*/    "reset view",
+   "vyresetuj pohled",
+/*MISSING*/    "reset view",
+/*MISSING*/    "reset view",
+/*MISSING*/    "reset view",
+/*MISSING*/    "reset view",
+    }},
   {0x77c0b739, { // "Press 1 to enable the finger force."
    "Wciśnij 1 by uruchomić siłę palca.",
 /*MISSING*/    "Press 1 to enable the finger force.",
@@ -14268,6 +16537,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "You create an Illusion!",
    "Vous créer une Illusion !",
     }},
+  {0x783f4d35, { // "probability of star per tile"
+   "prawdopodobieństwo gwiazdy na kafelek",
+/*MISSING*/    "probability of star per tile",
+   "pravděpodobnost hvězdy na jednu dlaždici",
+/*MISSING*/    "probability of star per tile",
+/*MISSING*/    "probability of star per tile",
+/*MISSING*/    "probability of star per tile",
+/*MISSING*/    "probability of star per tile",
+    }},
   {0x78670fc4, { // "Hmm, he has been training in the Emerald Mine. Interesting..."
    "Ciekawe... trenował w Kopalni Szmaragdów.",
    "Çok garip... Zümrüt Madeninde alıştırma yapıyormuş.",
@@ -14276,6 +16554,15 @@ sentence all_sentences[] = {
    "Er  hat in der Smaragdmine trainiert. Interessant...",
 /*MISSING*/    "Hmm, he has been training in the Emerald Mine. Interesting...",
    "Il s'est entraîné dans le Mine d'Émeraude. Intéressant...",
+    }},
+  {0x786d8bae, { // "set cylinder"
+   "ustaw walec",
+/*MISSING*/    "set cylinder",
+   "nastav válec",
+/*MISSING*/    "set cylinder",
+/*MISSING*/    "set cylinder",
+/*MISSING*/    "set cylinder",
+/*MISSING*/    "set cylinder",
     }},
   {0x78748467, { // "You need an Orb of Teleport to teleport."
    "Potrzebujesz Sfery Teleportacji, by to zrobić.",
@@ -14339,6 +16626,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Mercury rivers not implemented (or could not work) in this geometry.",
 /*MISSING*/    "Mercury rivers not implemented (or could not work) in this geometry.",
    "Les rivières de mercures ne sont pas implémentée (ou ne pourrait pas marcher) dans cette géométrie.",
+    }},
+  {0x78fa582a, { // "keep eye level when walking enabled"
+   "trzymaj poziom oka podczas chodzenia",
+/*MISSING*/    "keep eye level when walking enabled",
+   "udržovat výši oka při zapnuté chůzi",
+/*MISSING*/    "keep eye level when walking enabled",
+/*MISSING*/    "keep eye level when walking enabled",
+/*MISSING*/    "keep eye level when walking enabled",
+/*MISSING*/    "keep eye level when walking enabled",
     }},
   {0x791c0703, { // "size (no gen)"
    "rozmiar (bez generacji)",
@@ -14466,6 +16762,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "A happy sentient die. Dice are happy when they are in their correct position (the highest number on the top); happy dice with one roll from their best position are sometimes found too.Other positions are much less convenient for them and expose their weak spots. You can roll Happy Dice, but it may become angry!",
    "Un dé intelligent heureux. Les dés sont heureux quand ils sont dans leur position correcte. (le plus haut nombre au sommet) ; des dés heureux à un tour de leur meilleure position peuvent être trouvés aussi. D'autres positions sont moins pratiques pour eux et exposent leurs points faibles. Vous pouvez rouler un Dé heureux, mais il peut s'énerver !",
     }},
+  {0x7a42d167, { // "Clicking on a faraway monster always means an attempt to fire."
+   "Kliknięcie przeciwnika zawsze jest rozumiane jako próba strzału.",
+/*MISSING*/    "Clicking on a faraway monster always means an attempt to fire.",
+   "Kliknutí na vzdáleného netvora vždy znamená pokus o výstřel.",
+/*MISSING*/    "Clicking on a faraway monster always means an attempt to fire.",
+/*MISSING*/    "Clicking on a faraway monster always means an attempt to fire.",
+/*MISSING*/    "Clicking on a faraway monster always means an attempt to fire.",
+/*MISSING*/    "Clicking on a faraway monster always means an attempt to fire.",
+    }},
+  {0x7a4c2367, { // "dual sub-cubes"
+   "dualne pod-kostki",
+/*MISSING*/    "dual sub-cubes",
+   "duální podkrychle",
+/*MISSING*/    "dual sub-cubes",
+/*MISSING*/    "dual sub-cubes",
+/*MISSING*/    "dual sub-cubes",
+/*MISSING*/    "dual sub-cubes",
+    }},
   {0x7a502bf1, { // "key Orb power"
    "moc sfery jednym klawiszem",
 /*MISSING*/    "key Orb power",
@@ -14555,6 +16869,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "raytracing in H3",
 /*MISSING*/    "raytracing in H3",
    "tracé de rayon dans H3",
+    }},
+  {0x7aec2c76, { // "horodisks"
+   "horodyski",
+/*MISSING*/    "horodisks",
+   "horodisky",
+/*MISSING*/    "horodisks",
+/*MISSING*/    "horodisks",
+/*MISSING*/    "horodisks",
+/*MISSING*/    "horodisks",
     }},
   {0x7b091462, { // "perspective"
    "perspektywa",
@@ -14663,6 +16986,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "cancel the texture",
 /*MISSING*/    "cancel the texture",
    "annuler la texture",
+    }},
+  {0x7c6c0a50, { // "rules generated successfully: %1 states using %2-%3 cells"
+   "reguły wygenerowane, liczba stanów: %1, liczba pól: %2-%3",
+/*MISSING*/    "rules generated successfully: %1 states using %2-%3 cells",
+   "pravidla úspěšně vygenerovaná: %1 stavů s využitím %2-%3 políček",
+/*MISSING*/    "rules generated successfully: %1 states using %2-%3 cells",
+/*MISSING*/    "rules generated successfully: %1 states using %2-%3 cells",
+/*MISSING*/    "rules generated successfully: %1 states using %2-%3 cells",
+/*MISSING*/    "rules generated successfully: %1 states using %2-%3 cells",
     }},
   {0x7c8494c2, { // "You cannot defeat the Greater Demon yet!"
    "Nie możesz jeszcze pokonać Wielkiego Demona!",
@@ -14826,6 +17158,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "\"That felt great. Thanks!\"",
    "\"Merci, ça m'a soulagé%e1.\"",
     }},
+  {0x7d956538, { // "set recommended settings"
+   "ustaw zalecane ustawienia",
+/*MISSING*/    "set recommended settings",
+   "zadat doporučené nastavení",
+/*MISSING*/    "set recommended settings",
+/*MISSING*/    "set recommended settings",
+/*MISSING*/    "set recommended settings",
+/*MISSING*/    "set recommended settings",
+    }},
   {0x7da35c28, { // "projection period"
    "okres modelu",
 /*MISSING*/    "projection period",
@@ -14907,6 +17248,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Green pressure plates open all gates in radius 3 around them. Similarly, red pressure plates close all gates in this radius.",
    "Les plateformes vertes ouvrent toutes les portes dans un rayon de 3. De même, les plateformes vertes ferment toutes les portes dans ce rayon.",
     }},
+  {0x7eafba39, { // "ERROR: No common neighbor to vault through!"
+   "BŁĄD: brak wspólnego sąsiada do przeskoku!",
+/*MISSING*/    "ERROR: No common neighbor to vault through!",
+   "CHYBA: Není žádný společné sousední políčko, přes které bys mohl přeskočit!",
+/*MISSING*/    "ERROR: No common neighbor to vault through!",
+/*MISSING*/    "ERROR: No common neighbor to vault through!",
+/*MISSING*/    "ERROR: No common neighbor to vault through!",
+/*MISSING*/    "ERROR: No common neighbor to vault through!",
+    }},
   {0x7eb46e73, { // "dialogs"
    "dialogi",
 /*MISSING*/    "dialogs",
@@ -14933,6 +17283,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "This Orb allows you to grow like an Ivy. The Ivy is always rooted in your current location; moving among the Ivy cells will move the root. Moving to a new location will cause the Ivy to grow , if an Ivy could make that movement (otherwise it breaks). You can also target one of the cells adjacent to your ivy (not to you) to grow or attack there.",
 /*MISSING*/    "This Orb allows you to grow like an Ivy. The Ivy is always rooted in your current location; moving among the Ivy cells will move the root. Moving to a new location will cause the Ivy to grow , if an Ivy could make that movement (otherwise it breaks). You can also target one of the cells adjacent to your ivy (not to you) to grow or attack there.",
    "Cette Orbe vous permet de grandir comme du Lierre. Le Lierre est toujours planté à votre position actuelle ; bouger le long des cases de lierre bougera la racine. Aller à une nouvelle position fera pousser le Lierre si un Lierre peut faire ce mouvement (autrement il casse) Vous pouvez aussi cibler une case adjacente à votre lierre (pas à vous) pour pousser ou attaquer là.",
+    }},
+  {0x7ee3345b, { // "Nothing to vault over!"
+   "Nie ma przez co przeskoczyć!",
+/*MISSING*/    "Nothing to vault over!",
+   "Není přes co přeskočit!",
+/*MISSING*/    "Nothing to vault over!",
+/*MISSING*/    "Nothing to vault over!",
+/*MISSING*/    "Nothing to vault over!",
+/*MISSING*/    "Nothing to vault over!",
     }},
   {0x7ee346ab, { // "two-point hybrid"
    "rzut dwupunktowy mieszany",
@@ -14978,6 +17337,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "raycasting configuration",
 /*MISSING*/    "raycasting configuration",
    "configuration du tracé de rayons",
+    }},
+  {0x7f2f35b4, { // "stretched Sol"
+   "rozciągnięte Sol.",
+/*MISSING*/    "stretched Sol",
+   "natažený Sol.",
+/*MISSING*/    "stretched Sol",
+/*MISSING*/    "stretched Sol",
+/*MISSING*/    "stretched Sol",
+/*MISSING*/    "stretched Sol",
     }},
   {0x7f42b798, { // "Branches here will bear you weight, but if you use them to move (not fall) to an unstable place, they will break."
    "Te gąłęzie udźwigną Twój ciężar, ale jeśli użyjesz ich, by się przemieścić (nie spaść) na niestabilną pozycję, złamią się.",
@@ -15042,6 +17410,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Where did this strange bird come from?...\n\nAcid Gulls dissolve the land on which they fall when they die. ",
    "D'où vient cet étrange oiseau ?...\n\nLes Mouettes acides dissolvent le sol sur lequel elles tombent à leur mort. ",
     }},
+  {0x7fc9c3b3, { // "6-flake fractal"
+   "fraktal 6-płatek",
+/*MISSING*/    "6-flake fractal",
+   "6-vločkový fraktál",
+/*MISSING*/    "6-flake fractal",
+/*MISSING*/    "6-flake fractal",
+/*MISSING*/    "6-flake fractal",
+/*MISSING*/    "6-flake fractal",
+    }},
   {0x7fd6215b, { // "This forest was planted by one of the wizards from the Ivory Tower to conduct experiments with gravity."
    "Ten las został zasadzony przez jednego z czarodziejów z Wieży z Kości Słoniowej, by przeprowadzać eksperymenty z grawitacją.",
 /*MISSING*/    "This forest was planted by one of the wizards from the Ivory Tower to conduct experiments with gravity.",
@@ -15050,6 +17427,15 @@ sentence all_sentences[] = {
    "Dieser Wald wurde von einem der Zauberer des Elfenbeinturmes gepflanzt, um Experimente mit der Graviation durchzuführen.",
 /*MISSING*/    "This forest was planted by one of the wizards from the Ivory Tower to conduct experiments with gravity.",
    "Cette forêt a été plantée par un des magiciens de la Tour d'Ivoire pour conduire des expériences sur la gravité.",
+    }},
+  {0x7fd96ef2, { // "centered menus in widescreen"
+   "wycentrowane menu przy szerokim ekranie",
+/*MISSING*/    "centered menus in widescreen",
+   "vycentrované menu na širokých obrazovkách",
+/*MISSING*/    "centered menus in widescreen",
+/*MISSING*/    "centered menus in widescreen",
+/*MISSING*/    "centered menus in widescreen",
+/*MISSING*/    "centered menus in widescreen",
     }},
   {0x7fe7765d, { // "This mode lets you change the floor tesselation easily -- select 'paint a new texture' and draw like in a Paint program. The obtained pattern can then be easily changed to another geometry, or saved.\n\nInstead of drawing, it is also possible to use an arbitrary image as a texture. Works best with spherical/Euclidean/hyperbolic tesselations (e.g., a photo of a soccerball, or one of the tesselations by M. C. Escher), but it can be also used on arbitrary photos to make them periodic (these probably work best with the 'large picture' setting in geometry selection). Again, tesselations can have their geometry changed.\n\n"
    "Ten tryb pozwala Ci łatwo zmienić teselację powierzchni -- wybierz 'namaluj nową teksturę' i rysuj jak w programie typu Paint. Otrzymany wzorek może być następnie przekształcony do innej geometrii lub zapisany.\n\nZamiast rysowania jest też możliwe użycie dowolnego obrazka. Działa najlepiej z parkietażami (np. zdjęcie piłki nożnej, albo parkietaże M. C. Eschera), ale można też tego użyć na dowolnych zdjęciach, by uzyskać ich okresową wersję (zazwyczaj najlepiej działają 'duże obrazki' w wyborze geometrii). Tu również możemy przekształcić parkietaż do innej geometrii.\n\n",
@@ -15123,6 +17509,15 @@ sentence all_sentences[] = {
    "A nuvem se transforma em várias imagens!",
    "Les nuages se transforment en une multitude d'images !",
     }},
+  {0x80a31e2d, { // "chevron (periodic)"
+   "szewron",
+/*MISSING*/    "chevron (periodic)",
+   "chevron (periodický)",
+/*MISSING*/    "chevron (periodic)",
+/*MISSING*/    "chevron (periodic)",
+/*MISSING*/    "chevron (periodic)",
+/*MISSING*/    "chevron (periodic)",
+    }},
   {0x80a70ec1, { // "This menu can be also used to configure keys.\n\n"
    "To menu może być też użyte do konfiguracji klawiszy.",
 /*MISSING*/    "This menu can be also used to configure keys.\n\n",
@@ -15159,6 +17554,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "deactivate the texture",
    "désactiver la texture",
     }},
+  {0x8100d244, { // "forced center down"
+   "centrum niżej",
+/*MISSING*/    "forced center down",
+   "vynucený střed níže",
+/*MISSING*/    "forced center down",
+/*MISSING*/    "forced center down",
+/*MISSING*/    "forced center down",
+/*MISSING*/    "forced center down",
+    }},
   {0x8101f5cc, { // "hyperbolic size"
    "rozmiar hiperboliczny",
 /*MISSING*/    "hyperbolic size",
@@ -15177,6 +17581,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "extend the ends",
    "étend les fins",
     }},
+  {0x811ed89a, { // "Cannot jump that far!"
+   "Nie można skoczyć tak daleko!",
+/*MISSING*/    "Cannot jump that far!",
+   "Tak daleko nedoskočíš!",
+/*MISSING*/    "Cannot jump that far!",
+/*MISSING*/    "Cannot jump that far!",
+/*MISSING*/    "Cannot jump that far!",
+/*MISSING*/    "Cannot jump that far!",
+    }},
   {0x8127fbf0, { // "You are currently in a product space."
    "Jesteś w przestrzeni produktowej.",
 /*MISSING*/    "You are currently in a product space.",
@@ -15185,6 +17598,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "You are currently in a product space.",
 /*MISSING*/    "You are currently in a product space.",
    "Vous êtes actuellement dans un espace produit.",
+    }},
+  {0x8146c53c, { // "display distances up to"
+   "pokazuj odległości aż do",
+/*MISSING*/    "display distances up to",
+   "zobraz vzdálenosti až do",
+/*MISSING*/    "display distances up to",
+/*MISSING*/    "display distances up to",
+/*MISSING*/    "display distances up to",
+/*MISSING*/    "display distances up to",
     }},
   {0x816ee34a, { // "A fresh grave. Necromancers like those."
    "Świeży grób. Nekromanci to lubią.",
@@ -15222,6 +17644,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "other puzzles",
    "autres puzzles",
     }},
+  {0x81c570f2, { // " (%1 $$$, %2 kills, %3 deaths)"
+   "(%1 $$$, pokonanych: %2, śmierci: %3)",
+/*MISSING*/    " (%1 $$$, %2 kills, %3 deaths)",
+   "(%1 $$$, zabitých nepřátel: %2, smrtí: %3)",
+/*MISSING*/    " (%1 $$$, %2 kills, %3 deaths)",
+/*MISSING*/    " (%1 $$$, %2 kills, %3 deaths)",
+/*MISSING*/    " (%1 $$$, %2 kills, %3 deaths)",
+/*MISSING*/    " (%1 $$$, %2 kills, %3 deaths)",
+    }},
   {0x81ca604d, { // "You swing your sword at %the1."
    "Zamachujesz się mieczem na %a1.",
 /*MISSING*/    "You swing your sword at %the1.",
@@ -15249,6 +17680,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "play a random seed",
    "jouer avec une graine aléatoire",
     }},
+  {0x821d563e, { // "move the camera with arrow keys and Home/End"
+   "strzałki i Home/End by ruszać kamerą",
+/*MISSING*/    "move the camera with arrow keys and Home/End",
+   "přesouvat kameru šipkami a klávesami home/End",
+/*MISSING*/    "move the camera with arrow keys and Home/End",
+/*MISSING*/    "move the camera with arrow keys and Home/End",
+/*MISSING*/    "move the camera with arrow keys and Home/End",
+/*MISSING*/    "move the camera with arrow keys and Home/End",
+    }},
   {0x8248c856, { // "XY plane #2"
    "płaszczyzna XY #2",
 /*MISSING*/    "XY plane #2",
@@ -15267,6 +17707,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "This parameter affects the ball model the same way as the projection parameter affects the disk model.",
    "Ce paramètre affecte le modèle balle de la même manière que le paramètre de projection affecte le modèle disque.",
     }},
+  {0x82640df1, { // "fraction of mine in bounded minefield"
+   "frakcja min w ograniczonym polu minowym",
+/*MISSING*/    "fraction of mine in bounded minefield",
+   "podíl min v ohraničeném minovém poli",
+/*MISSING*/    "fraction of mine in bounded minefield",
+/*MISSING*/    "fraction of mine in bounded minefield",
+/*MISSING*/    "fraction of mine in bounded minefield",
+/*MISSING*/    "fraction of mine in bounded minefield",
+    }},
   {0x826a43d8, { // "model scale factor"
    "współczynnik skali modelu",
 /*MISSING*/    "model scale factor",
@@ -15275,6 +17724,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "model scale factor",
 /*MISSING*/    "model scale factor",
    "facteur d'échelle du modèle",
+    }},
+  {0x82ab2b5e, { // "{3,5,5} field quotient space"
+   "{3,5,5} przestrzeń ilorazowa ciała",
+/*MISSING*/    "{3,5,5} field quotient space",
+   "{3,5,5} prostor s tělesovým kvocientem",
+/*MISSING*/    "{3,5,5} field quotient space",
+/*MISSING*/    "{3,5,5} field quotient space",
+/*MISSING*/    "{3,5,5} field quotient space",
+   "{3,5,5} champ d'espace quotient",
     }},
   {0x82b454ec, { // "non-isotropic"
    "geometrie nieizotropowe",
@@ -15374,6 +17832,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "\n\nIn the Orb Strategy Mode, Orbs of Safety can be gained by collecting Phoenix Feathers in the Land of Eternal Motion. You can also find unlimited Orbs of Safety in the Crossroads and the Ocean (after collecting 25 Phoenix Feathers) and in the Prairie.",
 /*MISSING*/    "\n\nIn the Orb Strategy Mode, Orbs of Safety can be gained by collecting Phoenix Feathers in the Land of Eternal Motion. You can also find unlimited Orbs of Safety in the Crossroads and the Ocean (after collecting 25 Phoenix Feathers) and in the Prairie.",
    "\n\nDans le mode stratégiques des orbes, les Orbes de Sécurité peuvent être gagnées en ramassant des Plumes de Phoenix dans le Pays du Mouvement perpétuel. Vous pouvez aussi trouver un nombre illimité d'Orbes de Sécurité dans les Croisements, l'Océan (après avoir ramassé 25 Plumes de Phoenix) et dans la Prairie.",
+    }},
+  {0x83d2a577, { // "bitruncated-subcubed"
+   "bitruncated-subcubed",
+/*MISSING*/    "bitruncated-subcubed",
+   "bitruncated-subcubed",
+/*MISSING*/    "bitruncated-subcubed",
+/*MISSING*/    "bitruncated-subcubed",
+/*MISSING*/    "bitruncated-subcubed",
+/*MISSING*/    "bitruncated-subcubed",
     }},
   {0x83d85d8a, { // "A large bug native to the Brown Islands. Cannot be killed easily due to their tough armor; still, they can be killed by pushing them into water or from great heights. Bronze Beasts are very bad at descending slopes -- it takes them extra time to get down, and they are stunned for a longer time if you push them down."
    "Duży owad żyjący na Brązowych Wyspach. Ma twardą pokrywę, przez co nie można go łatwo pokonać; można go jednak pokonać spychając go do wody lub z dużej wysokości. Brązowe Bestie słabo sobie radzą z chodzeniem w dół -- zajmuje im to więcej czasu, i kiedy zepchniesz je w dół, są ogłuszone przez dłuższy czas niż normalnie.",
@@ -15483,6 +17950,15 @@ sentence all_sentences[] = {
    "Você sente que as estrelas estão alinhadas e você pode acessar o R'Lyeh!",
    "Vous sentez que les étoiles s'alignent, et que vous pouvez accéder à R'Lyeh !",
     }},
+  {0x84b27654, { // "world list"
+   "lista światów",
+/*MISSING*/    "world list",
+   "seznam světů",
+/*MISSING*/    "world list",
+/*MISSING*/    "world list",
+/*MISSING*/    "world list",
+/*MISSING*/    "world list",
+    }},
   {0x84c4e914, { // "Poincaré disk model"
    "model dysku Poincaré",
 /*MISSING*/    "Poincaré disk model",
@@ -15591,6 +18067,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "Worm of the World",
    "Vers du Monde",
     }},
+  {0x860b3705, { // "Nothing to phase through!"
+   "Nie ma nic przez co można fazować!",
+/*MISSING*/    "Nothing to phase through!",
+   "Není tu nic, skrz co by se dalo fázovat!",
+/*MISSING*/    "Nothing to phase through!",
+/*MISSING*/    "Nothing to phase through!",
+/*MISSING*/    "Nothing to phase through!",
+/*MISSING*/    "Nothing to phase through!",
+    }},
+  {0x8612b799, { // "Play on a disk. Enables the special game rules for small bounded spaces (especially relevant for e.g. Minefield and Halloween). The number given is the number of tiles to use; it is not used exactly, actually the smallest disk above this size is used. Set to 0 to disable."
+   "Graj na dysku. Uruchamia specjalne reguły gry dla małych, ograniczonych przestrzeni, które są szczególnie ważne dla Pola Minowego i Halloween. Podaj, ile ma być pól; zwykle nie będzie dokładnie tyle, najmniejszy dysk ponad ten rozmiar będzie użyty. Ustaw 0 by wyłączyć.",
+/*MISSING*/    "Play on a disk. Enables the special game rules for small bounded spaces (especially relevant for e.g. Minefield and Halloween). The number given is the number of tiles to use; it is not used exactly, actually the smallest disk above this size is used. Set to 0 to disable.",
+   "Hraj na disku. Aktivuje zvláštní herní pravidla pro malé, ohraničené prostory (zvláště relevantní pro např. Minové pole a Halloween).  Udané číslo je počet políček; nepoužívá se však přesně tato hodnota, ale nejmenší disk, který ji převyšuje. Nastavením na 0 se tato možnost vypne.",
+/*MISSING*/    "Play on a disk. Enables the special game rules for small bounded spaces (especially relevant for e.g. Minefield and Halloween). The number given is the number of tiles to use; it is not used exactly, actually the smallest disk above this size is used. Set to 0 to disable.",
+/*MISSING*/    "Play on a disk. Enables the special game rules for small bounded spaces (especially relevant for e.g. Minefield and Halloween). The number given is the number of tiles to use; it is not used exactly, actually the smallest disk above this size is used. Set to 0 to disable.",
+/*MISSING*/    "Play on a disk. Enables the special game rules for small bounded spaces (especially relevant for e.g. Minefield and Halloween). The number given is the number of tiles to use; it is not used exactly, actually the smallest disk above this size is used. Set to 0 to disable.",
+/*MISSING*/    "Play on a disk. Enables the special game rules for small bounded spaces (especially relevant for e.g. Minefield and Halloween). The number given is the number of tiles to use; it is not used exactly, actually the smallest disk above this size is used. Set to 0 to disable.",
+    }},
   {0x862167a0, { // "You damage %the1 with a mental blast!"
    "Zrani%łeś0 %a1 mocą psychiczną!",
 /*MISSING*/    "You damage %the1 with a mental blast!",
@@ -15645,6 +18139,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "F5 = restart",
    "F5 = redémarrer",
     }},
+  {0x868b0ab5, { // "the tiles are inscribed"
+   "kafelki są wpisane",
+/*MISSING*/    "the tiles are inscribed",
+   "dlaždice jsou vepsané",
+/*MISSING*/    "the tiles are inscribed",
+/*MISSING*/    "the tiles are inscribed",
+/*MISSING*/    "the tiles are inscribed",
+/*MISSING*/    "the tiles are inscribed",
+    }},
   {0x86986600, { // "tetrahedron"
    "czworościan",
 /*MISSING*/    "tetrahedron",
@@ -15662,6 +18165,15 @@ sentence all_sentences[] = {
    "Drücke F5 um das Spielfeld zu leeren.",
 /*MISSING*/    "Press F5 to clear the board.",
    "Presser F5 pour vider le plateau du jeu.",
+    }},
+  {0x86b712b7, { // "geometric"
+   "linie geometryczne",
+/*MISSING*/    "geometric",
+   "geometrické čáry",
+/*MISSING*/    "geometric",
+/*MISSING*/    "geometric",
+/*MISSING*/    "geometric",
+/*MISSING*/    "geometric",
     }},
   {0x86d1dc8e, { // "Equidistants"
    "Ekwidystanty",
@@ -15806,6 +18318,15 @@ sentence all_sentences[] = {
    "Waffenfarbe",
 /*MISSING*/    "weapon color",
    "couleur de l'arme",
+    }},
+  {0x87f0d4ab, { // "infinite depth"
+   "nieskończona głębokość",
+/*MISSING*/    "infinite depth",
+   "nekonečná hloubka",
+/*MISSING*/    "infinite depth",
+/*MISSING*/    "infinite depth",
+/*MISSING*/    "infinite depth",
+/*MISSING*/    "infinite depth",
     }},
   {0x880ca7ce, { // "Tall, strong, and holding a flower in his hand. You could not bring yourself to attack such a handsome man."
    "Wysoki, silny, z kwiatem w dłoni. Nie jesteś w stanie zaatakować tak przystojnego mężczyzny.",
@@ -16086,6 +18607,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "%The1 kisses you, and begs you to bring %him1 away from here.",
    "%Le1 vous embrasse, et vous supplie de l'emmener loin d'ici.",
     }},
+  {0x8a1c7126, { // "bitruncated sub-cubes"
+   "przycięte pod-kostki",
+/*MISSING*/    "bitruncated sub-cubes",
+   "dvojseříznuté podkrychle",
+/*MISSING*/    "bitruncated sub-cubes",
+/*MISSING*/    "bitruncated sub-cubes",
+/*MISSING*/    "bitruncated sub-cubes",
+/*MISSING*/    "bitruncated sub-cubes",
+    }},
   {0x8a1f4e9d, { // "Least common multiple of the animation periods of all the game objects on screen, such as rotating items."
    "Najmniejsza wspólna wielokrotność okresów animacji wszystkich obiektów na ekranie, takich jak obracające się przedmioty.",
 /*MISSING*/    "Least common multiple of the animation periods of all the game objects on screen, such as rotating items.",
@@ -16302,6 +18832,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Mighty warriors from the Fjord, who can use boats.",
    "De puissants guerriers du Fjord, qui peuvent utiliser des bateaux.",
     }},
+  {0x8ba64b34, { // "model orientation 3D"
+   "orientacja modelu w 3D",
+/*MISSING*/    "model orientation 3D",
+   "orientace modelu ve 3D",
+/*MISSING*/    "model orientation 3D",
+/*MISSING*/    "model orientation 3D",
+/*MISSING*/    "model orientation 3D",
+/*MISSING*/    "model orientation 3D",
+    }},
   {0x8bc775d0, { // " (touch to activate)"
    " (dotknij, by aktywować)",
    " (etkinleştirmek için dokun)",
@@ -16356,6 +18895,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "a = add v",
    "a = ajouter v",
     }},
+  {0x8c38c90d, { // "comma (periodic)"
+   "przecinek",
+/*MISSING*/    "comma (periodic)",
+   "čárka (periodická)",
+/*MISSING*/    "comma (periodic)",
+/*MISSING*/    "comma (periodic)",
+/*MISSING*/    "comma (periodic)",
+/*MISSING*/    "comma (periodic)",
+    }},
   {0x8c3db3e3, { // "explore the Palace Pattern (4 colors)"
    "Eksploracja Wzoru Pałac (4 kolory)",
    "Saray Dokusunu Keşfet (4 renk)",
@@ -16382,6 +18930,15 @@ sentence all_sentences[] = {
    "Nachrichten-Zeit",
 /*MISSING*/    "message flash time",
    "Le flash info",
+    }},
+  {0x8c482b8c, { // "become a portal map"
+   "Przekształć na mapę portalową",
+/*MISSING*/    "become a portal map",
+   "změnit na portálovou mapu",
+/*MISSING*/    "become a portal map",
+/*MISSING*/    "become a portal map",
+/*MISSING*/    "become a portal map",
+/*MISSING*/    "become a portal map",
     }},
   {0x8c5ae423, { // "{4,4} on horospheres"
    "{4,4} na horosferach",
@@ -16545,6 +19102,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "You feel the Orbs of Yendor nearby...",
    "Vous sentez que les Orbes de Yendor sont près...",
     }},
+  {0x8dcc434f, { // "flat, not equidistant"
+   "płaskie, a nie ekwidystantny",
+/*MISSING*/    "flat, not equidistant",
+   "ploché, nikoli ekvidistantní",
+/*MISSING*/    "flat, not equidistant",
+/*MISSING*/    "flat, not equidistant",
+/*MISSING*/    "flat, not equidistant",
+/*MISSING*/    "flat, not equidistant",
+    }},
   {0x8dd79fbb, { // "throw at the pointer"
    "rzut we wskaźnik",
    "mausa doğru at",
@@ -16553,6 +19119,15 @@ sentence all_sentences[] = {
    "Zum Zeiger werfen",
 /*MISSING*/    "throw at the pointer",
    "jeter au pointeur",
+    }},
+  {0x8ddcfb19, { // "eligible for shmup"
+   "legalne dla strzelanki",
+/*MISSING*/    "eligible for shmup",
+   "střílečkové achievementy/leaderboardy dostupné",
+/*MISSING*/    "eligible for shmup",
+/*MISSING*/    "eligible for shmup",
+/*MISSING*/    "eligible for shmup",
+/*MISSING*/    "eligible for shmup",
     }},
   {0x8de9e4ea, { // "Two of your images crash and disappear!"
    "Dwa Twoje obrazy wpadły na siebie i znikły!",
@@ -16617,6 +19192,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "That was not a challenge. Find a larger castle!",
    "Ce n'était pas si dur. Allons chercher un plus grand château !",
     }},
+  {0x8e617037, { // "canvas floor shape"
+   "kształt podłogi płotna",
+/*MISSING*/    "canvas floor shape",
+   "tvar podlahy Plátna",
+/*MISSING*/    "canvas floor shape",
+/*MISSING*/    "canvas floor shape",
+/*MISSING*/    "canvas floor shape",
+/*MISSING*/    "canvas floor shape",
+    }},
   {0x8e6a74e9, { // "YASC codes: Sides-Entity-Restrict-Threat-Wall"
    "kody YASC: Sides-Entity-Restrict-Threat-Wall",
 /*MISSING*/    "YASC codes: Sides-Entity-Restrict-Threat-Wall",
@@ -16643,6 +19227,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Let's see more models of the hyperbolic plane. This model uses a hyperboloid in the Minkowski geometry; it is used internally by HyperRogue.",
 /*MISSING*/    "Let's see more models of the hyperbolic plane. This model uses a hyperboloid in the Minkowski geometry; it is used internally by HyperRogue.",
    "Découvrons plus de modèles du plan hyperbolique. Ce modèle utilise la géométrie hyperbolique dans la géométrie de Minkowski ; il est utilisé en interne par HyperRogue.",
+    }},
+  {0x8ea47c11, { // "parallel/meridian orientation"
+   "orientacja równoleżników i południków",
+/*MISSING*/    "parallel/meridian orientation",
+   "orientace rovnoběžek/poledníků",
+/*MISSING*/    "parallel/meridian orientation",
+/*MISSING*/    "parallel/meridian orientation",
+/*MISSING*/    "parallel/meridian orientation",
+/*MISSING*/    "parallel/meridian orientation",
     }},
   {0x8eb2d538, { // "You feel that a magical weapon is waiting for you..."
    "Czujesz, że magiczna broń na Ciebie czeka...",
@@ -16716,6 +19309,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Pattern not implemented -- using random.",
    "Motif non implémenté -- utiliser aléatoire.",
     }},
+  {0x8f1b005e, { // "context help"
+   "pomoc kontekstowa",
+/*MISSING*/    "context help",
+   "kontextová nápověda",
+/*MISSING*/    "context help",
+/*MISSING*/    "context help",
+/*MISSING*/    "context help",
+/*MISSING*/    "context help",
+    }},
   {0x8f3bf01f, { // "Abandon all hope, the gates of Hell are opened!"
    "Porzuć wszelką nadzieję, bramy Piekła są otwarte!",
    "Umutlar tükendi, Cehennemin kapıları açıldı!",
@@ -16733,6 +19335,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "When you kill an enemy, adjacent enemies are also attacked, as long as they are further away from you than from the originally attacked enemy. These enemies may in turn infect further enemies, up to distance of at most 4 from you.",
 /*MISSING*/    "When you kill an enemy, adjacent enemies are also attacked, as long as they are further away from you than from the originally attacked enemy. These enemies may in turn infect further enemies, up to distance of at most 4 from you.",
    "Quand vous tuez un ennemi, les ennemis adjacent sont aussi attaqués, tant qu'ils sont plus loin de vous que l'ennemi initialement attaqué. Ces ennemis peuvent à leur tour infecter plus d'ennemis, jusqu'à une distance d'au plus 4 de vous.",
+    }},
+  {0x8f7ce969, { // "sub-cubes"
+   "pod-kostki",
+/*MISSING*/    "sub-cubes",
+   "podkrychle",
+/*MISSING*/    "sub-cubes",
+/*MISSING*/    "sub-cubes",
+/*MISSING*/    "sub-cubes",
+/*MISSING*/    "sub-cubes",
     }},
   {0x8f96d4f9, { // "copying"
    "kopiuję",
@@ -16842,6 +19453,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Vikings believe that garnets improve their strength.",
    "Les Viking croient que les grenats les rendent plus fort.",
     }},
+  {0x904beccb, { // "error: not supported"
+   "błąd: nie działa",
+/*MISSING*/    "error: not supported",
+   "chyba: není podporováno",
+/*MISSING*/    "error: not supported",
+/*MISSING*/    "error: not supported",
+/*MISSING*/    "error: not supported",
+/*MISSING*/    "error: not supported",
+    }},
   {0x904f2680, { // "frames to record"
    "liczba kratek do nagrania",
 /*MISSING*/    "frames to record",
@@ -16877,6 +19497,15 @@ sentence all_sentences[] = {
    "Objekte gefunden: %1",
    "objetos encontrados: %1",
    "objets trouvés : %1",
+    }},
+  {0x908533d9, { // "split by midedges"
+   "podziel według środków krawędzi",
+/*MISSING*/    "split by midedges",
+   "rozdělit podle středů hran",
+/*MISSING*/    "split by midedges",
+/*MISSING*/    "split by midedges",
+/*MISSING*/    "split by midedges",
+/*MISSING*/    "split by midedges",
     }},
   {0x90a087c9, { // "texture mode (overlay)"
    "tryb tekstury (nałożenie)",
@@ -16985,6 +19614,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "A burning dock.",
 /*MISSING*/    "A burning dock.",
    "Un quai.",
+    }},
+  {0x9145cac9, { // "error: this method works only in rectangular torus"
+   "błąd: ta metoda działa tylko dla torusu prostokątnego",
+/*MISSING*/    "error: this method works only in rectangular torus",
+   "chyba: tato metoda funguje pouze v obdélníkovém torusu",
+/*MISSING*/    "error: this method works only in rectangular torus",
+/*MISSING*/    "error: this method works only in rectangular torus",
+/*MISSING*/    "error: this method works only in rectangular torus",
+/*MISSING*/    "error: this method works only in rectangular torus",
     }},
   {0x914ee5ac, { // "This geometry is obtained by applying the same 'generators' which lead to creating the given basic hyperbolic geometry, but using a fixed finite field instead of the field of reals. It can be also interpreted as a quotient of the given basic geometry. Warning: field patterns based on large primes might generate for a long time."
    "Ta geometria powstaje przez użycie tych samych 'generatorów', których używamy do uzyskania zadanej podstawowej geometrii hiperbolicznej, ale w pewnym ciele skończonym zamiast ciała liczb rzczywistych. Można ją zrozumieć jako przestrzeń ilorazową zadanej geometrii. Uwaga: generowanie tego typu geometrii opartej na dużej liczbie pierwszej może zająć dużo czasu!",
@@ -17418,6 +20056,33 @@ sentence all_sentences[] = {
 /*MISSING*/    "Pattern incompatible.",
    "Motif incompatible.",
     }},
+  {0x94cde5d1, { // "{3,5,4} hyperbolic honeycomb"
+   "{3,5,4} siatka hiperboliczna",
+/*MISSING*/    "{3,5,4} hyperbolic honeycomb",
+   "{3,5,4} hyperbolické dělení",
+/*MISSING*/    "{3,5,4} hyperbolic honeycomb",
+/*MISSING*/    "{3,5,4} hyperbolic honeycomb",
+/*MISSING*/    "{3,5,4} hyperbolic honeycomb",
+   "{3,5,4} nid d'abeilles hyperbolique",
+    }},
+  {0x94e8ff95, { // "sky rendering"
+   "renderowanie powietrza",
+/*MISSING*/    "sky rendering",
+   "renderování oblohy",
+/*MISSING*/    "sky rendering",
+/*MISSING*/    "sky rendering",
+/*MISSING*/    "sky rendering",
+/*MISSING*/    "sky rendering",
+    }},
+  {0x94ed838b, { // "product cylinder"
+   "walec produktowy",
+/*MISSING*/    "product cylinder",
+   "součinový válec",
+/*MISSING*/    "product cylinder",
+/*MISSING*/    "product cylinder",
+/*MISSING*/    "product cylinder",
+/*MISSING*/    "product cylinder",
+    }},
   {0x94faeb26, { // "disable wandering monsters"
    "wyłącz błądzące potwory",
 /*MISSING*/    "disable wandering monsters",
@@ -17435,6 +20100,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Remember that you can right click almost anything for more information.",
 /*MISSING*/    "Remember that you can right click almost anything for more information.",
    "Rappelez vous que vous pouvez cliquer droit presque n'importe quoi pour plus d'informations.",
+    }},
+  {0x9517d7ba, { // "Embed Euclidean plane into Nil."
+   "Zanurz płaszczyznę euklidesową w geometrię Nil.",
+/*MISSING*/    "Embed Euclidean plane into Nil.",
+   "Vnoř eukleidovskou rovinu do Nil.",
+/*MISSING*/    "Embed Euclidean plane into Nil.",
+/*MISSING*/    "Embed Euclidean plane into Nil.",
+/*MISSING*/    "Embed Euclidean plane into Nil.",
+/*MISSING*/    "Embed Euclidean plane into Nil.",
     }},
   {0x95745ad1, { // "The sandworm explodes!"
    "Czerw eksplodował!",
@@ -17571,6 +20245,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "out-of-range color",
    "couleur hors palette",
     }},
+  {0x964856e1, { // "auto rotation"
+   "automatyczne obracanie",
+/*MISSING*/    "auto rotation",
+   "automatická rotace",
+/*MISSING*/    "auto rotation",
+/*MISSING*/    "auto rotation",
+/*MISSING*/    "auto rotation",
+/*MISSING*/    "auto rotation",
+    }},
+  {0x965977ef, { // "stereographic/Panini parameter"
+   "parametr rzutu stereograficznego/Paniniego",
+/*MISSING*/    "stereographic/Panini parameter",
+   "parametr stereografické/Paniniho projekce",
+/*MISSING*/    "stereographic/Panini parameter",
+/*MISSING*/    "stereographic/Panini parameter",
+/*MISSING*/    "stereographic/Panini parameter",
+/*MISSING*/    "stereographic/Panini parameter",
+    }},
   {0x967174b8, { // "The arrow traps will automatically launch a deadly arrow when stepped on. They are quite old though, so the arrow will actually fly at the end of the next turn."
    "Te pułapki strzelają zabójczymi strzałami, gdy ktoś na nich stanie. Konstrukcja jest dosyć stara, także strzały wylatują po zakończeniu następnej kolejki.",
 /*MISSING*/    "The arrow traps will automatically launch a deadly arrow when stepped on. They are quite old though, so the arrow will actually fly at the end of the next turn.",
@@ -17580,6 +20272,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "The arrow traps will automatically launch a deadly arrow when stepped on. They are quite old though, so the arrow will actually fly at the end of the next turn.",
    "Les pièges à fléchettes lanceront automatiquement une flèche mortelle lorsqu'on marche dessus. Ils sont assez vieux, donc la flèche volera à la fin du tour suivant.",
     }},
+  {0x967ce79d, { // "disabled in casual mode"
+   "wyłączone w trybie niezobowiązującym",
+/*MISSING*/    "disabled in casual mode",
+   "v neformálním módu jsou achievementy/leaderboardy nedostupné",
+/*MISSING*/    "disabled in casual mode",
+/*MISSING*/    "disabled in casual mode",
+/*MISSING*/    "disabled in casual mode",
+/*MISSING*/    "disabled in casual mode",
+    }},
   {0x96914c74, { // "This person loves to look at their own reflection in the mirror. He believes himself to be one of the most important creatures in this world, and hates those who do not admire him."
    "Ten osobnik kocha patrzeć na własne lustrzane odbicie. Uważa się za jedną z najważniejszych istot na świecie i nienawidzi tych, którzy go nie podziwiają.",
 /*MISSING*/    "This person loves to look at their own reflection in the mirror. He believes himself to be one of the most important creatures in this world, and hates those who do not admire him.",
@@ -17588,6 +20289,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "This person loves to look at their own reflection in the mirror. He believes himself to be one of the most important creatures in this world, and hates those who do not admire him.",
 /*MISSING*/    "This person loves to look at their own reflection in the mirror. He believes himself to be one of the most important creatures in this world, and hates those who do not admire him.",
    "Cette personne adore contempler son propre reflet dans le miroir. Il croit être une des créatures les plus importantes de ce monde, et hait ceux qui ne l'admirent.",
+    }},
+  {0x96a0f25f, { // "Embed Euclidean or hyperbolic plane into Sol."
+   "Zanurz płaszczyznę euklidesową w geometrię Sol.",
+/*MISSING*/    "Embed Euclidean or hyperbolic plane into Sol.",
+   "Vnoř eukleidovskou rovinu do Sol.",
+/*MISSING*/    "Embed Euclidean or hyperbolic plane into Sol.",
+/*MISSING*/    "Embed Euclidean or hyperbolic plane into Sol.",
+/*MISSING*/    "Embed Euclidean or hyperbolic plane into Sol.",
+/*MISSING*/    "Embed Euclidean or hyperbolic plane into Sol.",
     }},
   {0x96dc4c92, { // "The Orb of Safety from the Land of Eternal Motion might save you."
    "Sfera Bezpieczeństwa z Krainy Wiecznego Ruchu może Cię uratować.",
@@ -17679,6 +20389,33 @@ sentence all_sentences[] = {
 /*MISSING*/    "%1 takes %his1 revenge on %the2!",
    "%Le1 prend sa vengeance sur %le2 !",
     }},
+  {0x975f5b4e, { // "You cannot grow there from any adjacent cell!"
+   "Nie można tam wyrosnąć z żadnego sąsiedniego pola!",
+/*MISSING*/    "You cannot grow there from any adjacent cell!",
+   "Tam nemůžeš vyrůst z žádného sousedního políčka!",
+/*MISSING*/    "You cannot grow there from any adjacent cell!",
+/*MISSING*/    "You cannot grow there from any adjacent cell!",
+/*MISSING*/    "You cannot grow there from any adjacent cell!",
+/*MISSING*/    "You cannot grow there from any adjacent cell!",
+    }},
+  {0x9761db41, { // "split screen mode"
+   "tryb podzielonego ekranu",
+/*MISSING*/    "split screen mode",
+   "mód rozdělené obrazovky",
+/*MISSING*/    "split screen mode",
+/*MISSING*/    "split screen mode",
+/*MISSING*/    "split screen mode",
+/*MISSING*/    "split screen mode",
+    }},
+  {0x977abe97, { // "B = build on walls "
+   "B = budowa na ścianie",
+/*MISSING*/    "B = build on walls ",
+   "B = stavění na zdech",
+/*MISSING*/    "B = build on walls ",
+/*MISSING*/    "B = build on walls ",
+/*MISSING*/    "B = build on walls ",
+/*MISSING*/    "B = build on walls ",
+    }},
   {0x977e03df, { // "You feel the presence of free saves on the Crossroads."
    "Wyczuwasz bezpieczeństwo na Skrzyżowaniach.",
 /*MISSING*/    "You feel the presence of free saves on the Crossroads.",
@@ -17759,6 +20496,15 @@ sentence all_sentences[] = {
    "punkte: %1",
 /*MISSING*/    "score: %1",
    "points : %1",
+    }},
+  {0x981b8b3a, { // "error: this method does not work in spherical geometry"
+   "błąd: ta metoda nie działa w geometrii sferycznej",
+/*MISSING*/    "error: this method does not work in spherical geometry",
+   "chyba: tato metoda nefunguje ve sférické geometrii",
+/*MISSING*/    "error: this method does not work in spherical geometry",
+/*MISSING*/    "error: this method does not work in spherical geometry",
+/*MISSING*/    "error: this method does not work in spherical geometry",
+/*MISSING*/    "error: this method does not work in spherical geometry",
     }},
   {0x981c41a0, { // "press Space or Home to center on the PC"
    "naciśnij Space lub Home, by wycentrować na postaci",
@@ -17904,6 +20650,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "The die is now happy, but won't reward you outside of the Dice Reserve!",
    "Ce dé est maintenant heureux, mais ne vous récompensera pas hors de la réserve de dés!",
     }},
+  {0x98d938bd, { // "set binary tiling variant"
+   "ustaw wariant parkietażu binarnego",
+/*MISSING*/    "set binary tiling variant",
+   "nastav variantu binárního dláždění",
+/*MISSING*/    "set binary tiling variant",
+/*MISSING*/    "set binary tiling variant",
+/*MISSING*/    "set binary tiling variant",
+/*MISSING*/    "set binary tiling variant",
+    }},
   {0x98e28494, { // "third person perspective"
    "perspektywa trzeciej osoby",
 /*MISSING*/    "third person perspective",
@@ -17921,6 +20676,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "floating bubbles: treasure thresholds",
 /*MISSING*/    "floating bubbles: treasure thresholds",
    "bulles flottantes : seuil des trésors",
+    }},
+  {0x98e6d3da, { // "self hits"
+   "atakowanie siebie",
+/*MISSING*/    "self hits",
+   "útoky do sebe",
+/*MISSING*/    "self hits",
+/*MISSING*/    "self hits",
+/*MISSING*/    "self hits",
+/*MISSING*/    "self hits",
     }},
   {0x98f8d9b8, { // "save the configuration"
    "zapis konfiguracji",
@@ -17985,6 +20749,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "When you move, the contents of the two cells adjacent to your both locations are swapped. If they contain creatures, these creatures will be stunned for some time, before they understand what happened.\n\nDoes not work if one of the cells contains a multi-tile creature or a barrier-like wall.",
    "Quand vous bouger, les contenus des cases adjacentes aux deux emplacements sont échangés. Si elles contiennent des créatures, elles seront assommées pendant un certain temps, avant de comprendre ce qui s'est passé.\n\nNe marche pas si l'une des cases contient une créature multi-case ou un mur barrière.",
     }},
+  {0x994f7594, { // "\n\nOrb unlocked: %1"
+   "\n\nSfera odblokowana: %1",
+/*MISSING*/    "\n\nOrb unlocked: %1",
+   "\n\nSféra odemčena: %1",
+/*MISSING*/    "\n\nOrb unlocked: %1",
+/*MISSING*/    "\n\nOrb unlocked: %1",
+/*MISSING*/    "\n\nOrb unlocked: %1",
+/*MISSING*/    "\n\nOrb unlocked: %1",
+    }},
   {0x996cd6a6, { // "sides per face"
    "boki ścian",
 /*MISSING*/    "sides per face",
@@ -18002,6 +20775,24 @@ sentence all_sentences[] = {
    "%Die1 %1 piepst dankbar!",
 /*MISSING*/    "%The1 squeaks gratefully!",
    "%Le1 couine avec gratitude !",
+    }},
+  {0x99b3c530, { // "double original"
+   "podwójna oryginalna",
+/*MISSING*/    "double original",
+   "dvojitá originální",
+/*MISSING*/    "double original",
+/*MISSING*/    "double original",
+/*MISSING*/    "double original",
+/*MISSING*/    "double original",
+    }},
+  {0x99bebb7e, { // "Add one extra dimension in the Euclidean way."
+   "Dodaje dodatkowy wymiar w sposób Euklidesowy.",
+/*MISSING*/    "Add one extra dimension in the Euclidean way.",
+   "Přidej jeden rozměr navíc eukleidovským způsobem.",
+/*MISSING*/    "Add one extra dimension in the Euclidean way.",
+/*MISSING*/    "Add one extra dimension in the Euclidean way.",
+/*MISSING*/    "Add one extra dimension in the Euclidean way.",
+/*MISSING*/    "Add one extra dimension in the Euclidean way.",
     }},
   {0x99d1791d, { // "crosshair color"
    "kolor celownika",
@@ -18021,6 +20812,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "In the shoot'em up mode, space and time is continuous. You attack by throwing knives. Very fun with two players!\n\nThere are other special modes too which change the gameplay or focus on a particular challenge.",
    "Dans le mode shoot'em up le temps et l'espace sont continus. Vous attaquez en jetant des couteaux.Très amusant à deux joueurs !\n\nIl y a d'autres modes spéciaux qui changent le gameplay ou se concentrent sur un défi en particulier.",
     }},
+  {0x99ed02ea, { // "priority"
+   "priorytetowy",
+/*MISSING*/    "priority",
+   "prioritní",
+/*MISSING*/    "priority",
+/*MISSING*/    "priority",
+/*MISSING*/    "priority",
+/*MISSING*/    "priority",
+    }},
+  {0x99f69871, { // "do not draw sky"
+   "nie rysuj powietrza",
+/*MISSING*/    "do not draw sky",
+   "nevykresluj oblohu",
+/*MISSING*/    "do not draw sky",
+/*MISSING*/    "do not draw sky",
+/*MISSING*/    "do not draw sky",
+/*MISSING*/    "do not draw sky",
+    }},
   {0x9a41a7b7, { // "cylinder (squares)"
    "walec (kwadraty)",
 /*MISSING*/    "cylinder (squares)",
@@ -18029,6 +20838,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "cylinder (squares)",
 /*MISSING*/    "cylinder (squares)",
    "cylindre (carrés)",
+    }},
+  {0x9a62a3d5, { // "Pauses: %1 of %2 allowed"
+   "Pauzy: %1 dozwolone: %2",
+/*MISSING*/    "Pauses: %1 of %2 allowed",
+   "Pauzy: %1 z %2 povolených",
+/*MISSING*/    "Pauses: %1 of %2 allowed",
+/*MISSING*/    "Pauses: %1 of %2 allowed",
+/*MISSING*/    "Pauses: %1 of %2 allowed",
+/*MISSING*/    "Pauses: %1 of %2 allowed",
     }},
   {0x9a64fa62, { // "settings set here won't be saved"
    "ustawienia ustawione tutaj się nie",
@@ -18066,6 +20884,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "shots only",
    "seulement les clichés",
     }},
+  {0x9a967f13, { // "SL2 cylinder"
+   "walec SL2",
+/*MISSING*/    "SL2 cylinder",
+   "SL2 válec",
+/*MISSING*/    "SL2 cylinder",
+/*MISSING*/    "SL2 cylinder",
+/*MISSING*/    "SL2 cylinder",
+/*MISSING*/    "SL2 cylinder",
+    }},
   {0x9af4fa33, { // "You already have this Grimoire! Seek new tomes in the inner circles."
    "Już masz taką Księgę! Szukaj nowych tomów w wewnętrznych kręgach.",
    "Bu Kara Kitaptan elinde zaten var! Yeni ciltleri iç dairelerde ara.",
@@ -18101,6 +20928,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "render a cut",
 /*MISSING*/    "render a cut",
    "afficher une coupe",
+    }},
+  {0x9b157cce, { // " (%1 pkills)"
+   " (%1 pokonanych graczy)",
+/*MISSING*/    " (%1 pkills)",
+   " (%1 zabitých hráčů)",
+/*MISSING*/    " (%1 pkills)",
+/*MISSING*/    " (%1 pkills)",
+/*MISSING*/    " (%1 pkills)",
+/*MISSING*/    " (%1 pkills)",
     }},
   {0x9b33e3a5, { // "select master triangles"
    "wybierz główne trójkąty",
@@ -18183,6 +21019,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "0 = symmetry",
    "0 = symétrie",
     }},
+  {0x9bbe373c, { // "Embed Euclidean as a cylinder in twisted product geometry."
+   "Zanurz walec euklidesowy w poskręcaną przestrzeń produktową.",
+/*MISSING*/    "Embed Euclidean as a cylinder in twisted product geometry.",
+   "Vnoř eukleidovský válec do zkroucené součinové geometrie.",
+/*MISSING*/    "Embed Euclidean as a cylinder in twisted product geometry.",
+/*MISSING*/    "Embed Euclidean as a cylinder in twisted product geometry.",
+/*MISSING*/    "Embed Euclidean as a cylinder in twisted product geometry.",
+/*MISSING*/    "Embed Euclidean as a cylinder in twisted product geometry.",
+    }},
   {0x9bbe7e60, { // "rotated hyperboles"
    "obrócone hiperbole",
 /*MISSING*/    "rotated hyperboles",
@@ -18228,6 +21073,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Shmup (shoot'em up) mode: You can play a hyperbolic shoot'em up game. The game is based on the usual turn-based grid-based HyperRogue, but there are some changes. You fight by throwing knives, and you have three extra lives. There are no allies, so all Orbs related to allies give you extra lives instead (up to 5). Some other rules have been adapted too.\n\n",
    "Mode shoot'em up : Vous pouvez jouer à un jeu de shoot'em up hyperbolique. Le jeu est basé sur l'HyperRogue sur grille au tour par tour, mais il y a des changements. Vous combattez en jetant des couteaux, et vous avez trois vies en plus. Il n'y a pas d'alliés donc tous les Orbes reliés aux alliés donnent des vies en plus (max 5). D'autres règles sont aussi adaptées.\n\n",
     }},
+  {0x9c1cb68e, { // "bug: %1"
+   "bug: %1",
+/*MISSING*/    "bug: %1",
+   "bug: %1",
+/*MISSING*/    "bug: %1",
+/*MISSING*/    "bug: %1",
+/*MISSING*/    "bug: %1",
+/*MISSING*/    "bug: %1",
+    }},
   {0x9c3025e5, { // "0 - return"
    "0 - powrót",
 /*MISSING*/    "0 - return",
@@ -18245,6 +21099,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "3D display",
 /*MISSING*/    "3D display",
    "affichage 3D",
+    }},
+  {0x9c44e8e1, { // "Approximations of geometric straight lines."
+   "Przybliżenia geometrycznych linii prostych",
+/*MISSING*/    "Approximations of geometric straight lines.",
+   "Aproximace geometrických přímek",
+/*MISSING*/    "Approximations of geometric straight lines.",
+/*MISSING*/    "Approximations of geometric straight lines.",
+/*MISSING*/    "Approximations of geometric straight lines.",
+/*MISSING*/    "Approximations of geometric straight lines.",
     }},
   {0x9c47b8f9, { // "Look from behind."
    "Patrz od tyłu.",
@@ -18264,6 +21127,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "%1 Challenge",
    "Défi %1",
     }},
+  {0x9c54564c, { // "Embed Euclidean cylinder or spherical plane in the H2xR product space."
+   "Zanurz płaszczyznę euklidesową lub sferę w przestrzeń produktową H2xR",
+/*MISSING*/    "Embed Euclidean cylinder or spherical plane in the H2xR product space.",
+   "Vnoř eukleidovský válec nebo sférickou rovinu do součinového prostoru S2xR",
+/*MISSING*/    "Embed Euclidean cylinder or spherical plane in the H2xR product space.",
+/*MISSING*/    "Embed Euclidean cylinder or spherical plane in the H2xR product space.",
+/*MISSING*/    "Embed Euclidean cylinder or spherical plane in the H2xR product space.",
+/*MISSING*/    "Embed Euclidean cylinder or spherical plane in the H2xR product space.",
+    }},
   {0x9c58d24f, { // "Help texts disabled."
    "Teksty pomocy wyłączone.",
 /*MISSING*/    "Help texts disabled.",
@@ -18272,6 +21144,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Help texts disabled.",
 /*MISSING*/    "Help texts disabled.",
    "Textes d'aides désactivés.",
+    }},
+  {0x9c69a9d0, { // "dual-subcubed"
+   "dual-subcubed",
+/*MISSING*/    "dual-subcubed",
+   "dual-subcubed",
+/*MISSING*/    "dual-subcubed",
+/*MISSING*/    "dual-subcubed",
+/*MISSING*/    "dual-subcubed",
+/*MISSING*/    "dual-subcubed",
     }},
   {0x9c7413b9, { // "hyperbolic (3:2)"
    "hiperboliczna (3:2)",
@@ -18309,6 +21190,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Klein-Beltrami model",
    "modèle de Klein-Beltrami",
     }},
+  {0x9cc5821e, { // "eligible for most -- leaderboards separate"
+   "większość legalna -- osobne rankingi",
+/*MISSING*/    "eligible for most -- leaderboards separate",
+   "většina achievementů dostupná -- leaderboardy oddělené",
+/*MISSING*/    "eligible for most -- leaderboards separate",
+/*MISSING*/    "eligible for most -- leaderboards separate",
+/*MISSING*/    "eligible for most -- leaderboards separate",
+/*MISSING*/    "eligible for most -- leaderboards separate",
+    }},
   {0x9d0ae528, { // "%The1 would get you!"
    "Dopad%ł1by Cię %1!",
    "%1 seni kapar!",
@@ -18336,6 +21226,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "\n\nOnce you collect 10 Bomberbird Eggs, stepping on a cell with no adjacent mines also reveals the adjacent cells. Collecting even more Eggs will increase the radius. Additionally, collecting 25 Bomberbird Eggs will reveal adjacent cells even in your future games.",
    "\n\nLorsque vous avez collecté 10 Œufs d'Oiseaux-Bombe, marcher sur une case sans mine adjacente révèle aussi les cases adjacentes. Rassembler plus d’œufs augmentera le rayon. De plus, collecter 25 Œufs révélera les cases adjacentes même dans les parties futures.",
     }},
+  {0x9d304232, { // "Cannot hit anything by shooting this direction!"
+   "Nic nie trafisz strzelając w tym kierunku!",
+/*MISSING*/    "Cannot hit anything by shooting this direction!",
+   "Tímhle směrem nemůžeš nic trefit!",
+/*MISSING*/    "Cannot hit anything by shooting this direction!",
+/*MISSING*/    "Cannot hit anything by shooting this direction!",
+/*MISSING*/    "Cannot hit anything by shooting this direction!",
+/*MISSING*/    "Cannot hit anything by shooting this direction!",
+    }},
   {0x9d3a9666, { // "minimum visible cell in pixels"
    "najmniejszy rozmiar rysowanego pola w pikselach",
 /*MISSING*/    "minimum visible cell in pixels",
@@ -18353,6 +21252,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "shot settings",
 /*MISSING*/    "shot settings",
    "montrer les réglages",
+    }},
+  {0x9d634292, { // "Embed sphere as a sphere in hyperbolic space."
+   "Zanurz sferę w przestrzeni hiperbolicznej.",
+/*MISSING*/    "Embed sphere as a sphere in hyperbolic space.",
+   "Vnoř kouli jako kouli v hyperbolickém prostoru.",
+/*MISSING*/    "Embed sphere as a sphere in hyperbolic space.",
+/*MISSING*/    "Embed sphere as a sphere in hyperbolic space.",
+/*MISSING*/    "Embed sphere as a sphere in hyperbolic space.",
+/*MISSING*/    "Embed sphere as a sphere in hyperbolic space.",
     }},
   {0x9d6cff12, { // "Saved the band image as: "
    "Zapisano obraz jako: ",
@@ -18479,6 +21387,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "heptagonal grid",
 /*MISSING*/    "heptagonal grid",
    "grille heptagonale",
+    }},
+  {0x9ecea75a, { // "Hits all monsters in a straight line, but slow to reload. Press 'f' or click the crossbow icon to target."
+   "Rani wszystkich przeciwników w linii prostej, ale przeładowanie zajmuje dużo czasu. Naciśnij 'f' lub kliknij ikonę kuszy, by celować.",
+/*MISSING*/    "Hits all monsters in a straight line, but slow to reload. Press 'f' or click the crossbow icon to target.",
+   "Zasáhne všechny netvory v přímé linii, chvíli však trvá, než se znovu nabije. Cíluj klávesou 'f' nebo kliknutím na ikonu kuše.",
+/*MISSING*/    "Hits all monsters in a straight line, but slow to reload. Press 'f' or click the crossbow icon to target.",
+/*MISSING*/    "Hits all monsters in a straight line, but slow to reload. Press 'f' or click the crossbow icon to target.",
+/*MISSING*/    "Hits all monsters in a straight line, but slow to reload. Press 'f' or click the crossbow icon to target.",
+/*MISSING*/    "Hits all monsters in a straight line, but slow to reload. Press 'f' or click the crossbow icon to target.",
     }},
   {0x9ed2d0a0, { // "heptagonal mode"
    "tryb siedmiokątów",
@@ -18768,6 +21685,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "You are killed by %the1!",
    "%Le1 vous a tué !",
     }},
+  {0xa0bc55a2, { // "lower curvature"
+   "niższa krzywizna",
+/*MISSING*/    "lower curvature",
+   "menší křivost",
+/*MISSING*/    "lower curvature",
+/*MISSING*/    "lower curvature",
+/*MISSING*/    "lower curvature",
+/*MISSING*/    "lower curvature",
+    }},
   {0xa0be0db4, { // "Cells over this distance will not be generated, but they will be drawn if they are already generated and in the sight range."
    "Komórki dalsze niż w tej odległości nie będą automatycznie generowane, ale będą renderowane, jeżeli zostały wygenerowane wcześniej.",
 /*MISSING*/    "Cells over this distance will not be generated, but they will be drawn if they are already generated and in the sight range.",
@@ -18831,6 +21757,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Extremely narrow Crossroads layout.\n",
    "Disposition extrêmement étroite.\n",
     }},
+  {0xa161439e, { // "ratio of high walls to normal walls"
+   "stosunek wysokich ścian do normalnych",
+/*MISSING*/    "ratio of high walls to normal walls",
+   "poměr vysokých a normálních stěn",
+/*MISSING*/    "ratio of high walls to normal walls",
+/*MISSING*/    "ratio of high walls to normal walls",
+/*MISSING*/    "ratio of high walls to normal walls",
+/*MISSING*/    "ratio of high walls to normal walls",
+    }},
   {0xa1635ad7, { // "Thus, it is potentially useful for extremely long games, which would eat all the memory on your system otherwise.\n"
    "Jest więc to użyteczne w bardzo długich grach, które inaczej by zjadły całą pamięć.",
    "Yani, bu olası çok uzun, sistemin tüm hafızasını tüketecek oyunlarında yardımcı olabilir.",
@@ -18875,6 +21810,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "land structure",
 /*MISSING*/    "land structure",
    "structure du terrain",
+    }},
+  {0xa1a39daa, { // "explicit"
+   "kategoryczny",
+/*MISSING*/    "explicit",
+   "explicitní",
+/*MISSING*/    "explicit",
+/*MISSING*/    "explicit",
+/*MISSING*/    "explicit",
+/*MISSING*/    "explicit",
+    }},
+  {0xa1b39cd2, { // "The following Orbs act an extra lives in the shmup mode:"
+   "Następujące sfery w trybie strzelanki dają dodatkowe życie:",
+/*MISSING*/    "The following Orbs act an extra lives in the shmup mode:",
+   "Následující Sféry fungují ve střílečkovém módu jako životy navíc:",
+/*MISSING*/    "The following Orbs act an extra lives in the shmup mode:",
+/*MISSING*/    "The following Orbs act an extra lives in the shmup mode:",
+/*MISSING*/    "The following Orbs act an extra lives in the shmup mode:",
+/*MISSING*/    "The following Orbs act an extra lives in the shmup mode:",
     }},
   {0xa1c4fc8f, { // "A coastal area, from where you can get both to the inland worlds and to the Ocean. Each turn, each cell will become water or earth, based on the majority of cells around it. Contrary to the Living Caves, this process is not affected by most items and monsters, but elementals, dead Trolls, and cells outside of the Living Fjord have a very powerful effect."
    "Nadbrzeżny rejon, z którego możesz dostać się zarówno do krain wewnątrzlądowych jak i na Ocean. W każdej kolejce, każde pole zmienia się w wodę lub ziemię w zależności od większości pól wokół. W przeciwieństwie do Żywej Jaskini na ten proces nie wpływa większość przedmiotów i stworzeń, ale żywiołaki, martwe Trolle i pola poza granicą Żywego Fiordu mają bardzo silny efekt.",
@@ -18966,6 +21919,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "In the perspective projection, this sets the distance from the camera to the center of the model. In the orthogonal projection this just controls the scale.",
    "Dans la projection en perspective, ceci contrôle la distance de la caméra au centre du modèle. Dans la projection orthogonale ceci contrôle juste l'échelle.",
     }},
+  {0xa28018fa, { // "Level of shallow water"
+   "poziom płytkiej wody",
+/*MISSING*/    "Level of shallow water",
+   "Úroveň mělké vody",
+/*MISSING*/    "Level of shallow water",
+/*MISSING*/    "Level of shallow water",
+/*MISSING*/    "Level of shallow water",
+/*MISSING*/    "Level of shallow water",
+    }},
   {0xa283ae18, { // "polygon sides"
    "boki wielokąta",
 /*MISSING*/    "polygon sides",
@@ -18974,6 +21936,15 @@ sentence all_sentences[] = {
    "Polygon-Seiten",
 /*MISSING*/    "polygon sides",
    "côté de polygone",
+    }},
+  {0xa29409fa, { // "%The1 is enraged!"
+   "%1 jest wściekł%y1!",
+/*MISSING*/    "%The1 is enraged!",
+   "%1 se rozzuři%l1!",
+/*MISSING*/    "%The1 is enraged!",
+/*MISSING*/    "%The1 is enraged!",
+/*MISSING*/    "%The1 is enraged!",
+/*MISSING*/    "%The1 is enraged!",
     }},
   {0xa29db990, { // "i = items"
    "l = krainy",
@@ -19056,6 +22027,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "The distance between your eyes. 1 is the width of the screen.",
    "La distance entre vos yeux. 1 est la largeur de l'écran.",
     }},
+  {0xa3b6d694, { // "Sierpiński tetrahedron"
+   "czworościan Sierpińskiego",
+/*MISSING*/    "Sierpiński tetrahedron",
+   "Sierpińského čtyřstěn",
+/*MISSING*/    "Sierpiński tetrahedron",
+/*MISSING*/    "Sierpiński tetrahedron",
+/*MISSING*/    "Sierpiński tetrahedron",
+/*MISSING*/    "Sierpiński tetrahedron",
+    }},
   {0xa3e80c54, { // "An impassable lake in Cocytus."
    "Nie możesz przejść przez Jezioro Kocyt.",
    "Kokitos'ta, üzerinden geçilemeyen bir göl.",
@@ -19082,6 +22062,15 @@ sentence all_sentences[] = {
    "oder ESC um zu sehen, wie alles endete",
 /*MISSING*/    "or ESC to see how it ended",
    "ou ESC pour voir comment ça s'est fini",
+    }},
+  {0xa421ba9d, { // "{3,4,5} field quotient space"
+   "{3,4,5} przestrzeń ilorazowa ciała",
+/*MISSING*/    "{3,4,5} field quotient space",
+   "{3,4,5} prostor s tělesovým kvocientem",
+/*MISSING*/    "{3,4,5} field quotient space",
+/*MISSING*/    "{3,4,5} field quotient space",
+/*MISSING*/    "{3,4,5} field quotient space",
+   "{3,4,5} champ d'espace quotient",
     }},
   {0xa43202d8, { // "This move appears dangerous -- are you sure?"
    "Ten ruch wygląda na niebezpieczny -- na pewno?",
@@ -19299,6 +22288,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Band model",
    "Modèle ruban",
     }},
+  {0xa65391b1, { // "disabled in cheat mode"
+   "wyłączone w trybie oszusta",
+/*MISSING*/    "disabled in cheat mode",
+   "v cheat módu jsou achievementy/leaderboardy nedostupné",
+/*MISSING*/    "disabled in cheat mode",
+/*MISSING*/    "disabled in cheat mode",
+/*MISSING*/    "disabled in cheat mode",
+/*MISSING*/    "disabled in cheat mode",
+    }},
   {0xa660d9b2, { // "Border between seas."
    "Granica między morzami.",
    "Denizler arasındaki sınır.",
@@ -19307,6 +22305,15 @@ sentence all_sentences[] = {
    "Eine Grenze zwischen Seen.",
 /*MISSING*/    "Border between seas.",
    "Une frontière entre les mers.",
+    }},
+  {0xa67a38d3, { // "Save the config to always use %1."
+   "Zapisz konfigurację by zawsze używać pliku postępów %1.",
+/*MISSING*/    "Save the config to always use %1.",
+   "Ulož konfiguraci, aby se vždy používalo %1.",
+/*MISSING*/    "Save the config to always use %1.",
+/*MISSING*/    "Save the config to always use %1.",
+/*MISSING*/    "Save the config to always use %1.",
+/*MISSING*/    "Save the config to always use %1.",
     }},
   {0xa67c13cc, { // "Good to know that your fighting skills serve you well in this strange world."
    "Dobrze wiedzieć, że Twoje zdolności walki przydają się w tym świecie.",
@@ -19478,6 +22485,15 @@ sentence all_sentences[] = {
    "rufe einen Golem herbei",
 /*MISSING*/    "summon a Golem",
    "invoquer un Golem",
+    }},
+  {0xa83146b8, { // "unordered"
+   "nieuporządkowane",
+/*MISSING*/    "unordered",
+   "neuspořádané",
+/*MISSING*/    "unordered",
+/*MISSING*/    "unordered",
+/*MISSING*/    "unordered",
+/*MISSING*/    "unordered",
     }},
   {0xa84b7806, { // "heptagon"
    "siedmiokąt",
@@ -19695,6 +22711,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "draw circle around the target",
    "dessine des cercles autour de la cible",
     }},
+  {0xa9e42a82, { // "Menger sponge"
+   "gąbka Mengera",
+/*MISSING*/    "Menger sponge",
+   "Mengerova houba",
+/*MISSING*/    "Menger sponge",
+/*MISSING*/    "Menger sponge",
+/*MISSING*/    "Menger sponge",
+/*MISSING*/    "Menger sponge",
+    }},
   {0xa9fa4da8, { // "Welcome to the Euclidean mode!"
    "Witaj w trybie euklidesowym!",
 /*MISSING*/    "Welcome to the Euclidean mode!",
@@ -19758,6 +22783,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Fibonacci ghosts",
    "fantômes de Fibonacci",
     }},
+  {0xaa4e7fec, { // "spherical product"
+   "produkt sferyczny",
+/*MISSING*/    "spherical product",
+   "sférický součin",
+/*MISSING*/    "spherical product",
+/*MISSING*/    "spherical product",
+/*MISSING*/    "spherical product",
+/*MISSING*/    "spherical product",
+    }},
   {0xaa557446, { // "order %1%2 (%3 %4s)"
    "rząd %1%2 (%3 %4ów)",
 /*MISSING*/    "order %1%2 (%3 %4s)",
@@ -19803,6 +22837,33 @@ sentence all_sentences[] = {
    "%na1 destrói %na2!",
    "%Le1 détruit %le2 !",
     }},
+  {0xaa72a1cc, { // "dxy(n) = rotate n degrees from x to y\n\nd-degree, r-radian, t-turn\n\nexample: dxy(30)*dyz(45)"
+   "dxy(n) = obróć n stopni od x do y\n\nd-stopeń (degree), r-radian, t-obrót (turn)\n\nprzykład: dxy(30)*dyz(45)",
+/*MISSING*/    "dxy(n) = rotate n degrees from x to y\n\nd-degree, r-radian, t-turn\n\nexample: dxy(30)*dyz(45)",
+   "dxy(n) = otočení o n stupňů od x do y\n\nd-stupeň (degree), r-radián, t-otočka (turn)\n\například: dxy(30)*dyz(45)",
+/*MISSING*/    "dxy(n) = rotate n degrees from x to y\n\nd-degree, r-radian, t-turn\n\nexample: dxy(30)*dyz(45)",
+/*MISSING*/    "dxy(n) = rotate n degrees from x to y\n\nd-degree, r-radian, t-turn\n\nexample: dxy(30)*dyz(45)",
+/*MISSING*/    "dxy(n) = rotate n degrees from x to y\n\nd-degree, r-radian, t-turn\n\nexample: dxy(30)*dyz(45)",
+/*MISSING*/    "dxy(n) = rotate n degrees from x to y\n\nd-degree, r-radian, t-turn\n\nexample: dxy(30)*dyz(45)",
+    }},
+  {0xaa769d20, { // "stereographic"
+   "rzut stereograficzny",
+/*MISSING*/    "stereographic",
+   "stereografická projekce",
+/*MISSING*/    "stereographic",
+/*MISSING*/    "stereographic",
+/*MISSING*/    "stereographic",
+/*MISSING*/    "stereographic",
+    }},
+  {0xaa8f34ee, { // "sun size (relative to item sizes)"
+   "rozmiar słońca (w stosunku do wielkości przedmiotów)",
+/*MISSING*/    "sun size (relative to item sizes)",
+   "velikost slunce (v poměru k velikosti předmětů)",
+/*MISSING*/    "sun size (relative to item sizes)",
+/*MISSING*/    "sun size (relative to item sizes)",
+/*MISSING*/    "sun size (relative to item sizes)",
+/*MISSING*/    "sun size (relative to item sizes)",
+    }},
   {0xaa9303fb, { // "Are you sure you want to clear the map?"
    "Na pewno chcesz skasować mapę?",
 /*MISSING*/    "Are you sure you want to clear the map?",
@@ -19820,6 +22881,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "generate a map using WFC",
 /*MISSING*/    "generate a map using WFC",
    "générer une carte avec WFC",
+    }},
+  {0xaaa1e9d6, { // "land size in randomwalk mode"
+   "wielkość krainy w trybie błądzenia losowego",
+/*MISSING*/    "land size in randomwalk mode",
+   "velikost krajů v módu náhodné procházky",
+/*MISSING*/    "land size in randomwalk mode",
+/*MISSING*/    "land size in randomwalk mode",
+/*MISSING*/    "land size in randomwalk mode",
+/*MISSING*/    "land size in randomwalk mode",
     }},
   {0xaaedb5bc, { // "You command %the1!"
    "%1 przyjmuje Twój rozkaz.",
@@ -19911,6 +22981,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "swapping impossible",
    "échange impossible",
     }},
+  {0xab9d9119, { // "extended football colorability"
+   "rozszerzona kolorowalność w stylu piłki nożnej",
+/*MISSING*/    "extended football colorability",
+   "rozšířená obarvitelnost fotbalového míče",
+/*MISSING*/    "extended football colorability",
+/*MISSING*/    "extended football colorability",
+/*MISSING*/    "extended football colorability",
+/*MISSING*/    "extended football colorability",
+    }},
   {0xaba86e0d, { // "bitruncated"
    "przycięte",
 /*MISSING*/    "bitruncated",
@@ -19929,6 +23008,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "use atan to make it finite",
    "utiliser atan() pour le rendre fini",
     }},
+  {0xabac2572, { // "Projection believed to be used by Italian painters. Allows very high FOV angles while rendering more straight lines as straight than the stereographic projection."
+   "Rekonstrukcja rzutu używanego przez włoskich malarzy. Bardzo duże pole widzenia, ale więcej linii prostych niż w rzucie stereograficznym.",
+/*MISSING*/    "Projection believed to be used by Italian painters. Allows very high FOV angles while rendering more straight lines as straight than the stereographic projection.",
+   "Domníváme se, že tuto projekci používali italští malíři. Umožňuje opravdu velké zorné úhly, a přitom vykresluje více přímek jako přímky než stereografická projekce.",
+/*MISSING*/    "Projection believed to be used by Italian painters. Allows very high FOV angles while rendering more straight lines as straight than the stereographic projection.",
+/*MISSING*/    "Projection believed to be used by Italian painters. Allows very high FOV angles while rendering more straight lines as straight than the stereographic projection.",
+/*MISSING*/    "Projection believed to be used by Italian painters. Allows very high FOV angles while rendering more straight lines as straight than the stereographic projection.",
+/*MISSING*/    "Projection believed to be used by Italian painters. Allows very high FOV angles while rendering more straight lines as straight than the stereographic projection.",
+    }},
   {0xabc1a0d0, { // "You will now start your games in %1"
    "Będziesz zaczynał grę %abl1",
    "Şimdi oyunlarını %abl1 başlatacaksın.",
@@ -19946,6 +23034,15 @@ sentence all_sentences[] = {
    "\"Ich frage mich was da war...\"",
 /*MISSING*/    "\"I wonder what was there...\"",
    "\"Je me demande ce qu'il y avait là-bas...\"",
+    }},
+  {0xabdb8389, { // "eligible for special achievements"
+   "osiągnięcia spejalne legalne",
+/*MISSING*/    "eligible for special achievements",
+   "lze získat speciální achievementy",
+/*MISSING*/    "eligible for special achievements",
+/*MISSING*/    "eligible for special achievements",
+/*MISSING*/    "eligible for special achievements",
+/*MISSING*/    "eligible for special achievements",
     }},
   {0xabdc905f, { // "Warnings are issued when you try to do something that appears dangerous, like stepping on a known mine, or getting your boat destroyed by a Kraken without having Orb of the Fish. In some cases the action might actually be safe -- so you can ignore the warning and do it anyway, simply by repeating the action."
    "Ostrzeżenia pokazują się, gdy próbujesz zrobić coś niebezpiecznego: stanąć na minie, spowodować zniszczenie łódki przez Krakena bez Sfery Ryby, itp. W niektórych przypadkach może to być bezpieczne -- także możesz zignorować ostrzeżenie, po prostu próbując wykonać akcję jeszcze raz.",
@@ -20028,6 +23125,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Conformal square model",
    "Modèle du carré conforme",
     }},
+  {0xac773f26, { // "error: this method works only in cylinder"
+   "błąd: ta metoda działa tylko dla walcowej mapy",
+/*MISSING*/    "error: this method works only in cylinder",
+   "chyba: tato metoda funguje pouze ve válci",
+/*MISSING*/    "error: this method works only in cylinder",
+/*MISSING*/    "error: this method works only in cylinder",
+/*MISSING*/    "error: this method works only in cylinder",
+/*MISSING*/    "error: this method works only in cylinder",
+    }},
   {0xac77e3ea, { // "max difference in Z coordinate"
    "maksymalna różnica współrzędnej Z",
 /*MISSING*/    "max difference in Z coordinate",
@@ -20036,6 +23142,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "max difference in Z coordinate",
 /*MISSING*/    "max difference in Z coordinate",
    "différence maximale en coordonnée Z",
+    }},
+  {0xac7c97b8, { // "use the default value"
+   "użyj wartości domyślnych",
+/*MISSING*/    "use the default value",
+   "použij standardní hodnotu",
+/*MISSING*/    "use the default value",
+/*MISSING*/    "use the default value",
+/*MISSING*/    "use the default value",
+/*MISSING*/    "use the default value",
     }},
   {0xac8161fc, { // "no time"
    "bez czasu",
@@ -20262,6 +23377,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "more options",
    "plus d'options",
     }},
+  {0xae10f583, { // "friendly fire"
+   "bratobójczy ogień",
+/*MISSING*/    "friendly fire",
+   "přátelská palba",
+/*MISSING*/    "friendly fire",
+/*MISSING*/    "friendly fire",
+/*MISSING*/    "friendly fire",
+/*MISSING*/    "friendly fire",
+    }},
   {0xae1597b2, { // "five players"
    "pięciu graczy",
 /*MISSING*/    "five players",
@@ -20279,15 +23403,6 @@ sentence all_sentences[] = {
    "%Der1 %1 brennt!",
 /*MISSING*/    "%The1 burns!",
    "%Le1 brûle !",
-    }},
-  {0xae412b18, { // "{4,∞} (infinite triangles)"
-   "{4,∞} (nieskończone kwadraty)",
-/*MISSING*/    "{4,∞} (infinite triangles)",
-   "{4,∞} (nekonečné čtverce)",
-/*MISSING*/    "{4,∞} (infinite triangles)",
-/*MISSING*/    "{4,∞} (infinite triangles)",
-/*MISSING*/    "{4,∞} (infinite triangles)",
-/*MISSING*/    "{4,∞} (infinite triangles)",
     }},
   {0xae6e1240, { // "summon Orb of Yendor"
    "przywołaj sferę Yendoru",
@@ -20315,6 +23430,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "display full floors",
 /*MISSING*/    "display full floors",
    "afficher les couleurs complètes",
+    }},
+  {0xae9691b0, { // "How wide should the cell boundaries be."
+   "Jak szerokie powinny być brzegi pól.",
+/*MISSING*/    "How wide should the cell boundaries be.",
+   "Jak široké by měly být hranice políček.",
+/*MISSING*/    "How wide should the cell boundaries be.",
+/*MISSING*/    "How wide should the cell boundaries be.",
+/*MISSING*/    "How wide should the cell boundaries be.",
+/*MISSING*/    "How wide should the cell boundaries be.",
+    }},
+  {0xaea5acbe, { // "hat in cluster"
+   "kapelusz w klastrze",
+/*MISSING*/    "hat in cluster",
+   "klobouk ve shluku",
+/*MISSING*/    "hat in cluster",
+/*MISSING*/    "hat in cluster",
+/*MISSING*/    "hat in cluster",
+/*MISSING*/    "hat in cluster",
     }},
   {0xaeaa98d3, { // "more options in hyperbolic geometry"
    "więcej opcji w geometrii hiperbolicznej",
@@ -20387,6 +23520,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "active",
 /*MISSING*/    "active",
    "actif",
+    }},
+  {0xaf5f350a, { // "choose your score/save file"
+   "Wybierz plik z zapisanymi stanami gry i wynikami",
+/*MISSING*/    "choose your score/save file",
+   "vyber soubor se skóre/uloženou hrou",
+/*MISSING*/    "choose your score/save file",
+/*MISSING*/    "choose your score/save file",
+/*MISSING*/    "choose your score/save file",
+/*MISSING*/    "choose your score/save file",
     }},
   {0xaf71c884, { // "\n\nNote: when pushing %the1 off a heptagonal cell, you can control the pushing direction by clicking left or right half of the heptagon."
    "\n\nUwaga: kiedy spychasz %a1 z siedmiokąta, możesz sterować kierunkiem pchnięcia klikając lewą lub prawą połowę siedmiokąta.",
@@ -20469,6 +23611,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "native perspective",
    "perspective d'origine",
     }},
+  {0xb0119539, { // "Euclidean embedding scale"
+   "skala zanurzenia euklidesowego",
+/*MISSING*/    "Euclidean embedding scale",
+   "škála eukleidovského vnoření",
+/*MISSING*/    "Euclidean embedding scale",
+/*MISSING*/    "Euclidean embedding scale",
+/*MISSING*/    "Euclidean embedding scale",
+/*MISSING*/    "Euclidean embedding scale",
+    }},
   {0xb0188d4b, { // "You have gained an offensive power!"
    "Zdobywasz moc ofensywną!",
 /*MISSING*/    "You have gained an offensive power!",
@@ -20487,6 +23638,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Camera is placed %1 absolute units above a plane P in a three-dimensional world. Ground level is actually an equidistant surface, %2 absolute units below the plane P. The plane P (as well as the ground level or any other equidistant surface below it) is viewed at an angle of %3 (the tangent of the angle between the point in the center of your vision and a faraway location is 1/cosh(c) = %4).",
    "La caméra est placée à %1 unités absolues au-dessus d'un plan P dans un monde tridimensionnel. Le niveau du sol est une surface équidistante, %2 unités absolues sous le plan P. Le plan P (ainsi que le niveau du sol ou n'importe quelle autre surface équidistante en-dessous) est vue avec un angle de %3 (la tangente d'un angle entre le centre de votre vision et un endroit distant est 1/cosh(c) = %4).",
     }},
+  {0xb043bde0, { // "eligible for racing"
+   "legalne dla wyścigu",
+/*MISSING*/    "eligible for racing",
+   "závodní achievementy/leaderboardy dostupné",
+/*MISSING*/    "eligible for racing",
+/*MISSING*/    "eligible for racing",
+/*MISSING*/    "eligible for racing",
+/*MISSING*/    "eligible for racing",
+    }},
   {0xb0645dee, { // "You are in the casual mode! Achievements are disabled."
    "Jesteś w trybie niezobowiązującym! Osiągnięcia są wyłączone.",
 /*MISSING*/    "You are in the casual mode! Achievements are disabled.",
@@ -20496,6 +23656,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "You are in the casual mode! Achievements are disabled.",
    "Vous êtes en mode détente ! Les Accomplissements sont désactivés.",
     }},
+  {0xb0877ad9, { // "always"
+   "zawsze",
+/*MISSING*/    "always",
+   "vždy",
+/*MISSING*/    "always",
+/*MISSING*/    "always",
+/*MISSING*/    "always",
+/*MISSING*/    "always",
+    }},
   {0xb0931e3d, { // "Many kinds of creatures are living here, each with its own architectural style."
    "Wiele rodzajów stworzeń tu mieszka, każde ze swoim własnym stylem architektury.",
 /*MISSING*/    "Many kinds of creatures are living here, each with its own architectural style.",
@@ -20504,6 +23673,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Many kinds of creatures are living here, each with its own architectural style.",
 /*MISSING*/    "Many kinds of creatures are living here, each with its own architectural style.",
    "De nombreuses sortes de créatures vivent ici, chacune avec son propre style architectural.",
+    }},
+  {0xb093d702, { // "Embed Euclidean rectangular torus into S3."
+   "Zanurz prostokątny torus w geometrię sferyczną.",
+/*MISSING*/    "Embed Euclidean rectangular torus into S3.",
+   "Vnoř eukleidovský obdélníkový torus do S3.",
+/*MISSING*/    "Embed Euclidean rectangular torus into S3.",
+/*MISSING*/    "Embed Euclidean rectangular torus into S3.",
+/*MISSING*/    "Embed Euclidean rectangular torus into S3.",
+/*MISSING*/    "Embed Euclidean rectangular torus into S3.",
     }},
   {0xb0a55e14, { // "People worshipping Cthulhu. This one is especially dangerous, as he is armed with a weapon which launches fire from afar."
    "Wyznawcy Cthulhu. Ten jest szczególnie niebezpieczny, bo może z odległości rozpalić ogień w Twojej okolicy.",
@@ -20649,6 +23827,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "This Orb creates a warped zone of radius 5 around you, and also allows you to move diagonally in warped zones.",
    "Cet Orbe crée une zone déformée d'un rayon de 5 autour de vous et vous permet aussi de bouger en diagonale dans les zones déformée.",
     }},
+  {0xb20a720f, { // "This feature lets you construct the same tiling, but from shapes of different curvature.\n\nThe number you give here is (2D) vertex degree or (3D) the number of cells around an edge.\n\n"
+   "Ta funkcja pozwala skonstruować ten sam parkietaż, ale z kształów pochodzących z geometrii o innej krzywiźnie.\n\nPodana liczba to (w 2D) stopień wierczhołka lub (w 3D) liczba komórek wokół krawędzi.\n\n",
+/*MISSING*/    "This feature lets you construct the same tiling, but from shapes of different curvature.\n\nThe number you give here is (2D) vertex degree or (3D) the number of cells around an edge.\n\n",
+   "Zde můžeš sestavit stejné dláždění, ale z tvarů odlišné křivosti.\n\nČíslo, které se zde zadává, udává (2D) stupeň vrcholu nebo (3D) počet buněk kolem hrany.\n\n",
+/*MISSING*/    "This feature lets you construct the same tiling, but from shapes of different curvature.\n\nThe number you give here is (2D) vertex degree or (3D) the number of cells around an edge.\n\n",
+/*MISSING*/    "This feature lets you construct the same tiling, but from shapes of different curvature.\n\nThe number you give here is (2D) vertex degree or (3D) the number of cells around an edge.\n\n",
+/*MISSING*/    "This feature lets you construct the same tiling, but from shapes of different curvature.\n\nThe number you give here is (2D) vertex degree or (3D) the number of cells around an edge.\n\n",
+/*MISSING*/    "This feature lets you construct the same tiling, but from shapes of different curvature.\n\nThe number you give here is (2D) vertex degree or (3D) the number of cells around an edge.\n\n",
+    }},
   {0xb23876e8, { // "min step"
    "minimalny krok",
 /*MISSING*/    "min step",
@@ -20666,6 +23853,15 @@ sentence all_sentences[] = {
    "Ein Raubtier das im Zebra heimisch ist.",
 /*MISSING*/    "A predator native to the Zebra.",
    "Un prédateur originaire du Zèbre.",
+    }},
+  {0xb26948e2, { // "horocylinder"
+   "horowalec",
+/*MISSING*/    "horocylinder",
+   "horoválec",
+/*MISSING*/    "horocylinder",
+/*MISSING*/    "horocylinder",
+/*MISSING*/    "horocylinder",
+/*MISSING*/    "horocylinder",
     }},
   {0xb2af1bda, { // "fixed point of view"
    "ustalony punkt widzenia",
@@ -20784,6 +23980,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Precious belongings of ancient Viking heroes. Your Orb of the Sword can be used to dig these treasures out of the barrows.",
    "De précieuses possessions d’ancien héros Vikings. Votre Orbe de l’Épée peut être utilisé pour déterrez ces trésors des tertres.",
     }},
+  {0xb3a2b7da, { // "hyperbolic product"
+   "produkt hiperboliczny",
+/*MISSING*/    "hyperbolic product",
+   "hyperbolický součin",
+/*MISSING*/    "hyperbolic product",
+/*MISSING*/    "hyperbolic product",
+/*MISSING*/    "hyperbolic product",
+/*MISSING*/    "hyperbolic product",
+    }},
   {0xb3b4ed34, { // "invalid dihedron"
    "nieprawidłowy dwuścian",
 /*MISSING*/    "invalid dihedron",
@@ -20829,6 +24034,15 @@ sentence all_sentences[] = {
    "Você se reencontra com %na1.",
    "Vous rejoignez %le1.",
     }},
+  {0xb43249ad, { // "Note: cannot fire again yet. Turns to reload: %1."
+   "Uwaga: jeszcze za wcześnie, by strzelać. Liczba kolejek do naładowania: %1",
+/*MISSING*/    "Note: cannot fire again yet. Turns to reload: %1.",
+   "Poznámka: ještě nemůžeš střílet. Počet kol do nabití: %1",
+/*MISSING*/    "Note: cannot fire again yet. Turns to reload: %1.",
+/*MISSING*/    "Note: cannot fire again yet. Turns to reload: %1.",
+/*MISSING*/    "Note: cannot fire again yet. Turns to reload: %1.",
+/*MISSING*/    "Note: cannot fire again yet. Turns to reload: %1.",
+    }},
   {0xb469f7bf, { // "volumetric raycasting"
    "raycasting wolumetryczny",
 /*MISSING*/    "volumetric raycasting",
@@ -20873,6 +24087,15 @@ sentence all_sentences[] = {
    "Anti-Aliasing aktiviert",
    "Antiserrilhamento habilitado",
    "antialiasing activé",
+    }},
+  {0xb5105dab, { // "configure Hypersian Rug"
+   "konfiguruj Hiperski Dywan",
+/*MISSING*/    "configure Hypersian Rug",
+   "konfiguruj Hyperský koberec",
+/*MISSING*/    "configure Hypersian Rug",
+/*MISSING*/    "configure Hypersian Rug",
+/*MISSING*/    "configure Hypersian Rug",
+/*MISSING*/    "configure Hypersian Rug",
     }},
   {0xb51a02c7, { // "0 = monster color, 100 = red-light oscillation"
    "0 = kolor potwora, 100 = oscylacja czerwono-zielona",
@@ -21000,6 +24223,15 @@ sentence all_sentences[] = {
    "Uma grande planta que cresce na Selva. Cada Hera tem vários galhos, e cada galho cresce para cada um dos seus movimentos. Galhos crescem em sentido horário. A raiz é vulnerável.\n",
    "Une plante gigantesque croissant dans la Jungle. Chaque  Lierre a de nombreuses branches, et une branche pousse pour chacun de vos mouvements. Les branches poussent dans le sens des aiguilles d'une montre. La racine elle-même est vulnérable.",
     }},
+  {0xb5d6adc8, { // " (click to fire)"
+   " (kliknij by strzelać)",
+/*MISSING*/    " (click to fire)",
+   " (střílej kliknutím)",
+/*MISSING*/    " (click to fire)",
+/*MISSING*/    " (click to fire)",
+/*MISSING*/    " (click to fire)",
+/*MISSING*/    " (click to fire)",
+    }},
   {0xb5f49d59, { // "\"The Holy Grail is in the center of the Round Table.\""
    "\"Święty Graal jest pośrodku Okrągłego Stołu.\"",
    "\"Kutsal Kâse Yuvarlak Masanın merkezinde.\"",
@@ -21063,6 +24295,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Kills required: %1.\n",
    "Nombre de monstres tués nécessaire : %1.\n",
     }},
+  {0xb6993c7d, { // "make the center not the actual screen center"
+   "umieść centrum mapy poniżej centrum ekranu",
+/*MISSING*/    "make the center not the actual screen center",
+   "způsobí, že střed herní plochy není skutečným středem obrazovky",
+/*MISSING*/    "make the center not the actual screen center",
+/*MISSING*/    "make the center not the actual screen center",
+/*MISSING*/    "make the center not the actual screen center",
+/*MISSING*/    "make the center not the actual screen center",
+    }},
   {0xb6a33dea, { // "cells generated"
    "wygenerowane pola",
    "üretilen hücreler",
@@ -21080,6 +24321,15 @@ sentence all_sentences[] = {
    "Die Helden der alten Wikinger wurden hier begraben. Über ihren Gräbern erheben sich Hügel, die von Draugar bewacht werden, Untote, die immun gegen irdische Waffen sind. Du wirst einen Zauber für eine magische Waffe brauchen, um sie zu besiegen und die in den Gräbern verborgenen antiken Juwelen zu rauben.",
 /*MISSING*/    "Ancient Viking heroes were buried here. Their graves have barrows raised over them, and are guarded by Draugar, animated corpses who are immune to mundane weapons. You will need to use a magical weapon spell to defeat them, and to rob the ancient jewelry buried in the graves.",
    "Les anciens héros Vikings sont enterrés ici. Leur tombes sont couvertes d'un tertre, et gardées par les Draugar, des corps non-morts immunisés aux armes ordinaires. Vous aurez besoin d'utiliser une arme magique pour les vaincre, et voler les bijoux anciens enfouis dans les tombes.",
+    }},
+  {0xb6bc1baa, { // "hat/spectre/turtle parameter"
+   "parametr hat/spectre/turtle",
+/*MISSING*/    "hat/spectre/turtle parameter",
+   "parametr hat/spectre/turtle",
+/*MISSING*/    "hat/spectre/turtle parameter",
+/*MISSING*/    "hat/spectre/turtle parameter",
+/*MISSING*/    "hat/spectre/turtle parameter",
+/*MISSING*/    "hat/spectre/turtle parameter",
     }},
   {0xb6cf792a, { // "rotational or Heisenberg"
    "model symetryczny czy Heisenberga",
@@ -21189,6 +24439,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Only works with 2D geometries",
    "Ne marche qu'avec les géométries 2D",
     }},
+  {0xb744705b, { // "angle between the axes"
+   "kąt między osiami",
+/*MISSING*/    "angle between the axes",
+   "úhel mezi osami",
+/*MISSING*/    "angle between the axes",
+/*MISSING*/    "angle between the axes",
+/*MISSING*/    "angle between the axes",
+/*MISSING*/    "angle between the axes",
+    }},
   {0xb744ec68, { // "Despite this intelligence, Rogues appear extremely surprised by the most basic facts about geometry. They must come from some really strange world.\n\n"
    "Mimo ich inteligencji Cwaniacy wyglądają na szalenie zdziwionych nawet najprostszymi faktami geometrycznymi. Muszą pochodzić z jakiegoś bardzo dziwnego świata.",
 /*MISSING*/    "Despite this intelligence, Rogues appear extremely surprised by the most basic facts about geometry. They must come from some really strange world.\n\n",
@@ -21206,6 +24465,24 @@ sentence all_sentences[] = {
    "Gibt es irgendwelche Orbs in %dem1 %d1?",
    "Tem algum orbe mágico %l1 %1?",
    "Il y a-t-il des orbes magiques %a1?",
+    }},
+  {0xb77821da, { // "learn about hyperbolic geometry"
+   "nauka o geometrii hiperbolicznej",
+/*MISSING*/    "learn about hyperbolic geometry",
+   "nauč se něco o hyperbolické geometrii",
+/*MISSING*/    "learn about hyperbolic geometry",
+/*MISSING*/    "learn about hyperbolic geometry",
+/*MISSING*/    "learn about hyperbolic geometry",
+/*MISSING*/    "learn about hyperbolic geometry",
+    }},
+  {0xb780eb2d, { // "Nil cylinder"
+   "walec Nil",
+/*MISSING*/    "Nil cylinder",
+   "Nil válec",
+/*MISSING*/    "Nil cylinder",
+/*MISSING*/    "Nil cylinder",
+/*MISSING*/    "Nil cylinder",
+/*MISSING*/    "Nil cylinder",
     }},
   {0xb7a0b36c, { // "(Menu button) and select the ASCII mode, which runs much faster. Depending on your device, turning the OpenGL mode on or off might make it faster, slower, or cause glitches."
    "(Menu), tryb ASCII działa dużo szybciej. Tryb OpenGL również wpływa na jakość grafiki.",
@@ -21242,6 +24519,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "memory reserve",
 /*MISSING*/    "memory reserve",
    "réserve de mémoire",
+    }},
+  {0xb7f38ed2, { // "Fire crossbow! Click to aim, click again to confirm."
+   "Strzał! Kliknij cel, a następnie jeszcze raz, by potwierdzić.",
+/*MISSING*/    "Fire crossbow! Click to aim, click again to confirm.",
+   "Vystřel! Klikni pro zamíření, a znovu pro potvrzení.",
+/*MISSING*/    "Fire crossbow! Click to aim, click again to confirm.",
+/*MISSING*/    "Fire crossbow! Click to aim, click again to confirm.",
+/*MISSING*/    "Fire crossbow! Click to aim, click again to confirm.",
+/*MISSING*/    "Fire crossbow! Click to aim, click again to confirm.",
     }},
   {0xb7f9c66d, { // "fisheye"
    "rybie oko",
@@ -21297,6 +24583,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "This Orb lets your allies share your Orb powers.\n\nThe following Orbs are affected:",
    "Cet Orbe permet de partager les pouvoirs d'Orbe avec vos alliés.\n\nLes Orbes suivantes sont concernés :",
     }},
+  {0xb8a41644, { // "set square tiling"
+   "ustaw parkietaż kwadratowy",
+/*MISSING*/    "set square tiling",
+   "nastav čtvercové dláždění",
+/*MISSING*/    "set square tiling",
+/*MISSING*/    "set square tiling",
+/*MISSING*/    "set square tiling",
+/*MISSING*/    "set square tiling",
+    }},
   {0xb8b8818f, { // "unfortunately this honeycomb is too complex for the current implementation (%1>%2)"
    "niestety ten parkietaż 3D jest zbyt skomplikowany dla obecnej implementacji (%1>%2)",
 /*MISSING*/    "unfortunately this honeycomb is too complex for the current implementation (%1>%2)",
@@ -21351,6 +24646,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "how to find an Orb of Safety?",
    "comment trouver une Orbe de Sécurité ?",
     }},
+  {0xb94787fb, { // "player vs player"
+   "gracz vs gracz",
+/*MISSING*/    "player vs player",
+   "hráč proti hráči",
+/*MISSING*/    "player vs player",
+/*MISSING*/    "player vs player",
+/*MISSING*/    "player vs player",
+/*MISSING*/    "player vs player",
+    }},
   {0xb95b0b19, { // "Alternatively: kill a %1.\n"
    "Alternatywnie: zabij %a1.\n",
    "Ya da: Bir %1 öldür.\n",
@@ -21396,6 +24700,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "drawing tool",
    "outil de dessin",
     }},
+  {0xb9b98b23, { // "Sierpiński carpet"
+   "dywan Sierpińskiego",
+/*MISSING*/    "Sierpiński carpet",
+   "Sierpińského koberec",
+/*MISSING*/    "Sierpiński carpet",
+/*MISSING*/    "Sierpiński carpet",
+/*MISSING*/    "Sierpiński carpet",
+/*MISSING*/    "Sierpiński carpet",
+    }},
   {0xb9bcefaa, { // "always available"
    "zawsze dostępna",
 /*MISSING*/    "always available",
@@ -21404,6 +24717,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "always available",
 /*MISSING*/    "always available",
    "toujours disponible",
+    }},
+  {0xb9ef6fb9, { // "on geodesics when moving camera manually, keep level when auto-centering"
+   "geodezyjne przy ręcznym ruchu kamerą, trzymaj poziom przy auto-centrowaniu",
+/*MISSING*/    "on geodesics when moving camera manually, keep level when auto-centering",
+   "udržuj úroveň při automatickém centrování během ručního pohybu kamery po geodetikách",
+/*MISSING*/    "on geodesics when moving camera manually, keep level when auto-centering",
+/*MISSING*/    "on geodesics when moving camera manually, keep level when auto-centering",
+/*MISSING*/    "on geodesics when moving camera manually, keep level when auto-centering",
+/*MISSING*/    "on geodesics when moving camera manually, keep level when auto-centering",
     }},
   {0xb9f4f160, { // "(Distances reported by the vector graphics editor are not about points on the ground level, but about the matching points on the plane P -- divide them by the factor above to get actual distances.)"
    "(Odległości wyświetlane przez edytor grafiki dotyczą odległości między odpowiednimi punktami na płaszczyźnie P.)",
@@ -21422,6 +24744,15 @@ sentence all_sentences[] = {
    "Aussehen und Grammatik",
 /*MISSING*/    "Affects looks and grammar",
    "Affecte l'apparence et grammaire",
+    }},
+  {0xba0b67df, { // "distance in vertices"
+   "odległość w wierzchołkach",
+/*MISSING*/    "distance in vertices",
+   "vzdálenost ve vrcholech",
+/*MISSING*/    "distance in vertices",
+/*MISSING*/    "distance in vertices",
+/*MISSING*/    "distance in vertices",
+/*MISSING*/    "distance in vertices",
     }},
   {0xba29ad0c, { // "(You can also use right Shift)\n\n"
    "(Możesz też użyć prawego Shifta)\n\n",
@@ -21467,6 +24798,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "how fast can you reach the end?",
 /*MISSING*/    "how fast can you reach the end?",
    "à quelle vitesse pouvez vous atteindre la fin ?",
+    }},
+  {0xbac8bac0, { // "3D style"
+   "styl 3D",
+/*MISSING*/    "3D style",
+   "3D styl",
+/*MISSING*/    "3D style",
+/*MISSING*/    "3D style",
+/*MISSING*/    "3D style",
+/*MISSING*/    "3D style",
     }},
   {0xbad03fae, { // "disable the racing mode"
    "wyłącz tryb wyścigu",
@@ -21531,6 +24871,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Hint: press 1 2 3 4 to change the projection.",
    "Astuce : appuyer sur 1 2 3 4 pour changer la projection.",
     }},
+  {0xbba71900, { // "weapon selection"
+   "wybór broni",
+/*MISSING*/    "weapon selection",
+   "výběr zbraně",
+/*MISSING*/    "weapon selection",
+/*MISSING*/    "weapon selection",
+/*MISSING*/    "weapon selection",
+/*MISSING*/    "weapon selection",
+    }},
   {0xbbde9eae, { // "include history"
    "uwzględnij historię",
 /*MISSING*/    "include history",
@@ -21548,6 +24897,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "variations",
 /*MISSING*/    "variations",
    "variations",
+    }},
+  {0xbc2fc20f, { // "Cannot phase to %the1!"
+   "Nie można fazować do %a1!",
+/*MISSING*/    "Cannot phase to %the1!",
+   "Nemůžeš fázovat do %a1!",
+/*MISSING*/    "Cannot phase to %the1!",
+/*MISSING*/    "Cannot phase to %the1!",
+/*MISSING*/    "Cannot phase to %the1!",
+/*MISSING*/    "Cannot phase to %the1!",
     }},
   {0xbc3f4f32, { // "save the game"
    "zapisz i zakończ",
@@ -21702,6 +25060,15 @@ sentence all_sentences[] = {
    "Você sente que %na1 está lentamente se tornando mais perigos%na1...",
    "Vous sentez que %le1 devient peu à peu plus dangereu%x1...",
     }},
+  {0xbd73c8aa, { // "semidirect_rendering (perspective on GPU)"
+   "półbezpośrednie (perspektywa na GPU)",
+/*MISSING*/    "semidirect_rendering (perspective on GPU)",
+   "polopřímé renderování (perspektiva v GPU)",
+/*MISSING*/    "semidirect_rendering (perspective on GPU)",
+/*MISSING*/    "semidirect_rendering (perspective on GPU)",
+/*MISSING*/    "semidirect_rendering (perspective on GPU)",
+/*MISSING*/    "semidirect_rendering (perspective on GPU)",
+    }},
   {0xbd78af07, { // "gain Ice Diamonds"
    "daj Lodowe Diamenty",
 /*MISSING*/    "gain Ice Diamonds",
@@ -21819,6 +25186,24 @@ sentence all_sentences[] = {
    "(pressione ESC durante o jogo para revisar suas missões)",
    "(Appuyer sur ESC pendant le jeu pour voir votre quête)",
     }},
+  {0xbe5b8e86, { // "Can go in either direction on odd shapes. 3 turns to reload."
+   "Na polach nieparzystych może lekko skręcić w lewo lub prawo. 3 kolejki do przeładowania.",
+/*MISSING*/    "Can go in either direction on odd shapes. 3 turns to reload.",
+   "Na lichých tvarech můžeš jít kterýmkoli směrem. Nabíjení trvá 3 kola.",
+/*MISSING*/    "Can go in either direction on odd shapes. 3 turns to reload.",
+/*MISSING*/    "Can go in either direction on odd shapes. 3 turns to reload.",
+/*MISSING*/    "Can go in either direction on odd shapes. 3 turns to reload.",
+/*MISSING*/    "Can go in either direction on odd shapes. 3 turns to reload.",
+    }},
+  {0xbe6c68e2, { // "Set this to -2 to get perfect horodisks. Smaller values yield less dense horodisks, and larger values might produce horodisks with errors or crashing into each other."
+   "Ustaw -2 by horodyski były dokładne. Mniejsze wartości to rzadsze horodyski; większe wartości mogą powodować, że horodyski się zderzają, i inne błędy.",
+/*MISSING*/    "Set this to -2 to get perfect horodisks. Smaller values yield less dense horodisks, and larger values might produce horodisks with errors or crashing into each other.",
+   "Dokonalé horodisky získáš na hodnotě -2. Nižší hodnoty vedou k menší hustotě horodisků; vyšší hodnoty mohou vést k horodiskům, které obsahují chyby nebo do sebe narážejí.",
+/*MISSING*/    "Set this to -2 to get perfect horodisks. Smaller values yield less dense horodisks, and larger values might produce horodisks with errors or crashing into each other.",
+/*MISSING*/    "Set this to -2 to get perfect horodisks. Smaller values yield less dense horodisks, and larger values might produce horodisks with errors or crashing into each other.",
+/*MISSING*/    "Set this to -2 to get perfect horodisks. Smaller values yield less dense horodisks, and larger values might produce horodisks with errors or crashing into each other.",
+/*MISSING*/    "Set this to -2 to get perfect horodisks. Smaller values yield less dense horodisks, and larger values might produce horodisks with errors or crashing into each other.",
+    }},
   {0xbe7edfd1, { // "firewall lines: Palace"
    "linie ścian ognia: Pałac",
 /*MISSING*/    "firewall lines: Palace",
@@ -21827,6 +25212,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "firewall lines: Palace",
 /*MISSING*/    "firewall lines: Palace",
    "ligne pare-feu : Palais",
+    }},
+  {0xbeaa7aaa, { // "mouse auto-fire mode"
+   "tryb auto-strzału dla myszy",
+/*MISSING*/    "mouse auto-fire mode",
+   "mód automatické střelby myší",
+/*MISSING*/    "mouse auto-fire mode",
+/*MISSING*/    "mouse auto-fire mode",
+/*MISSING*/    "mouse auto-fire mode",
+/*MISSING*/    "mouse auto-fire mode",
     }},
   {0xbebd2f51, { // "An ancient sunken city which can be reached only when the stars are right.\n\nYou can find Temples of Cthulhu in R'Lyeh once you collect five Statues of Cthulhu."
    "Prastare zatopione miasto, do którego można dostać się tylko, gdy gwiazdy są na swoich miejscach.\n\nPo znalezieniu 5 Statuetek Cthulhu możesz w R'Lyeh trafić na Świątynie Cthulhu.",
@@ -21845,6 +25239,15 @@ sentence all_sentences[] = {
    "%Der1 %1 ersticht %den2 %a2.",
    "%na1 apunhala %na2.",
    "%Le1 poignarde %le2.",
+    }},
+  {0xbec4dd4c, { // "Wherever this powerful being goes, the living fjord sinks below water, non-magical boats are destroyed, and fires are extinguished.\n\nAs a special case, you can attack the Water Elemental with your blade from the water, without drowning immediately."
+   "Gdziekolwiek przejdzie ta potężna istota, żywy fiord tonie, niemagiczne łódki są niszczone, a ogień gaśnie.\n\nJako szczególny przypadek, możesz atakować Wodnego Żywiołaka mieczem z wody, nie topiąc się.",
+/*MISSING*/    "Wherever this powerful being goes, the living fjord sinks below water, non-magical boats are destroyed, and fires are extinguished.\n\nAs a special case, you can attack the Water Elemental with your blade from the water, without drowning immediately.",
+/*MISSING*/    "Wherever this powerful being goes, the living fjord sinks below water, non-magical boats are destroyed, and fires are extinguished.\n\nAs a special case, you can attack the Water Elemental with your blade from the water, without drowning immediately.",
+/*MISSING*/    "Wherever this powerful being goes, the living fjord sinks below water, non-magical boats are destroyed, and fires are extinguished.\n\nAs a special case, you can attack the Water Elemental with your blade from the water, without drowning immediately.",
+/*MISSING*/    "Wherever this powerful being goes, the living fjord sinks below water, non-magical boats are destroyed, and fires are extinguished.\n\nAs a special case, you can attack the Water Elemental with your blade from the water, without drowning immediately.",
+/*MISSING*/    "Wherever this powerful being goes, the living fjord sinks below water, non-magical boats are destroyed, and fires are extinguished.\n\nAs a special case, you can attack the Water Elemental with your blade from the water, without drowning immediately.",
+/*MISSING*/    "Wherever this powerful being goes, the living fjord sinks below water, non-magical boats are destroyed, and fires are extinguished.\n\nAs a special case, you can attack the Water Elemental with your blade from the water, without drowning immediately.",
     }},
   {0xbecf2306, { // "config"
    "ustawione",
@@ -21999,6 +25402,33 @@ sentence all_sentences[] = {
 /*MISSING*/    "%The1 squeaks sadly.",
    "%Le1 couine tristement.",
     }},
+  {0xc0e5920b, { // "d%1 rolled %2"
+   "d%1 wyrzuciła %2",
+/*MISSING*/    "d%1 rolled %2",
+   "d%1 hodila %2",
+/*MISSING*/    "d%1 rolled %2",
+/*MISSING*/    "d%1 rolled %2",
+/*MISSING*/    "d%1 rolled %2",
+/*MISSING*/    "d%1 rolled %2",
+    }},
+  {0xc0f06548, { // "not eligible due to current mode settings"
+   "nielegalne w obecnych trybach",
+/*MISSING*/    "not eligible due to current mode settings",
+   "achievementy/leaderboardy nejsou dostupné díky současnému nastavení módu",
+/*MISSING*/    "not eligible due to current mode settings",
+/*MISSING*/    "not eligible due to current mode settings",
+/*MISSING*/    "not eligible due to current mode settings",
+/*MISSING*/    "not eligible due to current mode settings",
+    }},
+  {0xc0f327ec, { // "symmetric subdivision"
+   "symetryczny podział",
+/*MISSING*/    "symmetric subdivision",
+   "symetrické poddělení",
+/*MISSING*/    "symmetric subdivision",
+/*MISSING*/    "symmetric subdivision",
+/*MISSING*/    "symmetric subdivision",
+/*MISSING*/    "symmetric subdivision",
+    }},
   {0xc10b713d, { // "other 3D models"
    "inne modele 3D",
 /*MISSING*/    "other 3D models",
@@ -22062,6 +25492,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "adjust points",
    "ajuster les points",
     }},
+  {0xc1bd74b5, { // "subcubed"
+   "subcubed",
+/*MISSING*/    "subcubed",
+   "subcubed",
+/*MISSING*/    "subcubed",
+/*MISSING*/    "subcubed",
+/*MISSING*/    "subcubed",
+/*MISSING*/    "subcubed",
+    }},
   {0xc1fda546, { // "A simple servant of the master of the Ivory Tower."
    "Prosty sługa mistrza Wieży z Kości Słoniowej.",
    "Fildişi Kuledeki basit bir hizmetkâr.",
@@ -22107,6 +25546,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "The Panini projection is an alternative perspective projection which allows very wide field-of-view values.\n\n",
    "La projection de Panini est une perspective alternative de projection ce qui permet des valeurs de champ de vision très large.\n\n",
     }},
+  {0xc264165e, { // "Cannot attack %the1 while vaulting!"
+   "Nie można zaatakować %a1 podczas przeskoku!",
+/*MISSING*/    "Cannot attack %the1 while vaulting!",
+   "Nemůžeš útočit během skoku!",
+/*MISSING*/    "Cannot attack %the1 while vaulting!",
+/*MISSING*/    "Cannot attack %the1 while vaulting!",
+/*MISSING*/    "Cannot attack %the1 while vaulting!",
+/*MISSING*/    "Cannot attack %the1 while vaulting!",
+    }},
   {0xc275bfec, { // "Vertical stretch factor."
    "Współczynnik rozciągnięcia w pionie.",
 /*MISSING*/    "Vertical stretch factor.",
@@ -22142,6 +25590,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Grid does not work in this geometry.",
 /*MISSING*/    "Grid does not work in this geometry.",
    "La grille ne marche pas dans cette géométrie.",
+    }},
+  {0xc2af61d8, { // "Cannot grow against gravity!"
+   "Nie można rosnąć wbrew grawitacji!",
+/*MISSING*/    "Cannot grow against gravity!",
+   "Nemůžeš růst proti gravitaci!",
+/*MISSING*/    "Cannot grow against gravity!",
+/*MISSING*/    "Cannot grow against gravity!",
+/*MISSING*/    "Cannot grow against gravity!",
+/*MISSING*/    "Cannot grow against gravity!",
     }},
   {0xc2c6dc03, { // "Shift-click a location to teleport there."
    "Shift-kliknij pole, by tam się teleportować.",
@@ -22332,6 +25789,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "If the pointer length is 0.5m, the object pointed to is 0.5 meter from the controller. This is used in situations where the controller is used as a 3D mouse, e.g., the drawing tool in three-dimensional geometries. When pointing at two-dimensional surfaces, this is not relevant (the pointer is as long as needed to hit the surface).",
    "Si la longueur du pointeur est 0.5m, l'objet pointé est à 0.5 mètres du contrôleur. Ceci est utilisé dans les situations où le contrôleur est utilisé comme une souris 3D, par exemple comme outil de dessin en géométrie 3D. Lorsque l'on pointe des surfaces 2D ce n'est pas utile (le pointeur est suffisant pour la surface).",
     }},
+  {0xc4e68ea3, { // "Embed Euclidean as a horocylinder in H2xR space."
+   "Zanurz płaszczyznę euklidesową jako horowalec w H2xR.",
+/*MISSING*/    "Embed Euclidean as a horocylinder in H2xR space.",
+   "Vnoř eukleidovskou rovinu do prostoru H2xR jako horoválec.",
+/*MISSING*/    "Embed Euclidean as a horocylinder in H2xR space.",
+/*MISSING*/    "Embed Euclidean as a horocylinder in H2xR space.",
+/*MISSING*/    "Embed Euclidean as a horocylinder in H2xR space.",
+/*MISSING*/    "Embed Euclidean as a horocylinder in H2xR space.",
+    }},
   {0xc4f753aa, { // "bad format or bad map geometry"
    "zły format lub zła geometria mapy",
 /*MISSING*/    "bad format or bad map geometry",
@@ -22395,6 +25861,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "\"Nice castle, eh?\"",
    "\"Joli château, pas vrai ?\"",
     }},
+  {0xc56d91e4, { // "friendly fire off -- achievements disabled"
+   "bratobójczy ogień wyłączony -- osiągnięcia wyłączone",
+/*MISSING*/    "friendly fire off -- achievements disabled",
+   "přátelská palba vypnutá -- achievementy také",
+/*MISSING*/    "friendly fire off -- achievements disabled",
+/*MISSING*/    "friendly fire off -- achievements disabled",
+/*MISSING*/    "friendly fire off -- achievements disabled",
+/*MISSING*/    "friendly fire off -- achievements disabled",
+    }},
   {0xc571cd7f, { // "affect model projection"
    "projekcja",
 /*MISSING*/    "affect model projection",
@@ -22412,6 +25887,15 @@ sentence all_sentences[] = {
    "%Der1 %1 ist immun gegen mentale Stöße!",
 /*MISSING*/    "%The1 is immune to mental blasts!",
    "%Le1 est immunisé contre les attaques mentales !",
+    }},
+  {0xc5c4a83c, { // "disconnect this portal"
+   "rozłącz ten portal",
+/*MISSING*/    "disconnect this portal",
+   "odpojit tento portál",
+/*MISSING*/    "disconnect this portal",
+/*MISSING*/    "disconnect this portal",
+/*MISSING*/    "disconnect this portal",
+/*MISSING*/    "disconnect this portal",
     }},
   {0xc5c963fe, { // "Nothing to stand on here!"
    "Nie ma tu na czym stać!",
@@ -22485,6 +25969,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "towards Gans model",
    "vers le modèle de Gans",
     }},
+  {0xc68590bb, { // "star probability"
+   "prawdopodobieństwo gwiazdy",
+/*MISSING*/    "star probability",
+   "pravděpodobnost hvězdy",
+/*MISSING*/    "star probability",
+/*MISSING*/    "star probability",
+/*MISSING*/    "star probability",
+/*MISSING*/    "star probability",
+    }},
   {0xc6985000, { // "y = spin"
    "y = obróć",
    "y = döndür",
@@ -22493,6 +25986,15 @@ sentence all_sentences[] = {
    "y = drehen",
 /*MISSING*/    "y = spin",
    "y = tourner",
+    }},
+  {0xc6bb61c4, { // "A magical shield protects %the1!"
+   "Magiczna tarcza chroni %a1!",
+/*MISSING*/    "A magical shield protects %the1!",
+   "%a1 chrání magický štít!",
+/*MISSING*/    "A magical shield protects %the1!",
+/*MISSING*/    "A magical shield protects %the1!",
+/*MISSING*/    "A magical shield protects %the1!",
+/*MISSING*/    "A magical shield protects %the1!",
     }},
   {0xc6d6f6e1, { // "{3,3,4} 16-cell (elliptic space)"
    "{3,3,4} 16-komórka (przestrzeń eliptyczna)",
@@ -22557,6 +26059,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "automatic move speed",
    "vitesse de déplacement automatique",
     }},
+  {0xc780546e, { // "pick scores"
+   "wybór wyników",
+/*MISSING*/    "pick scores",
+   "vyber skóre",
+/*MISSING*/    "pick scores",
+/*MISSING*/    "pick scores",
+/*MISSING*/    "pick scores",
+/*MISSING*/    "pick scores",
+    }},
   {0xc78c3863, { // "The anti-crossing algorithm prevents the model from crossing itself, by preventing points which should not be close from being close. The bigger number, the more sensitive it is, but the embedding is slower. Set 0 to disable."
    "Algorytm zabrania modelowi krzyżowania się samemu ze sobą przez zabranianie odległym punktom znaleźć się blisko siebie. Im większa liczba, tym większa czułość, ale konstrukcja modelu jest wolniejsza. Ustaw 0, by wyłączyć.",
 /*MISSING*/    "The anti-crossing algorithm prevents the model from crossing itself, by preventing points which should not be close from being close. The bigger number, the more sensitive it is, but the embedding is slower. Set 0 to disable.",
@@ -22611,6 +26122,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Because of the properties of hyperbolic geometry, it is extremely unlikely to randomly get back to a faraway place you have been to. However, you have managed to get there somehow. In the meantime, its memory has been cleared, since the 'forget faraway cells' option was on.",
    "A cause des propriétés de la géométrie hyperbolique, il est très improbable de revenir par hasard dans un endroit lointain où vous avez été. Cependant, vous avez réussi à venir ici. Entre-temps, la mémoire a été effacée, car l'option 'oublier les cases lointaines' était activée.",
     }},
+  {0xc7bc7f08, { // "relativistic orthogonal"
+   "rzut ortogonalny relatywistyczny",
+/*MISSING*/    "relativistic orthogonal",
+   "relativistická ortogonální projekce",
+/*MISSING*/    "relativistic orthogonal",
+/*MISSING*/    "relativistic orthogonal",
+/*MISSING*/    "relativistic orthogonal",
+/*MISSING*/    "relativistic orthogonal",
+    }},
   {0xc7f4fa46, { // "A precious green gem from the Emerald Mines."
    "Cenny, zielony klejnot z Kopalni Szmaragdów.",
    "Zümrüt Madenlerinden eğerli yeşil bir mücevher.",
@@ -22646,6 +26166,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "This is relevant when the native geometry is not Euclidean. For example, if the native geometry is spherical, and scale < 1, a 2d sphere will be rendered as a subsphere; if the native geometry is hyperbolic, and scale > 1, a hyperbolic plane will be rendered as an equidistant surface. ",
 /*MISSING*/    "This is relevant when the native geometry is not Euclidean. For example, if the native geometry is spherical, and scale < 1, a 2d sphere will be rendered as a subsphere; if the native geometry is hyperbolic, and scale > 1, a hyperbolic plane will be rendered as an equidistant surface. ",
    "Ceci est pertinent quand la géométrie native n'est pas euclidienne. Par exemple, si la géométrie native est sphérique, et l'échelle < 1, une 2-sphère sera affichée comme subsphère ; si la géométrie est hyperbolique, et l'échelle > 1, un plan hyperbolique sera affiché comme surface équidistante.",
+    }},
+  {0xc837b604, { // "disk shape"
+   "kształt dysku",
+/*MISSING*/    "disk shape",
+   "tvar disku",
+/*MISSING*/    "disk shape",
+/*MISSING*/    "disk shape",
+/*MISSING*/    "disk shape",
+/*MISSING*/    "disk shape",
     }},
   {0xc847ae65, { // "To create Euclidean irregular tesselations, first enable a torus"
    "By stworzyć nieregularny parkietaż euklidesowy, zacznij od torusa",
@@ -22691,6 +26220,15 @@ sentence all_sentences[] = {
    "Diese Monster sind langsam aber sie erscheinen oft in großen Gruppen.",
 /*MISSING*/    "These creatures are slow, but they often appear in large numbers.",
    "Ces créatures sont lentes, mais apparaissent souvent en grands nombres.",
+    }},
+  {0xc89670c2, { // "Angle to rotate by."
+   "O jaki kąt obrócić",
+/*MISSING*/    "Angle to rotate by.",
+   "Úhel rotace",
+/*MISSING*/    "Angle to rotate by.",
+/*MISSING*/    "Angle to rotate by.",
+/*MISSING*/    "Angle to rotate by.",
+/*MISSING*/    "Angle to rotate by.",
     }},
   {0xc897069c, { // "Once a beautiful city... but now overrun by the mighty Raiders of unknown origin.\n\nRaiders cannot be harmed with mundane weapons, but each color has its movement restrictions."
    "Niegdyś piękne miasto... ale obecnie zrujnowane przez potężnych Najeźdźców nieznanego pochodzenia.\n\nNajeźdźców nie można zranić zwykłą bronią, ale każdy kolor ma pewne ograniczenie ruchu.",
@@ -22746,6 +26284,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "message style",
    "style de message",
     }},
+  {0xc8d7954b, { // "Outside of the supported limits"
+   "przekraczasz dozwolone limity",
+/*MISSING*/    "Outside of the supported limits",
+   "Mimo podporované hranice",
+/*MISSING*/    "Outside of the supported limits",
+/*MISSING*/    "Outside of the supported limits",
+/*MISSING*/    "Outside of the supported limits",
+/*MISSING*/    "Outside of the supported limits",
+    }},
   {0xc8e872a4, { // "anaglyph"
    "anaglif",
 /*MISSING*/    "anaglyph",
@@ -22790,6 +26337,15 @@ sentence all_sentences[] = {
    "Schätze benötigt: %1 $$$.\n",
 /*MISSING*/    "Treasure required: %1 $$$.\n",
    "Trésor nécessaire : %1 $$$.\n",
+    }},
+  {0xc9242b55, { // "this is not a Lie group"
+   "to nie grupa Liego",
+/*MISSING*/    "this is not a Lie group",
+   "toto není Lieova grupa",
+/*MISSING*/    "this is not a Lie group",
+/*MISSING*/    "this is not a Lie group",
+/*MISSING*/    "this is not a Lie group",
+/*MISSING*/    "this is not a Lie group",
     }},
   {0xc94077fe, { // "When the 'mark heptagons' option (hotkey '7') is on, moves between unmarked cells are forbidden."
    "Kiedy opcja 'oznaczenia na siedmiokątach' (klawisz '7') jest włączona, ruchy pomiędzy nieoznaczonymi polami są zabronione.",
@@ -22845,6 +26401,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "Hint: use F7 to edit floor under the player",
    "Astuce : utiliser F7 pour éditer le sol sous le joueur",
     }},
+  {0xc99a047d, { // "Disable if you are photosensitive. Replaces flashing effects such as Orb of Storms lightning with slow, adjustable animations."
+   "Wyłącz jeśli jesteś czuł%y0 na światło. Zamienia rozbłyski takie, jak efekt błyskawicy, na powolne, konfigurowalne animacje.",
+/*MISSING*/    "Disable if you are photosensitive. Replaces flashing effects such as Orb of Storms lightning with slow, adjustable animations.",
+   "Vypni, pokud máš citlivost na světlo. Nahrazuje blikající efekty, jako je Sféra Bouří, pomalými, konfigurovatelnými animacemi.",
+/*MISSING*/    "Disable if you are photosensitive. Replaces flashing effects such as Orb of Storms lightning with slow, adjustable animations.",
+/*MISSING*/    "Disable if you are photosensitive. Replaces flashing effects such as Orb of Storms lightning with slow, adjustable animations.",
+/*MISSING*/    "Disable if you are photosensitive. Replaces flashing effects such as Orb of Storms lightning with slow, adjustable animations.",
+/*MISSING*/    "Disable if you are photosensitive. Replaces flashing effects such as Orb of Storms lightning with slow, adjustable animations.",
+    }},
+  {0xc99d79ee, { // "Welcome to a portal map! Press 'o' to configure."
+   "Witaj w mapie portalowej! Naciśnij 'o', by skonfigurować.",
+/*MISSING*/    "Welcome to a portal map! Press 'o' to configure.",
+   "Vítej v portálové mapě! Stiskni 'o' pro konfiguraci.",
+/*MISSING*/    "Welcome to a portal map! Press 'o' to configure.",
+/*MISSING*/    "Welcome to a portal map! Press 'o' to configure.",
+/*MISSING*/    "Welcome to a portal map! Press 'o' to configure.",
+/*MISSING*/    "Welcome to a portal map! Press 'o' to configure.",
+    }},
   {0xc9b2e7d4, { // "load from file"
    "ładuj z pliku",
 /*MISSING*/    "load from file",
@@ -22880,6 +26454,24 @@ sentence all_sentences[] = {
    "Tasten konfigurieren",
 /*MISSING*/    "configure keys",
    "configurer les touches",
+    }},
+  {0xc9e6a521, { // " (%1 self)"
+   " (%1 siebie)",
+/*MISSING*/    " (%1 self)",
+   " (%1 sebe)",
+/*MISSING*/    " (%1 self)",
+/*MISSING*/    " (%1 self)",
+/*MISSING*/    " (%1 self)",
+/*MISSING*/    " (%1 self)",
+    }},
+  {0xca1e96a6, { // "eligible for Princess Challenge"
+   "legalne dla misji Księżniczka",
+/*MISSING*/    "eligible for Princess Challenge",
+   "achievementy/leaderboardy Mise: Princezna dostupné",
+/*MISSING*/    "eligible for Princess Challenge",
+/*MISSING*/    "eligible for Princess Challenge",
+/*MISSING*/    "eligible for Princess Challenge",
+/*MISSING*/    "eligible for Princess Challenge",
     }},
   {0xca212289, { // "Friendly ghosts are friendly beings who can go through any obstacles. However, unlike most friends, they tend to fly away from you."
    "Przyjazne duchy mogą przechodzić przez wszelkie przeszkody. Jednak, w przeciwieństwie do większości pozostałych przyjaciół, mają zwyczaj odlatywać od Ciebie.",
@@ -22944,6 +26536,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "An alternate layout of the Crossroads, without walls.",
    "Une disposition alternative des Croisements, sans murs.",
     }},
+  {0xcab377dd, { // "Your progress will not be saved."
+   "Twoje postępy nie będą zapisywane.",
+/*MISSING*/    "Your progress will not be saved.",
+   "Tvůj postup nebude uložen.",
+/*MISSING*/    "Your progress will not be saved.",
+/*MISSING*/    "Your progress will not be saved.",
+/*MISSING*/    "Your progress will not be saved.",
+/*MISSING*/    "Your progress will not be saved.",
+    }},
   {0xcac63a00, { // "For now, collect as much treasure as possible..."
    "Szukaj skarbów, znajdź, ile tylko możesz...",
    "Şimdilik mümkün olduğunca fazla hazine topla...",
@@ -22988,6 +26589,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "\n\nIn the Orb Strategy Mode, the Orb of Luck also significantly increases the frequency of Great Walls, Crossroads IV, and sub-lands.",
 /*MISSING*/    "\n\nIn the Orb Strategy Mode, the Orb of Luck also significantly increases the frequency of Great Walls, Crossroads IV, and sub-lands.",
    "\n\nDans le mode stratégique des orbes, l'Orbe de Chance augmente aussi significativement la fréquence des Grands Murs, des Croisements IV et des sous-pays.",
+    }},
+  {0xcb273dc5, { // "Strong wind can only take you to a specific place!"
+   "Silny wiatr może przenieść Cię tylko w konkretne miejsce!",
+/*MISSING*/    "Strong wind can only take you to a specific place!",
+   "Silný vítr tě může odnést pouze na určité místo!",
+/*MISSING*/    "Strong wind can only take you to a specific place!",
+/*MISSING*/    "Strong wind can only take you to a specific place!",
+/*MISSING*/    "Strong wind can only take you to a specific place!",
+/*MISSING*/    "Strong wind can only take you to a specific place!",
     }},
   {0xcb3cabb0, { // "game design, programming, texts and graphics by Zeno Rogue <zeno@attnam.com>\n\n"
    "projekt, programowanie, teksty i grafika: Zeno Rogue <zeno@attnam.com>\n\n",
@@ -23052,6 +26662,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Four mines next to you!",
    "4 mine près de vous !",
     }},
+  {0xcb591ae4, { // "render behind the camera"
+   "renderuj za kamerą",
+/*MISSING*/    "render behind the camera",
+   "renderuj za kamerou",
+/*MISSING*/    "render behind the camera",
+/*MISSING*/    "render behind the camera",
+/*MISSING*/    "render behind the camera",
+/*MISSING*/    "render behind the camera",
+    }},
   {0xcb6d96a0, { // "This Orb protects you from physical attacks. It lasts for more turns than the Orb of Shielding, but 10 charges are lost whenever you are attacked. It also does not protect you from fires, scents, and being eaten."
    "Ta Sfera chroni Cię przed fizycznymi atakami. Działa dłużej niż Sfera Tarczy, ale każdy atak zabiera 10 ładunków. Nie chroni przed ogniem, zapachami i byciem zjedzonym.",
 /*MISSING*/    "This Orb protects you from physical attacks. It lasts for more turns than the Orb of Shielding, but 10 charges are lost whenever you are attacked. It also does not protect you from fires, scents, and being eaten.",
@@ -23087,6 +26706,33 @@ sentence all_sentences[] = {
 /*MISSING*/    "TRANSLATIONWARNING2",
 /*MISSING*/    "TRANSLATIONWARNING2",
 /*MISSING*/    "TRANSLATIONWARNING2",
+    }},
+  {0xcbfdfb6a, { // "Save the config and restart to select another score/save file."
+   "Zapisz konfigurację i zrestartuj, by użyć innego pliku postępów.",
+/*MISSING*/    "Save the config and restart to select another score/save file.",
+   "Ulož konfiguraci a restartuj hru pro vybrání jiného souboru se skóre/uloženou hrou.",
+/*MISSING*/    "Save the config and restart to select another score/save file.",
+/*MISSING*/    "Save the config and restart to select another score/save file.",
+/*MISSING*/    "Save the config and restart to select another score/save file.",
+/*MISSING*/    "Save the config and restart to select another score/save file.",
+    }},
+  {0xcc041ec8, { // "simplified display of apeirogons"
+   "uproszczone pokazywanie apeirogonów",
+/*MISSING*/    "simplified display of apeirogons",
+   "zjednodušené zobrazení apeirogonů",
+/*MISSING*/    "simplified display of apeirogons",
+/*MISSING*/    "simplified display of apeirogons",
+/*MISSING*/    "simplified display of apeirogons",
+/*MISSING*/    "simplified display of apeirogons",
+    }},
+  {0xcc110762, { // "Cannot vault that far!"
+   "Nie można przeskoczyć tak daleko!",
+/*MISSING*/    "Cannot vault that far!",
+   "Tak daleko nedoskočíš!",
+/*MISSING*/    "Cannot vault that far!",
+/*MISSING*/    "Cannot vault that far!",
+/*MISSING*/    "Cannot vault that far!",
+/*MISSING*/    "Cannot vault that far!",
     }},
   {0xcc12af80, { // "line width"
    "szerokość linii",
@@ -23214,6 +26860,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "A powerful missile from a Blue Raider.",
    "Un puissant missile d'un Pillard Bleu.",
     }},
+  {0xcd3411e9, { // "not eligible for achievements"
+   "osiągnięcia nielegalne",
+/*MISSING*/    "not eligible for achievements",
+   "nelze získat achievementy",
+/*MISSING*/    "not eligible for achievements",
+/*MISSING*/    "not eligible for achievements",
+/*MISSING*/    "not eligible for achievements",
+/*MISSING*/    "not eligible for achievements",
+    }},
   {0xcd373511, { // "demigenus"
    "genus nieorientowalny",
 /*MISSING*/    "demigenus",
@@ -23258,6 +26913,24 @@ sentence all_sentences[] = {
    "Sammle 25x %2 um es in %der1 freizuschalten",
 /*MISSING*/    "collect 25 %2 to unlock it in %the1",
    "rassembler 25x %P2 pour le débloquer %a1",
+    }},
+  {0xcd9de750, { // "floor alpha"
+   "przezroczystość podłóg",
+/*MISSING*/    "floor alpha",
+   "průhlednost podlahy",
+/*MISSING*/    "floor alpha",
+/*MISSING*/    "floor alpha",
+/*MISSING*/    "floor alpha",
+/*MISSING*/    "floor alpha",
+    }},
+  {0xcdbd4693, { // "In two-axe-based models, this parameter gives the angle between the two axes."
+   "W modelach opartych na dwóch osiach ten parametr określa kąt między osiami.",
+/*MISSING*/    "In two-axe-based models, this parameter gives the angle between the two axes.",
+   "V modelech založených na dvou osách tento parametr udává úhel mezi nimi.",
+/*MISSING*/    "In two-axe-based models, this parameter gives the angle between the two axes.",
+/*MISSING*/    "In two-axe-based models, this parameter gives the angle between the two axes.",
+/*MISSING*/    "In two-axe-based models, this parameter gives the angle between the two axes.",
+/*MISSING*/    "In two-axe-based models, this parameter gives the angle between the two axes.",
     }},
   {0xcddb4773, { // "Hyperstone Quest"
    "Misja Hiperkamień",
@@ -23322,6 +26995,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "Does not work in chaos mode.",
    "Ne marche pas en mode chaos.",
     }},
+  {0xce45020a, { // "z = set Shift+click"
+   "z = ustaw Shift+klik",
+/*MISSING*/    "z = set Shift+click",
+   "z = nastav Shift+klik",
+/*MISSING*/    "z = set Shift+click",
+/*MISSING*/    "z = set Shift+click",
+/*MISSING*/    "z = set Shift+click",
+/*MISSING*/    "z = set Shift+click",
+    }},
+  {0xce451285, { // "rug forward movement angle"
+   "kąt ruchu wprost dywanu",
+/*MISSING*/    "rug forward movement angle",
+   "úhel pohybu koberce dopředu",
+/*MISSING*/    "rug forward movement angle",
+/*MISSING*/    "rug forward movement angle",
+/*MISSING*/    "rug forward movement angle",
+/*MISSING*/    "rug forward movement angle",
+    }},
   {0xce533d61, { // " (won at level %1!)"
    " (wygrane na poziomie %1!)",
    " (%1. seviyede kazandın!)",
@@ -23330,6 +27021,15 @@ sentence all_sentences[] = {
    " (Mit Level %1 gewonnen!)",
 /*MISSING*/    " (won at level %1!)",
    " (gagné au niveau %1 !)",
+    }},
+  {0xce651449, { // "Fire mode disabled."
+   "Tryb strzału wyłączony.",
+/*MISSING*/    "Fire mode disabled.",
+   "Palebný mód vypnut.",
+/*MISSING*/    "Fire mode disabled.",
+/*MISSING*/    "Fire mode disabled.",
+/*MISSING*/    "Fire mode disabled.",
+/*MISSING*/    "Fire mode disabled.",
     }},
   {0xce77cf61, { // "Rock-III to wall ratio"
    "Stosunek skały-III do ścian",
@@ -23376,6 +27076,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "Cannot create temporary matter on an item!",
    "Impossible de créer de la matière temporaire sur un objet !",
     }},
+  {0xcedc2ffa, { // "generate a random track"
+   "generuj tor losowy",
+/*MISSING*/    "generate a random track",
+   "vygeneruj náhodnou dráhu",
+/*MISSING*/    "generate a random track",
+/*MISSING*/    "generate a random track",
+/*MISSING*/    "generate a random track",
+/*MISSING*/    "generate a random track",
+    }},
+  {0xcef88d32, { // "tree-drawing parameter"
+   "parametr rysowania drzew",
+/*MISSING*/    "tree-drawing parameter",
+   "parametr kreslení stromu",
+/*MISSING*/    "tree-drawing parameter",
+/*MISSING*/    "tree-drawing parameter",
+/*MISSING*/    "tree-drawing parameter",
+/*MISSING*/    "tree-drawing parameter",
+    }},
   {0xcefc6565, { // "four triangles"
    "cztery trójkąty",
 /*MISSING*/    "four triangles",
@@ -23384,6 +27102,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "four triangles",
 /*MISSING*/    "four triangles",
    "quatre triangles",
+    }},
+  {0xceffd098, { // "post-ordered"
+   "uporządkowane po",
+/*MISSING*/    "post-ordered",
+   "uspořádané 'po'",
+/*MISSING*/    "post-ordered",
+/*MISSING*/    "post-ordered",
+/*MISSING*/    "post-ordered",
+/*MISSING*/    "post-ordered",
     }},
   {0xcf07013f, { // "backward"
    "do tyłu",
@@ -23637,6 +27364,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "smooth scrolling",
    "déroulement lisse",
     }},
+  {0xd0f4c411, { // "Cannot switch places with %the1!"
+   "Nie można się zamienić miejscami z %abl1!",
+/*MISSING*/    "Cannot switch places with %the1!",
+   "Nemůžeš si vyměnit místo s %abl1!",
+/*MISSING*/    "Cannot switch places with %the1!",
+/*MISSING*/    "Cannot switch places with %the1!",
+/*MISSING*/    "Cannot switch places with %the1!",
+/*MISSING*/    "Cannot switch places with %the1!",
+    }},
   {0xd1099cf2, { // "This forest is quite dry. Beware the bushfires!\nTrees catch fire on the next turn. The temperature of the grass cells rises once per turn for each fire nearby, and becomes fire itself when its temperature has risen 10 times.\nYou can also chop down the trees. Big trees take two turns to chop down."
    "Ta puszcza jest wyschnięta. Uważaj na pożary!\nSąsiednie drzewa zajmują się ogniem w następnej kolejce. Temperatura pola bez drzewa rośnie o 1 na kolejkę z każdym ogniem w sąsiedztwie i gdy wzrośnie do 10, to pole również staje się ogniem.\nMożesz też ścinać drzewa. Ścięcie dużego drzewa zajmuje dwie kolejki.",
    "Bu orman epey kuru. Çalı yangınlarına dikkat et!\nAğaçlar her tur ateşe yakalanır. Çimen hücrelerinin ısısı her tur yakındaki ateşle bir artar ve sonra ısısı 10 kez yükselirse, kendisi ateş olur.\n Ağaçları kesebilirsin. Büyük ağaçları kesmesi 2 tur alır.\n ",
@@ -23763,6 +27499,15 @@ sentence all_sentences[] = {
    "feminino",
    "féminin",
     }},
+  {0xd1d6b8e7, { // "for mobile VR"
+   "do mobilnego VR",
+/*MISSING*/    "for mobile VR",
+   "pro mobilní VR",
+/*MISSING*/    "for mobile VR",
+/*MISSING*/    "for mobile VR",
+/*MISSING*/    "for mobile VR",
+/*MISSING*/    "for mobile VR",
+    }},
   {0xd1f12308, { // "spiral period: x"
    "okres spirali: x",
 /*MISSING*/    "spiral period: x",
@@ -23780,6 +27525,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "spiral period: y",
 /*MISSING*/    "spiral period: y",
    "période de la spirale : y",
+    }},
+  {0xd1fe5f10, { // "error: this method does not work in hyperbolic geometry"
+   "błąd: ta metoda nie działa w geometrii hiperbolicznej",
+/*MISSING*/    "error: this method does not work in hyperbolic geometry",
+   "chyba: tato metoda nefunguje v hyperbolické geometrii",
+/*MISSING*/    "error: this method does not work in hyperbolic geometry",
+/*MISSING*/    "error: this method does not work in hyperbolic geometry",
+/*MISSING*/    "error: this method does not work in hyperbolic geometry",
+/*MISSING*/    "error: this method does not work in hyperbolic geometry",
     }},
   {0xd205f0ad, { // "You are playing in the Orb Strategy Mode. Collecting treasure gives you access to magical Orb powers. In this mode, unlocking requirements are generally higher, and several quests and lands give you extremely powerful Orbs of the Mirror.\n"
    "Grasz w trybie strategii sfer. Zebrane skarby dają Ci dostęp do magicznych mocy. W tym trybie wymagania są generalnie wyższe, a  niektóre krainy i misje dają Ci bardzo potężne Sfery Lustra.\n",
@@ -23817,6 +27571,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "The Orb loses its power as it leaves the Land of Power!",
    "L'Orbe perd son pouvoir lorsqu'il quitte le Pays du Pouvoir !",
     }},
+  {0xd259914b, { // "{4,∞} (infinite squares)"
+   "{4,∞} (nieskończone kwadraty)",
+/*MISSING*/    "{4,∞} (infinite squares)",
+   "{4,∞} (nekonečné čtverce)",
+/*MISSING*/    "{4,∞} (infinite squares)",
+/*MISSING*/    "{4,∞} (infinite squares)",
+/*MISSING*/    "{4,∞} (infinite squares)",
+   "{4,∞} (carrés infinis)",
+    }},
   {0xd26f1eff, { // "work worse if you use it."
    "funkcjonalności działa gorzej w tym trybie.",
 /*MISSING*/    "work worse if you use it.",
@@ -23825,6 +27588,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "work worse if you use it.",
 /*MISSING*/    "work worse if you use it.",
    "fonctionne moins bien si vous l'utilisez.",
+    }},
+  {0xd277e1c1, { // "Euclidean embedding scale Y/X"
+   "skala Y/X zanurzenia euklidesowego",
+/*MISSING*/    "Euclidean embedding scale Y/X",
+   "škála eukleidovského vnoření Y/X",
+/*MISSING*/    "Euclidean embedding scale Y/X",
+/*MISSING*/    "Euclidean embedding scale Y/X",
+/*MISSING*/    "Euclidean embedding scale Y/X",
+/*MISSING*/    "Euclidean embedding scale Y/X",
+    }},
+  {0xd2a8ac2d, { // "types (mark reverse)"
+   "typy (zaznacz odwrócone)",
+/*MISSING*/    "types (mark reverse)",
+   "typy (označit převrácené)",
+/*MISSING*/    "types (mark reverse)",
+/*MISSING*/    "types (mark reverse)",
+/*MISSING*/    "types (mark reverse)",
+/*MISSING*/    "types (mark reverse)",
     }},
   {0xd2c48066, { // "dual of current"
    "dualny do obecnego",
@@ -23844,6 +27625,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "H2xE regular",
    "H2xE régulier",
     }},
+  {0xd2eeab0e, { // "disk size"
+   "rozmiar dysku",
+/*MISSING*/    "disk size",
+   "rozměr disku",
+/*MISSING*/    "disk size",
+/*MISSING*/    "disk size",
+/*MISSING*/    "disk size",
+/*MISSING*/    "disk size",
+    }},
   {0xd30081a6, { // "Unavailable in the shmup mode.\n"
    "Niedostępne w trybie strzelanki.\n",
 /*MISSING*/    "Unavailable in the shmup mode.\n",
@@ -23852,6 +27642,15 @@ sentence all_sentences[] = {
    "Nicht im shmup-Modus verfügbar.\n",
 /*MISSING*/    "Unavailable in the shmup mode.\n",
    "Non disponible en mode shoot'em up.\n",
+    }},
+  {0xd31cb6c7, { // "yes, that's what I want"
+   "Tak, tego chcę",
+/*MISSING*/    "yes, that's what I want",
+   "ano, to je to, co chci",
+/*MISSING*/    "yes, that's what I want",
+/*MISSING*/    "yes, that's what I want",
+/*MISSING*/    "yes, that's what I want",
+/*MISSING*/    "yes, that's what I want",
     }},
   {0xd3492638, { // "minimal quotient"
    "minimalna ilorazowa",
@@ -23897,6 +27696,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "format",
 /*MISSING*/    "format",
    "format",
+    }},
+  {0xd38c1b9e, { // "orb display mode"
+   "tryb pokazywania sfer",
+/*MISSING*/    "orb display mode",
+   "mód zobrazení Sfér",
+/*MISSING*/    "orb display mode",
+/*MISSING*/    "orb display mode",
+/*MISSING*/    "orb display mode",
+/*MISSING*/    "orb display mode",
     }},
   {0xd394a53b, { // "sensitivity"
    "czułość",
@@ -23960,6 +27768,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "1 means that rotating the device by 1 radian corresponds to scrolling by 1 unit. In spherical geometry, 1 unit = 1 radian.",
 /*MISSING*/    "1 means that rotating the device by 1 radian corresponds to scrolling by 1 unit. In spherical geometry, 1 unit = 1 radian.",
    "1 signifie que pivoter l'appareil d'un radian signifie dérouler d'une unité. En géométrie sphérique 1 unité = 1 radian.",
+    }},
+  {0xd4650397, { // "subdivision"
+   "podział",
+/*MISSING*/    "subdivision",
+   "poddělení",
+/*MISSING*/    "subdivision",
+/*MISSING*/    "subdivision",
+/*MISSING*/    "subdivision",
+/*MISSING*/    "subdivision",
     }},
   {0xd476f10b, { // "{3,3,3} 5-cell"
    "{3,3,3} 5-komórka",
@@ -24096,6 +27913,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "floating bubbles: special",
    "bulles flottantes : spécial",
     }},
+  {0xd502262b, { // "less items/kills in portrait"
+   "mniej przedmiotów/zabić w trybie portretu",
+/*MISSING*/    "less items/kills in portrait",
+   "méně předmětů/zabití v orientaci na výšku",
+/*MISSING*/    "less items/kills in portrait",
+/*MISSING*/    "less items/kills in portrait",
+/*MISSING*/    "less items/kills in portrait",
+/*MISSING*/    "less items/kills in portrait",
+    }},
   {0xd502d1fe, { // "Sol (3:2)"
    "Sol (3:2)",
 /*MISSING*/    "Sol (3:2)",
@@ -24141,6 +27967,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "You cannot attack Jellies in their wall form!",
    "Vous ne pouvez attaquer les Gelée sous la forme d'un mur !",
     }},
+  {0xd52e64c1, { // "You have no melee weapon!"
+   "Nie masz broni do walki wręcz!",
+/*MISSING*/    "You have no melee weapon!",
+   "Nemáš žádnou zbraň pro boj na blízko!",
+/*MISSING*/    "You have no melee weapon!",
+/*MISSING*/    "You have no melee weapon!",
+/*MISSING*/    "You have no melee weapon!",
+/*MISSING*/    "You have no melee weapon!",
+    }},
   {0xd53dba25, { // "\n\nIn the Orb Strategy Mode, the effect is increased to +100%."
    "\n\nW Trybie Strategii Sfer efekt jest powiększony do +100%.",
 /*MISSING*/    "\n\nIn the Orb Strategy Mode, the effect is increased to +100%.",
@@ -24167,6 +28002,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "movement animation speed",
 /*MISSING*/    "movement animation speed",
    "vitesse d'animation du mouvement",
+    }},
+  {0xd555b291, { // "extend automatically"
+   "automatycznie rozszerzaj tablicę",
+/*MISSING*/    "extend automatically",
+   "automatické rozšíření tabulky",
+/*MISSING*/    "extend automatically",
+/*MISSING*/    "extend automatically",
+/*MISSING*/    "extend automatically",
+/*MISSING*/    "extend automatically",
     }},
   {0xd5733068, { // "You cannot change geometry in this slide."
    "Nie można zmieniać geometrii na tym slajdzie.",
@@ -24203,6 +28047,15 @@ sentence all_sentences[] = {
    "Konzentriere dich besser darauf Schätze zu sammeln. Und achte auf Fallen, sowie Wachen die hart zu töten sind!",
 /*MISSING*/    "So better just to concentrate on collecting treasure. Beware the traps, and the guards, who are hard to kill!",
    "Mieux vaut se concentrer sur la chasse au trésor. Attention aux pièges, et aux gardes qui sont durs à tuer !",
+    }},
+  {0xd5da99f1, { // "S = snap (%1)"
+   "S = przyciąganie (%1)",
+/*MISSING*/    "S = snap (%1)",
+   "S = přicvaknutí (%1)",
+/*MISSING*/    "S = snap (%1)",
+/*MISSING*/    "S = snap (%1)",
+/*MISSING*/    "S = snap (%1)",
+/*MISSING*/    "S = snap (%1)",
     }},
   {0xd5fda762, { // "Basics of gameplay"
    "Podstawy rozgrywki",
@@ -24573,6 +28426,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "affects the precision of solving the geodesic equation in Solv",
    "affecte la précision de résolution de l'équation géodésique dans Solv",
     }},
+  {0xd8e52bbd, { // "%The1 alarms other dogs as it dies!"
+   "Umierając%y1 %1 podnosi alarm!",
+/*MISSING*/    "%The1 alarms other dogs as it dies!",
+   "Umírající %1 burcuje ostatní!",
+/*MISSING*/    "%The1 alarms other dogs as it dies!",
+/*MISSING*/    "%The1 alarms other dogs as it dies!",
+/*MISSING*/    "%The1 alarms other dogs as it dies!",
+/*MISSING*/    "%The1 alarms other dogs as it dies!",
+    }},
   {0xd9036498, { // "players"
    "gracze",
 /*MISSING*/    "players",
@@ -24618,6 +28480,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "\"According to Merlin, the Round Table is a perfect Euclidean sphere in %1 dimensions.\"",
    "\"D'après Merlin, la Table Ronde est une sphère euclidienne parfaite en %1 dimensions.",
     }},
+  {0xd943cd87, { // "I know I can press F1 for help"
+   "wiem, że mogę nacisnąć F1 by dostać pomoc",
+/*MISSING*/    "I know I can press F1 for help",
+   "vím, že mohu získat nápovědu stisknutím klávesy F1",
+/*MISSING*/    "I know I can press F1 for help",
+/*MISSING*/    "I know I can press F1 for help",
+/*MISSING*/    "I know I can press F1 for help",
+/*MISSING*/    "I know I can press F1 for help",
+    }},
   {0xd9466ff6, { // "models of hyperbolic geometry"
    "modele geometrii hiperbolicznej",
 /*MISSING*/    "models of hyperbolic geometry",
@@ -24626,6 +28497,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "models of hyperbolic geometry",
 /*MISSING*/    "models of hyperbolic geometry",
    "modèle de géométrie hyperbolique",
+    }},
+  {0xd950a502, { // "{3,5,5} hyperbolic honeycomb"
+   "{3,5,5} siatka hiperboliczna",
+/*MISSING*/    "{3,5,5} hyperbolic honeycomb",
+   "{3,5,5} hyperbolické dělení",
+/*MISSING*/    "{3,5,5} hyperbolic honeycomb",
+/*MISSING*/    "{3,5,5} hyperbolic honeycomb",
+/*MISSING*/    "{3,5,5} hyperbolic honeycomb",
+   "{3,5,5} nid d'abeilles hyperbolique",
     }},
   {0xd953564f, { // "one player"
    "jeden gracz",
@@ -24663,6 +28543,24 @@ sentence all_sentences[] = {
    "As inscrições na Estátua do Cthulhu lhe apontam para o seu destino...",
    "Les inscriptions sur la statue de Cthulhu vous montrent la voie vers votre destinée...",
     }},
+  {0xd9bf6b9e, { // "for rendering 360° videos (implemented only in raycaster)"
+   "do filmów w 360° (zaimplementowany tylko w raycasterze)",
+/*MISSING*/    "for rendering 360° videos (implemented only in raycaster)",
+   "pro renderování 360° videí (implementováno pouze v raycasteru)",
+/*MISSING*/    "for rendering 360° videos (implemented only in raycaster)",
+/*MISSING*/    "for rendering 360° videos (implemented only in raycaster)",
+/*MISSING*/    "for rendering 360° videos (implemented only in raycaster)",
+/*MISSING*/    "for rendering 360° videos (implemented only in raycaster)",
+    }},
+  {0xd9c165a7, { // "eligible for Chaos mode"
+   "legalne dla trybu Chaosu",
+/*MISSING*/    "eligible for Chaos mode",
+   "achievementy/leaderboardy chaotického módu dostupné",
+/*MISSING*/    "eligible for Chaos mode",
+/*MISSING*/    "eligible for Chaos mode",
+/*MISSING*/    "eligible for Chaos mode",
+/*MISSING*/    "eligible for Chaos mode",
+    }},
   {0xd9c93ad2, { // " With the keyboard, you can rotate the view for a similar effect (Page Up/Down)."
    " Na klawiaturze możesz obrócić widok, by uzyskać podobny efekt (Page Up/Down).",
    " Klavyeyle görüntüyü döndürerek benzer bir etki yakalayabilirsin. (Page Up/Down).",
@@ -24699,6 +28597,15 @@ sentence all_sentences[] = {
    "Outro Orbe Morto.",
    "Un autre Orbe mort.",
     }},
+  {0xd9f2addf, { // "Welcome to HatRogue!"
+   "Witaj w HatRogue!",
+/*MISSING*/    "Welcome to HatRogue!",
+   "Vítej v HatRogue!",
+/*MISSING*/    "Welcome to HatRogue!",
+/*MISSING*/    "Welcome to HatRogue!",
+/*MISSING*/    "Welcome to HatRogue!",
+/*MISSING*/    "Welcome to HatRogue!",
+    }},
   {0xd9fe4f83, { // "zoomed stereographic projection"
    "zbliżony rzut stereograficzny",
 /*MISSING*/    "zoomed stereographic projection",
@@ -24707,6 +28614,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "zoomed stereographic projection",
 /*MISSING*/    "zoomed stereographic projection",
    "projection stéréographique zoomée",
+    }},
+  {0xd9ff08ee, { // "The average size of a land in randomwalk mode."
+   "Średnia wielkość krainy w trybie błądzenia losowego.",
+/*MISSING*/    "The average size of a land in randomwalk mode.",
+   "Průměrná velikost kraje v módu náhodné procházky.",
+/*MISSING*/    "The average size of a land in randomwalk mode.",
+/*MISSING*/    "The average size of a land in randomwalk mode.",
+/*MISSING*/    "The average size of a land in randomwalk mode.",
+/*MISSING*/    "The average size of a land in randomwalk mode.",
     }},
   {0xda0ba6f0, { // "This being radiates an aura of wisdom. It is made of a beautiful crystal, you would love to take it home. But how is it going to defend itself? Better not to think of it, thinking causes your brain to go hot...\n\nCrystal Sages melt at -30 °C, and they can raise the temperature around you from afar."
    "Ta istota promieniuje mądrością. Jest zrobiona z pięknego kryształu, na pewno bardzo cennego. Ciekawe, jak zamierza się przed Tobą bronić? Lepiej o tym nie myśleć, myślenie za bardzo Cię rozgrzewa...\n\nKryształowi Mędrcy topią się w -30 °C i powodują wzrost temperatury wokół Ciebie.",
@@ -24779,6 +28695,15 @@ sentence all_sentences[] = {
    "Kills: ",
 /*MISSING*/    "Kills: ",
    "Kills: ",
+    }},
+  {0xda75dbef, { // "default: "
+   "domyślne: ",
+/*MISSING*/    "default: ",
+   "standardní: ",
+/*MISSING*/    "default: ",
+/*MISSING*/    "default: ",
+/*MISSING*/    "default: ",
+/*MISSING*/    "default: ",
     }},
   {0xda770b3c, { // "interesting quotient spaces"
    "interesujące przestrzenie ilorazowe",
@@ -24870,6 +28795,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "The distance from the camera to added points.",
    "Distance de la caméra aux points ajoutés.",
     }},
+  {0xdb738185, { // "relativistic perspective"
+   "perspektywa relatywistyczna",
+/*MISSING*/    "relativistic perspective",
+   "relativistická perspektiva",
+/*MISSING*/    "relativistic perspective",
+/*MISSING*/    "relativistic perspective",
+/*MISSING*/    "relativistic perspective",
+/*MISSING*/    "relativistic perspective",
+    }},
   {0xdb7d20b5, { // "targetting ranged Orbs long-click only"
    "celowanie sfer na odgległość wymaga długiego kliku",
 /*MISSING*/    "targetting ranged Orbs long-click only",
@@ -24905,6 +28839,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Unlocked by: %1 in %2",
 /*MISSING*/    "Unlocked by: %1 in %2",
    "Débloqué par : %1 dans %2",
+    }},
+  {0xdba3288c, { // "mirrored"
+   "lustrzane",
+/*MISSING*/    "mirrored",
+   "zrcadlená",
+/*MISSING*/    "mirrored",
+/*MISSING*/    "mirrored",
+/*MISSING*/    "mirrored",
+/*MISSING*/    "mirrored",
     }},
   {0xdba989cf, { // "this Orb is never unlocked globally (only hubs)"
    "ta Sfera występuje tylko w centrach",
@@ -24977,6 +28920,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Does not work in this geometry.",
 /*MISSING*/    "Does not work in this geometry.",
    "Ne marche pas dans cette géométrie.",
+    }},
+  {0xdc08c55f, { // "You cannot attack your own mount!"
+   "Nie można atakować swojego własnego wierzchowca!",
+/*MISSING*/    "You cannot attack your own mount!",
+   "Nemůžeš útočit na vlastní jízdní zvíře!",
+/*MISSING*/    "You cannot attack your own mount!",
+/*MISSING*/    "You cannot attack your own mount!",
+/*MISSING*/    "You cannot attack your own mount!",
+/*MISSING*/    "You cannot attack your own mount!",
     }},
   {0xdc156de1, { // "anti-aliasing"
    "anti-aliasing",
@@ -25059,6 +29011,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "color randomly",
    "couleur aléatoire",
     }},
+  {0xdcec5bfe, { // "aperiodic spectre"
+   "aperiodyczny spektr (spectre)",
+/*MISSING*/    "aperiodic spectre",
+   "aperiodický přízrak",
+/*MISSING*/    "aperiodic spectre",
+/*MISSING*/    "aperiodic spectre",
+/*MISSING*/    "aperiodic spectre",
+/*MISSING*/    "aperiodic spectre",
+    }},
   {0xdd07dc25, { // "The temple of Cthulhu consists of many concentric circles of columns. You will surely encounter many Cultists there, who believe that a pilgrimage to the inner circles will bring them closer to Cthulhu himself, and Grimoires which surely contain many interesting secrets.\n\nThe circles in the temple of Cthulhu are actually horocycles. They are infinite, and there is an infinite number of them."
    "Świątynia Cthulhu składa się z wielu koncentrycznych kręgów kolumn. Spotkasz tu wielu Kultystów, dla których pielgrzymka do wewnętrznych kręgów to szansa na bycie bliżej Cthulhu, a także Księgi zawierające wiele interesujących sekretów.\n\nKręgi w Świątyni Cthulhu są właściwie horocyklami. Są nieskończone i jest ich nieskończenie wiele.",
    "Cthulhu tapınağı çok sayıda eş merkezli dairesel sütunlardan oluşur. Burada iç dairelere yapılan bir haccın kendilerini Cthulhu'ya daha çok yaklaştırdığına inanan bir çok Müritle ve çok ilginç sırlar içeren Kara Kitaplarla karşılaşacaksın. \n\nCthulhu Tapınağının merkezindeki daireler aslında horoçemberler. Onlar sonsuz ve onlardan sonsuz tane var.",
@@ -25140,6 +29101,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "random colors",
    "couleurs aléatoires",
     }},
+  {0xdd728161, { // "for rendering 360° VR videos (implemented only in raycaster and some other parts)"
+   "do renderowania filmów VR w 360° stopniach (zaimplementowane jedynie w raycasterze i innych szczególnych przypadkach)",
+/*MISSING*/    "for rendering 360° VR videos (implemented only in raycaster and some other parts)",
+   "pro renderování 360° VR videí (implementováno pouze v raycasteru a některých jiných částech)",
+/*MISSING*/    "for rendering 360° VR videos (implemented only in raycaster and some other parts)",
+/*MISSING*/    "for rendering 360° VR videos (implemented only in raycaster and some other parts)",
+/*MISSING*/    "for rendering 360° VR videos (implemented only in raycaster and some other parts)",
+/*MISSING*/    "for rendering 360° VR videos (implemented only in raycaster and some other parts)",
+    }},
   {0xdd81c9aa, { // "point of view"
    "punkt widzenia",
 /*MISSING*/    "point of view",
@@ -25184,6 +29154,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "colors of some game objects can be edited by clicking them.",
 /*MISSING*/    "colors of some game objects can be edited by clicking them.",
    "Les couleurs de certains objets du jeu peuvent être éditées en les cliquant.",
+    }},
+  {0xde1b6822, { // "number of parallels drawn"
+   "liczba rysowanych równoleżników",
+/*MISSING*/    "number of parallels drawn",
+   "počet nakreslených rovnoběžek",
+/*MISSING*/    "number of parallels drawn",
+/*MISSING*/    "number of parallels drawn",
+/*MISSING*/    "number of parallels drawn",
+/*MISSING*/    "number of parallels drawn",
+    }},
+  {0xde260d60, { // "this starting land is not eligible for achievements"
+   "ta kraina startu wyłącza osiągnięcia",
+/*MISSING*/    "this starting land is not eligible for achievements",
+   "s tímto počátečním krajem není možné získat achievementy",
+/*MISSING*/    "this starting land is not eligible for achievements",
+/*MISSING*/    "this starting land is not eligible for achievements",
+/*MISSING*/    "this starting land is not eligible for achievements",
+/*MISSING*/    "this starting land is not eligible for achievements",
     }},
   {0xde3776b3, { // "would be destroyed in %the1"
    "by%ł1by zniszczon%y1 %abl1",
@@ -25302,6 +29290,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "generators (%1,%2), size %3",
    "genérateurs (%1,%2), taille %3",
     }},
+  {0xdf29d5be, { // "keep the vertical angle of the camera"
+   "trzymaj pionowy kąt kamery",
+/*MISSING*/    "keep the vertical angle of the camera",
+   "udržuj vertikální úhel kamery",
+/*MISSING*/    "keep the vertical angle of the camera",
+/*MISSING*/    "keep the vertical angle of the camera",
+/*MISSING*/    "keep the vertical angle of the camera",
+/*MISSING*/    "keep the vertical angle of the camera",
+    }},
   {0xdf539501, { // "%The1 scares %the2!"
    "%1 wystraszy%ł1 %a2!",
    "%1 %a2 korkuttu!",
@@ -25347,6 +29344,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "affect model scale",
    "affecte l'échelle du modèle",
     }},
+  {0xdfab69d9, { // "No way to hit this place."
+   "Nie da się tam trafić.",
+/*MISSING*/    "No way to hit this place.",
+   "To se nedá zasáhnout.",
+/*MISSING*/    "No way to hit this place.",
+/*MISSING*/    "No way to hit this place.",
+/*MISSING*/    "No way to hit this place.",
+/*MISSING*/    "No way to hit this place.",
+    }},
   {0xdfb83355, { // "reflect"
    "odbicie",
 /*MISSING*/    "reflect",
@@ -25364,6 +29370,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "scale model",
 /*MISSING*/    "scale model",
    "échelle du modèle",
+    }},
+  {0xdffc1571, { // "Too many pauses!"
+   "za dużo pauz!",
+/*MISSING*/    "Too many pauses!",
+   "Příliš mnoho pauz!",
+/*MISSING*/    "Too many pauses!",
+/*MISSING*/    "Too many pauses!",
+/*MISSING*/    "Too many pauses!",
+/*MISSING*/    "Too many pauses!",
     }},
   {0xe00a9269, { // "irregular to save:"
    "mapa nieregularna do zapisu:",
@@ -25464,6 +29479,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "configure joystick axes",
    "configurer les axes du joystick",
     }},
+  {0xe0e0318e, { // "no filters"
+   "bez filtrów",
+/*MISSING*/    "no filters",
+   "bez filtrů",
+/*MISSING*/    "no filters",
+/*MISSING*/    "no filters",
+/*MISSING*/    "no filters",
+/*MISSING*/    "no filters",
+    }},
   {0xe0e74a20, { // "You cannot attack %the1 directly!"
    "Nie możesz atakować %a1 wprost!",
    "%a1 doğrudan öldüremezsiniz!",
@@ -25472,6 +29496,15 @@ sentence all_sentences[] = {
    "Du kannst %den1 %a1 nicht direkt angreifen!",
    "Você não pode atacar %na1 diretamente!",
    "Vous ne pouvez pas attaquer %le1 directement !",
+    }},
+  {0xe10ef326, { // "error: this embedding does not work in shmup"
+   "błąd: to zanurzenie nie działa w trybie strzelanki",
+/*MISSING*/    "error: this embedding does not work in shmup",
+   "chyba: toto vnoření nefunguje ve střílečkovém módu",
+/*MISSING*/    "error: this embedding does not work in shmup",
+/*MISSING*/    "error: this embedding does not work in shmup",
+/*MISSING*/    "error: this embedding does not work in shmup",
+/*MISSING*/    "error: this embedding does not work in shmup",
     }},
   {0xe1346132, { // "centered"
    "po środku",
@@ -25797,6 +29830,15 @@ sentence all_sentences[] = {
    "Veja mais no site: ",
    "Plus sur le site internet : ",
     }},
+  {0xe2446e9e, { // "You have no ranged Orbs!"
+   "Nie masz Sfer działających na odległość!",
+/*MISSING*/    "You have no ranged Orbs!",
+   "Nemáš žádné dálkové Sféry!",
+/*MISSING*/    "You have no ranged Orbs!",
+/*MISSING*/    "You have no ranged Orbs!",
+/*MISSING*/    "You have no ranged Orbs!",
+/*MISSING*/    "You have no ranged Orbs!",
+    }},
   {0xe25c6c48, { // "\"Be careful in the Rose Garden! It is beautiful, but very dangerous!\""
    "\"Uważaj w Różanym Ogrodzie! Jest tam pięknie, ale bardzo niebezpiecznie!\"",
 /*MISSING*/    "\"Be careful in the Rose Garden! It is beautiful, but very dangerous!\"",
@@ -25860,6 +29902,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Halloween is a special land, that is available only in the spherical or elliptic geometry (press 'o' to switch). You play on the surface of a jack-o'-lantern, and have to collect as many Treats as possible. Each Treat you collect brings new monsters to fight, and new magical powers for you. You have to fight the monsters while effectively managing your limited resources.",
    "Halloween est un pays spécial, qui n'est disponible que dans la géométrie sphérique et elliptique (appuyer sur 'o'). Vous jouez sur la surface d'une citrouille lanterne,et devez collecter autant de Bonbons que possible. Chaque Bonbon collecté amène d'autre monstres à combattre, et de nouveaux pouvoirs magiques pour vous. Vous devez combattre les monstres en gérant efficacement vos ressources limités.",
     }},
+  {0xe28dd042, { // "%The1 cannot be used on big monsters."
+   "%1 nie może być użyt%y1 na dużych potworach.",
+/*MISSING*/    "%The1 cannot be used on big monsters.",
+   "%1 se nedá používat na velké netvory.",
+/*MISSING*/    "%The1 cannot be used on big monsters.",
+/*MISSING*/    "%The1 cannot be used on big monsters.",
+/*MISSING*/    "%The1 cannot be used on big monsters.",
+/*MISSING*/    "%The1 cannot be used on big monsters.",
+    }},
   {0xe29941d0, { // "The treasure gives your magical powers!"
    "Skarby dają Ci moce magiczne!",
 /*MISSING*/    "The treasure gives your magical powers!",
@@ -25868,6 +29919,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "The treasure gives your magical powers!",
 /*MISSING*/    "The treasure gives your magical powers!",
    "Ce trésor vous donne des pouvoirs magiques !",
+    }},
+  {0xe2a7d60e, { // "You are too weakened to attack %the1!"
+   "Jesteś za słab%y0, by zaatakować %a2!",
+/*MISSING*/    "You are too weakened to attack %the1!",
+   "Jsi příliš slab%ý0 na útok proti %a2!",
+/*MISSING*/    "You are too weakened to attack %the1!",
+/*MISSING*/    "You are too weakened to attack %the1!",
+/*MISSING*/    "You are too weakened to attack %the1!",
+/*MISSING*/    "You are too weakened to attack %the1!",
     }},
   {0xe2a8da89, { // "A piece of a magic mirror, or a mirage cloud, that can be used for magical purposes. Only mirrors and clouds in the Land of Mirrors leave these."
    "Odłamek szkła z magicznego lustra albo fragment mirażowej chmury. Może zostać użyty do magii. Tylko lustra i chmury z Krainy Luster zostawiają odłamki.",
@@ -25913,6 +29973,15 @@ sentence all_sentences[] = {
    "F6 = HQ Screenshot",
 /*MISSING*/    "F6 = HQ shot",
    "F6 = capture HQ",
+    }},
+  {0xe32f671c, { // "Sky is rendered at the distance computed based on the sky height, which might be beyond the range visible in fog. To prevent this, the intensity of the fog effect depends on the value here rather than the actual distance. Stars are affected similarly."
+   "Niebo jest renderowane w odległości obliczanej na podstawie parametru, co może być dalej, niż zasięg widoczny we mgle. By tego uniknąć, intensywność mgły zależy od tej wartości zamiast faktycznej odległości. Ten sam efekt wpływa na gwiazdy.",
+/*MISSING*/    "Sky is rendered at the distance computed based on the sky height, which might be beyond the range visible in fog. To prevent this, the intensity of the fog effect depends on the value here rather than the actual distance. Stars are affected similarly.",
+   "Nebe se renderuje ve vzdálenosti vypočtené na základě výšky oblohy, což může být dál, než činí viditelnost v mlze. Aby se tomu zabránilo, závisí intenzita efektu mlhy na této hodnotě a ne na skutečné vzdálenosti. Hvězdy jsou ovlivněny podobným způsobem.",
+/*MISSING*/    "Sky is rendered at the distance computed based on the sky height, which might be beyond the range visible in fog. To prevent this, the intensity of the fog effect depends on the value here rather than the actual distance. Stars are affected similarly.",
+/*MISSING*/    "Sky is rendered at the distance computed based on the sky height, which might be beyond the range visible in fog. To prevent this, the intensity of the fog effect depends on the value here rather than the actual distance. Stars are affected similarly.",
+/*MISSING*/    "Sky is rendered at the distance computed based on the sky height, which might be beyond the range visible in fog. To prevent this, the intensity of the fog effect depends on the value here rather than the actual distance. Stars are affected similarly.",
+/*MISSING*/    "Sky is rendered at the distance computed based on the sky height, which might be beyond the range visible in fog. To prevent this, the intensity of the fog effect depends on the value here rather than the actual distance. Stars are affected similarly.",
     }},
   {0xe35687dc, { // "This is your first victory!"
    "To Twoje pierwsze zwycięstwo!",
@@ -25976,6 +30045,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "and not in a chaos without norms.\"",
 /*MISSING*/    "and not in a chaos without norms.\"",
    "et non dans un chaos sans règles.\"",
+    }},
+  {0xe45c2f79, { // "less items/kills in landscape"
+   "mniej przedmiotów/zabić w trybie pejzażu",
+/*MISSING*/    "less items/kills in landscape",
+   "méně předmětů/zabití v orientaci na šířku",
+/*MISSING*/    "less items/kills in landscape",
+/*MISSING*/    "less items/kills in landscape",
+/*MISSING*/    "less items/kills in landscape",
+/*MISSING*/    "less items/kills in landscape",
     }},
   {0xe45db8a2, { // "This Orb allows you to blow your enemies away.\n\nClick a monster to blow it one cell away. It cannot be used against mimics, ghosts, sharks and other monsters restricted to a specific terrain, and multi-tile monsters."
    "Ta Sfera pozwala Ci zdmuchnąć Twoich przeciwników.\n\nKliknij potwora, by go zdmuchnąć o jedno pole. Nie można używać przeciwko mimikom, duchom i potworom zajmującym wiele pól.",
@@ -26184,6 +30262,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "disable level lines",
    "désactiver les lignes de niveau",
     }},
+  {0xe6c112d6, { // "Cannot pass through %the1 while vaulting!"
+   "Nie można przejść przez %a1 podczas przeskoku!",
+/*MISSING*/    "Cannot pass through %the1 while vaulting!",
+   "Při přeskoku nemůžeš projít skrz %a1!",
+/*MISSING*/    "Cannot pass through %the1 while vaulting!",
+/*MISSING*/    "Cannot pass through %the1 while vaulting!",
+/*MISSING*/    "Cannot pass through %the1 while vaulting!",
+/*MISSING*/    "Cannot pass through %the1 while vaulting!",
+    }},
   {0xe6ce10a7, { // "You are ambushed!"
    "Zasadzka!",
 /*MISSING*/    "You are ambushed!",
@@ -26192,6 +30279,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "You are ambushed!",
 /*MISSING*/    "You are ambushed!",
    "Vous tombez dans une embuscade !",
+    }},
+  {0xe6e27547, { // "auto rotation in 3D"
+   "automatyczne obracanie w 3D",
+/*MISSING*/    "auto rotation in 3D",
+   "automatická rotace ve 3D",
+/*MISSING*/    "auto rotation in 3D",
+/*MISSING*/    "auto rotation in 3D",
+/*MISSING*/    "auto rotation in 3D",
+/*MISSING*/    "auto rotation in 3D",
     }},
   {0xe6ff0e53, { // "HyperRogue help"
    "pomoc HyperRogue",
@@ -26292,6 +30388,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "standard graphics",
    "graphiques standard",
     }},
+  {0xe7b747bd, { // "infinite sky"
+   "nieskończone niebo",
+/*MISSING*/    "infinite sky",
+   "nekonečná obloha",
+/*MISSING*/    "infinite sky",
+/*MISSING*/    "infinite sky",
+/*MISSING*/    "infinite sky",
+/*MISSING*/    "infinite sky",
+    }},
   {0xe7da348e, { // "images"
    "obrazki",
 /*MISSING*/    "images",
@@ -26300,6 +30405,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "images",
 /*MISSING*/    "images",
    "images",
+    }},
+  {0xe7e5a019, { // "invert convex/concave"
+   "odwróć wypukły/wklęsły",
+/*MISSING*/    "invert convex/concave",
+   "převrať konvexní/konkávní",
+/*MISSING*/    "invert convex/concave",
+/*MISSING*/    "invert convex/concave",
+/*MISSING*/    "invert convex/concave",
+/*MISSING*/    "invert convex/concave",
     }},
   {0xe803d083, { // "A rare and expensive substance found in the Desert. It is believed to extend life and raise special psychic powers."
    "Rzadka i droga substancja z Pustyni. Podobno wydłuża życie i daje moce psychiczne.",
@@ -26463,6 +30577,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "memory game",
    "jeu de mémoire",
     }},
+  {0xe99bb361, { // " (fire mode on)"
+   " (tryb strzału)",
+/*MISSING*/    " (fire mode on)",
+   " (palebný mód)",
+/*MISSING*/    " (fire mode on)",
+/*MISSING*/    " (fire mode on)",
+/*MISSING*/    " (fire mode on)",
+/*MISSING*/    " (fire mode on)",
+    }},
   {0xe9bb4953, { // "{5,3,6} hyperbolic honeycomb"
    "{5,3,6} siatka hiperboliczna",
 /*MISSING*/    "{5,3,6} hyperbolic honeycomb",
@@ -26498,6 +30621,15 @@ sentence all_sentences[] = {
    "von rechts nach links",
 /*MISSING*/    "right to left",
    "de droite à gauche",
+    }},
+  {0xea25e933, { // "3D styles"
+   "style 3D",
+/*MISSING*/    "3D styles",
+   "styly 3D",
+/*MISSING*/    "3D styles",
+/*MISSING*/    "3D styles",
+/*MISSING*/    "3D styles",
+/*MISSING*/    "3D styles",
     }},
   {0xea3a65f2, { // "hint: press Alt while testing modes"
    "wsk: testując tryby wciśnij Alt",
@@ -26580,6 +30712,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "It was a floor... until something walked on it.",
    "C'était autrefois un sol... jusqu'à ce que quelque chose ait marché dessus.",
     }},
+  {0xeb0d0ddc, { // "(but the casual mode is on)"
+   "(ale włączono tryb niezobowiązujący)",
+/*MISSING*/    "(but the casual mode is on)",
+   "(ale je zapnutý neformální mód)",
+/*MISSING*/    "(but the casual mode is on)",
+/*MISSING*/    "(but the casual mode is on)",
+/*MISSING*/    "(but the casual mode is on)",
+/*MISSING*/    "(but the casual mode is on)",
+    }},
   {0xeb4af4af, { // "In this mode, HyperRogue is played on a 3D model of a part of the hyperbolic plane, similar to one you get from the 'paper model creator' or by hyperbolic crocheting.\n\n"
    "W tym trybie można grać w HyperRogue na trójwymiarowym modelu części płaszczyzny hiperbolicznej, podobnym do tego, który można otrzymać w kreatorze modeli papierowych albo poprzez hiperboliczne szydełkowanie.\n\n",
 /*MISSING*/    "In this mode, HyperRogue is played on a 3D model of a part of the hyperbolic plane, similar to one you get from the 'paper model creator' or by hyperbolic crocheting.\n\n",
@@ -26616,6 +30757,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "You swing your sword at the mirror.",
    "Vous balancez votre épée dans le miroir.",
     }},
+  {0xeb8a6283, { // "Accessible only from %the1, %2, or %3.\n"
+   "Kraina dostępna jedynie z: %1, %2, %3.\n",
+/*MISSING*/    "Accessible only from %the1, %2, or %3.\n",
+   "Kraj je přístupný pouze z: %1, %2, %3.\n",
+/*MISSING*/    "Accessible only from %the1, %2, or %3.\n",
+/*MISSING*/    "Accessible only from %the1, %2, or %3.\n",
+/*MISSING*/    "Accessible only from %the1, %2, or %3.\n",
+/*MISSING*/    "Accessible only from %the1, %2, or %3.\n",
+    }},
   {0xeb8f7e5c, { // "Defeat Flail Guards by moving away from them."
    "Wojownika z Cepem pokonujesz odchodząc od niego.",
 /*MISSING*/    "Defeat Flail Guards by moving away from them.",
@@ -26624,6 +30774,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Defeat Flail Guards by moving away from them.",
 /*MISSING*/    "Defeat Flail Guards by moving away from them.",
    "Vainquez les Gardes au Fléau en vous éloignant d'eux'.",
+    }},
+  {0xeb9c4879, { // "the tiles are circumscribed"
+   "kafelki są opisane",
+/*MISSING*/    "the tiles are circumscribed",
+   "dlaždice jsou opsané",
+/*MISSING*/    "the tiles are circumscribed",
+/*MISSING*/    "the tiles are circumscribed",
+/*MISSING*/    "the tiles are circumscribed",
+/*MISSING*/    "the tiles are circumscribed",
     }},
   {0xebae833a, { // "Mid detail range"
    "Zasięg średniego poziomu szczegółów",
@@ -26751,6 +30910,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Bitruncation introduces some regularity, allowing more sophisticated floor tilings and textures.",
    "La bitroncation introduit de la régularité, permettant un pavage du sol et des textures plus sophistiquées.",
     }},
+  {0xecad98f0, { // "cannot be disabled for this tiling"
+   "nie da się wyłączyć dla tej teselacji",
+/*MISSING*/    "cannot be disabled for this tiling",
+   "v tomto dláždění nelze vypnout",
+/*MISSING*/    "cannot be disabled for this tiling",
+/*MISSING*/    "cannot be disabled for this tiling",
+/*MISSING*/    "cannot be disabled for this tiling",
+/*MISSING*/    "cannot be disabled for this tiling",
+    }},
   {0xecb8c9e5, { // "Dead orbs gained!"
    "Zdobyte Martwe Sfery!",
    "Ölü Küreler kazandın!",
@@ -26832,6 +31000,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "\n\nFast flying creatures may attack or go against gravity only in their first move.",
    "\n\nDe rapides créatures volantes qui peuvent attaquer ou aller contre la gravité seulement au premier mouvement.",
     }},
+  {0xed2aeb51, { // "Standard Rogue weapon. Bump into a monster to hit. Most monsters attack you the same way."
+   "Standardowa broń. Uderz potwora, by go zaatakować. Większość potworów atakuję Cię w ten sposób.",
+/*MISSING*/    "Standard Rogue weapon. Bump into a monster to hit. Most monsters attack you the same way.",
+   "Standardní zbraň. Naběhni do netvora, abys na něj zaútočil. Většina netvorů na tebe útočí stejným způsobem.",
+/*MISSING*/    "Standard Rogue weapon. Bump into a monster to hit. Most monsters attack you the same way.",
+/*MISSING*/    "Standard Rogue weapon. Bump into a monster to hit. Most monsters attack you the same way.",
+/*MISSING*/    "Standard Rogue weapon. Bump into a monster to hit. Most monsters attack you the same way.",
+/*MISSING*/    "Standard Rogue weapon. Bump into a monster to hit. Most monsters attack you the same way.",
+    }},
   {0xed4008eb, { // "This guided tour is different than most other game tutorials -- you are not forced to do anything, and you can go wherever you want.\n\nHowever, %the1 is not what we are talking about now. We will not explain this land at the moment, and you could potentially get lost there.\n\nRemember that you can get to the next slide by pressing Enter."
    "Ta wycieczka różni się od większości podręczników w grach -- nie masz obowiązku robić tego, co tutorial sugeruje, możesz iść, dokąd chcesz.\n\nAle %1 nie jest miejscem, o którym teraz mówimy. Nie wyjaśnimy go i potencjalnie możesz się zgubić.\n\nNaciśnij Enter, by przejść do kolejnego slajdu.",
 /*MISSING*/    "This guided tour is different than most other game tutorials -- you are not forced to do anything, and you can go wherever you want.\n\nHowever, %the1 is not what we are talking about now. We will not explain this land at the moment, and you could potentially get lost there.\n\nRemember that you can get to the next slide by pressing Enter.",
@@ -26867,6 +31044,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "{3,3,5} 600-cell (elliptic space)",
 /*MISSING*/    "{3,3,5} 600-cell (elliptic space)",
    "{3,3,5} 600-case (espace elliptique)",
+    }},
+  {0xed8eee2f, { // "eligible for heptagonal"
+   "legalne dla trybu siedmiokątów",
+/*MISSING*/    "eligible for heptagonal",
+   "achievementy/leaderboardy sedmiúhelníkového módu dostupné",
+/*MISSING*/    "eligible for heptagonal",
+/*MISSING*/    "eligible for heptagonal",
+/*MISSING*/    "eligible for heptagonal",
+/*MISSING*/    "eligible for heptagonal",
     }},
   {0xedc1cd25, { // "cancel move"
    "anuluj ruch",
@@ -26967,6 +31153,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "near clipping plane",
    "près du plan découpé",
     }},
+  {0xee4cc920, { // "Firing cancelled."
+   "Strzał anulowany.",
+/*MISSING*/    "Firing cancelled.",
+   "Střelba zrušena.",
+/*MISSING*/    "Firing cancelled.",
+/*MISSING*/    "Firing cancelled.",
+/*MISSING*/    "Firing cancelled.",
+/*MISSING*/    "Firing cancelled.",
+    }},
   {0xee574d0d, { // "You mirror %the1."
    "Odbijasz %a1.",
 /*MISSING*/    "You mirror %the1.",
@@ -27056,6 +31251,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "rectified",
 /*MISSING*/    "rectified",
    "rectifié",
+    }},
+  {0xef79aefa, { // "connect "
+   "połącz ",
+/*MISSING*/    "connect ",
+   "spojit ",
+/*MISSING*/    "connect ",
+/*MISSING*/    "connect ",
+/*MISSING*/    "connect ",
+/*MISSING*/    "connect ",
     }},
   {0xef7bc730, { // "animate from last recenter to current view"
    "animacja od ostatniej pozycji centrowania do obecnego punktu widzenia",
@@ -27183,6 +31387,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "cylinder",
    "cylindre",
     }},
+  {0xf0312841, { // "pre-ordered"
+   "uporządkowane przed",
+/*MISSING*/    "pre-ordered",
+   "uspořádané 'před'",
+/*MISSING*/    "pre-ordered",
+/*MISSING*/    "pre-ordered",
+/*MISSING*/    "pre-ordered",
+/*MISSING*/    "pre-ordered",
+    }},
   {0xf03dabdc, { // "guided tour"
    "Wycieczka",
 /*MISSING*/    "guided tour",
@@ -27255,6 +31468,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "Love takes time, but it heals all wounds, and transcends time and space.\n\nThe Orb of Love is worth 30$$$, if you end the game with it.\n",
    "L'Amour prend du temps, mais guérit toutes les blessures, et transcende le temps et l'espace.\n\nL'Orbe d'Amour vaut 30$$$ quand vous terminez le jeu avec.\n",
     }},
+  {0xf0afad39, { // "You need to click crossbow or be close to fire."
+   "By strzelać, musisz nacisnąć kuszę, albo być blisko.",
+/*MISSING*/    "You need to click crossbow or be close to fire.",
+   "Na výstřel musíš kliknout na kuši nebo být blízko.",
+/*MISSING*/    "You need to click crossbow or be close to fire.",
+/*MISSING*/    "You need to click crossbow or be close to fire.",
+/*MISSING*/    "You need to click crossbow or be close to fire.",
+/*MISSING*/    "You need to click crossbow or be close to fire.",
+    }},
+  {0xf0b45617, { // "eligible for most"
+   "większość legalna",
+/*MISSING*/    "eligible for most",
+   "většina achievementů/leaderboardů dostupná",
+/*MISSING*/    "eligible for most",
+/*MISSING*/    "eligible for most",
+/*MISSING*/    "eligible for most",
+/*MISSING*/    "eligible for most",
+    }},
   {0xf0d58a0a, { // "%The1 squeaks in a confused way."
    "Zmieszan%ya1 %1 pisn%ął1.",
    "%1 şaşkın bir şekilde ciyaklıyor.",
@@ -27290,6 +31521,15 @@ sentence all_sentences[] = {
    "Vier Elemente",
 /*MISSING*/    "four elements",
    "quatre éléments",
+    }},
+  {0xf11950ef, { // "same curvature"
+   "ta sama krzywizna",
+/*MISSING*/    "same curvature",
+   "stejná křivost",
+/*MISSING*/    "same curvature",
+/*MISSING*/    "same curvature",
+/*MISSING*/    "same curvature",
+/*MISSING*/    "same curvature",
     }},
   {0xf11e5c50, { // "edit VR or non-VR settings"
    "ustawienia VR czy non-VR",
@@ -27345,6 +31585,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "see the true form",
    "voir la vrai forme",
     }},
+  {0xf1623320, { // "hat parameter (imaginary)"
+   "parametr hat (część urojona)",
+/*MISSING*/    "hat parameter (imaginary)",
+   "parametr 'hat' (imaginární)",
+/*MISSING*/    "hat parameter (imaginary)",
+/*MISSING*/    "hat parameter (imaginary)",
+/*MISSING*/    "hat parameter (imaginary)",
+/*MISSING*/    "hat parameter (imaginary)",
+    }},
   {0xf1833262, { // "or for columns : (A,B,C), (B,C,A), (D,D,D) where A+B+C=0"
    "lub dla kolumn : (A,B,C), (B,C,A), (D,D,D) gdzie A+B+C=0",
 /*MISSING*/    "or for columns : (A,B,C), (B,C,A), (D,D,D) where A+B+C=0",
@@ -27380,6 +31629,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "side-by-side",
 /*MISSING*/    "side-by-side",
    "côte à côte",
+    }},
+  {0xf1ca24e2, { // "translation+rotation"
+   "translacja+rotacja",
+/*MISSING*/    "translation+rotation",
+   "posunutí+otočení",
+/*MISSING*/    "translation+rotation",
+/*MISSING*/    "translation+rotation",
+/*MISSING*/    "translation+rotation",
+/*MISSING*/    "translation+rotation",
     }},
   {0xf1cdec37, { // "Configure dead zones"
    "ustaw martwe strefy",
@@ -27434,6 +31692,15 @@ sentence all_sentences[] = {
    "Du aktivierst %den1 %a1.",
    "Você ativa %na1.",
    "Vous activez %le1.",
+    }},
+  {0xf28ddfd3, { // "select the score/save file on startup"
+   "wybierz plik postępów podczas uruchamiania",
+/*MISSING*/    "select the score/save file on startup",
+   "vyber soubor se skóre/uloženou hrou při spuštění",
+/*MISSING*/    "select the score/save file on startup",
+/*MISSING*/    "select the score/save file on startup",
+/*MISSING*/    "select the score/save file on startup",
+/*MISSING*/    "select the score/save file on startup",
     }},
   {0xf29df1d7, { // "set to 90° for the ring projection"
    "ustaw 90° by uzyskać rzut pierścieniowy",
@@ -27516,6 +31783,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Not available in the pure tactics mode!",
    "Non disponible en mode stratégie !",
     }},
+  {0xf34ed8f4, { // "Cannot attack there!"
+   "Nie można tam zaatakować!",
+/*MISSING*/    "Cannot attack there!",
+   "Tam nemůžeš útočit!",
+/*MISSING*/    "Cannot attack there!",
+/*MISSING*/    "Cannot attack there!",
+/*MISSING*/    "Cannot attack there!",
+/*MISSING*/    "Cannot attack there!",
+    }},
   {0xf3650a8a, { // "summon treasure"
    "przywołaj skarby",
    "hazine çıkar",
@@ -27543,6 +31819,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "\"It is not possession but the act of getting there, ",
    "\"Ce n'est pas la possession mais le processus permettant ",
     }},
+  {0xf399967f, { // "altitude of the stars"
+   "wysokość gwiazd",
+/*MISSING*/    "altitude of the stars",
+   "výška hvězd",
+/*MISSING*/    "altitude of the stars",
+/*MISSING*/    "altitude of the stars",
+/*MISSING*/    "altitude of the stars",
+/*MISSING*/    "altitude of the stars",
+    }},
   {0xf3ace9ae, { // "\"The Red Rock Valley is dangerous, but beautiful.\""
    "\"Dolina Czerwonej Skały jest piękna, choć niebezpieczna.\"",
    "\"KızılKaya Vadisi tehlikeli ama manzara çok güzel.\"",
@@ -27551,6 +31836,15 @@ sentence all_sentences[] = {
    "\"Das Rotfelsental ist gefährlich aber wunderschön.\"",
 /*MISSING*/    "\"The Red Rock Valley is dangerous, but beautiful.\"",
    "\"La Vallée de Roche Rouge est dangereuse, mais belle.\"",
+    }},
+  {0xf3af1713, { // "hyperbolic cylinder"
+   "walec hiperboliczny",
+/*MISSING*/    "hyperbolic cylinder",
+   "hyperbolický válec",
+/*MISSING*/    "hyperbolic cylinder",
+/*MISSING*/    "hyperbolic cylinder",
+/*MISSING*/    "hyperbolic cylinder",
+/*MISSING*/    "hyperbolic cylinder",
     }},
   {0xf3b6f9e6, { // "Collect as many Dodecahedra as you can, then return here!"
    "Zbierz jak najwięcej Dwunastościanów i tu wróć!",
@@ -27587,6 +31881,15 @@ sentence all_sentences[] = {
    "\nMit Distanzorbs kann per Shift-Klick auf die gewünschte Position gezielt werden. ",
 /*MISSING*/    "\nRanged Orbs can be targeted by shift-clicking the desired location. ",
    "\nLes Orbes à distance peuvent être déclenchés en shift-cliquant l'emplacement souhaité. ",
+    }},
+  {0xf3d98797, { // "Welcome to HyperRanger!"
+   "Witaj w HyperRanger!",
+/*MISSING*/    "Welcome to HyperRanger!",
+   "Vítej v HyperRanger!",
+/*MISSING*/    "Welcome to HyperRanger!",
+/*MISSING*/    "Welcome to HyperRanger!",
+/*MISSING*/    "Welcome to HyperRanger!",
+/*MISSING*/    "Welcome to HyperRanger!",
     }},
   {0xf3e0ebc0, { // "You switch places with %the1."
    "Zamieniasz się miejscami z %abl1.",
@@ -27669,6 +31972,24 @@ sentence all_sentences[] = {
 /*MISSING*/    "octagons",
    "octogones",
     }},
+  {0xf44d6c52, { // "Sierpiński triangle"
+   "trójkąt Sierpińskiego",
+/*MISSING*/    "Sierpiński triangle",
+   "Sierpińského trojúhelník",
+/*MISSING*/    "Sierpiński triangle",
+/*MISSING*/    "Sierpiński triangle",
+/*MISSING*/    "Sierpiński triangle",
+/*MISSING*/    "Sierpiński triangle",
+    }},
+  {0xf45ceea8, { // "do not render higher levels if camera too high"
+   "nie renderuj wyższych poziomów jeśli kamera jest ponad nimi",
+/*MISSING*/    "do not render higher levels if camera too high",
+   "nerenderuj vyšší úrovně, je-li kamera příliš vysoko",
+/*MISSING*/    "do not render higher levels if camera too high",
+/*MISSING*/    "do not render higher levels if camera too high",
+/*MISSING*/    "do not render higher levels if camera too high",
+/*MISSING*/    "do not render higher levels if camera too high",
+    }},
   {0xf47fed7b, { // "Welcome to Hyper-X-R-Rogue!"
    "Witaj w Hyper-X-R-Rogue!",
 /*MISSING*/    "Welcome to Hyper-X-R-Rogue!",
@@ -27678,6 +31999,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Welcome to Hyper-X-R-Rogue!",
    "Bienvenue dans Hyper-X-R-Rogue !",
     }},
+  {0xf494ea31, { // "1 for full stereographic/Panini projection. Lower values reduce the effect.\n\nHyperRogue uses a quick implementation, so parameter values too close to 1 may be buggy (outside of raycasting); try e.g. 0.9 instead."
+   "1 to pełny rzut stereograficzny/Paniniego; mniejsze wartości to efekt pośredni.\n\nObecna implementacja jest uproszczona, także wartości parametru zbytnio bliskie 1 mogą powodować błędy graficzne (poza trybem raycastingu), także zaleca się używać mniejszych wartości, przykładowo 0.9.",
+/*MISSING*/    "1 for full stereographic/Panini projection. Lower values reduce the effect.\n\nHyperRogue uses a quick implementation, so parameter values too close to 1 may be buggy (outside of raycasting); try e.g. 0.9 instead.",
+   "1 pro plnou stereografickou/Paniniho projekci. Nižší hodnoty účinek oslabují.\n\nHyperRogue používá rychlou implementaci, takže hodnoty parametrů, které se příliš blíží jedné, mohou vést k chybám (s výjimkou raycastingu); zkus raději např. hodnotu 0.9.",
+/*MISSING*/    "1 for full stereographic/Panini projection. Lower values reduce the effect.\n\nHyperRogue uses a quick implementation, so parameter values too close to 1 may be buggy (outside of raycasting); try e.g. 0.9 instead.",
+/*MISSING*/    "1 for full stereographic/Panini projection. Lower values reduce the effect.\n\nHyperRogue uses a quick implementation, so parameter values too close to 1 may be buggy (outside of raycasting); try e.g. 0.9 instead.",
+/*MISSING*/    "1 for full stereographic/Panini projection. Lower values reduce the effect.\n\nHyperRogue uses a quick implementation, so parameter values too close to 1 may be buggy (outside of raycasting); try e.g. 0.9 instead.",
+/*MISSING*/    "1 for full stereographic/Panini projection. Lower values reduce the effect.\n\nHyperRogue uses a quick implementation, so parameter values too close to 1 may be buggy (outside of raycasting); try e.g. 0.9 instead.",
+    }},
   {0xf4a62651, { // "Cannot teleport on a monster!"
    "Nie możesz teleportować się na potwora!",
    "Bir canavarın üzerine ışınlanamazsın!",
@@ -27686,6 +32016,15 @@ sentence all_sentences[] = {
    "Du kannst nicht auf Monster teleportieren!",
 /*MISSING*/    "Cannot teleport on a monster!",
    "Vous ne pouvez pas vous téléporter sur un monstre !",
+    }},
+  {0xf4a91189, { // "land size in horodisk mode"
+   "wielkość krainy w trybie horodysków",
+/*MISSING*/    "land size in horodisk mode",
+   "velikost krajů v horodiskovém módu",
+/*MISSING*/    "land size in horodisk mode",
+/*MISSING*/    "land size in horodisk mode",
+/*MISSING*/    "land size in horodisk mode",
+/*MISSING*/    "land size in horodisk mode",
     }},
   {0xf4b5eee4, { // "color by symmetries"
    "koloruj przez symetrie",
@@ -27921,6 +32260,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "-- use the Android menu instead",
    "-- utilisez le menu Android à la place",
     }},
+  {0xf7031dfd, { // "note: more choices in cubic honeycombs"
+   "uwaga: w teselacjach 3D kubicznych jest więcej możliwości",
+/*MISSING*/    "note: more choices in cubic honeycombs",
+   "poznámka: v krychlových dlážděních je více voleb",
+/*MISSING*/    "note: more choices in cubic honeycombs",
+/*MISSING*/    "note: more choices in cubic honeycombs",
+/*MISSING*/    "note: more choices in cubic honeycombs",
+/*MISSING*/    "note: more choices in cubic honeycombs",
+    }},
   {0xf7407f21, { // "mouse aiming sensitivity"
    "czułość celowania myszą",
 /*MISSING*/    "mouse aiming sensitivity",
@@ -28101,6 +32449,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "{7,4} (four heptagons)",
    "{7,4} (quatre heptagones)",
     }},
+  {0xf8b0e7d3, { // "subdivided"
+   "subdivided",
+/*MISSING*/    "subdivided",
+   "subdivided",
+/*MISSING*/    "subdivided",
+/*MISSING*/    "subdivided",
+/*MISSING*/    "subdivided",
+/*MISSING*/    "subdivided",
+    }},
   {0xf8d4a330, { // "WARNING: you are entering a minefield!"
    "UWAGA: wchodzisz na pole minowe!",
    "UYARI: bir mayıntarlasına giriyorsun!",
@@ -28136,6 +32493,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "The rug depicts a man in a deep dungeon, unable to leave.",
 /*MISSING*/    "The rug depicts a man in a deep dungeon, unable to leave.",
    "Ce tapis représente un homme dans un donjon profond, incapable de partir.",
+    }},
+  {0xf92bf018, { // "add to list"
+   "dodaj do listy",
+/*MISSING*/    "add to list",
+   "přidat na seznam",
+/*MISSING*/    "add to list",
+/*MISSING*/    "add to list",
+/*MISSING*/    "add to list",
+/*MISSING*/    "add to list",
     }},
   {0xf92ccd03, { // "A beautiful plant from the Wetland."
    "Piękny kwiat z Mokradeł.",
@@ -28182,6 +32548,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "paint pictures",
    "photos peintes",
     }},
+  {0xf9a5acfc, { // "{3,5,3} field quotient space"
+   "{3,5,3} przestrzeń ilorazowa ciała",
+/*MISSING*/    "{3,5,3} field quotient space",
+   "{3,5,3} prostor s tělesovým kvocientem",
+/*MISSING*/    "{3,5,3} field quotient space",
+/*MISSING*/    "{3,5,3} field quotient space",
+/*MISSING*/    "{3,5,3} field quotient space",
+   "{3,5,3} champ d'espace quotient",
+    }},
   {0xf9ae77b2, { // "HyperRogue for Android"
    "HyperRogue dla Android",
    "Android için HyperRogue",
@@ -28190,6 +32565,15 @@ sentence all_sentences[] = {
    "HyperRogue für Android",
 /*MISSING*/    "HyperRogue for Android",
    "HyperRogue pour Android",
+    }},
+  {0xf9c25caf, { // "bull line"
+   "linie byka",
+/*MISSING*/    "bull line",
+   "býčí čára",
+/*MISSING*/    "bull line",
+/*MISSING*/    "bull line",
+/*MISSING*/    "bull line",
+/*MISSING*/    "bull line",
     }},
   {0xf9c8497d, { // "zebra triangles"
    "zebra: trójkąty",
@@ -28307,6 +32691,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "save the current embedding",
 /*MISSING*/    "save the current embedding",
    "sauvegarder le plongement actuel",
+    }},
+  {0xfac73441, { // "{3,4,5} hyperbolic honeycomb"
+   "{3,4,5} siatka hiperboliczna",
+/*MISSING*/    "{3,4,5} hyperbolic honeycomb",
+   "{3,4,5} hyperbolické dělení",
+/*MISSING*/    "{3,4,5} hyperbolic honeycomb",
+/*MISSING*/    "{3,4,5} hyperbolic honeycomb",
+/*MISSING*/    "{3,4,5} hyperbolic honeycomb",
+   "{3,4,5} nid d'abeilles hyperbolique",
     }},
   {0xfada8183, { // "Möbius band (squares)"
    "wstęga Möbiusa (kwadraty)",
@@ -28641,6 +33034,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "(vsync disabled in VR)",
    "(vsync désactivé en VR)",
     }},
+  {0xfd9805d2, { // "How to rotate the Euclidean embedding, in degrees."
+   "O ile obrócić zanurzoną płaszczyznę euklidesową, w stopniach.",
+/*MISSING*/    "How to rotate the Euclidean embedding, in degrees.",
+   "O kolik stupňů otočit eukleidovské vnoření.",
+/*MISSING*/    "How to rotate the Euclidean embedding, in degrees.",
+/*MISSING*/    "How to rotate the Euclidean embedding, in degrees.",
+/*MISSING*/    "How to rotate the Euclidean embedding, in degrees.",
+/*MISSING*/    "How to rotate the Euclidean embedding, in degrees.",
+    }},
   {0xfd9e2afd, { // "F1 - help"
    "F1 - pomoc",
 /*MISSING*/    "F1 - help",
@@ -28685,6 +33087,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "spherical",
 /*MISSING*/    "spherical",
    "sphérique",
+    }},
+  {0xfe2a5244, { // "3D detailed settings"
+   "szczegółowe ustawienia 3D",
+/*MISSING*/    "3D detailed settings",
+   "detailní nastavení 3D",
+/*MISSING*/    "3D detailed settings",
+/*MISSING*/    "3D detailed settings",
+/*MISSING*/    "3D detailed settings",
+/*MISSING*/    "3D detailed settings",
     }},
   {0xfe4f757a, { // "This land is a quick gateway to other lands. It is very easy to find other lands from the Crossroads. Which means that you find monsters from most other lands here!\n\nAs long as you have found enough treasure in their native lands, you can find magical items in the Crossroads. Mirror Land brings mirrors and clouds, and other land types bring magical orbs.\n\nA special treasure, Hyperstone, can be found on the Crossroads, but only after you have found 10 of every other treasure."
    "Ta kraina jest szybkim przejściem do pozostałych krain.\n\nBardzo łatwo stąd dostać się do większości miejsc, ale można też tu spotkać potwory z różnych stron!\n\nMożesz znaleźć magiczne przedmioty na Skrzyżowaniu, jeśli zdoby%łeś0 wystarczająco wiele skarbów w ich rodzinnych krainach. Są to sfery, magiczne lustra i chmury.\n\nSpecyficzne skarby Skrzyżowań, Hiperkamienie, można znaleźć na Skrzyżowaniu, ale tylko po znalezieniu 10 jednostek każdego innego skarbu.",
@@ -28803,6 +33214,15 @@ sentence all_sentences[] = {
 /*MISSING*/    "Find a %1 in %the2.",
    "Trouvez un %1 %a2.",
     }},
+  {0xfefcd9de, { // "light, camera, and objects always take the shortest path"
+   "światło, kamera, i obiekty ruszają się po najkrótszej ścieżce",
+/*MISSING*/    "light, camera, and objects always take the shortest path",
+   "světlo, kamera a objekty se vždy pohybují po nejkratší dráze",
+/*MISSING*/    "light, camera, and objects always take the shortest path",
+/*MISSING*/    "light, camera, and objects always take the shortest path",
+/*MISSING*/    "light, camera, and objects always take the shortest path",
+/*MISSING*/    "light, camera, and objects always take the shortest path",
+    }},
   {0xfefd5112, { // "The skeleton of a tree."
    "Szkielet drzewa.",
 /*MISSING*/    "The skeleton of a tree.",
@@ -28865,6 +33285,15 @@ sentence all_sentences[] = {
    "hereinzoomen",
 /*MISSING*/    "zoom in",
    "zoomer",
+    }},
+  {0xff821b20, { // "toggle numerical display"
+   "przestaw tryb numeryczny",
+/*MISSING*/    "toggle numerical display",
+   "přepnutí číselného displeje",
+/*MISSING*/    "toggle numerical display",
+/*MISSING*/    "toggle numerical display",
+/*MISSING*/    "toggle numerical display",
+/*MISSING*/    "toggle numerical display",
     }},
   {0xffcaeaf7, { // "This land works only in the shmup mode."
    "Ta kraina działa jedynie w trybie strzelanki.",
@@ -29007,7 +33436,7 @@ fullnoun all_nouns[] = {
   {0x56e4d1, 0, { // ""Pike""
     {1, "Szczupak", "Szczupaki", "Szczupaka", "Szczupakiem"},
     {0/*MISSING*/ , "Pike"/*MISSING*/ , "Pike"/*MISSING*/ , "Pike"/*MISSING*/ , "Pike"},
-    {0/*MISSING*/ , "Pike"/*MISSING*/ , "Pike"/*MISSING*/ , "Pike"/*MISSING*/ , "Pike"},
+    {1, "Štika", "Štiky", "Štiku", "Štikou"},
     {1, "Щука", "Щуки", "Щуку", "Щукой"},
     {0/*MISSING*/ , "Pike"/*MISSING*/ , "Pike"/*MISSING*/ , "Pike"/*MISSING*/ , "Pike"},
     {0/*MISSING*/ , "Pike"/*MISSING*/ , "Pike"/*MISSING*/ , "Pike"/*MISSING*/ , "Pike"},
@@ -31194,7 +35623,7 @@ fullnoun all_nouns[] = {
   {0x6c40aee0, 0, { // ""Palace Quest""
     {3, "Misja w Pałacu", "Misje w Pałacu", "Misję w Pałacu", "na Misji w Pałacu"},
     {0/*MISSING*/ , "Palace Quest"/*MISSING*/ , "Palace Quest"/*MISSING*/ , "Palace Quest"/*MISSING*/ , "Palace Quest"},
-    {0/*MISSING*/ , "Palace Quest"/*MISSING*/ , "Palace Quest"/*MISSING*/ , "Palace Quest"/*MISSING*/ , "Palace Quest"},
+    {1, "Palácová mise", "Palácové mise", "Palácovou misi", "na Palácové misi"},
     {3, "Дворцовый квест", "Дворцовые квесты", "Дворцовый квест", "в Дворцовом квесте"},
     {0/*MISSING*/ , "Palace Quest"/*MISSING*/ , "Palace Quest"/*MISSING*/ , "Palace Quest"/*MISSING*/ , "Palace Quest"},
     {0/*MISSING*/ , "Palace Quest"/*MISSING*/ , "Palace Quest"/*MISSING*/ , "Palace Quest"/*MISSING*/ , "Palace Quest"},
