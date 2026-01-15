@@ -76,7 +76,7 @@ EX void playSeenSound(cell *c) {
     playSound(c, "seen-necromancer");
   else if(c->monst == moGhost)
     playSound(c, "seen-ghost");
-  else if(c->monst == moRoseBeauty) 
+  else if(c->monst == moRoseBeauty || c->monst == moLostBeauty) 
     playSound(c, princessgender() ? "seen-rosebeauty" : "seen-gardener");
   else if(c->monst == moVizier) 
     playSound(c, "seen-vizier");

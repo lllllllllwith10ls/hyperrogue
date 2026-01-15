@@ -1003,8 +1003,8 @@ WALL( '?', 0xFF00FF, "<temporary>", waTemporary, WF_WALL, RESERVED, 0, sgNone,  
 WALL( '?', 0xFF00FF, "<earth d", waEarthD, WF_WALL, RESERVED, 0, sgNone,  NODESC)
 WALL( '?', 0xFF00FF, "<elemental tmp>", waElementalTmp, WF_WALL, RESERVED, 0, sgNone,  NODESC)
 WALL( '?', 0xFF00FF, "<elemental d>", waElementalD, WF_WALL, RESERVED, 0, sgNone,  NODESC)
-WALL( '+', 0x00F000, "green slime", waSlime1, ZERO | WF_ALCHEMY, RESERVED, 0, sgSlime1,  NODESC)
-WALL( '+', 0xF0F000, "yellow slime", waSlime2, ZERO | WF_ALCHEMY, RESERVED, 0, sgSlime2,  NODESC)
+WALL( '+', 0x00F000, "green slime", waSlime1, ZERO | WF_ALCHEMY, RESERVED, 0, sgSlime1, painthelp)
+WALL( '+', 0xF0F000, "yellow slime", waSlime2, ZERO | WF_ALCHEMY, RESERVED, 0, sgSlime2, painthelp)
 WALL( '#', 0x764e7c, "rosebush", waRose, WF_WALL | WF_HIGHWALL | WF_THORNY, RESERVED, 0, sgNone, roselanddesc)
 WALL( '#', 0xC0C000, "warp gate", waWarpGate, WF_WALL | WF_HIGHWALL, RESERVED, 0, sgNone,
     "This gate separates the warped area from the normal land.")
@@ -1655,16 +1655,14 @@ ITEM( 'o', 0x808080, "Orb of Chaos", itOrbChaos, IC_ORB, ZERO, RESERVED, osTerra
   REQ(ITEMS_TOTAL(LST, variant_unlock_value()*4/3))
   #undef LST
 
-LAND( 0xFFFFFF, "Paintscape",    laPaint, ZERO, itPaint, RESERVED, 
-  "This area is filled with paint of many colors."
-  )
+LAND( 0xFFFFFF, "Paintscape",    laPaint, ZERO, itPaint, RESERVED, painthelp)
 ITEM( '?', 0xFFFFFF, "Painting", itPaint, IC_TREASURE, ZERO, RESERVED, osNone, 
   "A valuable painting.")
 ITEM( 'o', 0xFFFFFF, "Orb of Color", itOrbColor, IC_ORB, ZERO, RESERVED, osUtility, 
    "This orb changes the colors of cells around you, and adds color to cells."
   )
-WALL( '+', 0xF07000, "orange slime", waSlime3, ZERO | WF_ALCHEMY, RESERVED, 0, sgSlime3,  NODESC)
-WALL( '+', 0x700070, "purple slime", waSlime4, ZERO | WF_ALCHEMY, RESERVED, 0, sgSlime4,  NODESC)
+WALL( '+', 0x00F0F0, "cyan slime", waSlime3, ZERO | WF_ALCHEMY, RESERVED, 0, sgSlime3,  painthelp)
+WALL( '+', 0xF000F0, "magenta slime", waSlime4, ZERO | WF_ALCHEMY, RESERVED, 0, sgSlime4,  painthelp)
 MONSTER( 'P', 0xFFFFFF, "Painter", moPaint, CF_FACE_UP | CF_NOBLOW | CF_SLIME | CF_IGNORE_SMELL, RESERVED, moSlime, "Acts like a slime beast from the Alchemist Lab.")
 MONSTER( 'A', 0xFFFFFF, "Artist", moArt, CF_FACE_UP | CF_NOBLOW | CF_FLYING | CF_BIRD, RESERVED, moEagle, "Leaves a trail of color behind.")
   NATIVE(among(m, moPaint, moArt) ? 2 : 0)
@@ -1839,6 +1837,31 @@ ITEM('}', 0xFFFF80, "Crossbow", itCrossbow, IC_NAI, ZERO, RESERVED, osNone,
   "Your crossbow. Press 'f' or click it in the inventory to toggle firing mode. In firing mode, select a tile to see the trajectory, then "
   "click again to fire. After firing, the crossbow takes some time to reload."
   )
+
+
+LAND( 0xDF76B5, "Hedge Maze", laHedgeMaze, ZERO | LF_CYCLIC, itWhiteRose, RESERVED, 
+  "The rose gardens have many magical hedge mazes, developed around a central, "
+  "powerful rosebush. Scent waves emit from the center and spread outwards "
+  "infinitely. Only those able to resist the scent, or those foolish enough "
+  "to think they can, exist here.")
+  NATIVE((m == moRoseLady) ? 1 : (m == moLostBeauty) ? 2 : 0)
+  REQ(ITEMS(itRose, U5))
+
+MONSTER( 'R', 0xC00000, "Lost Beauty", moLostBeauty, CF_FACE_UP | CF_HIGH_THREAT, RESERVED, moYeti, GENDERSWITCH )
+
+WALL( '#', 0xDF76B5, "hedge", waHedge, WF_WALL | WF_HIGHWALL | WF_THORNY, RESERVED, 0, sgNone, "A hedge. Scent can pass through it.")
+
+ITEM( '%', 0xFFFFFF, "White Rose", itWhiteRose, IC_TREASURE, ZERO, RESERVED, osNone, 
+  "A rare, pure, powerful flower."
+  )
+
+ITEM( 'o', 0x744c7c / 4 + 0x800000, "Orb of the Garden", itOrbGarden, IC_ORB, ZERO | IF_RANGED, RESERVED, osRanged, 
+  "This orb creates hedges inside of the hedge maze, and rosebushes outside."
+  )
+
+WALL( '#', 0x744c7c / 4 + 0x800000, "temporary hedge", waTempHedge, WF_WALL | WF_HIGHWALL | WF_THORNY | WF_TIMEOUT, RESERVED, 0, sgNone, "A temporary hedge. Scent can pass through it.")
+
+WALL( '#', 0x764e7c, "temporary rosebush", waTempRose, WF_WALL | WF_HIGHWALL | WF_THORNY | WF_TIMEOUT, RESERVED, 0, sgNone, "A temporary rosebush.")
 
 //shmupspecials
 MONSTER( '@', 0xC0C0C0, "Rogue", moPlayer, CF_FACE_UP | CF_PLAYER, RESERVED, moNone, "In the Shoot'em Up mode, you are armed with thrown Knives.")

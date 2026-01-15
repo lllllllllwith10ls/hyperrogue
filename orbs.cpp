@@ -211,6 +211,7 @@ EX void reduceOrbPowers() {
   reduceOrbPower(itOrbBarr, 333);
   reduceOrbPower(itOrbCharge, 777);
   reduceOrbPower(itOrbReplicate, 150);
+  reduceOrbPower(itOrbGarden, 333);
 
   reduceOrbPower(itOrbSide1, 120);
   reduceOrbPower(itOrbSide2, 120);
@@ -293,6 +294,9 @@ EX void flashCell(cell *c, eMonster killer, flagtype flags) {
   if(c->wall == waCTree)     c->wall = waCIsland2;
   if(c->wall == waPalace)    c->wall = waRubble;
   if(c->wall == waRose)      c->wall = waNone;
+  if(c->wall == waHedge)     c->wall = waNone;
+  if(c->wall == waTempHedge) c->wall = waNone;
+  if(c->wall == waTempRose)  c->wall = waNone;
   if(c->wall == waOpenGate || c->wall == waClosedGate) {
     eWall w = c->wall;
     c->wall = waNone;
@@ -535,6 +539,9 @@ EX void castLightningBolt(cellwalker lig) {
     if(c->wall == waDock)  makeflame(c, 5, false);
     if(c->wall == waCTree) makeflame(c, 12, false);
     if(c->wall == waRose)  makeflame(c, 60, false);
+    if(c->wall == waHedge)  makeflame(c, 60, false);
+    if(c->wall == waTempHedge)  makeflame(c, 60, false);
+    if(c->wall == waTempRose)  makeflame(c, 60, false);
     if(cellHalfvine(c) && c->wall == lig.peek()->wall) {
       destroyHalfvine(c, waPartialFire, 4);
       brk = true;
@@ -1041,6 +1048,26 @@ void tempBarrAt(cell *dest) {
     dest->wparam = 10;
     }
   useupOrb(itOrbBarr, 10);
+  createNoise(2);
+  bfs();
+  checkmoveO();
+  }
+
+  
+bool gardenPossibleAt(cell *dest) {
+  if(isGravityLand(dest->land)) return false;
+  if(dest->monst) return false;
+  return dest->wall == waNone;
+  }
+void gardenAt(cell *dest) {
+  if(dest->wall == waNone) {
+    if(dest->land == laHedgeMaze) 
+      dest->wall = waTempHedge;
+    else
+      dest->wall = waTempRose;
+    dest->wparam = 50;
+    }
+  useupOrb(itOrbGarden, 10);
   createNoise(2);
   bfs();
   checkmoveO();
@@ -1662,6 +1689,12 @@ EX eItem targetRangedOrb(cell *c, orbAction a) {
     if(!isCheck(a)) tempBarrAt(c), apply_impact(c);
     return itOrbBarr;
     }
+    
+  // (5f) bushes
+  if(items[itOrbGarden] && gardenPossibleAt(c)) {
+    if(!isCheck(a)) gardenAt(c), apply_impact(c);
+    return itOrbGarden;
+    }
   
   // (6) place fire (non-shmup variant)
   if(items[itOrbDragon] && !shmup::on
@@ -1823,6 +1856,9 @@ EX int orbcharges(eItem it) {
        
     case itCurseGluttony:
       return 30;
+      
+    case itOrbGarden:
+      return 66; 
        
     default:
       return 0;

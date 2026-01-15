@@ -974,7 +974,7 @@ EX void describeMouseover() {
 
       out += ", "; out += XLAT1(winf[w].name);
       
-      if(c->wall == waRose) out += " (" + its(7-rosephase) + ")";
+      if(c->wall == waRose || c->wall == waTempRose) out += " (" + its(7-rosephase) + ")";
       if(c->wall == waTerraWarrior) out += " (" + its(c->wparam) + ")";
       #if CAP_COMPLEX2
       if(isDie(c->wall)) out += " (" + dice::describe(c) + ")";

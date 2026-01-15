@@ -59,7 +59,7 @@ int* killtable[] = {
     &kills[moPike], &kills[moRusalka], &kills[moFrog], &kills[moPhaser], &kills[moVaulter],
     &kills[moPaint], &kills[moArt], &kills[moDeathElemental], &kills[moStormElemental],
     &kills[moParant], &kills[moMetant], &kills[moOrthant],
-    &kills[moHexer], &kills[moAnimatedDie], &kills[moAngryDie],
+    &kills[moHexer], &kills[moAnimatedDie], &kills[moAngryDie], &kills[moLostBeauty],
     NULL
     };
 
@@ -168,7 +168,7 @@ EX bool canAttack(cell *c1, eMonster m1, cell *c2, eMonster m2, flagtype flags) 
     
   // if(m2 == moTortoise && !(flags & AF_MAGIC)) return false;
   
-  if(m2 == moRoseBeauty)
+  if(m2 == moRoseBeauty || m2 == moLostBeauty)
     if(!(flags & (AF_MAGIC | AF_LANCE | AF_GUN | AF_SWORD_INTO | AF_BULL | AF_CRUSH))) 
     if(!isMimic(m1))
     if(!checkOrb(m1, itOrbBeauty) && !checkOrb(m1, itOrbAether) && !checkOrb(m1, itOrbShield))
@@ -306,6 +306,7 @@ EX void prespill(cell* c, eWall t, int rad, cell *from) {
     c->wall == waCamelotMoat || c->wall == waSea || c->wall == waCTree ||
     c->wall == waRubble || c->wall == waGargoyleFloor || c->wall == waGargoyle ||
     c->wall == waRose || c->wall == waPetrified || c->wall == waPetrifiedBridge || c->wall == waRuinWall ||
+    c->wall == waHedge || c->wall == waTempHedge || c->wall == waTempRose ||
     among(c->wall, waDeepWater, waShallow)) {
       record_spillinfo(c, t);
       t = waTemporary;
@@ -339,6 +340,8 @@ EX void prespill(cell* c, eWall t, int rad, cell *from) {
 EX eWall conditional_flip_slime(bool flip, eWall t) {
   if(flip && t == waFloorA) return waFloorB;
   if(flip && t == waFloorB) return waFloorA;
+  if(flip && t == waSlime2) return waSlime3;
+  if(flip && t == waSlime3) return waSlime2;
   return t;
   }
 
@@ -700,7 +703,7 @@ EX void killMonster(cell *c, eMonster who, flagtype deathflags IS(0)) {
       c->item = itNone;
       }
     eWall w = c->wall;
-    if(isFire(c) || c->wall == waRose || isReptile(c->wall)) {
+    if(isFire(c) || c->wall == waRose || c->wall == waTempRose || isReptile(c->wall)) {
       c->wall = waMineMine;
       explodeMine(c);
       if(isReptile(w)) kills[moReptile]++;

@@ -2257,9 +2257,9 @@ EX namespace heat {
             if(!ok) continue;
             }
 
-          if(c2->wall == waNone && c2->land == laRose && c->wparam >= 10)
+          if(c2->wall == waNone && (c2->land == laRose || c2->land == laHedgeMaze) && c->wparam >= 10)
             newfires.emplace_back(c2, c->wparam);
-          if(c2->wall == waFire && c2->land == laRose && c->wparam >= 10 && c2->wparam < c->wparam/2)
+          if(c2->wall == waFire && (c2->land == laRose || c2->land == laHedgeMaze) && c->wparam >= 10 && c2->wparam < c->wparam/2)
             newfires.emplace_back(c2, c->wparam);
           if(againstWind(c, c2) && c->wall != waEternalFire && c->wparam >= 10) {
             if(isFire(c2)) {
@@ -2279,7 +2279,7 @@ EX namespace heat {
           else if(c2->wall == waVinePlant || c2->wall == waRose || c2->wall == waSaloon ||
             c2->wall == waWeakBranch || c2->wall == waCanopy || c2->wall == waTrunk || c2->wall == waSolidBranch ||
             c2->wall == waBigBush || c2->wall == waSmallBush || c2->wall == waBonfireOff || c2->wall == waSmallTree ||
-            c2->wall == waDock)
+            c2->wall == waDock || c2->wall == waHedge || c2->wall == waTempHedge || c2->wall == waTempRose)
             newfires.emplace_back(c2, 12);
           else if(cellHalfvine(c2) && last && last->wall == c2->wall)
             newfires.emplace_back(c2, 12);
@@ -2424,6 +2424,9 @@ EX void doLightningNextTurn() {
       if(c2->wall == waDock)  makeflame(c2, 5, false);
       if(c2->wall == waCTree) makeflame(c2, 12, false);
       if(c2->wall == waRose)  makeflame(c2, 60, false);
+      if(c2->wall == waHedge)  makeflame(c2, 60, false);
+      if(c2->wall == waTempHedge)  makeflame(c2, 60, false);
+      if(c2->wall == waTempRose)  makeflame(c2, 60, false);
       if(cellHalfvine(c2)) {
         destroyHalfvine(c2, waPartialFire, 4);
         }

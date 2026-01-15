@@ -1,3 +1,4 @@
+[-04] */music/hr3-crossroads.ogg
 # Crossroads [02]
 [02] */music/hr3-crossroads.ogg
 # Desert [03]
@@ -172,6 +173,8 @@
 [95] */music/hr3-graveyard.ogg
 # Dice Reserve
 [96] */music/hr3-laboratory.ogg
+# Hedge Maze
+[97] */music/hr3-hell.ogg
 
 # None [00] (used when the window is out of focus)
 

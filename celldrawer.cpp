@@ -221,6 +221,14 @@ void celldrawer::setcolors() {
       }
 #endif
 
+    case laHedgeMaze:
+      if(eubinary || sphere || c->master->alt)
+        fcol = flip_dark(celldistAlt(c), floorcolors[c->land], 0xf5d6e9);
+      else fcol = 0;
+      if(c->wall == waHedge)
+        wcol = fcol;
+      break;
+      
     case laMinefield: 
       fcol = floorcolors[c->land];
       if(c->wall == waMineMine && ((cmode & sm::MAP) || !canmove))
@@ -510,14 +518,15 @@ void celldrawer::setcolors() {
       }
     
     case waFloorA: case waFloorB: case waSlime1: case waSlime2: case waSlime3: case waSlime4: // isAlch
+      wcol = winf[conditional_flip_slime(det(V.T) < 0, c->wall)].color;
       if(c->item && !(history::includeHistory && history::infindhistory.count(c)))
         fcol = wcol = iinf[c->item].color;
       else {
         fcol = wcol;
         if(c->land == laPaint) {
-          if(c->wall == waFloorA)
+          if(conditional_flip_slime(det(V.T) < 0, c->wall) == waFloorA)
             fcol = wcol = 0xA00000;
-          else if(c->wall == waFloorB)
+          else if(conditional_flip_slime(det(V.T) < 0, c->wall) == waFloorB)
             fcol = wcol = 0x0000F0;
           }
         }
@@ -1193,6 +1202,7 @@ void celldrawer::set_land_floor(const shiftmatrix& Vf) {
       break;
     
     case laRose:
+    case laHedgeMaze:
       set_floor(cgi.shRoseFloor);
       break;
     
@@ -1549,7 +1559,7 @@ void celldrawer::draw_features() {
       if(c->land == laBrownian) goto wa_default;
       break;
     
-    case waRose: {
+    case waRose: case waTempRose: {
       aura_color = wcol;
       wcol <<= 1;
       if(c->cpdist > 5)
@@ -1558,7 +1568,10 @@ void celldrawer::draw_features() {
         wcol = 0xFF0000;
       else 
         wcol = gradient(wcol, 0xC00000, 0, rosephase, 6);
-      queuepoly(V, cgi.shThorns, 0xC080C0FF);
+      if(c->wall == waTempRose)
+        queuepoly(V, cgi.shThorns, 0x9D131FFF);
+      else
+        queuepoly(V, cgi.shThorns, 0xC080C0FF);
 
       for(int u=0; u<4; u+=2)
         queuepoly(V * spin(30._deg * u), cgi.shRose, darkena(wcol, 0, 0xC0));
@@ -2567,6 +2580,12 @@ void celldrawer::draw_monster_full() {
 
     if(c->monst == moSlime || c->monst == moPaint || c->monst == moArt) {
       moncol = winf[conditional_flip_slime(det(V.T) < 0, c->wall)].color;
+      if(c->land == laPaint) {
+        if(conditional_flip_slime(det(V.T) < 0, c->wall) == waFloorA)
+          moncol = 0xA00000;
+        else if(conditional_flip_slime(det(V.T) < 0, c->wall) == waFloorB)
+          moncol = 0x0000F0;
+        }
       moncol |= (moncol>>1);
       }
     

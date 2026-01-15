@@ -608,6 +608,7 @@ EX eLand getNewLand(eLand old) {
     }
 
   if(ls::hv_structure() && landUnlocked(laMountain)) tab[cnt++] = laMountain;
+  if(ls::hv_structure() && landUnlocked(laHedgeMaze)) tab[cnt++] = laHedgeMaze;
   if(ls::hv_structure() && landUnlocked(laClearing)) tab[cnt++] = laClearing;
   if(ls::voronoi_structure() && landUnlocked(laRlyeh) && !rlyehComplete()) LIKELY tab[cnt++] = laRlyeh;
   if(ls::hv_structure() && landUnlocked(laTemple)) tab[cnt++] = laTemple;
@@ -676,7 +677,7 @@ EX vector<eLand> land_over = {
   laHurricane, laAnt,
   laFrog, laEclectic, laCursed,
   laRuins, laEmerald, laVariant, laCamelot, 
-  laPrairie, laBull, laTerracotta, laRose,
+  laPrairie, laBull, laTerracotta, laRose, laHedgeMaze,
   laElementalWall, laTrollheim,
   laHell, laCrossroads3, laCocytus, laPower, laCrossroads4,
   laCrossroads5,

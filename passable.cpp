@@ -90,49 +90,48 @@ EX bool strictlyAgainstGravity(cell *w, cell *from, bool revdir, flagtype flags)
   }
 
 EX bool anti_alchemy(cell *w, cell *from) {
-//to fix
-  
-  bool alch1 = w->wall == waFloorA && from && from->wall == waFloorB && !w->item && !from->item;
-  alch1 |= w->wall == waFloorB && from && from->wall == waFloorA && !w->item && !from->item;
-  
-  alch1 |= w->wall == waFloorA && from && from->wall == waSlime1 && !w->item && !from->item;
-  alch1 |= w->wall == waSlime1 && from && from->wall == waFloorA && !w->item && !from->item;
-  
-  alch1 |= w->wall == waFloorA && from && from->wall == waSlime2 && !w->item && !from->item;
-  alch1 |= w->wall == waSlime2 && from && from->wall == waFloorA && !w->item && !from->item;
-  
-  alch1 |= w->wall == waFloorB && from && from->wall == waSlime2 && !w->item && !from->item;
-  alch1 |= w->wall == waSlime2 && from && from->wall == waFloorB && !w->item && !from->item;
-  
-  alch1 |= w->wall == waFloorB && from && from->wall == waSlime3 && !w->item && !from->item;
-  alch1 |= w->wall == waSlime3 && from && from->wall == waFloorB && !w->item && !from->item;
-  
-  alch1 |= w->wall == waSlime1 && from && from->wall == waSlime3 && !w->item && !from->item;
-  alch1 |= w->wall == waSlime3 && from && from->wall == waSlime1 && !w->item && !from->item;
-  
-  alch1 |= w->wall == waSlime1 && from && from->wall == waSlime4 && !w->item && !from->item;
-  alch1 |= w->wall == waSlime4 && from && from->wall == waSlime1 && !w->item && !from->item;
-  
-  alch1 |= w->wall == waSlime2 && from && from->wall == waSlime4 && !w->item && !from->item;
-  alch1 |= w->wall == waSlime4 && from && from->wall == waSlime2 && !w->item && !from->item;
-  
-  alch1 |= w->wall == waSlime3 && from && from->wall == waSlime4 && !w->item && !from->item;
-  alch1 |= w->wall == waSlime4 && from && from->wall == waSlime3 && !w->item && !from->item;
-  return alch1;
-/*
+
   if(!from) return false;
   if(!isAlchAny(w)) return false;
   if(!isAlchAny(from)) return false;
   if(w->item) return false;
   if(from->item) return false;
-  if(!nonorientable) return w->wall != from->wall;
+  if(!nonorientable) return anti_alchemy2(w->wall, from->wall);
   forCellIdEx(c1, i, w)
-    if(c1 == from && (w->c.mirror(i) ? w->wall != from->wall : w->wall == from->wall))
-      return false;
+    if(c1 == from) 
+      return anti_alchemy2(conditional_flip_slime(w->c.mirror(i),w->wall), from->wall);
   return true;
-*/
   }
 
+EX bool anti_alchemy2(eWall w, eWall from) {
+  bool alch1 = w == waFloorA && from == waFloorB;
+  alch1 |= w == waFloorB && from == waFloorA;
+  
+  alch1 |= w == waFloorA && from == waSlime1;
+  alch1 |= w == waSlime1 && from == waFloorA;
+  
+  alch1 |= w == waFloorA && from == waSlime3;
+  alch1 |= w == waSlime3 && from == waFloorA;
+  
+  alch1 |= w == waFloorB && from == waSlime1;
+  alch1 |= w == waSlime1 && from == waFloorB;
+  
+  alch1 |= w == waFloorB && from == waSlime2;
+  alch1 |= w == waSlime2 && from == waFloorB;
+  
+  alch1 |= w == waSlime1 && from == waSlime4;
+  alch1 |= w == waSlime4 && from == waSlime1;
+  
+  alch1 |= w == waSlime2 && from == waSlime3;
+  alch1 |= w == waSlime4 && from == waSlime2;
+  
+  alch1 |= w == waSlime3 && from == waSlime4;
+  alch1 |= w == waSlime4 && from == waSlime2;
+  
+  alch1 |= w == waSlime3 && from == waSlime4;
+  alch1 |= w == waSlime4 && from == waSlime3;
+  return alch1;
+  }
 
 #if HDR
 #define P_MONSTER    Flag(0)  // can move through monsters
@@ -202,6 +201,7 @@ EX bool passable(cell *w, cell *from, flagtype flags) {
     if(airdist(w) < 3) return false;
     if(againstWind(w,from)) return false;
     if(isGravityLand(w)) return false;
+    if(w->wall == waHedge || w->wall == waTempHedge) return true;
     }
 
   if(w->wall == waPlayerBarrier && !(flags & P_ISPLAYER))
@@ -723,7 +723,7 @@ EX void buildRosemap() {
     rosewave++;
     for(int k=0; k<isize(dcal); k++) {
       cell *c = dcal[k];
-      if(c->wall == waRose && c->cpdist <= gamerange() - 2) 
+      if((c->wall == waRose || c->wall == waTempRose) && c->cpdist <= gamerange() - 2) 
         rosemap[c] = rosewave * 8 + 2;
       }
     }
@@ -732,7 +732,7 @@ EX void buildRosemap() {
     cell *c = it->first;
     int r = it->second;
     if(r < (rosewave) * 8) continue;
-    if((r&7) == 2) if(c->wall == waRose || !isWall(c)) for(int i=0; i<c->type; i++) {
+    if((r&7) == 2) if(c->wall == waRose || c->wall == waHedge || c->wall == waTempHedge || c->wall == waTempRose || !isWall(c)) for(int i=0; i<c->type; i++) {
       cell *c2 = c->move(i);
       if(!c2) continue;
       // if(snakelevel(c2) <= snakelevel(c) - 2) continue;
@@ -748,6 +748,26 @@ EX void buildRosemap() {
     if(airdist(it->first) < 3 || whirlwind::cat(it->first)) r |= 7;
     if(it->first->land == laBlizzard) r |= 7;
     forCellEx(c2, it->first) if(airdist(c2) < 3) r |= 7;
+    }
+  
+  if((havewhat&HF_ROSE)) {
+    
+    for(int k=0; k<isize(dcal); k++) {
+      cell *c = dcal[k];
+      if(c->land == laHedgeMaze && celldistAlt(c) <= -4) {
+        if((celldistAlt(c) & 7) == rosephase) {
+          rosemap[c] = rosewave * 8 + 2;
+          }
+        else if((celldistAlt(c) & 7) == ((rosephase+7) & 7)) {
+          rosemap[c] = rosewave * 8 + 3;
+          }
+        else {
+          rosemap[c] = rosewave * 8 + 4;
+          }
+        if(airdist(c) < 3) rosemap[c] |= 7;
+        forCellEx(c2, c) if(airdist(c2) < 3) rosemap[c] |= 7;
+        }
+      }
     }
 
   }

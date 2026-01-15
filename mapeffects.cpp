@@ -439,7 +439,7 @@ EX bool makeflame(cell *c, int timeout, bool checkonly) {
     }
   else if(c->wall != waCTree && c->wall != waBigTree && c->wall != waSmallTree && 
     c->wall != waVinePlant && !passable(c, NULL, P_MONSTER | P_MIRROR) &&
-    c->wall != waSaloon && c->wall != waRose) return false;
+    c->wall != waSaloon && c->wall != waRose && c->wall != waHedge && c->wall != waTempHedge && c->wall != waTempRose) return false;
   // reptiles are able to use the water to put the fire off
   else if(c->wall == waReptileBridge) return false;
   else if(c->wall == waDock) {
@@ -1051,6 +1051,9 @@ EX void explodeAround(cell *c) {
       if(c2->wall == waPlatform) c2->wall = waNone;
       if(c2->wall == waStone) c2->wall = waNone, destroyTrapsAround(c2);
       if(c2->wall == waRose) c2->wall = waNone;
+      if(c2->wall == waHedge) c2->wall = waNone;
+      if(c2->wall == waTempHedge) c2->wall = waNone;
+      if(c2->wall == waTempRose) c2->wall = waNone;
       if(c2->wall == waRuinWall) c2->wall = waNone;
       if(c2->wall == waLadder) c2->wall = waNone;
       if(c2->wall == waGargoyle) c2->wall = waNone;

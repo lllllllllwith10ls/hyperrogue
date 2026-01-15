@@ -175,6 +175,8 @@ EX vector<orbinfo> orbinfos = {
   {orbgenflags::S_NATIVE, laCursed, 400, 1500, itOrbPurity},
   {orbgenflags::S_NAT_NT, laDice, 500, 800, itOrbLuck},
   {orbgenflags::S_GUEST, laDice, 750, 0, itOrbAir},
+  {orbgenflags::S_NATIVE, laHedgeMaze, 1500, 4500, itOrbGarden},
+  {orbgenflags::S_GUEST, laHedgeMaze, 2000, 0, itOrbBeauty},
   {orbgenflags::S_NATIVE, laWhirlpool, 0, 2000, itOrbWater}, // needs to be last
   };
 
@@ -317,7 +319,11 @@ EX eOrbLandRelation getOLR(eItem it, eLand l) {
       return olrDangerous;
     
   if(it == itOrbMatter)
-    if(among(l, laCaves, laEmerald, laAlchemist, laCaribbean, laMinefield, laCocytus, laWestWall))
+    if(among(l, laCaves, laEmerald, laAlchemist, laPaint, laCaribbean, laMinefield, laCocytus, laWestWall))
+      return olrUseless;
+    
+  if(it == itOrbGarden)
+    if(among(l, laCaves, laEmerald, laAlchemist, laPaint, laCaribbean, laMinefield, laCocytus, laWhirlpool, laWarpSea, laHurricane, laWhirlwind, laBlizzard) || isGravityLand(l))
       return olrUseless;
 
   if(l == laPrincessQuest)
@@ -373,7 +379,7 @@ EX eOrbLandRelation getOLR(eItem it, eLand l) {
   if(it == itOrbSword && l == laBurial)
     return olrAlways;
     
-  if(it == itOrbFish && !among(l, laOcean, laLivefjord, laWhirlpool, laCamelot, laTortoise, laWarpCoast, laWarpSea, laCocytus, laBrownian, laVariant, laWet, laFrog))
+  if(it == itOrbFish && !among(l, laOcean, laLivefjord, laWhirlpool, laCamelot, laTortoise, laWarpCoast, laWarpSea, laCocytus, laBrownian, laVariant, laWet, laFrog, laHurricane))
     return olrUseless;
 
   if(it == itOrbDomination && l != laOcean && l != laRedRock && l != laDesert &&

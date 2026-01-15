@@ -236,6 +236,7 @@ EX void teleportToLand(eLand l, bool make_it_safe) {
   if(l == laTemple) l = laRlyeh;
   if(l == laClearing) l = laOvergrown;
   if(l == laWhirlpool) l = laOcean;
+  if(l == laHedgeMaze) l = laRose;
   if(l == laCrossroads5) l = laCrossroads2; // could not fit!
   if(l == laCamelot && !ls::single())
     l = laCrossroads;

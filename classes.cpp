@@ -47,6 +47,10 @@ const char *slimehelp =
   "but when they are killed, they explode, destroying items and changing "
   "the color of the slime and slime beasts around them.";
 
+const char *painthelp =
+  "This area is filled with paint of many colors. You can move through colors "
+  "cyclically on the color wheel. The rules of the alchemist lab still apply.";
+
 const char *gdemonhelp =
     "These creatures are slow, but very powerful... more powerful than you. "
     "You need some more experience in demon fighting before you will be able to defeat them. "
@@ -503,7 +507,7 @@ EX monstertype minf[motypes] = {
   };
 
 #if HDR
-#define NUM_GS 8
+#define NUM_GS 10
 struct genderswitch_t {
   int gender;
   eMonster m;
@@ -526,6 +530,10 @@ EX genderswitch_t genderswitch[NUM_GS] = {
   { GEN_M, moRoseBeauty,    "Handsome Gardener",
     "Tall, strong, and holding a flower in his hand. You could "
     "not bring yourself to attack such a handsome man."},
+  { GEN_F, moLostBeauty,    "Lost Beauty",
+    "A rose beauty lost in the Hedge Maze. Avoids configurations of hedges that could kill her."},
+  { GEN_M, moLostBeauty,    "Lost Gardener",
+    "A handsome guardener lost in the Hedge Maze. Avoids configurations of hedges that could kill him."},
   { GEN_F, moRusalka,       "Rusałka",
     "A malicious water being. When you kill her, she changes the tile you are standing on, from land to shallow water, or from shallow water to deep water."},
   { GEN_M, moRusalka,       "Topielec",

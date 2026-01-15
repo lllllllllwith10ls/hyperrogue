@@ -78,6 +78,7 @@ EX namespace inv {
     if(orb == itOrbMatter) return 9;
     if(orb == itOrbIntensity) return 8;
     if(orb == itOrbLuck) return 8;
+    if(orb == itOrbReplicate) return 8;
     if(orb == itOrbSpace) return 7;
 
     if(orb == itOrbWinter) return 6;
@@ -87,6 +88,7 @@ EX namespace inv {
     if(orb == itOrbDigging) return 6;
     if(orb == itOrbGravity) return 6;
     if(orb == itOrbImpact) return 6;
+    if(orb == itOrbColor) return 6;
     
     if(orb == itOrbTime) return 5;
     if(orb == itOrbAir) return 5;
@@ -97,6 +99,7 @@ EX namespace inv {
     if(orb == itOrbDomination) return 5;
     if(orb == itOrbBull) return 5;
     if(orb == itOrbHorns) return 5;
+    if(orb == itOrbBarr) return 5;
 
     if(orb == itOrbAether) return 4;
     if(orb == itOrbInvis) return 4;

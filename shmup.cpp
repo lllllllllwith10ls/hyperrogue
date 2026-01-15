@@ -632,7 +632,7 @@ double igospan[IGO+1] = { 0,
 bool swordKills(eMonster m) {
   return 
     m != moHedge && m != moMetalBeast && m != moMetalBeast2
-    && m != moTortoise && m != moGreater && m != moRoseBeauty
+    && m != moTortoise && m != moGreater && m != moRoseBeauty && m != moLostBeauty
     && m != moReptile && !isBull(m) && m != moButterfly &&
     m != moSalamander && m != moTerraWarrior && m != moBrownBug;
   }

@@ -2099,6 +2099,38 @@ EX void giantLandSwitch(cell *c, int d, cell *from) {
         }
       break;
     
+    case laHedgeMaze:
+      if(d == 8) {
+        if(celldistAlt(c) % 2 == 0 && hrand(100) < 60)
+          c->wall = waHedge;
+        else if(-celldistAlt(c) % 2 == 1 && hrand(100) < 5)
+          c->wall = waHedge;
+        rosemap[c] = 0;
+        if(celldistAlt(c) <= -1) {
+          if((celldistAlt(c) & 7) == rosephase) {
+            rosemap[c] = rosewave * 8 + 2;
+            }
+          else if((celldistAlt(c) & 7) == ((rosephase+7) & 7)) {
+            rosemap[c] = rosewave * 8 + 3;
+            }
+          }
+        }
+      ONEMPTY {
+        if(hrand(2000) < PT(100 + min(kills[moLostBeauty], 200), 100) && notDippingFor(itWhiteRose)) {
+          for(int t=0; t<c->type; t++) if(c->move(t) && c->move(t)->wall == waHedge)
+            c->item = itWhiteRose;
+          }
+        if(hrand_monster(25000) < 5 + items[itWhiteRose] + yendor::hardness()) {
+          c->monst = moRoseLady;
+          }
+        else if(hrand_monster(50000) < 5 + items[itWhiteRose] + yendor::hardness()) {
+          c->wall = waNone;
+          forCellEx(c2, c) c2->wall = waNone;
+          c->monst = moLostBeauty;
+          }
+        }
+      break;
+    
     case laHunting:
       if(d == 7 && c->land == laHunting && !racing::on && !safety && !reptilecheat) {
         if(hrand(1000) < 20) {

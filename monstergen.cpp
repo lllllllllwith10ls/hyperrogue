@@ -687,6 +687,9 @@ EX void wandering() {
     else if(c->land == laRose && wchance(items[itRose], 25))
       c->monst = moFalsePrincess;
 
+    else if(c->land == laHedgeMaze && wchance(items[itWhiteRose], 25))
+      c->monst = moRoseLady;
+
     else if(c->land == laHell && wchance(items[itHell], 20))
       c->monst = hrand(3) ? moLesser : moGreater;
 

@@ -905,7 +905,7 @@ void pcmove::tell_why_cannot_attack() {
     else
       addMessage(XLAT("Stab them by walking around them."));
     }
-  else if(c2->monst == moRoseBeauty || isBull(c2->monst) || c2->monst == moButterfly) 
+  else if(c2->monst == moRoseBeauty || c2->monst == moLostBeauty || isBull(c2->monst) || c2->monst == moButterfly) 
     addMessage(XLAT("You cannot attack %the1!", c2->monst));
   else if(c2->monst == moFlailer && !c2->stuntime) {
     addMessage(XLAT("You cannot attack %the1 directly!", c2->monst));

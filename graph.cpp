@@ -1027,7 +1027,7 @@ EX bool drawItemType(eItem it, cell *c, const shiftmatrix& V, color_t icol, int 
     xsh = NULL;
     }
   
-  else if(it == itRose) {
+  else if(it == itRose || it == itWhiteRose) {
     for(int u=0; u<4; u++)
       queuepoly(Vit * spinptick(1500, 0) * spin(30._deg * u), cgi.shRoseItem, darkena(icol, 0, hidden ? 0x30 : 0xA0));
     }
@@ -1098,7 +1098,7 @@ EX bool drawItemType(eItem it, cell *c, const shiftmatrix& V, color_t icol, int 
       if(c && GDIM == 2) Vit = rgpushxto0(tC0(Vit));
       auto Vit1 = Vit * spin90();
 
-      if (it == itOrbBeauty) {
+      if (it == itOrbBeauty || it == itOrbGarden) {
         queuepolyat(Vit, cgi.shDisk, dark1, prio);
         for(int u=0; u<3; u++)
           queuepolyat(Vit1 * spin(40._deg * u), cgi.shSmallRose, dark, prio);
@@ -1172,7 +1172,7 @@ EX bool drawItemType(eItem it, cell *c, const shiftmatrix& V, color_t icol, int 
         }
       else if (it == itOrbFlash)
         queuepolyat(Vit1, cgi.shFlash, dark, prio);
-      else if (it == itOrbMatter || it == itOrbStone) {
+      else if (it == itOrbMatter || it == itOrbStone || it == itOrbBarr) {
         queuepolyat(Vit, cgi.shDisk, dark1, prio);
         queuepolyat(Vit1, cgi.shDiskSq, dark, prio);
         }
@@ -1184,6 +1184,11 @@ EX bool drawItemType(eItem it, cell *c, const shiftmatrix& V, color_t icol, int 
         queuepolyat(Vit, cgi.shDisk, dark, prio);
         dynamicval<color_t> p(poly_outline, dark);
         queuepolyat(Vit1, cgi.shHeptagram, 0, prio);
+        }
+      else if (it == itOrbColor) {
+        dark = darkena(colorfulcolor(100), 0, inice ? 0x80 : hidden ? 0x20 : 0xC0);
+        queuepolyat(Vit, cgi.shDisk, dark1, prio);
+        queuepolyat(Vit, cgi.shDiskM, dark, prio);
         }
       else {
         bool jump = (it == itOrbPhasing || it == itOrbDash || it == itOrbFrog);
@@ -1197,10 +1202,10 @@ EX bool drawItemType(eItem it, cell *c, const shiftmatrix& V, color_t icol, int 
                      (it == itOrbFreedom || it == itOrbRecall) ? &cgi.shDiskSq :
                      (it == itOrbEnergy) ? &cgi.shHalfDisk :
                      (it == itOrbSpace) ? &cgi.shSmallPirateHook :
-                     (it == itOrbChoice || it == itOrbMirror || it == itOrbMagnetism || it == itOrbEmpathy || it == itOrbDiscord) ? &cgi.shEccentricDisk :
+                     (it == itOrbChoice || it == itOrbMirror || it == itOrbMagnetism || it == itOrbEmpathy || it == itOrbDiscord || it == itOrbReplicate) ? &cgi.shEccentricDisk :
                      (it == itOrbPsi || it == itOrbSide3) ? &cgi.shDiskS :
                      (it == itOrbPurity) ? &cgi.shSmallEgg :
-                     (it == itOrbLightning) ? &cgi.shLightningBolt :
+                     (it == itOrbLightning || it == itOrbCharge) ? &cgi.shLightningBolt :
                      (it == itOrbShield) ? &cgi.shShield :
                      (it == itOrbTime) ? &cgi.shHourglass :
                      (it == itOrbAir) ? &cgi.shSmallFan :
@@ -1686,7 +1691,7 @@ EX bool drawMonsterType(eMonster m, cell *where, const shiftmatrix& V1, color_t 
       return true;
       }
 
-    case moFalsePrincess: case moRoseLady: case moRoseBeauty: {
+    case moFalsePrincess: case moRoseLady: case moRoseBeauty: case moLostBeauty: {
       princess:
       bool girl = princessgender() == GEN_F;
       bool evil = !isPrincess(m);
@@ -1700,7 +1705,7 @@ EX bool drawMonsterType(eMonster m, cell *where, const shiftmatrix& V1, color_t 
       if(m == moPrincessArmed) 
         queuepoly(VBODY * VBS * lmirror(), vid.cs.charid < 2 ? cgi.shSabre : cgi.shPSword, 0xFFFFFFFF);
       
-      if((m == moFalsePrincess || m == moRoseBeauty) && where && where->cpdist == 1)
+      if((m == moFalsePrincess || m == moRoseBeauty || m == moLostBeauty) && where && where->cpdist == 1)
         queuepoly(VBODY * VBS, cgi.shPKnife, 0xFFFFFFFF);
   
       if(m == moRoseLady) {
@@ -1732,6 +1737,17 @@ EX bool drawMonsterType(eMonster m, cell *where, const shiftmatrix& V1, color_t 
           queuepoly(VHEAD1, cgi.shPHead,  0xF0A0D0FF);
           queuepoly(VBODY * VBS, cgi.shFlowerHand,  0xC00000FF);
           queuepoly(VBODY2 * VBS, cgi.shSuspenders,  0xC00000FF);
+          }
+        }
+      else if(m == moLostBeauty) {
+        if(girl) {
+          queuepoly(VHEAD1, cgi.shBeautyHair,  0xC00000FF);
+          queuepoly(VHEAD2, cgi.shFlowerHair,  0xFFFFFFFF);
+          }
+        else {
+          queuepoly(VHEAD1, cgi.shPHead,  0xC00000FF);
+          queuepoly(VBODY * VBS, cgi.shFlowerHand,  0xFFFFFFFF);
+          queuepoly(VBODY2 * VBS, cgi.shSuspenders,  0xFFFFFFFF);
           }
         }
       else {
@@ -4036,6 +4052,7 @@ EX int getfd(cell *c) {
     case laPaint:
     case laHurricane:
     case laAnt:
+    case laHedgeMaze:
       return 1;
     
     case laVariant:
@@ -4510,6 +4527,7 @@ EX int ceiling_category(cell *c) {
     case laWet:
     case laHurricane:
     case laPaint:
+    case laHedgeMaze:
       return 2;
     
     case laBarrier: 

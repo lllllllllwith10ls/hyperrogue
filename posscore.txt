@@ -1,1 +1,1 @@
-POSSCORE = n+19
+POSSCORE = n+23

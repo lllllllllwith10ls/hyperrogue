@@ -260,7 +260,7 @@ EX bool haveRangedOrb() {
     items[itOrbFrog] || items[itOrbSummon] || items[itOrbMatter] ||
     items[itRevolver] || items[itOrbStunning] || items[itStrongWind] ||
     items[itOrbDomination] || items[itOrbNature] || items[itOrbDash] ||
-    items[itOrbMorph] || items[itOrbPhasing] || items[itOrbBarr];
+    items[itOrbMorph] || items[itOrbPhasing] || items[itOrbBarr] || items[itOrbGarden];
   }
 
 EX bool isFriendlyGhost(eMonster m) {

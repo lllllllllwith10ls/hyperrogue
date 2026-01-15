@@ -380,6 +380,23 @@ EX bool batsAfraid(cell *c) {
   return false;
   }
 
+
+EX bool beautyAfraid(cell *c) {
+  // lost beauties 
+  forCellEx(c2, c) if(isPlayerOn(c2) || isFriendlyOrBug(c2)) return false;
+  
+  forCellEx(c2, c) if(c2->wall == waRose || c2->wall == waTempRose ) {
+    return true;
+    }
+  if(c->master->alt) {
+    forCellEx(c2, c) if(c2->wall != waHedge && c2->wall != waTempHedge && celldistAlt(c) > celldistAlt(c2) ) {
+      return false;
+      }
+    return true;
+    }
+  return false;
+  }
+
 EX int angledist(int t, int d1, int d2) {
   int dd = d1 - d2;
   while(dd<0) dd += t;
@@ -468,7 +485,8 @@ EX int moveval(cell *c1, cell *c2, int d, flagtype mf) {
   if(cannotGo(m, c2)) return -600;
   
   // Rose Beauties keep to the Rose Garden
-  if(m == moRoseBeauty && c2->land != laRose) return -600;
+  if((m == moRoseBeauty || m == moLostBeauty) && c2->land != laRose && c2->land != laHedgeMaze) return -600;
+  if(m == moLostBeauty && beautyAfraid(c2)) return 790;
   
   // Ants move with their rules
   if(isAnt(c1) && c1->mondir != NODIR && d != getAntMove(c1)) return -1700;
@@ -573,6 +591,7 @@ EX int stayval(cell *c, flagtype mf) {
   if(isWorm(c->monst)) return 550;
   if(c->monst == moRagingBull) return -1690; // worse than to stay in place
   if(c->monst == moBat && batsAfraid(c)) return 575;
+  if(c->monst == moLostBeauty && beautyAfraid(c)) return 575;
   if(c->monst == moHunterGuard) return 1600; // prefers to stay in place
   // Lava Wolves will wander if not hunting
   if(c->monst == moLavaWolf) return 750;
@@ -863,7 +882,7 @@ EX void moveWorm(cell *c) {
   
   int dir = pickMoveDirection(c, mf);
   
-  if(c->wall == waRose) {
+  if(c->wall == waRose || c->wall == waTempRose) {
     addMessage(XLAT("%The1 eats %the2!", c->monst, c->wall));
     c->wall = waNone;
     dir = -1;

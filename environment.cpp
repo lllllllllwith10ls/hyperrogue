@@ -454,6 +454,8 @@ EX void bfs() {
         if(c2->land == laClearing) havewhat |= HF_MUTANT;
 
         if(c2->wall == waRose) havewhat |= HF_ROSE;
+        if(c2->wall == waTempRose) havewhat |= HF_ROSE;
+        if(c2->land == laHedgeMaze) havewhat |= HF_ROSE;
         
         if((hadwhat & HF_ROSE) && (rosemap[c2] & 3)) havewhat |= HF_ROSE;
         

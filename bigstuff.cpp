@@ -83,7 +83,7 @@ EX int euclidAlt(short x, short y) {
     else
       return max(x, y);
     }
-  else if(specialland == laCaribbean || specialland == laWhirlpool || specialland == laMountain) {
+  else if(specialland == laCaribbean || specialland == laWhirlpool || specialland == laMountain || specialland == laHedgeMaze) {
     if(euc::in(2,6))
       return 
         min(
@@ -1860,7 +1860,7 @@ EX void build_horocycles(cell *c, cell *from) {
 
   if(!ls::any_order() && !ls::single()) return;
   
-  if(ls::single() && !among(specialland, laTemple, laMountain, laClearing, laStorms, laWhirlpool, laCaribbean, laCanvas, laPalace, laPrincessQuest, laCamelot))
+  if(ls::single() && !among(specialland, laTemple, laMountain, laClearing, laStorms, laWhirlpool, laCaribbean, laCanvas, laPalace, laPrincessQuest, laCamelot, laHedgeMaze))
     return;
   
   // buildbigstuff
@@ -1921,6 +1921,9 @@ EX void build_horocycles(cell *c, cell *from) {
     celllister cl(c, 5, 1000000, NULL);
     for(cell *c: cl.lst) if(c->master->alt) currentmap->extend_altmap(c->master);
     }
+    
+  if(c->land == laRose && can_start_horo(c) && (quickfind(laHedgeMaze) || (hrand(I2000) < 50 && landUnlocked(laHedgeMaze))))
+    create_altmap(c, horo_gen_distance(), hsA);
   }
 
 EX void buildBigStuff(cell *c, cell *from) {
@@ -2291,6 +2294,10 @@ EX void moreBigStuff(cell *c) {
 
   if(!ls::hv_structure() && extend_alt(c, laWhirlpool, laOcean) && in_single_horo(c, laWhirlpool))
     c->land = laWhirlpool, c->wall = waSea, c->monst = moNone, c->item = itNone;
+
+  if(!ls::hv_structure() && extend_alt(c, laHedgeMaze, laRose) && in_single_horo(c, laHedgeMaze)) {
+    c->land = laHedgeMaze, c->wall = waNone;
+    }
   }
 
 EX void generate_mines() {
